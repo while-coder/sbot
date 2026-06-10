@@ -569,7 +569,6 @@ export default {
     source_tool: '工具',
     source_sync: '同步',
     source_rule: '规则',
-    source_migrated: '迁移',
     trigger_absolute: '定时',
     trigger_interval: '间隔',
     trigger_cron: 'Cron',

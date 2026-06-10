@@ -17,8 +17,9 @@ import {
     type IAgendaService,
     type IAgendaSyncExtractor,
     type AgendaSyncAction,
+    AgendaSyncActionType,
 } from "scorpio.ai";
-import type { AgendaFile } from "./AgendaStore";
+import type { AgendaRecord } from "./AgendaStore";
 import { agendaStore } from "./AgendaStore";
 import { LoggerService } from "../Core/LoggerService";
 import { agendaTriggerEngine } from "./TriggerEngine";
@@ -51,7 +52,7 @@ export class AgendaService implements IAgendaService {
         const existing = await this.findNearDuplicate(content, dueAt);
         if (existing) return { item: existing, created: false, existed: true };
 
-        const file = await agendaStore.createItem(this.profileId, id => ({
+        const record = await agendaStore.createItem(this.profileId, id => ({
             item: {
                 id,
                 content,
@@ -71,22 +72,22 @@ export class AgendaService implements IAgendaService {
             fireLogs: [],
         }));
 
-        const trigger = await this.createTriggerIfNeeded(file.item, args, action, now);
+        const trigger = await this.createTriggerIfNeeded(record.item, args, action, now);
         if (trigger) await agendaTriggerEngine.reload(trigger.id);
-        const view = await this.getView(file.item.id) as AgendaItemView;
+        const view = await this.getView(record.item.id) as AgendaItemView;
         return { item: view, created: true, existed: false };
     }
 
     static async listAll(filter?: AgendaListFilter): Promise<AgendaItemView[]> {
-        return AgendaService.buildList((await agendaStore.listAllFiles()).map(ref => ref.data), filter);
+        return AgendaService.buildList((await agendaStore.listAllItems()).map(ref => ref.data), filter);
     }
 
     async list(filter?: AgendaListFilter): Promise<AgendaItemView[]> {
-        return AgendaService.buildList((await agendaStore.listProfileFiles(this.profileId)).map(ref => ref.data), filter);
+        return AgendaService.buildList((await agendaStore.listProfileItems(this.profileId)).map(ref => ref.data), filter);
     }
 
-    private static buildList(files: AgendaFile[], filter?: AgendaListFilter): AgendaItemView[] {
-        const views = files.map(file => AgendaService.buildView(file)).filter(view => AgendaService.matchesFilter(view, filter));
+    private static buildList(records: AgendaRecord[], filter?: AgendaListFilter): AgendaItemView[] {
+        const views = records.map(record => AgendaService.buildView(record)).filter(view => AgendaService.matchesFilter(view, filter));
         views.sort((a, b) => {
             const an = AgendaService.firstNextFire(a) ?? a.dueAt ?? a.createdAt;
             const bn = AgendaService.firstNextFire(b) ?? b.dueAt ?? b.createdAt;
@@ -134,8 +135,8 @@ export class AgendaService implements IAgendaService {
             if (patch.timezone !== undefined) triggerFields.timezone = patch.timezone;
             if (patch.action !== undefined) triggerFields.action = patch.action;
             if (patch.message !== undefined) triggerFields.message = patch.message?.trim() || null;
-            const file = await agendaStore.findByItemId(id);
-            const activeTriggers = file?.data.triggers.filter(t => t.enabled) ?? [];
+            const record = await agendaStore.findByItemId(id);
+            const activeTriggers = record?.data.triggers.filter(t => t.enabled) ?? [];
             for (const trigger of activeTriggers) await agendaStore.updateTrigger(trigger.id, triggerFields);
             await agendaTriggerEngine.reloadItem(id);
         } else {
@@ -182,8 +183,8 @@ export class AgendaService implements IAgendaService {
     async skipNext(id: number): Promise<AgendaItemView | null> {
         const item = await this.requireOwnedItem(id);
         if (!item) return null;
-        const file = await agendaStore.findByItemId(id);
-        const trigger = file?.data.triggers
+        const record = await agendaStore.findByItemId(id);
+        const trigger = record?.data.triggers
             .filter(t => t.enabled && t.nextFireAt)
             .sort((a, b) => (a.nextFireAt ?? 0) - (b.nextFireAt ?? 0))[0];
         if (!trigger) return this.getView(id);
@@ -205,15 +206,15 @@ export class AgendaService implements IAgendaService {
         return this.getView(id);
     }
 
-    static async delete(id: number): Promise<AgendaFile | null> {
+    static async delete(id: number): Promise<AgendaRecord | null> {
         const data = await agendaStore.deleteItem(id);
         if (data) for (const trigger of data.triggers) agendaTriggerEngine.cancel(trigger.id);
         return data;
     }
 
-    static async fireLogs(id: number): Promise<AgendaFile["fireLogs"]> {
-        const file = await agendaStore.findByItemId(id);
-        return [...(file?.data.fireLogs ?? [])].sort((a, b) => b.firedAt - a.firedAt);
+    static async fireLogs(id: number): Promise<AgendaRecord["fireLogs"]> {
+        const record = await agendaStore.findByItemId(id);
+        return [...(record?.data.fireLogs ?? [])].sort((a, b) => b.firedAt - a.firedAt);
     }
 
     async formatForLLM(filter?: AgendaListFilter): Promise<string> {
@@ -243,13 +244,13 @@ export class AgendaService implements IAgendaService {
     }
 
     private async applySyncAction(action: AgendaSyncAction): Promise<void> {
-        if (action.type === 'create') {
+        if (action.type === AgendaSyncActionType.Create) {
             await this.create({ ...action.args, source: AgendaSource.Sync });
-        } else if (action.type === 'update') {
+        } else if (action.type === AgendaSyncActionType.Update) {
             await this.update(action.id, action.patch);
-        } else if (action.type === 'complete') {
+        } else if (action.type === AgendaSyncActionType.Complete) {
             await this.complete(action.id);
-        } else if (action.type === 'cancel') {
+        } else if (action.type === AgendaSyncActionType.Cancel) {
             await this.cancel(action.id);
         }
     }
@@ -334,14 +335,14 @@ export class AgendaService implements IAgendaService {
     }
 
     private async findNearDuplicate(content: string, dueAt: number | null): Promise<AgendaItemView | null> {
-        const files = await agendaStore.listProfileFiles(this.profileId);
+        const records = await agendaStore.listProfileItems(this.profileId);
         const normalized = this.normalize(content);
-        for (const file of files.slice(-30).reverse()) {
-            const row = file.data.item;
+        for (const record of records.slice(-30).reverse()) {
+            const row = record.data.item;
             if (row.status !== AgendaStatus.Pending) continue;
             if (this.normalize(row.content) !== normalized) continue;
-            if (dueAt == null && row.dueAt == null) return AgendaService.buildView(file.data);
-            if (dueAt != null && row.dueAt != null && Math.abs(dueAt - row.dueAt) < 2 * 60 * 1000) return AgendaService.buildView(file.data);
+            if (dueAt == null && row.dueAt == null) return AgendaService.buildView(record.data);
+            if (dueAt != null && row.dueAt != null && Math.abs(dueAt - row.dueAt) < 2 * 60 * 1000) return AgendaService.buildView(record.data);
         }
         return null;
     }
@@ -351,33 +352,33 @@ export class AgendaService implements IAgendaService {
     }
 
     private async requireOwnedItem(id: number): Promise<AgendaItemRow | null> {
-        const file = await agendaStore.findByItemId(id);
-        const item = file?.data.item;
+        const record = await agendaStore.findByItemId(id);
+        const item = record?.data.item;
         if (!item || item.profileId !== this.profileId) return null;
         return item;
     }
 
     private async getView(id: number): Promise<AgendaItemView | null> {
-        const file = await agendaStore.findByItemId(id);
-        if (!file || file.data.item.profileId !== this.profileId) return null;
-        return AgendaService.buildView(file.data);
+        const record = await agendaStore.findByItemId(id);
+        if (!record || record.data.item.profileId !== this.profileId) return null;
+        return AgendaService.buildView(record.data);
     }
 
-    static buildView(file: AgendaFile): AgendaItemView {
+    static buildView(record: AgendaRecord): AgendaItemView {
         return {
-            ...file.item,
-            status: file.item.status as AgendaStatus,
-            priority: file.item.priority as AgendaPriority,
-            category: file.item.category as AgendaCategory,
-            completionMode: file.item.completionMode as AgendaCompletionMode,
-            source: file.item.source as AgendaSource,
-            triggers: file.triggers.map(t => ({
+            ...record.item,
+            status: record.item.status as AgendaStatus,
+            priority: record.item.priority as AgendaPriority,
+            category: record.item.category as AgendaCategory,
+            completionMode: record.item.completionMode as AgendaCompletionMode,
+            source: record.item.source as AgendaSource,
+            triggers: record.triggers.map(t => ({
                 ...t,
                 kind: t.kind as AgendaTriggerKind,
                 action: t.action as AgendaTriggerAction,
                 enabled: Boolean(t.enabled),
             })) as AgendaTrigger[],
-            occurrences: file.occurrences.map(o => ({
+            occurrences: record.occurrences.map(o => ({
                 ...o,
                 status: o.status as AgendaOccurrenceStatus,
             })),
@@ -406,8 +407,8 @@ export class AgendaService implements IAgendaService {
     }
 
     private async firstPendingOccurrence(itemId: number): Promise<AgendaOccurrenceRow | null> {
-        const file = await agendaStore.findByItemId(itemId);
-        return file?.data.occurrences
+        const record = await agendaStore.findByItemId(itemId);
+        return record?.data.occurrences
             .filter(o => o.status === AgendaOccurrenceStatus.Pending)
             .sort((a, b) => a.scheduledAt - b.scheduledAt)[0] ?? null;
     }

@@ -62,8 +62,8 @@ class AgendaTriggerEngine {
     }
 
     async reloadItem(itemId: number): Promise<void> {
-        const file = await agendaStore.findByItemId(itemId);
-        for (const trigger of file?.data.triggers ?? []) await this.reload(trigger.id);
+        const record = await agendaStore.findByItemId(itemId);
+        for (const trigger of record?.data.triggers ?? []) await this.reload(trigger.id);
     }
 
     private schedule(triggerId: number, nextFireAt: number): void {

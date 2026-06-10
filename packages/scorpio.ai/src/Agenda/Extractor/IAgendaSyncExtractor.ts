@@ -4,11 +4,18 @@ import type {
     AgendaUpdatePatch,
 } from "../IAgendaService";
 
+export enum AgendaSyncActionType {
+    Create = 'create',
+    Update = 'update',
+    Complete = 'complete',
+    Cancel = 'cancel',
+}
+
 export type AgendaSyncAction =
-    | { type: 'create'; args: AgendaCreateArgs }
-    | { type: 'update'; id: number; patch: AgendaUpdatePatch }
-    | { type: 'complete'; id: number }
-    | { type: 'cancel'; id: number };
+    | { type: AgendaSyncActionType.Create; args: AgendaCreateArgs }
+    | { type: AgendaSyncActionType.Update; id: number; patch: AgendaUpdatePatch }
+    | { type: AgendaSyncActionType.Complete; id: number }
+    | { type: AgendaSyncActionType.Cancel; id: number };
 
 export interface IAgendaSyncExtractor {
     extract(userMessage: string, assistantMessages: string[], existingItems: AgendaItemView[]): Promise<AgendaSyncAction[]>;

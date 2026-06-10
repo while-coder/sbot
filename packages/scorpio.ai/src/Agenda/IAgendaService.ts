@@ -28,7 +28,6 @@ export enum AgendaSource {
     Tool = 'tool',
     Sync = 'sync',
     Rule = 'rule',
-    Migrated = 'migrated',
 }
 
 export enum AgendaTriggerKind {

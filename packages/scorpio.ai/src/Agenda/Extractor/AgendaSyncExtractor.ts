@@ -11,7 +11,7 @@ import {
     AgendaTriggerAction,
     type AgendaItemView,
 } from "../IAgendaService";
-import { type AgendaSyncAction, IAgendaSyncExtractor } from "./IAgendaSyncExtractor";
+import { type AgendaSyncAction, AgendaSyncActionType, IAgendaSyncExtractor } from "./IAgendaSyncExtractor";
 
 const RelativeTimeSchema = z.object({
     amount: z.number(),
@@ -42,10 +42,10 @@ const UpdatePatchSchema = z.object({
 
 const AgendaSyncSchema = z.object({
     actions: z.array(z.discriminatedUnion("type", [
-        z.object({ type: z.literal('create'), args: CreateArgsSchema }),
-        z.object({ type: z.literal('update'), id: z.number(), patch: UpdatePatchSchema }),
-        z.object({ type: z.literal('complete'), id: z.number() }),
-        z.object({ type: z.literal('cancel'), id: z.number() }),
+        z.object({ type: z.literal(AgendaSyncActionType.Create), args: CreateArgsSchema }),
+        z.object({ type: z.literal(AgendaSyncActionType.Update), id: z.number(), patch: UpdatePatchSchema }),
+        z.object({ type: z.literal(AgendaSyncActionType.Complete), id: z.number() }),
+        z.object({ type: z.literal(AgendaSyncActionType.Cancel), id: z.number() }),
     ])).describe("Agenda actions extracted from the conversation. Return [] if no agenda change is needed."),
 });
 

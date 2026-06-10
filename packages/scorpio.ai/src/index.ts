@@ -267,6 +267,7 @@ export {
   type AgendaItemView,
   type AgendaToolDescs,
   type AgendaSyncAction,
+  AgendaSyncActionType,
 } from "./Agenda";
 
 // ========================================

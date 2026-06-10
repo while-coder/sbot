@@ -5,31 +5,30 @@ import path from "path";
 import { config } from "../Core/Config";
 import type { AgendaFireLogRow, AgendaItemRow, AgendaOccurrenceRow, AgendaStoredItemRow, AgendaTriggerRow } from "./types";
 
-export interface AgendaFile {
-    state: AgendaFileState;
+export interface AgendaRecord {
     item: AgendaItemRow;
     triggers: AgendaTriggerRow[];
     occurrences: AgendaOccurrenceRow[];
     fireLogs: AgendaFireLogRow[];
 }
 
-export interface AgendaFileInput {
+export interface AgendaRecordInput {
     item: AgendaStoredItemRow;
     triggers: AgendaTriggerRow[];
     occurrences: AgendaOccurrenceRow[];
     fireLogs: AgendaFireLogRow[];
 }
 
-export interface AgendaFileRef {
-    filePath: string;
-    data: AgendaFile;
+export interface AgendaRecordRef {
+    dbPath: string;
+    data: AgendaRecord;
 }
 
-type AgendaFileState = Record<string, string>;
-
+const AGENDA_DB_NAME = "agenda.db";
 const ITEM_ID_FACTOR = 1_000_000;
 const CHILD_ID_FACTOR = 1_000;
-const AGENDA_FILE_SCHEMA_VERSION = "1";
+
+type AgendaTable = "items" | "triggers" | "occurrences";
 
 class AgendaStore {
     private lock = Promise.resolve();
@@ -38,8 +37,8 @@ class AgendaStore {
         return config.getProfileAgendaPath(String(profileId));
     }
 
-    private filePath(profileId: number, itemId: number): string {
-        return path.join(this.profileDir(profileId), `${itemId}.db`);
+    private dbPath(profileId: number): string {
+        return path.join(this.profileDir(profileId), AGENDA_DB_NAME);
     }
 
     private inferProfileId(itemId: number): number {
@@ -62,13 +61,24 @@ class AgendaStore {
         }
     }
 
-    private open(filePath: string): Database.Database {
+    private openProfile(profileId: number): Database.Database {
+        const filePath = this.dbPath(profileId);
         const dir = path.dirname(filePath);
         if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
         const db = new Database(filePath);
         db.pragma("journal_mode = WAL");
+        this.ensureSchema(db);
+        return db;
+    }
+
+    private openExistingProfile(profileId: number): Database.Database | null {
+        if (!existsSync(this.dbPath(profileId))) return null;
+        return this.openProfile(profileId);
+    }
+
+    private ensureSchema(db: Database.Database): void {
         db.exec(`
-            CREATE TABLE IF NOT EXISTS item (
+            CREATE TABLE IF NOT EXISTS items (
                 id                INTEGER PRIMARY KEY,
                 content           TEXT    NOT NULL,
                 status            TEXT    NOT NULL,
@@ -81,10 +91,6 @@ class AgendaStore {
                 createdAt         INTEGER NOT NULL,
                 updatedAt         INTEGER NOT NULL,
                 doneAt            INTEGER
-            );
-            CREATE TABLE IF NOT EXISTS state (
-                key   TEXT PRIMARY KEY,
-                value TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS triggers (
                 id             INTEGER PRIMARY KEY,
@@ -124,61 +130,200 @@ class AgendaStore {
                 ok               INTEGER NOT NULL,
                 errorMessage     TEXT
             );
+            CREATE INDEX IF NOT EXISTS idx_items_status ON items (status, dueAt);
+            CREATE INDEX IF NOT EXISTS idx_triggers_item ON triggers (itemId, id);
             CREATE INDEX IF NOT EXISTS idx_triggers_enabled ON triggers (enabled, nextFireAt);
-            CREATE INDEX IF NOT EXISTS idx_occurrences_status ON occurrences (status, scheduledAt);
-            CREATE INDEX IF NOT EXISTS idx_fire_logs_fired_at ON fire_logs (firedAt);
+            CREATE INDEX IF NOT EXISTS idx_occurrences_item_status ON occurrences (itemId, status, scheduledAt);
+            CREATE INDEX IF NOT EXISTS idx_fire_logs_item_fired_at ON fire_logs (itemId, firedAt);
         `);
-        return db;
     }
 
-    private readAgendaFile(filePath: string, profileId: number): AgendaFile | null {
-        if (!existsSync(filePath)) return null;
-        const db = this.open(filePath);
+    private readAgendaRecordFromDb(db: Database.Database, profileId: number, itemId: number): AgendaRecord | null {
+        const storedItem = db.prepare("SELECT * FROM items WHERE id = ?").get(itemId) as AgendaStoredItemRow | undefined;
+        if (!storedItem) return null;
+        return this.buildAgendaRecord(db, profileId, storedItem);
+    }
+
+    private buildAgendaRecord(db: Database.Database, profileId: number, storedItem: AgendaStoredItemRow): AgendaRecord {
+        const item = { ...storedItem, profileId };
+        const triggers = (db.prepare("SELECT * FROM triggers WHERE itemId = ? ORDER BY id").all(item.id) as any[]).map(row => ({
+            ...row,
+            enabled: Boolean(row.enabled),
+        })) as AgendaTriggerRow[];
+        const occurrences = db.prepare("SELECT * FROM occurrences WHERE itemId = ? ORDER BY scheduledAt, id").all(item.id) as AgendaOccurrenceRow[];
+        const fireLogs = (db.prepare("SELECT * FROM fire_logs WHERE itemId = ? ORDER BY firedAt DESC, id DESC").all(item.id) as any[]).map(row => ({
+            ...row,
+            ok: Boolean(row.ok),
+        })) as AgendaFireLogRow[];
+        return { item, triggers, occurrences, fireLogs };
+    }
+
+    private insertAgendaRecord(db: Database.Database, data: AgendaRecord): void {
+        db.prepare(`
+            INSERT INTO items (
+                id, content, status, priority, category, completionMode,
+                dueAt, source, lastTouchedTurnId, createdAt, updatedAt, doneAt
+            ) VALUES (
+                @id, @content, @status, @priority, @category, @completionMode,
+                @dueAt, @source, @lastTouchedTurnId, @createdAt, @updatedAt, @doneAt
+            )
+        `).run(this.toStoredItem(data.item));
+        const insertTrigger = db.prepare(`
+            INSERT INTO triggers (
+                id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
+                fireCount, maxFires, lastFiredAt, nextFireAt, graceWindowMs, skipNextFireAt,
+                skipFireCount, createdAt
+            ) VALUES (
+                @id, @itemId, @kind, @expr, @timezone, @action, @message, @channelHint, @enabled,
+                @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @graceWindowMs, @skipNextFireAt,
+                @skipFireCount, @createdAt
+            )
+        `);
+        for (const trigger of data.triggers) insertTrigger.run({ ...trigger, enabled: trigger.enabled ? 1 : 0 });
+        const insertOccurrence = db.prepare(`
+            INSERT INTO occurrences (id, itemId, triggerId, scheduledAt, status, doneAt, createdAt)
+            VALUES (@id, @itemId, @triggerId, @scheduledAt, @status, @doneAt, @createdAt)
+        `);
+        for (const occurrence of data.occurrences) insertOccurrence.run(occurrence);
+        const insertFireLog = db.prepare(`
+            INSERT INTO fire_logs (id, itemId, triggerId, firedAt, action, channelSessionId, ok, errorMessage)
+            VALUES (@id, @itemId, @triggerId, @firedAt, @action, @channelSessionId, @ok, @errorMessage)
+        `);
+        for (const log of data.fireLogs) insertFireLog.run({ ...log, ok: log.ok ? 1 : 0 });
+    }
+
+    async listProfileItems(profileId: number): Promise<AgendaRecordRef[]> {
+        const db = this.openExistingProfile(profileId);
+        if (!db) return [];
         try {
-            const state = this.readState(db, profileId);
-            const storedItem = db.prepare("SELECT * FROM item LIMIT 1").get() as AgendaStoredItemRow | undefined;
-            const item = storedItem ? { ...storedItem, profileId } : undefined;
-            if (!item) return null;
-            const triggers = (db.prepare("SELECT * FROM triggers ORDER BY id").all() as any[]).map(row => ({
-                ...row,
-                enabled: Boolean(row.enabled),
-            })) as AgendaTriggerRow[];
-            const occurrences = db.prepare("SELECT * FROM occurrences ORDER BY scheduledAt, id").all() as AgendaOccurrenceRow[];
-            const fireLogs = (db.prepare("SELECT * FROM fire_logs ORDER BY firedAt DESC, id DESC").all() as any[]).map(row => ({
-                ...row,
-                ok: Boolean(row.ok),
-            })) as AgendaFireLogRow[];
-            return { state, item, triggers, occurrences, fireLogs };
+            const items = db.prepare("SELECT * FROM items ORDER BY id").all() as AgendaStoredItemRow[];
+            const dbPath = this.dbPath(profileId);
+            return items.map(item => ({ dbPath, data: this.buildAgendaRecord(db, profileId, item) }));
         } finally {
             db.close();
         }
     }
 
-    private writeAgendaFile(filePath: string, data: AgendaFile): void {
-        const db = this.open(filePath);
-        try {
-            const txn = db.transaction(() => {
-                db.prepare("DELETE FROM state").run();
-                db.prepare("DELETE FROM item").run();
-                db.prepare("DELETE FROM triggers").run();
-                db.prepare("DELETE FROM occurrences").run();
-                db.prepare("DELETE FROM fire_logs").run();
+    async listAllItems(): Promise<AgendaRecordRef[]> {
+        const profilesDir = config.getConfigPath("profiles", true);
+        if (!existsSync(profilesDir)) return [];
+        const result: AgendaRecordRef[] = [];
+        const entries = await readdir(profilesDir, { withFileTypes: true });
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const profileId = Number(entry.name);
+            if (!Number.isInteger(profileId) || profileId <= 0) continue;
+            result.push(...await this.listProfileItems(profileId));
+        }
+        return result.sort((a, b) => a.data.item.profileId - b.data.item.profileId || a.data.item.id - b.data.item.id);
+    }
 
-                const insertState = db.prepare("INSERT INTO state (key, value) VALUES (@key, @value)");
-                for (const [key, value] of Object.entries(this.normalizeState(data.state, data.item.profileId))) {
-                    insertState.run({ key, value });
+    async findByItemId(itemId: number): Promise<AgendaRecordRef | null> {
+        const profileId = this.inferProfileId(itemId);
+        if (profileId > 0) {
+            const db = this.openExistingProfile(profileId);
+            if (db) {
+                try {
+                    const data = this.readAgendaRecordFromDb(db, profileId, itemId);
+                    if (data) return { dbPath: this.dbPath(profileId), data };
+                } finally {
+                    db.close();
                 }
+            }
+        }
+        return null;
+    }
 
+    async findByTriggerId(triggerId: number): Promise<{ dbPath: string; data: AgendaRecord; trigger: AgendaTriggerRow } | null> {
+        const ref = await this.findByItemId(this.inferItemIdFromChildId(triggerId));
+        const trigger = ref?.data.triggers.find(t => t.id === triggerId);
+        return ref && trigger ? { ...ref, trigger } : null;
+    }
+
+    async listEnabledTriggers(): Promise<AgendaTriggerRow[]> {
+        const triggers: AgendaTriggerRow[] = [];
+        for (const ref of await this.listAllItems()) {
+            triggers.push(...ref.data.triggers.filter(t => t.enabled));
+        }
+        return triggers.sort((a, b) => a.id - b.id);
+    }
+
+    async createItem(profileId: number, build: (id: number) => AgendaRecordInput): Promise<AgendaRecord> {
+        return this.withLock(async () => {
+            const db = this.openProfile(profileId);
+            try {
+                const id = this.nextItemIdInDb(db, profileId);
+                const input = build(id);
+                const data: AgendaRecord = {
+                    ...input,
+                    item: { ...input.item, profileId },
+                };
+                db.transaction(() => this.insertAgendaRecord(db, data))();
+                return data;
+            } finally {
+                db.close();
+            }
+        });
+    }
+
+    async updateItem(itemId: number, fields: Partial<AgendaStoredItemRow>): Promise<AgendaRecord | null> {
+        return this.withLock(async () => {
+            const profileId = this.inferProfileId(itemId);
+            const db = this.openExistingProfile(profileId);
+            if (!db) return null;
+            try {
+                this.updateById(db, "items", itemId, fields);
+                return this.readAgendaRecordFromDb(db, profileId, itemId);
+            } finally {
+                db.close();
+            }
+        });
+    }
+
+    async updateTrigger(triggerId: number, fields: Partial<AgendaTriggerRow>): Promise<AgendaRecord | null> {
+        return this.withLock(async () => {
+            const itemId = this.inferItemIdFromChildId(triggerId);
+            const profileId = this.inferProfileId(itemId);
+            const db = this.openExistingProfile(profileId);
+            if (!db) return null;
+            try {
+                if (!this.updateById(db, "triggers", triggerId, fields, new Set(["enabled"]))) return null;
+                return this.readAgendaRecordFromDb(db, profileId, itemId);
+            } finally {
+                db.close();
+            }
+        });
+    }
+
+    async updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTriggerRow>, exceptTriggerId?: number): Promise<number[]> {
+        return this.withLock(async () => {
+            const profileId = this.inferProfileId(itemId);
+            const db = this.openExistingProfile(profileId);
+            if (!db) return [];
+            try {
+                const rows = db.prepare("SELECT id FROM triggers WHERE itemId = ? AND enabled = 1 ORDER BY id").all(itemId) as Array<{ id: number }>;
+                const ids: number[] = [];
+                for (const row of rows) {
+                    if (row.id === exceptTriggerId) continue;
+                    ids.push(row.id);
+                    this.updateById(db, "triggers", row.id, fields, new Set(["enabled"]));
+                }
+                return ids;
+            } finally {
+                db.close();
+            }
+        });
+    }
+
+    async appendTrigger(itemId: number, trigger: Omit<AgendaTriggerRow, "id">): Promise<AgendaTriggerRow | null> {
+        return this.withLock(async () => {
+            const profileId = this.inferProfileId(itemId);
+            const db = this.openExistingProfile(profileId);
+            if (!db) return null;
+            try {
+                if (!this.hasItem(db, itemId)) return null;
+                const row = { ...trigger, id: this.nextChildIdInDb(db, "triggers", itemId) };
                 db.prepare(`
-                    INSERT INTO item (
-                        id, content, status, priority, category, completionMode,
-                        dueAt, source, lastTouchedTurnId, createdAt, updatedAt, doneAt
-                    ) VALUES (
-                        @id, @content, @status, @priority, @category, @completionMode,
-                        @dueAt, @source, @lastTouchedTurnId, @createdAt, @updatedAt, @doneAt
-                    )
-                `).run(this.toStoredItem(data.item));
-                const insertTrigger = db.prepare(`
                     INSERT INTO triggers (
                         id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
                         fireCount, maxFires, lastFiredAt, nextFireAt, graceWindowMs, skipNextFireAt,
@@ -188,226 +333,131 @@ class AgendaStore {
                         @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @graceWindowMs, @skipNextFireAt,
                         @skipFireCount, @createdAt
                     )
-                `);
-                for (const trigger of data.triggers) insertTrigger.run({ ...trigger, enabled: trigger.enabled ? 1 : 0 });
-                const insertOccurrence = db.prepare(`
-                    INSERT INTO occurrences (id, itemId, triggerId, scheduledAt, status, doneAt, createdAt)
-                    VALUES (@id, @itemId, @triggerId, @scheduledAt, @status, @doneAt, @createdAt)
-                `);
-                for (const occurrence of data.occurrences) insertOccurrence.run(occurrence);
-                const insertFireLog = db.prepare(`
-                    INSERT INTO fire_logs (id, itemId, triggerId, firedAt, action, channelSessionId, ok, errorMessage)
-                    VALUES (@id, @itemId, @triggerId, @firedAt, @action, @channelSessionId, @ok, @errorMessage)
-                `);
-                for (const log of data.fireLogs) insertFireLog.run({ ...log, ok: log.ok ? 1 : 0 });
-            });
-            txn();
-        } finally {
-            db.close();
-        }
-    }
-
-    private async profileFiles(profileId: number): Promise<string[]> {
-        const dir = this.profileDir(profileId);
-        if (!existsSync(dir)) return [];
-        const entries = await readdir(dir, { withFileTypes: true });
-        return entries
-            .filter(entry => entry.isFile() && entry.name.endsWith(".db"))
-            .map(entry => path.join(dir, entry.name));
-    }
-
-    async listProfileFiles(profileId: number): Promise<AgendaFileRef[]> {
-        const result: AgendaFileRef[] = [];
-        for (const filePath of await this.profileFiles(profileId)) {
-            const data = this.readAgendaFile(filePath, profileId);
-            if (data) result.push({ filePath, data });
-        }
-        result.sort((a, b) => a.data.item.id - b.data.item.id);
-        return result;
-    }
-
-    async listAllFiles(): Promise<AgendaFileRef[]> {
-        const profilesDir = config.getConfigPath("profiles", true);
-        if (!existsSync(profilesDir)) return [];
-        const result: AgendaFileRef[] = [];
-        const entries = await readdir(profilesDir, { withFileTypes: true });
-        for (const entry of entries) {
-            if (!entry.isDirectory()) continue;
-            const profileId = Number(entry.name);
-            if (!Number.isInteger(profileId) || profileId <= 0) continue;
-            result.push(...await this.listProfileFiles(profileId));
-        }
-        return result.sort((a, b) => a.data.item.profileId - b.data.item.profileId || a.data.item.id - b.data.item.id);
-    }
-
-    async findByItemId(itemId: number): Promise<AgendaFileRef | null> {
-        const profileId = this.inferProfileId(itemId);
-        if (profileId > 0) {
-            const filePath = this.filePath(profileId, itemId);
-            const data = this.readAgendaFile(filePath, profileId);
-            if (data) return { filePath, data };
-        }
-        for (const ref of await this.listAllFiles()) {
-            if (ref.data.item.id === itemId) return ref;
-        }
-        return null;
-    }
-
-    async findByTriggerId(triggerId: number): Promise<{ filePath: string; data: AgendaFile; trigger: AgendaTriggerRow } | null> {
-        const ref = await this.findByItemId(this.inferItemIdFromChildId(triggerId));
-        const trigger = ref?.data.triggers.find(t => t.id === triggerId);
-        return ref && trigger ? { ...ref, trigger } : null;
-    }
-
-    async listEnabledTriggers(): Promise<AgendaTriggerRow[]> {
-        const triggers: AgendaTriggerRow[] = [];
-        for (const ref of await this.listAllFiles()) {
-            triggers.push(...ref.data.triggers.filter(t => t.enabled));
-        }
-        return triggers.sort((a, b) => a.id - b.id);
-    }
-
-    async createItem(profileId: number, build: (id: number) => AgendaFileInput): Promise<AgendaFile> {
-        return this.withLock(async () => {
-            const id = await this.nextItemId(profileId);
-            const input = build(id);
-            const data: AgendaFile = {
-                ...input,
-                state: this.normalizeState({}, profileId),
-                item: { ...input.item, profileId },
-            };
-            this.writeAgendaFile(this.filePath(profileId, id), data);
-            return data;
-        });
-    }
-
-    async updateItem(itemId: number, fields: Partial<AgendaStoredItemRow>): Promise<AgendaFile | null> {
-        return this.withLock(async () => {
-            const ref = await this.findByItemId(itemId);
-            if (!ref) return null;
-            ref.data.item = { ...ref.data.item, ...fields };
-            this.writeAgendaFile(ref.filePath, ref.data);
-            return ref.data;
-        });
-    }
-
-    async updateTrigger(triggerId: number, fields: Partial<AgendaTriggerRow>): Promise<AgendaFile | null> {
-        return this.withLock(async () => {
-            const found = await this.findByTriggerId(triggerId);
-            if (!found) return null;
-            found.data.triggers = found.data.triggers.map(trigger =>
-                trigger.id === triggerId ? { ...trigger, ...fields } : trigger
-            );
-            this.writeAgendaFile(found.filePath, found.data);
-            return found.data;
-        });
-    }
-
-    async updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTriggerRow>, exceptTriggerId?: number): Promise<number[]> {
-        return this.withLock(async () => {
-            const ref = await this.findByItemId(itemId);
-            if (!ref) return [];
-            const ids: number[] = [];
-            ref.data.triggers = ref.data.triggers.map(trigger => {
-                if (!trigger.enabled || trigger.id === exceptTriggerId) return trigger;
-                ids.push(trigger.id);
-                return { ...trigger, ...fields };
-            });
-            this.writeAgendaFile(ref.filePath, ref.data);
-            return ids;
-        });
-    }
-
-    async appendTrigger(itemId: number, trigger: Omit<AgendaTriggerRow, "id">): Promise<AgendaTriggerRow | null> {
-        return this.withLock(async () => {
-            const ref = await this.findByItemId(itemId);
-            if (!ref) return null;
-            const row = { ...trigger, id: this.nextChildId(itemId, ref.data.triggers.map(t => t.id)) };
-            ref.data.triggers.push(row);
-            this.writeAgendaFile(ref.filePath, ref.data);
-            return row;
+                `).run({ ...row, enabled: row.enabled ? 1 : 0 });
+                return row;
+            } finally {
+                db.close();
+            }
         });
     }
 
     async appendOccurrence(itemId: number, occurrence: Omit<AgendaOccurrenceRow, "id">): Promise<AgendaOccurrenceRow | null> {
         return this.withLock(async () => {
-            const ref = await this.findByItemId(itemId);
-            if (!ref) return null;
-            const row = { ...occurrence, id: this.nextChildId(itemId, ref.data.occurrences.map(o => o.id)) };
-            ref.data.occurrences.push(row);
-            this.writeAgendaFile(ref.filePath, ref.data);
-            return row;
+            const profileId = this.inferProfileId(itemId);
+            const db = this.openExistingProfile(profileId);
+            if (!db) return null;
+            try {
+                if (!this.hasItem(db, itemId)) return null;
+                const row = { ...occurrence, id: this.nextChildIdInDb(db, "occurrences", itemId) };
+                db.prepare(`
+                    INSERT INTO occurrences (id, itemId, triggerId, scheduledAt, status, doneAt, createdAt)
+                    VALUES (@id, @itemId, @triggerId, @scheduledAt, @status, @doneAt, @createdAt)
+                `).run(row);
+                return row;
+            } finally {
+                db.close();
+            }
         });
     }
 
     async appendFireLog(itemId: number, log: Omit<AgendaFireLogRow, "id">): Promise<AgendaFireLogRow | null> {
         return this.withLock(async () => {
-            const ref = await this.findByItemId(itemId);
-            if (!ref) return null;
-            const row = { ...log, id: this.nextChildId(itemId, ref.data.fireLogs.map(l => l.id)) };
-            ref.data.fireLogs.push(row);
-            this.writeAgendaFile(ref.filePath, ref.data);
-            return row;
+            const profileId = this.inferProfileId(itemId);
+            const db = this.openExistingProfile(profileId);
+            if (!db) return null;
+            try {
+                if (!this.hasItem(db, itemId)) return null;
+                const row = { ...log, id: this.nextFireLogIdInDb(db, itemId) };
+                db.prepare(`
+                    INSERT INTO fire_logs (id, itemId, triggerId, firedAt, action, channelSessionId, ok, errorMessage)
+                    VALUES (@id, @itemId, @triggerId, @firedAt, @action, @channelSessionId, @ok, @errorMessage)
+                `).run({ ...row, ok: row.ok ? 1 : 0 });
+                return row;
+            } finally {
+                db.close();
+            }
         });
     }
 
-    async updateOccurrence(occurrenceId: number, fields: Partial<AgendaOccurrenceRow>): Promise<AgendaFile | null> {
+    async updateOccurrence(occurrenceId: number, fields: Partial<AgendaOccurrenceRow>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
-            const ref = await this.findByItemId(this.inferItemIdFromChildId(occurrenceId));
-            if (!ref || !ref.data.occurrences.some(o => o.id === occurrenceId)) return null;
-            ref.data.occurrences = ref.data.occurrences.map(o => o.id === occurrenceId ? { ...o, ...fields } : o);
-            this.writeAgendaFile(ref.filePath, ref.data);
-            return ref.data;
+            const itemId = this.inferItemIdFromChildId(occurrenceId);
+            const profileId = this.inferProfileId(itemId);
+            const db = this.openExistingProfile(profileId);
+            if (!db) return null;
+            try {
+                const changed = this.updateById(db, "occurrences", occurrenceId, fields);
+                return changed ? this.readAgendaRecordFromDb(db, profileId, itemId) : null;
+            } finally {
+                db.close();
+            }
         });
     }
 
-    async deleteItem(itemId: number): Promise<AgendaFile | null> {
+    async deleteItem(itemId: number): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
-            const ref = await this.findByItemId(itemId);
-            if (!ref) return null;
-            await rm(ref.filePath, { force: true });
-            await rm(`${ref.filePath}-wal`, { force: true });
-            await rm(`${ref.filePath}-shm`, { force: true });
-            return ref.data;
+            const profileId = this.inferProfileId(itemId);
+            const db = this.openExistingProfile(profileId);
+            if (!db) return null;
+            try {
+                const data = this.readAgendaRecordFromDb(db, profileId, itemId);
+                if (!data) return null;
+                db.transaction(() => {
+                    db.prepare("DELETE FROM fire_logs WHERE itemId = ?").run(itemId);
+                    db.prepare("DELETE FROM occurrences WHERE itemId = ?").run(itemId);
+                    db.prepare("DELETE FROM triggers WHERE itemId = ?").run(itemId);
+                    db.prepare("DELETE FROM items WHERE id = ?").run(itemId);
+                })();
+                return data;
+            } finally {
+                db.close();
+            }
         });
     }
 
     async deleteProfile(profileId: number): Promise<number[]> {
         return this.withLock(async () => {
-            const files = await this.listProfileFiles(profileId);
-            const triggerIds = files.flatMap(file => file.data.triggers.map(t => t.id));
+            const records = await this.listProfileItems(profileId);
+            const triggerIds = records.flatMap(record => record.data.triggers.map(t => t.id));
             await rm(this.profileDir(profileId), { recursive: true, force: true });
             return triggerIds;
         });
     }
 
-    private async nextItemId(profileId: number): Promise<number> {
+    private nextItemIdInDb(db: Database.Database, profileId: number): number {
         const base = profileId * ITEM_ID_FACTOR;
-        const ids = (await this.listProfileFiles(profileId)).map(ref => ref.data.item.id);
-        return Math.max(base, ...ids) + 1;
+        const row = db.prepare("SELECT MAX(id) AS id FROM items").get() as { id: number | null };
+        return Math.max(base, row.id ?? 0) + 1;
+    }
+
+    private nextChildIdInDb(db: Database.Database, table: "triggers" | "occurrences", itemId: number): number {
+        const base = itemId * CHILD_ID_FACTOR;
+        const row = db.prepare(`SELECT MAX(id) AS id FROM ${table} WHERE itemId = ?`).get(itemId) as { id: number | null };
+        return Math.max(base, row.id ?? 0) + 1;
+    }
+
+    private nextFireLogIdInDb(db: Database.Database, itemId: number): number {
+        const base = itemId * CHILD_ID_FACTOR;
+        const row = db.prepare("SELECT MAX(id) AS id FROM fire_logs WHERE itemId = ?").get(itemId) as { id: number | null };
+        return Math.max(base, row.id ?? 0) + 1;
+    }
+
+    private updateById(db: Database.Database, table: AgendaTable, id: number, fields: Record<string, any>, booleanFields = new Set<string>()): boolean {
+        const entries = Object.entries(fields).filter(([, value]) => value !== undefined);
+        if (entries.length === 0) return false;
+        const values = Object.fromEntries(entries.map(([key, value]) => [key, booleanFields.has(key) ? (value ? 1 : 0) : value]));
+        const setSql = entries.map(([key]) => `${key} = @${key}`).join(", ");
+        const result = db.prepare(`UPDATE ${table} SET ${setSql} WHERE id = @id`).run({ ...values, id });
+        return result.changes > 0;
+    }
+
+    private hasItem(db: Database.Database, itemId: number): boolean {
+        return Boolean(db.prepare("SELECT 1 FROM items WHERE id = ?").get(itemId));
     }
 
     private toStoredItem(item: AgendaItemRow): AgendaStoredItemRow {
         const { profileId: _profileId, ...stored } = item;
         return stored;
-    }
-
-    private readState(db: Database.Database, profileId: number): AgendaFileState {
-        const rows = db.prepare("SELECT key, value FROM state").all() as Array<{ key: string; value: string }>;
-        return this.normalizeState(Object.fromEntries(rows.map(row => [row.key, row.value])), profileId);
-    }
-
-    private normalizeState(state: AgendaFileState, profileId: number): AgendaFileState {
-        return {
-            ...state,
-            schemaVersion: AGENDA_FILE_SCHEMA_VERSION,
-            profileId: String(profileId),
-        };
-    }
-
-    private nextChildId(itemId: number, ids: number[]): number {
-        const base = itemId * CHILD_ID_FACTOR;
-        return Math.max(base, ...ids) + 1;
     }
 }
 

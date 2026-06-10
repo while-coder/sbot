@@ -37,7 +37,7 @@ export interface AgendaItem {
   category: AgendaCategory
   completionMode: 'none' | 'item' | 'occurrence'
   dueAt: number | null
-  source: 'user' | 'tool' | 'sync' | 'rule' | 'migrated'
+  source: 'user' | 'tool' | 'sync' | 'rule'
   createdAt: number
   updatedAt: number
   doneAt: number | null

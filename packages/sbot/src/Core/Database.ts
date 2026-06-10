@@ -770,18 +770,10 @@ class Database {
       await this.channelSession.sync({ alter });
       await this.usageLogs.sync({ alter });
       await this.heartbeat.sync({ alter });
-      await this.dropLegacyAgendaTables();
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");
     });
-  }
-
-  private async dropLegacyAgendaTables(): Promise<void> {
-    const tables = ["scheduler", "agenda_item", "agenda_trigger", "agenda_occurrence", "agenda_fire_log"];
-    for (const table of tables) {
-      await this.sequelize.query(`DROP TABLE IF EXISTS ${table}`);
-    }
   }
 
   async findAll<T>(db: ModelStatic<any>, options?: FindOptions): Promise<T[]> {

@@ -569,7 +569,6 @@ export default {
     source_tool: 'Tool',
     source_sync: 'Sync',
     source_rule: 'Rule',
-    source_migrated: 'Migrated',
     trigger_absolute: 'Once',
     trigger_interval: 'Interval',
     trigger_cron: 'Cron',
