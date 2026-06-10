@@ -28,7 +28,6 @@ import {
     IAgendaExtractor,
     AgendaExtractor,
     T_AgendaExtractorSystemPrompt,
-    T_AgendaProfileId,
     T_AgendaChannelSessionId,
     T_AgendaToolDescs,
     type MessageContent,
@@ -43,7 +42,7 @@ import { sessionManager } from "../Session/SessionManager";
 import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
-import { agendaStore, agendaTriggerEngine } from "../Agenda";
+import { agendaStorePool, agendaTriggerEngine } from "../Agenda";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -299,7 +298,6 @@ export class AgentRunner {
         if (!profileId || !channelSessionId) return;
 
         const args: Record<string | symbol, any> = {
-            [T_AgendaProfileId]: profileId,
             [T_AgendaChannelSessionId]: channelSessionId,
             [T_AgendaToolDescs]: {
                 create: loadPrompt('agenda/tools/create.txt'),
@@ -309,7 +307,7 @@ export class AgentRunner {
                 cancel: loadPrompt('agenda/tools/cancel.txt'),
                 skipNext: loadPrompt('agenda/tools/skip_next.txt'),
             },
-            [IAgendaStore]: agendaStore,
+            [IAgendaStore]: agendaStorePool.get(profileId),
             [IAgendaTriggerEngine]: agendaTriggerEngine,
         };
         if (extractor) args[IAgendaExtractor] = extractor;

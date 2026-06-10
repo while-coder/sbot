@@ -3,15 +3,13 @@ import { existsSync, mkdirSync } from "fs";
 import { rm } from "fs/promises";
 import path from "path";
 import { inject } from "scorpio.di";
-import { T_AgendaProfileDbPath, type AgendaProfileDbPathFn } from "../../Core";
+import { T_AgendaProfileDbPath, T_AgendaProfileId } from "../../Core";
 import { IAgendaStore } from "./IAgendaStore";
 import type {
-    AgendaFireLogRow,
     AgendaItemRow,
     AgendaOccurrenceRow,
     AgendaRecord,
     AgendaRecordInput,
-    AgendaRecordRef,
     AgendaStoredItemRow,
     AgendaTriggerRow,
 } from "../types";
@@ -21,14 +19,18 @@ const CHILD_ID_FACTOR = 1_000;
 
 type AgendaTable = "items" | "triggers" | "occurrences";
 
+/**
+ * 单 profile 的 agenda 存储。绑定一个 profileId + 一个 db 文件路径，构造后不再变化。
+ * itemId/triggerId/occurrenceId 仍按 `profileId * 1_000_000 + ...` 编码，
+ * 仅用于全局唯一与外部路由（路由职责由 sbot 侧的 pool 承担），store 自身不做跨 profile 反推。
+ */
 export class AgendaStore implements IAgendaStore {
     private lock = Promise.resolve();
 
-    constructor(@inject(T_AgendaProfileDbPath) private readonly profileDbPath: AgendaProfileDbPathFn) {}
-
-    private inferProfileId(itemId: number): number {
-        return Math.floor(itemId / ITEM_ID_FACTOR);
-    }
+    constructor(
+        @inject(T_AgendaProfileId) private readonly profileId: number,
+        @inject(T_AgendaProfileDbPath) private readonly dbPath: string,
+    ) {}
 
     private inferItemIdFromChildId(childId: number): number {
         return Math.floor(childId / CHILD_ID_FACTOR);
@@ -46,19 +48,18 @@ export class AgendaStore implements IAgendaStore {
         }
     }
 
-    private openProfile(profileId: number): Database.Database {
-        const filePath = this.profileDbPath(profileId);
-        const dir = path.dirname(filePath);
+    private open(): Database.Database {
+        const dir = path.dirname(this.dbPath);
         if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-        const db = new Database(filePath);
+        const db = new Database(this.dbPath);
         db.pragma("journal_mode = WAL");
         this.ensureSchema(db);
         return db;
     }
 
-    private openExistingProfile(profileId: number): Database.Database | null {
-        if (!existsSync(this.profileDbPath(profileId))) return null;
-        return this.openProfile(profileId);
+    private openExisting(): Database.Database | null {
+        if (!existsSync(this.dbPath)) return null;
+        return this.open();
     }
 
     private ensureSchema(db: Database.Database): void {
@@ -72,7 +73,6 @@ export class AgendaStore implements IAgendaStore {
                 completionMode    TEXT    NOT NULL,
                 dueAt             INTEGER,
                 source            TEXT    NOT NULL,
-                lastTouchedTurnId TEXT,
                 createdAt         INTEGER NOT NULL,
                 updatedAt         INTEGER NOT NULL,
                 doneAt            INTEGER
@@ -91,7 +91,6 @@ export class AgendaStore implements IAgendaStore {
                 maxFires       INTEGER NOT NULL,
                 lastFiredAt    INTEGER,
                 nextFireAt     INTEGER,
-                graceWindowMs  INTEGER NOT NULL,
                 skipNextFireAt INTEGER,
                 skipFireCount  INTEGER,
                 createdAt      INTEGER NOT NULL
@@ -99,144 +98,106 @@ export class AgendaStore implements IAgendaStore {
             CREATE TABLE IF NOT EXISTS occurrences (
                 id          INTEGER PRIMARY KEY,
                 itemId      INTEGER NOT NULL,
-                triggerId   INTEGER NOT NULL,
                 scheduledAt INTEGER NOT NULL,
                 status      TEXT    NOT NULL,
-                doneAt      INTEGER,
-                createdAt   INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS fire_logs (
-                id               INTEGER PRIMARY KEY,
-                itemId           INTEGER NOT NULL,
-                triggerId        INTEGER NOT NULL,
-                firedAt          INTEGER NOT NULL,
-                action           TEXT    NOT NULL,
-                channelSessionId INTEGER,
-                ok               INTEGER NOT NULL,
-                errorMessage     TEXT
+                doneAt      INTEGER
             );
             CREATE INDEX IF NOT EXISTS idx_items_status ON items (status, dueAt);
             CREATE INDEX IF NOT EXISTS idx_triggers_item ON triggers (itemId, id);
             CREATE INDEX IF NOT EXISTS idx_triggers_enabled ON triggers (enabled, nextFireAt);
             CREATE INDEX IF NOT EXISTS idx_occurrences_item_status ON occurrences (itemId, status, scheduledAt);
-            CREATE INDEX IF NOT EXISTS idx_fire_logs_item_fired_at ON fire_logs (itemId, firedAt);
         `);
     }
 
-    private readAgendaRecordFromDb(db: Database.Database, profileId: number, itemId: number): AgendaRecord | null {
+    private readAgendaRecordFromDb(db: Database.Database, itemId: number): AgendaRecord | null {
         const storedItem = db.prepare("SELECT * FROM items WHERE id = ?").get(itemId) as AgendaStoredItemRow | undefined;
         if (!storedItem) return null;
-        return this.buildAgendaRecord(db, profileId, storedItem);
+        return this.buildAgendaRecord(db, storedItem);
     }
 
-    private buildAgendaRecord(db: Database.Database, profileId: number, storedItem: AgendaStoredItemRow): AgendaRecord {
-        const item = { ...storedItem, profileId };
+    private buildAgendaRecord(db: Database.Database, storedItem: AgendaStoredItemRow): AgendaRecord {
+        const item = { ...storedItem, profileId: this.profileId };
         const triggers = (db.prepare("SELECT * FROM triggers WHERE itemId = ? ORDER BY id").all(item.id) as any[]).map(row => ({
             ...row,
             enabled: Boolean(row.enabled),
         })) as AgendaTriggerRow[];
         const occurrences = db.prepare("SELECT * FROM occurrences WHERE itemId = ? ORDER BY scheduledAt, id").all(item.id) as AgendaOccurrenceRow[];
-        const fireLogs = (db.prepare("SELECT * FROM fire_logs WHERE itemId = ? ORDER BY firedAt DESC, id DESC").all(item.id) as any[]).map(row => ({
-            ...row,
-            ok: Boolean(row.ok),
-        })) as AgendaFireLogRow[];
-        return { item, triggers, occurrences, fireLogs };
+        return { item, triggers, occurrences };
     }
 
     private insertAgendaRecord(db: Database.Database, data: AgendaRecord): void {
         db.prepare(`
             INSERT INTO items (
                 id, content, status, priority, category, completionMode,
-                dueAt, source, lastTouchedTurnId, createdAt, updatedAt, doneAt
+                dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
                 @id, @content, @status, @priority, @category, @completionMode,
-                @dueAt, @source, @lastTouchedTurnId, @createdAt, @updatedAt, @doneAt
+                @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
         `).run(this.toStoredItem(data.item));
         const insertTrigger = db.prepare(`
             INSERT INTO triggers (
                 id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
-                fireCount, maxFires, lastFiredAt, nextFireAt, graceWindowMs, skipNextFireAt,
+                fireCount, maxFires, lastFiredAt, nextFireAt, skipNextFireAt,
                 skipFireCount, createdAt
             ) VALUES (
                 @id, @itemId, @kind, @expr, @timezone, @action, @message, @channelHint, @enabled,
-                @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @graceWindowMs, @skipNextFireAt,
+                @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @skipNextFireAt,
                 @skipFireCount, @createdAt
             )
         `);
         for (const trigger of data.triggers) insertTrigger.run({ ...trigger, enabled: trigger.enabled ? 1 : 0 });
         const insertOccurrence = db.prepare(`
-            INSERT INTO occurrences (id, itemId, triggerId, scheduledAt, status, doneAt, createdAt)
-            VALUES (@id, @itemId, @triggerId, @scheduledAt, @status, @doneAt, @createdAt)
+            INSERT INTO occurrences (id, itemId, scheduledAt, status, doneAt)
+            VALUES (@id, @itemId, @scheduledAt, @status, @doneAt)
         `);
         for (const occurrence of data.occurrences) insertOccurrence.run(occurrence);
-        const insertFireLog = db.prepare(`
-            INSERT INTO fire_logs (id, itemId, triggerId, firedAt, action, channelSessionId, ok, errorMessage)
-            VALUES (@id, @itemId, @triggerId, @firedAt, @action, @channelSessionId, @ok, @errorMessage)
-        `);
-        for (const log of data.fireLogs) insertFireLog.run({ ...log, ok: log.ok ? 1 : 0 });
     }
 
-    async listProfileItems(profileId: number): Promise<AgendaRecordRef[]> {
-        const db = this.openExistingProfile(profileId);
+    async listItems(): Promise<AgendaRecord[]> {
+        const db = this.openExisting();
         if (!db) return [];
         try {
             const items = db.prepare("SELECT * FROM items ORDER BY id").all() as AgendaStoredItemRow[];
-            const dbPath = this.profileDbPath(profileId);
-            return items.map(item => ({ dbPath, data: this.buildAgendaRecord(db, profileId, item) }));
+            return items.map(item => this.buildAgendaRecord(db, item));
         } finally {
             db.close();
         }
     }
 
-    async listAllItems(profileIds: number[]): Promise<AgendaRecordRef[]> {
-        const result: AgendaRecordRef[] = [];
-        for (const profileId of profileIds) {
-            if (!Number.isInteger(profileId) || profileId <= 0) continue;
-            result.push(...await this.listProfileItems(profileId));
+    async findItem(itemId: number): Promise<AgendaRecord | null> {
+        const db = this.openExisting();
+        if (!db) return null;
+        try {
+            return this.readAgendaRecordFromDb(db, itemId);
+        } finally {
+            db.close();
         }
-        return result.sort((a, b) => a.data.item.profileId - b.data.item.profileId || a.data.item.id - b.data.item.id);
     }
 
-    async findByItemId(itemId: number): Promise<AgendaRecordRef | null> {
-        const profileId = this.inferProfileId(itemId);
-        if (profileId > 0) {
-            const db = this.openExistingProfile(profileId);
-            if (db) {
-                try {
-                    const data = this.readAgendaRecordFromDb(db, profileId, itemId);
-                    if (data) return { dbPath: this.profileDbPath(profileId), data };
-                } finally {
-                    db.close();
-                }
-            }
-        }
-        return null;
+    async findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTriggerRow } | null> {
+        const data = await this.findItem(this.inferItemIdFromChildId(triggerId));
+        const trigger = data?.triggers.find(t => t.id === triggerId);
+        return data && trigger ? { data, trigger } : null;
     }
 
-    async findByTriggerId(triggerId: number): Promise<{ dbPath: string; data: AgendaRecord; trigger: AgendaTriggerRow } | null> {
-        const ref = await this.findByItemId(this.inferItemIdFromChildId(triggerId));
-        const trigger = ref?.data.triggers.find(t => t.id === triggerId);
-        return ref && trigger ? { ...ref, trigger } : null;
-    }
-
-    async listEnabledTriggers(profileIds: number[]): Promise<AgendaTriggerRow[]> {
+    async listEnabledTriggers(): Promise<AgendaTriggerRow[]> {
         const triggers: AgendaTriggerRow[] = [];
-        for (const ref of await this.listAllItems(profileIds)) {
-            triggers.push(...ref.data.triggers.filter(t => t.enabled));
+        for (const record of await this.listItems()) {
+            triggers.push(...record.triggers.filter(t => t.enabled));
         }
         return triggers.sort((a, b) => a.id - b.id);
     }
 
-    async createItem(profileId: number, build: (id: number) => AgendaRecordInput): Promise<AgendaRecord> {
+    async createItem(build: (id: number) => AgendaRecordInput): Promise<AgendaRecord> {
         return this.withLock(async () => {
-            const db = this.openProfile(profileId);
+            const db = this.open();
             try {
-                const id = this.nextItemIdInDb(db, profileId);
+                const id = this.nextItemIdInDb(db);
                 const input = build(id);
                 const data: AgendaRecord = {
                     ...input,
-                    item: { ...input.item, profileId },
+                    item: { ...input.item, profileId: this.profileId },
                 };
                 db.transaction(() => this.insertAgendaRecord(db, data))();
                 return data;
@@ -248,12 +209,11 @@ export class AgendaStore implements IAgendaStore {
 
     async updateItem(itemId: number, fields: Partial<AgendaStoredItemRow>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
-            const profileId = this.inferProfileId(itemId);
-            const db = this.openExistingProfile(profileId);
+            const db = this.openExisting();
             if (!db) return null;
             try {
                 this.updateById(db, "items", itemId, fields);
-                return this.readAgendaRecordFromDb(db, profileId, itemId);
+                return this.readAgendaRecordFromDb(db, itemId);
             } finally {
                 db.close();
             }
@@ -263,12 +223,11 @@ export class AgendaStore implements IAgendaStore {
     async updateTrigger(triggerId: number, fields: Partial<AgendaTriggerRow>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             const itemId = this.inferItemIdFromChildId(triggerId);
-            const profileId = this.inferProfileId(itemId);
-            const db = this.openExistingProfile(profileId);
+            const db = this.openExisting();
             if (!db) return null;
             try {
                 if (!this.updateById(db, "triggers", triggerId, fields, new Set(["enabled"]))) return null;
-                return this.readAgendaRecordFromDb(db, profileId, itemId);
+                return this.readAgendaRecordFromDb(db, itemId);
             } finally {
                 db.close();
             }
@@ -277,8 +236,7 @@ export class AgendaStore implements IAgendaStore {
 
     async updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTriggerRow>, exceptTriggerId?: number): Promise<number[]> {
         return this.withLock(async () => {
-            const profileId = this.inferProfileId(itemId);
-            const db = this.openExistingProfile(profileId);
+            const db = this.openExisting();
             if (!db) return [];
             try {
                 const rows = db.prepare("SELECT id FROM triggers WHERE itemId = ? AND enabled = 1 ORDER BY id").all(itemId) as Array<{ id: number }>;
@@ -297,8 +255,7 @@ export class AgendaStore implements IAgendaStore {
 
     async appendTrigger(itemId: number, trigger: Omit<AgendaTriggerRow, "id">): Promise<AgendaTriggerRow | null> {
         return this.withLock(async () => {
-            const profileId = this.inferProfileId(itemId);
-            const db = this.openExistingProfile(profileId);
+            const db = this.openExisting();
             if (!db) return null;
             try {
                 if (!this.hasItem(db, itemId)) return null;
@@ -306,11 +263,11 @@ export class AgendaStore implements IAgendaStore {
                 db.prepare(`
                     INSERT INTO triggers (
                         id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
-                        fireCount, maxFires, lastFiredAt, nextFireAt, graceWindowMs, skipNextFireAt,
+                        fireCount, maxFires, lastFiredAt, nextFireAt, skipNextFireAt,
                         skipFireCount, createdAt
                     ) VALUES (
                         @id, @itemId, @kind, @expr, @timezone, @action, @message, @channelHint, @enabled,
-                        @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @graceWindowMs, @skipNextFireAt,
+                        @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @skipNextFireAt,
                         @skipFireCount, @createdAt
                     )
                 `).run({ ...row, enabled: row.enabled ? 1 : 0 });
@@ -323,35 +280,15 @@ export class AgendaStore implements IAgendaStore {
 
     async appendOccurrence(itemId: number, occurrence: Omit<AgendaOccurrenceRow, "id">): Promise<AgendaOccurrenceRow | null> {
         return this.withLock(async () => {
-            const profileId = this.inferProfileId(itemId);
-            const db = this.openExistingProfile(profileId);
+            const db = this.openExisting();
             if (!db) return null;
             try {
                 if (!this.hasItem(db, itemId)) return null;
                 const row = { ...occurrence, id: this.nextChildIdInDb(db, "occurrences", itemId) };
                 db.prepare(`
-                    INSERT INTO occurrences (id, itemId, triggerId, scheduledAt, status, doneAt, createdAt)
-                    VALUES (@id, @itemId, @triggerId, @scheduledAt, @status, @doneAt, @createdAt)
+                    INSERT INTO occurrences (id, itemId, scheduledAt, status, doneAt)
+                    VALUES (@id, @itemId, @scheduledAt, @status, @doneAt)
                 `).run(row);
-                return row;
-            } finally {
-                db.close();
-            }
-        });
-    }
-
-    async appendFireLog(itemId: number, log: Omit<AgendaFireLogRow, "id">): Promise<AgendaFireLogRow | null> {
-        return this.withLock(async () => {
-            const profileId = this.inferProfileId(itemId);
-            const db = this.openExistingProfile(profileId);
-            if (!db) return null;
-            try {
-                if (!this.hasItem(db, itemId)) return null;
-                const row = { ...log, id: this.nextFireLogIdInDb(db, itemId) };
-                db.prepare(`
-                    INSERT INTO fire_logs (id, itemId, triggerId, firedAt, action, channelSessionId, ok, errorMessage)
-                    VALUES (@id, @itemId, @triggerId, @firedAt, @action, @channelSessionId, @ok, @errorMessage)
-                `).run({ ...row, ok: row.ok ? 1 : 0 });
                 return row;
             } finally {
                 db.close();
@@ -362,12 +299,11 @@ export class AgendaStore implements IAgendaStore {
     async updateOccurrence(occurrenceId: number, fields: Partial<AgendaOccurrenceRow>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             const itemId = this.inferItemIdFromChildId(occurrenceId);
-            const profileId = this.inferProfileId(itemId);
-            const db = this.openExistingProfile(profileId);
+            const db = this.openExisting();
             if (!db) return null;
             try {
                 const changed = this.updateById(db, "occurrences", occurrenceId, fields);
-                return changed ? this.readAgendaRecordFromDb(db, profileId, itemId) : null;
+                return changed ? this.readAgendaRecordFromDb(db, itemId) : null;
             } finally {
                 db.close();
             }
@@ -376,14 +312,12 @@ export class AgendaStore implements IAgendaStore {
 
     async deleteItem(itemId: number): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
-            const profileId = this.inferProfileId(itemId);
-            const db = this.openExistingProfile(profileId);
+            const db = this.openExisting();
             if (!db) return null;
             try {
-                const data = this.readAgendaRecordFromDb(db, profileId, itemId);
+                const data = this.readAgendaRecordFromDb(db, itemId);
                 if (!data) return null;
                 db.transaction(() => {
-                    db.prepare("DELETE FROM fire_logs WHERE itemId = ?").run(itemId);
                     db.prepare("DELETE FROM occurrences WHERE itemId = ?").run(itemId);
                     db.prepare("DELETE FROM triggers WHERE itemId = ?").run(itemId);
                     db.prepare("DELETE FROM items WHERE id = ?").run(itemId);
@@ -395,17 +329,17 @@ export class AgendaStore implements IAgendaStore {
         });
     }
 
-    async deleteProfile(profileId: number): Promise<number[]> {
+    async deleteAll(): Promise<number[]> {
         return this.withLock(async () => {
-            const records = await this.listProfileItems(profileId);
-            const triggerIds = records.flatMap(record => record.data.triggers.map(t => t.id));
-            await rm(path.dirname(this.profileDbPath(profileId)), { recursive: true, force: true });
+            const records = await this.listItems();
+            const triggerIds = records.flatMap(record => record.triggers.map(t => t.id));
+            await rm(path.dirname(this.dbPath), { recursive: true, force: true });
             return triggerIds;
         });
     }
 
-    private nextItemIdInDb(db: Database.Database, profileId: number): number {
-        const base = profileId * ITEM_ID_FACTOR;
+    private nextItemIdInDb(db: Database.Database): number {
+        const base = this.profileId * ITEM_ID_FACTOR;
         const row = db.prepare("SELECT MAX(id) AS id FROM items").get() as { id: number | null };
         return Math.max(base, row.id ?? 0) + 1;
     }
@@ -413,12 +347,6 @@ export class AgendaStore implements IAgendaStore {
     private nextChildIdInDb(db: Database.Database, table: "triggers" | "occurrences", itemId: number): number {
         const base = itemId * CHILD_ID_FACTOR;
         const row = db.prepare(`SELECT MAX(id) AS id FROM ${table} WHERE itemId = ?`).get(itemId) as { id: number | null };
-        return Math.max(base, row.id ?? 0) + 1;
-    }
-
-    private nextFireLogIdInDb(db: Database.Database, itemId: number): number {
-        const base = itemId * CHILD_ID_FACTOR;
-        const row = db.prepare("SELECT MAX(id) AS id FROM fire_logs WHERE itemId = ?").get(itemId) as { id: number | null };
         return Math.max(base, row.id ?? 0) + 1;
     }
 

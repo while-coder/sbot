@@ -9,13 +9,12 @@ import {
     ILoggerService,
     ServiceContainer,
     T_AgendaChannelSessionId,
-    T_AgendaProfileId,
     T_AgendaToolDescs,
     type AgendaListFilter,
     type AgendaToolDescs,
 } from 'scorpio.ai';
-import { agendaStore, agendaTriggerEngine } from '../../Agenda';
-import type { ChannelSessionRow, SessionProfileRow } from '../../Core/Database';
+import { agendaStorePool, agendaTriggerEngine } from '../../Agenda';
+import type { ChannelSessionRow } from '../../Core/Database';
 import { database } from '../../Core/Database';
 import { LoggerService } from '../../Core/LoggerService';
 import { api, throwBad } from '../utils';
@@ -41,12 +40,14 @@ export class AgendaRoutes {
         app.get('/api/agendas', api(async req => {
             const profileId = num(req.query.profileId);
             if (req.query.profileId != null && !profileId) throwBad('Invalid profileId');
+            const filter = this.parseFilter(req.query);
             if (profileId) {
                 const service = await this.createService(profileId, await this.resolveChannelSessionId(profileId));
-                return service.list(this.parseFilter(req.query));
+                return service.list(filter);
             }
-            const profileIds = await this.listAllProfileIds();
-            return (await this.createService(0, 0)).listAll(profileIds, this.parseFilter(req.query));
+            const profileIds = await agendaStorePool.listAllProfileIds();
+            const records = await agendaStorePool.listItemsAcross(profileIds);
+            return AgendaService.buildList(records, filter);
         }));
 
         app.post('/api/agendas', api(async req => {
@@ -72,7 +73,7 @@ export class AgendaRoutes {
         app.patch('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-            const item = (await agendaStore.findByItemId(id))?.data.item;
+            const item = (await agendaStorePool.findItem(id))?.item;
             if (!item) throwBad('Agenda item not found');
             const service = await this.createService(item.profileId, await this.resolveChannelSessionId(item.profileId));
             const updated = await service.update(id, req.body || {});
@@ -87,15 +88,11 @@ export class AgendaRoutes {
         app.delete('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-            const deleted = await (await this.createService(0, 0)).delete(id);
+            const store = agendaStorePool.storeForItemId(id);
+            const deleted = store ? await store.deleteItem(id) : null;
             if (!deleted) throwBad('Agenda item not found');
+            for (const trigger of deleted.triggers) agendaTriggerEngine.cancel(trigger.id);
             return { id };
-        }));
-
-        app.get('/api/agendas/:id/fire-logs', api(async req => {
-            const id = Number(req.params.id);
-            if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-            return (await this.createService(0, 0)).fireLogs(id);
         }));
     }
 
@@ -122,7 +119,7 @@ export class AgendaRoutes {
     private async applyItemAction(rawId: string, action: 'complete' | 'cancel' | 'skipNext') {
         const id = Number(rawId);
         if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-        const item = (await agendaStore.findByItemId(id))?.data.item;
+        const item = (await agendaStorePool.findItem(id))?.item;
         if (!item) throwBad('Agenda item not found');
         const service = await this.createService(item.profileId, await this.resolveChannelSessionId(item.profileId));
         if (action === 'complete') return service.complete(id);
@@ -134,18 +131,12 @@ export class AgendaRoutes {
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         container.registerWithArgs(AgendaService, {
-            [T_AgendaProfileId]: profileId,
             [T_AgendaChannelSessionId]: channelSessionId,
             [T_AgendaToolDescs]: ADMIN_DESCS,
-            [IAgendaStore]: agendaStore,
+            [IAgendaStore]: agendaStorePool.get(profileId),
             [IAgendaTriggerEngine]: agendaTriggerEngine,
         });
         return container.resolve(AgendaService);
-    }
-
-    private async listAllProfileIds(): Promise<number[]> {
-        const profiles = await database.findAll<SessionProfileRow>(database.sessionProfile);
-        return profiles.map(p => p.id).filter(id => Number.isInteger(id) && id > 0);
     }
 
     private async resolveChannelSessionId(profileId: number, preferred?: unknown): Promise<number> {

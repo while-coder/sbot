@@ -36,8 +36,6 @@ export const T_AgendaProfileId            = Symbol("scorpio:T_AgendaProfileId");
 export const T_AgendaChannelSessionId     = Symbol("scorpio:T_AgendaChannelSessionId");
 export const T_AgendaToolDescs            = Symbol("scorpio:T_AgendaToolDescs");
 
-export type AgendaProfileDbPathFn = (profileId: number) => string;
-
 // Insight tokens
 export const T_InsightDir            = Symbol("scorpio:T_InsightDir");
 export const T_InsightLimit          = Symbol("scorpio:T_InsightLimit");

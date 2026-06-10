@@ -3,7 +3,7 @@ import type { ChannelSessionRow } from "../Core/Database";
 import { database } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
 import { channelDataService } from "../Session/ChannelDataService";
-import { agendaStore } from "./AgendaStore";
+import { agendaStorePool } from "./AgendaStorePool";
 
 const logger = LoggerService.getLogger("Agenda/Delivery.ts");
 
@@ -26,7 +26,7 @@ export async function resolveAgendaDelivery(item: AgendaItemRow, trigger: Agenda
 
     const sameChannel = primary ? candidates.find(c => c.channelId === primary.channelId) : undefined;
     const picked = sameChannel ?? candidates[0];
-    await agendaStore.updateTrigger(trigger.id, { channelHint: picked.id });
+    await agendaStorePool.get(profileId).updateTrigger(trigger.id, { channelHint: picked.id });
     trigger.channelHint = picked.id;
     return picked;
 }

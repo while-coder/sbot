@@ -10,7 +10,7 @@ import {
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { heartbeatService } from "../Heartbeat/HeartbeatService";
-import { agendaStore, agendaTriggerEngine } from "../Agenda";
+import { agendaStorePool, agendaTriggerEngine } from "../Agenda";
 
 const logger = LoggerService.getLogger("ChannelDataService.ts");
 
@@ -145,7 +145,8 @@ function resolveInsightConfig(profileRaw: string | null | undefined, channelValu
  */
 export class ChannelDataService {
     private async deleteAgendaByProfile(profileId: number): Promise<void> {
-        const triggerIds = await agendaStore.deleteProfile(profileId);
+        const triggerIds = await agendaStorePool.get(profileId).deleteAll();
+        agendaStorePool.remove(profileId);
         for (const id of triggerIds) agendaTriggerEngine.cancel(id);
     }
 

@@ -116,7 +116,6 @@ export interface AgendaItem {
     completionMode: AgendaCompletionMode;
     dueAt: number | null;
     source: AgendaSource;
-    lastTouchedTurnId: string | null;
     createdAt: number;
     updatedAt: number;
     doneAt: number | null;
@@ -136,7 +135,6 @@ export interface AgendaTrigger {
     maxFires: number;
     lastFiredAt: number | null;
     nextFireAt: number | null;
-    graceWindowMs: number;
     skipNextFireAt: number | null;
     skipFireCount: number | null;
     createdAt: number;
@@ -145,11 +143,9 @@ export interface AgendaTrigger {
 export interface AgendaOccurrence {
     id: number;
     itemId: number;
-    triggerId: number;
     scheduledAt: number;
     status: AgendaOccurrenceStatus;
     doneAt: number | null;
-    createdAt: number;
 }
 
 export interface AgendaItemView extends AgendaItem {
@@ -169,7 +165,6 @@ export type AgendaItemRow = {
     completionMode: string;
     dueAt: number | null;
     source: string;
-    lastTouchedTurnId: string | null;
     createdAt: number;
     updatedAt: number;
     doneAt: number | null;
@@ -191,7 +186,6 @@ export type AgendaTriggerRow = {
     maxFires: number;
     lastFiredAt: number | null;
     nextFireAt: number | null;
-    graceWindowMs: number;
     skipNextFireAt: number | null;
     skipFireCount: number | null;
     createdAt: number;
@@ -200,39 +194,19 @@ export type AgendaTriggerRow = {
 export type AgendaOccurrenceRow = {
     id: number;
     itemId: number;
-    triggerId: number;
     scheduledAt: number;
     status: string;
     doneAt: number | null;
-    createdAt: number;
-};
-
-export type AgendaFireLogRow = {
-    id: number;
-    itemId: number;
-    triggerId: number;
-    firedAt: number;
-    action: string;
-    channelSessionId: number | null;
-    ok: boolean;
-    errorMessage: string | null;
 };
 
 export interface AgendaRecord {
     item: AgendaItemRow;
     triggers: AgendaTriggerRow[];
     occurrences: AgendaOccurrenceRow[];
-    fireLogs: AgendaFireLogRow[];
 }
 
 export interface AgendaRecordInput {
     item: AgendaStoredItemRow;
     triggers: AgendaTriggerRow[];
     occurrences: AgendaOccurrenceRow[];
-    fireLogs: AgendaFireLogRow[];
-}
-
-export interface AgendaRecordRef {
-    dbPath: string;
-    data: AgendaRecord;
 }

@@ -1,5 +1,5 @@
 import { inject } from "scorpio.di";
-import { T_AgendaChannelSessionId, T_AgendaProfileId, T_AgendaToolDescs } from "../../Core";
+import { T_AgendaChannelSessionId, T_AgendaToolDescs } from "../../Core";
 import { ILoggerService, type ILogger } from "../../Logger";
 import {
     AgendaCategory,
@@ -29,14 +29,13 @@ import {
 } from "../Extractor/IAgendaExtractor";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
 import { IAgendaStore } from "../Storage/IAgendaStore";
-import { computeInitialNextFire, DEFAULT_GRACE_MS, formatWhen, parseAt, relativeToMs } from "../time";
+import { computeInitialNextFire, formatWhen, parseAt, relativeToMs } from "../time";
 import { type AgendaToolDescs, IAgendaService } from "./IAgendaService";
 
 export class AgendaService implements IAgendaService {
     private readonly logger?: ILogger;
 
     constructor(
-        @inject(T_AgendaProfileId) private profileId: number,
         @inject(T_AgendaChannelSessionId) private channelSessionId: number,
         @inject(T_AgendaToolDescs) private toolDescs: AgendaToolDescs,
         @inject(IAgendaStore) private agendaStore: IAgendaStore,
@@ -56,14 +55,14 @@ export class AgendaService implements IAgendaService {
         if (!content) throw new Error("content is required");
         const now = Date.now();
         const category = args.category ?? this.inferCategory(args);
-        const completionMode = args.completionMode ?? this.inferCompletionMode(args, category);
+        const completionMode = args.completionMode ?? this.inferCompletionMode(category);
         const action = args.action ?? (category === AgendaCategory.Automation ? AgendaTriggerAction.Invoke : AgendaTriggerAction.Notify);
         const dueAt = this.inferDueAt(args);
 
         const existing = await this.findNearDuplicate(content, dueAt);
         if (existing) return { item: existing, created: false, existed: true };
 
-        const record = await this.agendaStore.createItem(this.profileId, id => ({
+        const record = await this.agendaStore.createItem(id => ({
             item: {
                 id,
                 content,
@@ -73,14 +72,12 @@ export class AgendaService implements IAgendaService {
                 completionMode,
                 dueAt,
                 source: args.source ?? AgendaSource.Tool,
-                lastTouchedTurnId: null,
                 createdAt: now,
                 updatedAt: now,
                 doneAt: null,
             },
             triggers: [],
             occurrences: [],
-            fireLogs: [],
         }));
 
         const trigger = await this.createTriggerIfNeeded(record.item, args, action, now);
@@ -89,15 +86,11 @@ export class AgendaService implements IAgendaService {
         return { item: view, created: true, existed: false };
     }
 
-    async listAll(profileIds: number[], filter?: AgendaListFilter): Promise<AgendaItemView[]> {
-        return AgendaService.buildList((await this.agendaStore.listAllItems(profileIds)).map(ref => ref.data), filter);
-    }
-
     async list(filter?: AgendaListFilter): Promise<AgendaItemView[]> {
-        return AgendaService.buildList((await this.agendaStore.listProfileItems(this.profileId)).map(ref => ref.data), filter);
+        return AgendaService.buildList(await this.agendaStore.listItems(), filter);
     }
 
-    private static buildList(records: AgendaRecord[], filter?: AgendaListFilter): AgendaItemView[] {
+    static buildList(records: AgendaRecord[], filter?: AgendaListFilter): AgendaItemView[] {
         const views = records.map(record => AgendaService.buildView(record)).filter(view => AgendaService.matchesFilter(view, filter));
         views.sort((a, b) => {
             const an = AgendaService.firstNextFire(a) ?? a.dueAt ?? a.createdAt;
@@ -146,8 +139,8 @@ export class AgendaService implements IAgendaService {
             if (patch.timezone !== undefined) triggerFields.timezone = patch.timezone;
             if (patch.action !== undefined) triggerFields.action = patch.action;
             if (patch.message !== undefined) triggerFields.message = patch.message?.trim() || null;
-            const record = await this.agendaStore.findByItemId(id);
-            const activeTriggers = record?.data.triggers.filter(t => t.enabled) ?? [];
+            const record = await this.agendaStore.findItem(id);
+            const activeTriggers = record?.triggers.filter(t => t.enabled) ?? [];
             for (const trigger of activeTriggers) await this.agendaStore.updateTrigger(trigger.id, triggerFields);
             await this.triggerEngine.reloadItem(id);
         } else {
@@ -194,8 +187,8 @@ export class AgendaService implements IAgendaService {
     async skipNext(id: number): Promise<AgendaItemView | null> {
         const item = await this.requireOwnedItem(id);
         if (!item) return null;
-        const record = await this.agendaStore.findByItemId(id);
-        const trigger = record?.data.triggers
+        const record = await this.agendaStore.findItem(id);
+        const trigger = record?.triggers
             .filter(t => t.enabled && t.nextFireAt)
             .sort((a, b) => (a.nextFireAt ?? 0) - (b.nextFireAt ?? 0))[0];
         if (!trigger) return this.getView(id);
@@ -221,11 +214,6 @@ export class AgendaService implements IAgendaService {
         const data = await this.agendaStore.deleteItem(id);
         if (data) for (const trigger of data.triggers) this.triggerEngine.cancel(trigger.id);
         return data;
-    }
-
-    async fireLogs(id: number): Promise<AgendaRecord["fireLogs"]> {
-        const record = await this.agendaStore.findByItemId(id);
-        return [...(record?.data.fireLogs ?? [])].sort((a, b) => b.firedAt - a.firedAt);
     }
 
     async formatForLLM(filter?: AgendaListFilter): Promise<string> {
@@ -306,7 +294,6 @@ export class AgendaService implements IAgendaService {
             maxFires,
             lastFiredAt: null,
             nextFireAt,
-            graceWindowMs: DEFAULT_GRACE_MS,
             skipNextFireAt: null,
             skipFireCount: null,
             createdAt: now,
@@ -328,15 +315,8 @@ export class AgendaService implements IAgendaService {
         return AgendaCategory.Todo;
     }
 
-    private inferCompletionMode(args: AgendaCreateArgs, category: AgendaCategory): AgendaCompletionMode {
-        if (category === AgendaCategory.Automation) return AgendaCompletionMode.None;
-        if (category === AgendaCategory.Reminder) return AgendaCompletionMode.None;
-        if (category === AgendaCategory.Routine) {
-            const text = args.content;
-            if (/(周报|日报|报告|提交|交付|汇报|report|submit|deliver|hand\s*in|turn\s*in|send\s+.*report)/i.test(text)) return AgendaCompletionMode.Occurrence;
-            return AgendaCompletionMode.None;
-        }
-        return AgendaCompletionMode.Item;
+    private inferCompletionMode(category: AgendaCategory): AgendaCompletionMode {
+        return category === AgendaCategory.Todo ? AgendaCompletionMode.Item : AgendaCompletionMode.None;
     }
 
     private inferDueAt(args: AgendaCreateArgs): number | null {
@@ -346,14 +326,14 @@ export class AgendaService implements IAgendaService {
     }
 
     private async findNearDuplicate(content: string, dueAt: number | null): Promise<AgendaItemView | null> {
-        const records = await this.agendaStore.listProfileItems(this.profileId);
+        const records = await this.agendaStore.listItems();
         const normalized = this.normalize(content);
         for (const record of records.slice(-30).reverse()) {
-            const row = record.data.item;
+            const row = record.item;
             if (row.status !== AgendaStatus.Pending) continue;
             if (this.normalize(row.content) !== normalized) continue;
-            if (dueAt == null && row.dueAt == null) return AgendaService.buildView(record.data);
-            if (dueAt != null && row.dueAt != null && Math.abs(dueAt - row.dueAt) < 2 * 60 * 1000) return AgendaService.buildView(record.data);
+            if (dueAt == null && row.dueAt == null) return AgendaService.buildView(record);
+            if (dueAt != null && row.dueAt != null && Math.abs(dueAt - row.dueAt) < 2 * 60 * 1000) return AgendaService.buildView(record);
         }
         return null;
     }
@@ -363,16 +343,13 @@ export class AgendaService implements IAgendaService {
     }
 
     private async requireOwnedItem(id: number): Promise<AgendaItemRow | null> {
-        const record = await this.agendaStore.findByItemId(id);
-        const item = record?.data.item;
-        if (!item || item.profileId !== this.profileId) return null;
-        return item;
+        const record = await this.agendaStore.findItem(id);
+        return record?.item ?? null;
     }
 
     private async getView(id: number): Promise<AgendaItemView | null> {
-        const record = await this.agendaStore.findByItemId(id);
-        if (!record || record.data.item.profileId !== this.profileId) return null;
-        return AgendaService.buildView(record.data);
+        const record = await this.agendaStore.findItem(id);
+        return record ? AgendaService.buildView(record) : null;
     }
 
     static buildView(record: AgendaRecord): AgendaItemView {
@@ -418,8 +395,8 @@ export class AgendaService implements IAgendaService {
     }
 
     private async firstPendingOccurrence(itemId: number): Promise<AgendaOccurrenceRow | null> {
-        const record = await this.agendaStore.findByItemId(itemId);
-        return record?.data.occurrences
+        const record = await this.agendaStore.findItem(itemId);
+        return record?.occurrences
             .filter(o => o.status === AgendaOccurrenceStatus.Pending)
             .sort((a, b) => a.scheduledAt - b.scheduledAt)[0] ?? null;
     }
