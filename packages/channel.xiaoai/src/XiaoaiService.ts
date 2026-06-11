@@ -92,7 +92,7 @@ export class XiaoaiService implements IChannelService {
       this.logger,
     );
     this.speakerDeviceId = matched.deviceID;
-    this.poller.startDevice(matched.deviceID, deviceName);
+    this.poller.startDevice(matched.deviceID, deviceName, matched.hardware);
   }
 
   private async handleMessage(msg: PollingMessage): Promise<void> {
