@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
@@ -58,9 +58,11 @@ function onResizeEnd() {
   localStorage.setItem('sbot-sidebar-width', String(sidebarWidth.value))
 }
 
+// 每组的 id 是稳定标识（不随 i18n 变），用作折叠状态的 key
 const menuGroups = computed(() => [
   // ── 一、运行时（看 / 用，日常高频） ──
   {
+    id: 'chat',
     group: t('nav.chat'),
     items: [
       { label: t('nav.chat'), key: '/chat' },
@@ -69,6 +71,7 @@ const menuGroups = computed(() => [
     ],
   },
   {
+    id: 'tasks',
     group: t('nav.group_tasks'),
     items: [
       { label: t('nav.agenda'), key: '/agenda' },
@@ -77,6 +80,7 @@ const menuGroups = computed(() => [
     ],
   },
   {
+    id: 'monitor',
     group: t('nav.group_monitor'),
     items: [
       { label: t('nav.heartbeats'), key: '/heartbeats' },
@@ -85,8 +89,16 @@ const menuGroups = computed(() => [
       { label: t('nav.token_usage'), key: '/token-usage' },
     ],
   },
-  // ── 二、配置（按依赖层级，自底向上） ──
+  // ── 二、配置（按依赖层级，自底向上：全局基础 → 资源模板 → 引用方） ──
   {
+    id: 'basics',
+    group: t('nav.group_basics'),
+    items: [
+      { label: t('nav.settings'), key: '/settings' },
+    ],
+  },
+  {
+    id: 'models',
     group: t('nav.group_models'),
     items: [
       { label: t('nav.models'), key: '/models' },
@@ -94,6 +106,7 @@ const menuGroups = computed(() => [
     ],
   },
   {
+    id: 'agents',
     group: t('nav.group_agents'),
     items: [
       { label: t('nav.agents'), key: '/agents' },
@@ -101,6 +114,7 @@ const menuGroups = computed(() => [
     ],
   },
   {
+    id: 'storage',
     group: t('nav.group_storage'),
     items: [
       { label: t('nav.savers'), key: '/savers' },
@@ -109,6 +123,7 @@ const menuGroups = computed(() => [
     ],
   },
   {
+    id: 'tools',
     group: t('nav.group_tools'),
     items: [
       { label: t('nav.mcp'), key: '/mcp' },
@@ -118,12 +133,7 @@ const menuGroups = computed(() => [
   },
   // ── 三、系统（低频访问） ──
   {
-    group: t('nav.group_basics'),
-    items: [
-      { label: t('nav.settings'), key: '/settings' },
-    ],
-  },
-  {
+    id: 'system',
     group: t('nav.group_system'),
     items: [
       { label: t('nav.explorer'), key: '/explorer' },
@@ -133,6 +143,29 @@ const menuGroups = computed(() => [
   },
 ])
 
+// ── 分组折叠状态（默认全部展开；持久化到 localStorage） ──
+const COLLAPSED_GROUPS_KEY = 'sbot-sidebar-collapsed-groups'
+const collapsedGroups = ref<Set<string>>((() => {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_GROUPS_KEY)
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw)
+    return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : [])
+  } catch { return new Set() }
+})())
+
+function isGroupCollapsed(id: string): boolean {
+  return collapsedGroups.value.has(id)
+}
+
+function toggleGroup(id: string) {
+  const next = new Set(collapsedGroups.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  collapsedGroups.value = next
+  localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...next]))
+}
+
 const activeKey = computed(() => {
   const p = route.path
   if (p.startsWith('/agents/')) return '/agents'
@@ -140,6 +173,16 @@ if (p.startsWith('/savers/') && p.endsWith('/view')) return '/savers'
   if (p.startsWith('/notes/') && p.endsWith('/view')) return '/notes'
   return p
 })
+
+// 路由切换时，若当前页所在分组被折叠，则自动展开 —— 防止激活项被藏起来
+watch(activeKey, key => {
+  for (const group of menuGroups.value) {
+    if (group.items.some(item => item.key === key) && collapsedGroups.value.has(group.id)) {
+      toggleGroup(group.id)
+      return
+    }
+  }
+}, { immediate: true })
 
 async function reloadConfig() {
   try {
@@ -296,18 +339,28 @@ onUnmounted(() => {
         :class="{ 'sidebar-open': sidebarOpen, 'sidebar-mobile': isMobile }"
         :style="sidebarStyle"
       >
-        <template v-for="group in menuGroups" :key="group.group">
-          <div class="sidebar-group-label">{{ group.group }}</div>
-          <div
-            v-for="item in group.items"
-            :key="item.key"
-            class="sidebar-item"
-            :class="{ active: activeKey === item.key }"
-            @click="router.push(item.key); isMobile && (sidebarOpen = false)"
+        <template v-for="group in menuGroups" :key="group.id">
+          <button
+            type="button"
+            class="sidebar-group-label"
+            :class="{ collapsed: isGroupCollapsed(group.id) }"
+            @click="toggleGroup(group.id)"
           >
-            {{ item.label }}
-            <span v-if="item.key === '/about' && hasUpdate" class="update-dot"></span>
-          </div>
+            <svg class="group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span>{{ group.group }}</span>
+          </button>
+          <template v-if="!isGroupCollapsed(group.id)">
+            <div
+              v-for="item in group.items"
+              :key="item.key"
+              class="sidebar-item"
+              :class="{ active: activeKey === item.key }"
+              @click="router.push(item.key); isMobile && (sidebarOpen = false)"
+            >
+              {{ item.label }}
+              <span v-if="item.key === '/about' && hasUpdate" class="update-dot"></span>
+            </div>
+          </template>
         </template>
         <div v-if="!isMobile" class="sidebar-resize-handle" @mousedown="onResizeStart"></div>
       </div>
@@ -470,18 +523,38 @@ body {
   color: var(--sui-fg);
 }
 .sidebar-group-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  width: 100%;
   padding: var(--sui-sp-7) var(--sui-sp-3) 5px;
   font-size: var(--sui-fs-sm);
   font-weight: 700;
   color: var(--sui-fg-secondary);
   user-select: none;
+  border: none;
   border-top: 1px solid var(--sui-border);
   margin-top: var(--sui-sp-1);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  border-radius: 0;
+  transition: color var(--sui-transition-fast);
 }
+.sidebar-group-label:hover { color: var(--sui-fg); }
 .sidebar-group-label:first-of-type {
   padding-top: var(--sui-sp-2);
   border-top: none;
   margin-top: 0;
+}
+.sidebar-group-label .group-chevron {
+  flex-shrink: 0;
+  color: var(--sui-fg-disabled);
+  transition: transform var(--sui-transition-base);
+}
+.sidebar-group-label.collapsed .group-chevron {
+  transform: rotate(-90deg);
 }
 .sidebar-item {
   padding: var(--sui-sp-3) var(--sui-sp-5);

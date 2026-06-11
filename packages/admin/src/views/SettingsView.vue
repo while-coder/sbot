@@ -41,33 +41,35 @@ function removeContextFileName(index: number) {
 }
 
 // ── Drag & Drop ──────────────────────────────────────────────────
-const dragIndex = ref<number | null>(null)
-const dropIndex = ref<number | null>(null)
+// 每个可拖拽列表用独立 state，避免 startup / context 之间互相干扰
+type DragState = { dragIndex: number | null; dropIndex: number | null }
+const startupDrag = ref<DragState>({ dragIndex: null, dropIndex: null })
+const contextDrag = ref<DragState>({ dragIndex: null, dropIndex: null })
 
-function onDragStart(index: number, e: DragEvent) {
-  dragIndex.value = index
+function onDragStart(state: DragState, index: number, e: DragEvent) {
+  state.dragIndex = index
   e.dataTransfer!.effectAllowed = 'move'
 }
-function onDragOver(index: number, e: DragEvent) {
+function onDragOver(state: DragState, index: number, e: DragEvent) {
   e.preventDefault()
   e.dataTransfer!.dropEffect = 'move'
-  dropIndex.value = index
+  state.dropIndex = index
 }
-function onDragLeave() {
-  dropIndex.value = null
+function onDragLeave(state: DragState) {
+  state.dropIndex = null
 }
-function onDrop(index: number) {
-  const from = dragIndex.value
+function onDrop(state: DragState, list: { value: string[] }, index: number) {
+  const from = state.dragIndex
   if (from !== null && from !== index) {
-    const item = startupCommands.value.splice(from, 1)[0]
-    startupCommands.value.splice(index, 0, item)
+    const item = list.value.splice(from, 1)[0]
+    list.value.splice(index, 0, item)
   }
-  dragIndex.value = null
-  dropIndex.value = null
+  state.dragIndex = null
+  state.dropIndex = null
 }
-function onDragEnd() {
-  dragIndex.value = null
-  dropIndex.value = null
+function onDragEnd(state: DragState) {
+  state.dragIndex = null
+  state.dropIndex = null
 }
 
 const currentPort = parseInt(window.location.port) || (window.location.protocol === 'https:' ? 443 : 80)
@@ -202,13 +204,23 @@ function fmtItem(category: string, item: any): string {
       </SCard>
       <SCard :title="t('settings.context_discovery')">
         <div class="form-hint">{{ t('settings.context_discovery_hint') }}</div>
-        <SFormItem :label="t('settings.context_file_names')" :hint="t('settings.context_file_names_hint')">
-          <div v-for="(_, index) in contextFileNames" :key="index" class="ctx-file-row">
-            <SInput v-model="contextFileNames[index]" type="text" :placeholder="t('settings.context_file_names_placeholder')" />
-            <SButton type="text" size="sm" :title="t('common.delete')" @click="removeContextFileName(index)">✕</SButton>
-          </div>
-          <SButton type="outline" size="sm" @click="addContextFileName">{{ t('settings.context_file_names_add') }}</SButton>
-        </SFormItem>
+        <div
+          v-for="(_, index) in contextFileNames"
+          :key="index"
+          class="draggable-row"
+          :class="{ 'drag-over': contextDrag.dropIndex === index && contextDrag.dragIndex !== index, 'dragging': contextDrag.dragIndex === index }"
+          draggable="true"
+          @dragstart="onDragStart(contextDrag, index, $event)"
+          @dragover="onDragOver(contextDrag, index, $event)"
+          @dragleave="onDragLeave(contextDrag)"
+          @drop="onDrop(contextDrag, contextFileNames as any, index)"
+          @dragend="onDragEnd(contextDrag)"
+        >
+          <span class="drag-handle" :title="t('settings.startup_commands_drag')">⠿</span>
+          <SInput v-model="contextFileNames[index]" type="text" :placeholder="t('settings.context_file_names_placeholder')" class="draggable-row-input" />
+          <SButton type="text" size="sm" :title="t('common.delete')" class="draggable-row-remove" @click="removeContextFileName(index)">✕</SButton>
+        </div>
+        <SButton type="outline" size="sm" @click="addContextFileName">{{ t('settings.context_file_names_add') }}</SButton>
       </SCard>
       <SCard :title="t('settings.tool_approval')">
         <SCheckCard v-model="autoApproveAllTools">
@@ -221,18 +233,18 @@ function fmtItem(category: string, item: any): string {
         <div
           v-for="(_, index) in startupCommands"
           :key="index"
-          class="startup-cmd-item"
-          :class="{ 'drag-over': dropIndex === index && dragIndex !== index, 'dragging': dragIndex === index }"
+          class="draggable-row"
+          :class="{ 'drag-over': startupDrag.dropIndex === index && startupDrag.dragIndex !== index, 'dragging': startupDrag.dragIndex === index }"
           draggable="true"
-          @dragstart="onDragStart(index, $event)"
-          @dragover="onDragOver(index, $event)"
-          @dragleave="onDragLeave"
-          @drop="onDrop(index)"
-          @dragend="onDragEnd"
+          @dragstart="onDragStart(startupDrag, index, $event)"
+          @dragover="onDragOver(startupDrag, index, $event)"
+          @dragleave="onDragLeave(startupDrag)"
+          @drop="onDrop(startupDrag, startupCommands as any, index)"
+          @dragend="onDragEnd(startupDrag)"
         >
           <span class="drag-handle" :title="t('settings.startup_commands_drag')">⠿</span>
-          <STextarea v-model="startupCommands[index]" :rows="3" :placeholder="t('settings.startup_commands_placeholder')" class="startup-cmd-textarea" />
-          <SButton type="text" size="sm" :title="t('common.delete')" class="startup-cmd-remove" @click="removeStartupCommand(index)">✕</SButton>
+          <STextarea v-model="startupCommands[index]" :rows="3" :placeholder="t('settings.startup_commands_placeholder')" class="draggable-row-input draggable-row-textarea" />
+          <SButton type="text" size="sm" :title="t('common.delete')" class="draggable-row-remove" @click="removeStartupCommand(index)">✕</SButton>
         </div>
         <SButton type="outline" size="sm" @click="addStartupCommand">{{ t('settings.startup_commands_add') }}</SButton>
       </SCard>
@@ -299,7 +311,7 @@ function fmtItem(category: string, item: any): string {
   text-align: center;
 }
 
-.startup-cmd-item {
+.draggable-row {
   display: flex;
   gap: var(--sui-sp-3);
   align-items: flex-start;
@@ -307,19 +319,10 @@ function fmtItem(category: string, item: any): string {
   border-radius: var(--sui-radius-sm);
   transition: background 0.15s, opacity 0.15s;
 }
-.ctx-file-row {
-  display: flex;
-  gap: var(--sui-sp-2);
-  align-items: center;
-  margin-bottom: var(--sui-sp-2);
-}
-.ctx-file-row > :deep(*:first-child) {
-  flex: 1;
-}
-.startup-cmd-item.dragging {
+.draggable-row.dragging {
   opacity: 0.4;
 }
-.startup-cmd-item.drag-over {
+.draggable-row.drag-over {
   background: var(--sui-info-soft);
   box-shadow: 0 -2px 0 0 var(--sui-info) inset;
 }
@@ -335,14 +338,14 @@ function fmtItem(category: string, item: any): string {
 .drag-handle:active {
   cursor: grabbing;
 }
-.startup-cmd-textarea {
+.draggable-row-input {
   flex: 1;
 }
-.startup-cmd-textarea :deep(textarea) {
+.draggable-row-textarea :deep(textarea) {
   font-family: var(--sui-font-mono);
   font-size: var(--sui-fs-md);
 }
-.startup-cmd-remove {
+.draggable-row-remove {
   flex-shrink: 0;
 }
 
