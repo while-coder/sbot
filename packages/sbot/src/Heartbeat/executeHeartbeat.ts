@@ -2,6 +2,8 @@ import { database, HeartbeatRow } from "../Core/Database";
 import { loadPrompt } from "../Core/PromptLoader";
 import { LoggerService } from "../Core/LoggerService";
 import { triggerSession } from "../Core/triggerSession";
+import { decideSmart } from "./decideSmart";
+import { checkThrottle, recordSentPatch } from "./throttle";
 
 const logger = LoggerService.getLogger("executeHeartbeat.ts");
 
@@ -24,26 +26,59 @@ function isInActiveHours(row: HeartbeatRow): boolean {
 }
 
 export async function executeHeartbeat(ctx: HeartbeatExecutionContext): Promise<void> {
-    const { heartbeatId, config: hbConfig } = ctx;
+    const { heartbeatId, config: row } = ctx;
     const tag = `[heartbeat:${heartbeatId}]`;
 
-    if (!hbConfig.enabled) return;
+    if (!row.enabled) return;
 
-    if (!isInActiveHours(hbConfig)) {
+    if (!isInActiveHours(row)) {
         logger.debug(`${tag} skipped: outside active hours`);
         return;
     }
 
-    const prompt = loadPrompt(hbConfig.promptFile);
+    if (row.mode === 'smart') {
+        await executeSmart(tag, row);
+    } else {
+        await executeFixed(tag, row);
+    }
 
-    const result = await triggerSession({
-        targetId: hbConfig.target,
+    await database.update(database.heartbeat, { lastRun: Date.now() }, { where: { id: heartbeatId } });
+}
+
+async function executeFixed(tag: string, row: HeartbeatRow): Promise<void> {
+    const prompt = loadPrompt(row.promptFile);
+    await triggerSession({
+        targetId: row.target,
         message: prompt,
         aiProcess: true,
         awaitCompletion: true,
         tag,
     });
-    if (!result.ok) return;
+}
 
-    await database.update(database.heartbeat, { lastRun: Date.now() }, { where: { id: heartbeatId } });
+async function executeSmart(tag: string, row: HeartbeatRow): Promise<void> {
+    const now = Date.now();
+    const verdict = checkThrottle(row, now);
+    if (!verdict.pass) {
+        logger.debug(`${tag} smart throttled: ${verdict.reason}`);
+        return;
+    }
+
+    const decision = await decideSmart(row);
+    logger.info(`${tag} smart decision: shouldSend=${decision.shouldSend} reason="${decision.reason}"`);
+    if (!decision.shouldSend || !decision.message) return;
+
+    const result = await triggerSession({
+        targetId: row.target,
+        message: decision.message,
+        aiProcess: false,
+        tag,
+    });
+    if (!result.ok) {
+        logger.warn(`${tag} smart send failed; not counting toward throttle`);
+        return;
+    }
+
+    const patch = recordSentPatch(row, now);
+    await database.update(database.heartbeat, patch, { where: { id: row.id } });
 }

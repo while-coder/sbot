@@ -9,7 +9,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBSchemaVersion = "profile-runtime-v1";
+const DBSchemaVersion = "profile-runtime-v2";
 const DBVersion: string = `${config.pkg.version}:${DBSchemaVersion}`;
 export type MessageRow = {
   id: string;
@@ -21,6 +21,8 @@ export type MessageRow = {
 
 // ⚠️ enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
 // 仅可用真值检查，禁止 `=== true` / `=== false`。
+export type HeartbeatMode = 'fixed' | 'smart';
+
 export type HeartbeatRow = {
   id: number;
   name: string;
@@ -33,6 +35,18 @@ export type HeartbeatRow = {
   activeHoursTimezone: string | null;
   lastRun: number | null;
   createdAt: number;
+  // smart 模式：随机抖动 + LLM 决策"要不要发、发什么"。fixed 行为不变。
+  mode: HeartbeatMode;
+  agendaId: string | null;            // smart 决策时拉取的 agenda 模板 id；null=不带 agenda 上下文
+  jitterMinPct: number;               // 下次延迟下界 = intervalMinutes * jitterMinPct / 100
+  jitterMaxPct: number;               // 下次延迟上界 = intervalMinutes * jitterMaxPct / 100
+  decisionPromptFile: string | null;  // smart 模式决策 prompt；null=用默认
+  decisionModelId: string | null;     // smart 模式决策 model id；null=用默认
+  minGapMinutes: number;              // 节流：上次实发后 X 分钟内不再发，0=不限
+  dailyLimit: number;                 // 节流：每日发送上限，0=不限
+  lastSentAt: number | null;          // 上次"实际发送"时间戳（区别于 lastRun）
+  dailySentDate: string | null;       // 当前计数所属 YYYY-MM-DD（按 activeHoursTimezone）
+  dailySentCount: number;             // 当日已发送次数
 };
 
 export type StateRow = {
@@ -714,6 +728,72 @@ class Database {
           allowNull: false,
           defaultValue: 0,
           comment: "创建时间戳(ms)",
+        },
+        mode: {
+          type: DataTypes.STRING(16),
+          allowNull: false,
+          defaultValue: "fixed",
+          comment: "fixed=固定周期, smart=LLM 判断+随机抖动",
+        },
+        agendaId: {
+          type: DataTypes.STRING(64),
+          allowNull: true,
+          defaultValue: null,
+          comment: "smart 决策上下文使用的 agenda 模板 id",
+        },
+        jitterMinPct: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 50,
+          comment: "smart 抖动下界%（基于 intervalMinutes）",
+        },
+        jitterMaxPct: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 150,
+          comment: "smart 抖动上界%（基于 intervalMinutes）",
+        },
+        decisionPromptFile: {
+          type: DataTypes.STRING(512),
+          allowNull: true,
+          defaultValue: null,
+          comment: "smart 决策 prompt 文件",
+        },
+        decisionModelId: {
+          type: DataTypes.STRING(128),
+          allowNull: true,
+          defaultValue: null,
+          comment: "smart 决策 model id",
+        },
+        minGapMinutes: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 30,
+          comment: "节流：最小发送间隔分钟，0=不限",
+        },
+        dailyLimit: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 6,
+          comment: "节流：每日发送上限，0=不限",
+        },
+        lastSentAt: {
+          type: DataTypes.BIGINT,
+          allowNull: true,
+          defaultValue: null,
+          comment: "上次实际发送时间戳(ms)",
+        },
+        dailySentDate: {
+          type: DataTypes.STRING(16),
+          allowNull: true,
+          defaultValue: null,
+          comment: "当前每日计数所属日期 YYYY-MM-DD",
+        },
+        dailySentCount: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+          comment: "当日已发送次数",
         },
       },
       {

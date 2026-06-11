@@ -8,9 +8,11 @@ import { executeHeartbeat, type HeartbeatExecutionContext } from "./executeHeart
 const logger = LoggerService.getLogger("HeartbeatService.ts");
 
 class HeartbeatService {
-    private executor = new TimerExecutor<ReturnType<typeof setInterval>>({
+    // 同时承载 setInterval（fixed 模式）和 setTimeout（smart 模式）句柄。
+    // Node 里两种 timer 是同一类型，clearTimeout 也能取消 setInterval。
+    private executor = new TimerExecutor<NodeJS.Timeout>({
         name: "Heartbeat",
-        stop: h => clearInterval(h),
+        stop: h => clearTimeout(h),
         concurrencyGuard: true,
     });
 
@@ -20,24 +22,51 @@ class HeartbeatService {
         let loaded = 0;
         for (const row of rows) {
             if (!row.enabled) continue;
-            if (this.schedule(row.id, row.intervalMinutes)) loaded++;
+            if (this.schedule(row)) loaded++;
         }
         if (loaded > 0) {
             logger.info(`Heartbeat service started: ${loaded} heartbeat(s) scheduled`);
         }
     }
 
-    private schedule(heartbeatId: number, intervalMinutes: number): boolean {
-        if (intervalMinutes <= 0) {
-            logger.error(`Heartbeat [${heartbeatId}] invalid interval: ${intervalMinutes} minutes`);
+    private schedule(row: HeartbeatRow): boolean {
+        if (row.intervalMinutes <= 0) {
+            logger.error(`Heartbeat [${row.id}] invalid interval: ${row.intervalMinutes} minutes`);
             return false;
         }
 
-        const ms = intervalMinutes * 60_000;
-        const interval = setInterval(() => this.execute(heartbeatId), ms);
-        this.executor.set(heartbeatId, interval);
-        logger.info(`Heartbeat [${heartbeatId}] scheduled (interval: ${intervalMinutes}m)`);
+        if (row.mode === 'smart') {
+            this.scheduleNextSmart(row.id, row.intervalMinutes, row.jitterMinPct, row.jitterMaxPct);
+            return true;
+        }
+
+        const ms = row.intervalMinutes * 60_000;
+        const interval = setInterval(() => this.execute(row.id), ms);
+        this.executor.set(row.id, interval);
+        logger.info(`Heartbeat [${row.id}] scheduled (fixed interval: ${row.intervalMinutes}m)`);
         return true;
+    }
+
+    private scheduleNextSmart(heartbeatId: number, intervalMinutes: number, jitterMinPct: number, jitterMaxPct: number): void {
+        const lo = Math.max(1, Math.min(jitterMinPct, jitterMaxPct));
+        const hi = Math.max(lo, Math.max(jitterMinPct, jitterMaxPct));
+        const factor = lo + Math.random() * (hi - lo);
+        const delayMs = Math.max(1_000, Math.round(intervalMinutes * 60_000 * factor / 100));
+        const handle = setTimeout(async () => {
+            try {
+                await this.execute(heartbeatId);
+            } finally {
+                // 仅在 timer 仍由我们持有时才续上下一次（execute 里若已 cancel——删除/禁用/切到 fixed——别复活）。
+                if (this.executor.has(heartbeatId)) {
+                    const fresh = await database.findByPk<HeartbeatRow>(database.heartbeat, heartbeatId);
+                    if (fresh?.enabled && fresh.mode === 'smart') {
+                        this.scheduleNextSmart(fresh.id, fresh.intervalMinutes, fresh.jitterMinPct, fresh.jitterMaxPct);
+                    }
+                }
+            }
+        }, delayMs);
+        this.executor.set(heartbeatId, handle);
+        logger.info(`Heartbeat [${heartbeatId}] smart next in ~${Math.round(delayMs / 60_000)}m (factor=${factor.toFixed(2)})`);
     }
 
     private async execute(heartbeatId: number): Promise<void> {
@@ -64,10 +93,9 @@ class HeartbeatService {
 
     async reload(heartbeatId: number): Promise<void> {
         const row = await database.findByPk<HeartbeatRow>(database.heartbeat, heartbeatId);
+        this.executor.cancel(heartbeatId);
         if (row && row.enabled) {
-            this.schedule(row.id, row.intervalMinutes);
-        } else {
-            this.executor.cancel(heartbeatId);
+            this.schedule(row);
         }
     }
 
@@ -90,13 +118,16 @@ class HeartbeatService {
         return database.findByPk<HeartbeatRow>(database.heartbeat, id);
     }
 
-    async create(data: Omit<HeartbeatRow, 'id' | 'lastRun' | 'createdAt'>): Promise<HeartbeatRow> {
+    async create(data: Omit<HeartbeatRow, 'id' | 'lastRun' | 'createdAt' | 'lastSentAt' | 'dailySentDate' | 'dailySentCount'>): Promise<HeartbeatRow> {
         const row = await database.create<HeartbeatRow>(database.heartbeat, {
             ...data,
             lastRun: null,
+            lastSentAt: null,
+            dailySentDate: null,
+            dailySentCount: 0,
             createdAt: Date.now(),
         });
-        if (row.enabled) this.schedule(row.id, row.intervalMinutes);
+        if (row.enabled) this.schedule(row);
         return row;
     }
 
@@ -105,7 +136,7 @@ class HeartbeatService {
         const row = await database.findByPk<HeartbeatRow>(database.heartbeat, id);
         if (row) {
             this.executor.cancel(id);
-            if (row.enabled) this.schedule(row.id, row.intervalMinutes);
+            if (row.enabled) this.schedule(row);
         }
         return row;
     }
