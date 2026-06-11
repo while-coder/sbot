@@ -59,7 +59,7 @@ function onResizeEnd() {
 }
 
 const menuGroups = computed(() => [
-  // ── 一、运行 / 操作 ──
+  // ── 一、运行时（看 / 用，日常高频） ──
   {
     group: t('nav.chat'),
     items: [
@@ -76,19 +76,28 @@ const menuGroups = computed(() => [
       { label: t('nav.insight_profiles'), key: '/insight-profiles' },
     ],
   },
-  // ── 二、构建模块 ──
   {
-    group: t('nav.group_agents'),
+    group: t('nav.group_monitor'),
     items: [
-      { label: t('nav.agents'), key: '/agents' },
-      { label: t('nav.agent_store'), key: '/agent-store' },
+      { label: t('nav.heartbeats'), key: '/heartbeats' },
+      { label: t('nav.processes'), key: '/processes' },
+      { label: t('nav.tunnel'), key: '/tunnel' },
+      { label: t('nav.token_usage'), key: '/token-usage' },
     ],
   },
+  // ── 二、配置（按依赖层级，自底向上） ──
   {
     group: t('nav.group_models'),
     items: [
       { label: t('nav.models'), key: '/models' },
       { label: t('nav.embeddings'), key: '/embeddings' },
+    ],
+  },
+  {
+    group: t('nav.group_agents'),
+    items: [
+      { label: t('nav.agents'), key: '/agents' },
+      { label: t('nav.agent_store'), key: '/agent-store' },
     ],
   },
   {
@@ -107,16 +116,7 @@ const menuGroups = computed(() => [
       { label: t('nav.prompts'), key: '/prompts' },
     ],
   },
-  // ── 三、运维 / 系统 ──
-  {
-    group: t('nav.group_monitor'),
-    items: [
-      { label: t('nav.tunnel'), key: '/tunnel' },
-      { label: t('nav.processes'), key: '/processes' },
-      { label: t('nav.heartbeats'), key: '/heartbeats' },
-      { label: t('nav.token_usage'), key: '/token-usage' },
-    ],
-  },
+  // ── 三、系统（低频访问） ──
   {
     group: t('nav.group_basics'),
     items: [
