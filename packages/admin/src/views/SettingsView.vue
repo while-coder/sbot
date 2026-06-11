@@ -103,15 +103,28 @@ async function save() {
   }
 }
 
-// ── Cleanup orphans ─────────────────────────────────────────────
+// ── Scan invalid data ───────────────────────────────────────────
+
+interface InvalidRef { source: string; field: string; badValue: string }
 
 interface CleanupReport {
   dryRun: boolean
+  // 跨表残留行（自动清）
   orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>
   orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; userName: string }>
   orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>
   orphanHeartbeats: Array<{ id: number; target: number; name: string }>
+  // 仅列出
   emptyVisibleProfiles: Array<{ id: number; name: string }>
+  // 引用了不存在目标（仅列出，需用户手改）
+  invalidAgentRefs: InvalidRef[]
+  invalidSaverRefs: InvalidRef[]
+  invalidModelRefs: InvalidRef[]
+  invalidEmbeddingRefs: InvalidRef[]
+  invalidNoteRefs: InvalidRef[]
+  invalidWikiRefs: InvalidRef[]
+  invalidInsightProfileRefs: InvalidRef[]
+  invalidAgendaProfileRefs: InvalidRef[]
 }
 
 const cleanupReport = ref<CleanupReport | null>(null)
@@ -122,13 +135,28 @@ const cleanupCategories = computed<Array<{ key: keyof CleanupReport; label: stri
   const r = cleanupReport.value
   if (!r) return []
   return [
+    // 自动清理：跨表残留行
     { key: 'orphanChannelSessions', label: t('settings.cleanup_orphan_sessions'),  cleaned: true,  items: r.orphanChannelSessions },
     { key: 'orphanChannelUsers',    label: t('settings.cleanup_orphan_users'),     cleaned: true,  items: r.orphanChannelUsers },
     { key: 'orphanAutoProfiles',    label: t('settings.cleanup_orphan_auto_profiles'), cleaned: true, items: r.orphanAutoProfiles },
     { key: 'orphanHeartbeats',      label: t('settings.cleanup_orphan_heartbeats'), cleaned: true,  items: r.orphanHeartbeats },
+    // 仅列出
     { key: 'emptyVisibleProfiles',  label: t('settings.cleanup_empty_profiles'),   cleaned: false, items: r.emptyVisibleProfiles },
+    // 无效引用（仅列出，需手改）
+    { key: 'invalidAgentRefs',          label: t('settings.invalid_agent_refs'),          cleaned: false, items: r.invalidAgentRefs },
+    { key: 'invalidSaverRefs',          label: t('settings.invalid_saver_refs'),          cleaned: false, items: r.invalidSaverRefs },
+    { key: 'invalidModelRefs',          label: t('settings.invalid_model_refs'),          cleaned: false, items: r.invalidModelRefs },
+    { key: 'invalidEmbeddingRefs',      label: t('settings.invalid_embedding_refs'),      cleaned: false, items: r.invalidEmbeddingRefs },
+    { key: 'invalidNoteRefs',           label: t('settings.invalid_note_refs'),           cleaned: false, items: r.invalidNoteRefs },
+    { key: 'invalidWikiRefs',           label: t('settings.invalid_wiki_refs'),           cleaned: false, items: r.invalidWikiRefs },
+    { key: 'invalidInsightProfileRefs', label: t('settings.invalid_insight_profile_refs'),cleaned: false, items: r.invalidInsightProfileRefs },
+    { key: 'invalidAgendaProfileRefs',  label: t('settings.invalid_agenda_profile_refs'), cleaned: false, items: r.invalidAgendaProfileRefs },
   ]
 })
+
+const issuesCount = computed(() =>
+  cleanupCategories.value.reduce((sum, c) => sum + c.items.length, 0)
+)
 
 const cleanableCount = computed(() =>
   cleanupCategories.value
@@ -175,6 +203,15 @@ function fmtItem(category: string, item: any): string {
       return `#${item.id} target=${item.target} name="${item.name || ''}"`
     case 'emptyVisibleProfiles':
       return `#${item.id} name="${item.name || ''}"`
+    case 'invalidAgentRefs':
+    case 'invalidSaverRefs':
+    case 'invalidModelRefs':
+    case 'invalidEmbeddingRefs':
+    case 'invalidNoteRefs':
+    case 'invalidWikiRefs':
+    case 'invalidInsightProfileRefs':
+    case 'invalidAgendaProfileRefs':
+      return `${item.source} → ${item.field} = "${item.badValue}"`
   }
   return JSON.stringify(item)
 }
@@ -248,8 +285,8 @@ function fmtItem(category: string, item: any): string {
         </div>
         <SButton type="outline" size="sm" @click="addStartupCommand">{{ t('settings.startup_commands_add') }}</SButton>
       </SCard>
-      <SCard :title="t('settings.cleanup_orphans')">
-        <div class="form-hint">{{ t('settings.cleanup_orphans_hint') }}</div>
+      <SCard :title="t('settings.scan_invalid_data')">
+        <div class="form-hint">{{ t('settings.scan_invalid_data_hint') }}</div>
         <div class="cleanup-actions">
           <SButton type="outline" size="sm" :disabled="cleanupLoading" @click="scanCleanup">
             {{ cleanupReport ? t('settings.cleanup_rescan') : t('settings.cleanup_scan') }}
@@ -265,7 +302,7 @@ function fmtItem(category: string, item: any): string {
           </SButton>
         </div>
         <div v-if="cleanupReport" class="cleanup-report">
-          <div v-if="cleanableCount === 0 && (cleanupReport.emptyVisibleProfiles?.length ?? 0) === 0" class="cleanup-empty">
+          <div v-if="issuesCount === 0" class="cleanup-empty">
             ✓ {{ t('settings.cleanup_clean') }}
           </div>
           <div

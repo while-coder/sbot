@@ -115,7 +115,14 @@ export class SettingsRoutes {
             label: 'Insight profile',
             checkOnDelete: true,
             getSettings,
+            // 改了或删了配置，丢掉缓存的 InsightService 实例（绑定 extractor 模型 / prompt 已变）
+            afterSave: async (id) => {
+                const { insightServicePool } = await import('../../Agent/InsightServicePool');
+                insightServicePool.invalidate(id);
+            },
             afterDelete: async (id) => {
+                const { insightServicePool } = await import('../../Agent/InsightServicePool');
+                insightServicePool.invalidate(id);
                 const fs = await import('fs');
                 const dir = config.getInsightPath(id);
                 try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}

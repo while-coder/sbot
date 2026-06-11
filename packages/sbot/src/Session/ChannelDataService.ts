@@ -597,6 +597,8 @@ export class ChannelDataService {
             logger.info(`cleanupOrphans applied: channels=${counts.channels}, sessions=${counts.sessions}, users=${counts.users}, autoProfiles=${counts.autoProfiles}, heartbeats=${counts.heartbeats}`);
         }
 
+        const invalidRefs = scanInvalidReferences(allProfiles);
+
         return {
             dryRun,
             orphanChannelSessions: orphanChannelSessions.map(s => ({
@@ -614,8 +616,143 @@ export class ChannelDataService {
             emptyVisibleProfiles: emptyVisibleProfiles.map(p => ({
                 id: p.id, name: p.name,
             })),
+            ...invalidRefs,
         };
     }
+}
+
+// ── 无效引用扫描 ───────────────────────────────────────────────────────────────
+
+/**
+ * 扫描配置 + DB profile 的字段引用，找出指向不存在目标的引用。
+ *
+ * 覆盖：
+ * - agent ID（profile.agentId / channel.agent / agent.agents[].id）
+ * - saver UUID（profile.saver / channel.saver）
+ * - model UUID（intentModel / agent.model / agent.compactModel / insightProfile.extractor / agendaProfile.syncModel）
+ * - embedding UUID（note.embedding / wiki.embedding）
+ * - note/wiki UUID（profile.notes[] / channel.notes[]，wikis 同理）
+ * - insightProfile / agendaProfile UUID（profile.insight / channel.insight，agenda 同理）
+ */
+function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
+    invalidAgentRefs: InvalidRef[];
+    invalidSaverRefs: InvalidRef[];
+    invalidModelRefs: InvalidRef[];
+    invalidEmbeddingRefs: InvalidRef[];
+    invalidNoteRefs: InvalidRef[];
+    invalidWikiRefs: InvalidRef[];
+    invalidInsightProfileRefs: InvalidRef[];
+    invalidAgendaProfileRefs: InvalidRef[];
+} {
+    const settings = config.settings;
+    const channels = settings.channels ?? {};
+    const models = settings.models ?? {};
+    const embeddings = settings.embeddings ?? {};
+    const savers = settings.savers ?? {};
+    const notes = settings.notes ?? {};
+    const wikis = settings.wikis ?? {};
+    const insightProfiles = settings.insightProfiles ?? {};
+    const agendaProfiles = settings.agendaProfiles ?? {};
+    const agentIds = new Set(config.listAgents().map(a => a.id));
+
+    const has = (map: Record<string, unknown>, id: string | null | undefined): boolean =>
+        !!id && Object.prototype.hasOwnProperty.call(map, id);
+
+    const invalidAgentRefs: InvalidRef[] = [];
+    const invalidSaverRefs: InvalidRef[] = [];
+    const invalidModelRefs: InvalidRef[] = [];
+    const invalidEmbeddingRefs: InvalidRef[] = [];
+    const invalidNoteRefs: InvalidRef[] = [];
+    const invalidWikiRefs: InvalidRef[] = [];
+    const invalidInsightProfileRefs: InvalidRef[] = [];
+    const invalidAgendaProfileRefs: InvalidRef[] = [];
+
+    const profileSource = (p: SessionProfileRow): string => {
+        if (p.autoForSessionId != null) return `profile:#${p.id}(auto for session#${p.autoForSessionId})`;
+        return `profile:#${p.id}${p.name ? `(${p.name})` : ''}`;
+    };
+
+    // ── profiles ─────────────────────────────────────────────────────────
+    for (const p of allProfiles) {
+        const src = profileSource(p);
+        if (p.agentId && !agentIds.has(p.agentId)) invalidAgentRefs.push({ source: src, field: 'agentId', badValue: p.agentId });
+        if (p.saver && !has(savers, p.saver)) invalidSaverRefs.push({ source: src, field: 'saver', badValue: p.saver });
+        if (p.intentModel && !has(models, p.intentModel)) invalidModelRefs.push({ source: src, field: 'intentModel', badValue: p.intentModel });
+        if (p.insight && !has(insightProfiles, p.insight)) invalidInsightProfileRefs.push({ source: src, field: 'insight', badValue: p.insight });
+        if (p.agenda && !has(agendaProfiles, p.agenda)) invalidAgendaProfileRefs.push({ source: src, field: 'agenda', badValue: p.agenda });
+
+        const noteIds = parseNotes(p.notes);
+        noteIds.forEach((id, i) => {
+            if (!has(notes, id)) invalidNoteRefs.push({ source: src, field: `notes[${i}]`, badValue: id });
+        });
+        const wikiIds = parseNotes(p.wikis);
+        wikiIds.forEach((id, i) => {
+            if (!has(wikis, id)) invalidWikiRefs.push({ source: src, field: `wikis[${i}]`, badValue: id });
+        });
+    }
+
+    // ── channels ─────────────────────────────────────────────────────────
+    for (const [cid, c] of Object.entries(channels)) {
+        const src = `channel:${cid}${c.name ? `(${c.name})` : ''}`;
+        if (c.agent && !agentIds.has(c.agent)) invalidAgentRefs.push({ source: src, field: 'agent', badValue: c.agent });
+        if (c.saver && !has(savers, c.saver)) invalidSaverRefs.push({ source: src, field: 'saver', badValue: c.saver });
+        if (c.intentModel && !has(models, c.intentModel)) invalidModelRefs.push({ source: src, field: 'intentModel', badValue: c.intentModel });
+        if (c.insight && !has(insightProfiles, c.insight)) invalidInsightProfileRefs.push({ source: src, field: 'insight', badValue: c.insight });
+        if (c.agenda && !has(agendaProfiles, c.agenda)) invalidAgendaProfileRefs.push({ source: src, field: 'agenda', badValue: c.agenda });
+        (c.notes ?? []).forEach((id, i) => {
+            if (!has(notes, id)) invalidNoteRefs.push({ source: src, field: `notes[${i}]`, badValue: id });
+        });
+        (c.wikis ?? []).forEach((id, i) => {
+            if (!has(wikis, id)) invalidWikiRefs.push({ source: src, field: `wikis[${i}]`, badValue: id });
+        });
+    }
+
+    // ── notes / wikis 引用 embedding ─────────────────────────────────────
+    for (const [nid, n] of Object.entries(notes)) {
+        if (n.embedding && !has(embeddings, n.embedding)) {
+            invalidEmbeddingRefs.push({ source: `note:${nid}${n.name ? `(${n.name})` : ''}`, field: 'embedding', badValue: n.embedding });
+        }
+    }
+    for (const [wid, w] of Object.entries(wikis)) {
+        if (w.embedding && !has(embeddings, w.embedding)) {
+            invalidEmbeddingRefs.push({ source: `wiki:${wid}${w.name ? `(${w.name})` : ''}`, field: 'embedding', badValue: w.embedding });
+        }
+    }
+
+    // ── insightProfiles / agendaProfiles 引用 model ──────────────────────
+    for (const [iid, ip] of Object.entries(insightProfiles)) {
+        if (ip.extractor && !has(models, ip.extractor)) {
+            invalidModelRefs.push({ source: `insightProfile:${iid}${ip.name ? `(${ip.name})` : ''}`, field: 'extractor', badValue: ip.extractor });
+        }
+    }
+    for (const [aid, ap] of Object.entries(agendaProfiles)) {
+        if (ap.syncModel && !has(models, ap.syncModel)) {
+            invalidModelRefs.push({ source: `agendaProfile:${aid}${ap.name ? `(${ap.name})` : ''}`, field: 'syncModel', badValue: ap.syncModel });
+        }
+    }
+
+    // ── agents 引用 model / 子 agent ─────────────────────────────────────
+    for (const a of config.listAgents()) {
+        const src = `agent:${a.id}${(a as any).name ? `((${(a as any).name}))` : ''}`;
+        const am = a as any;
+        if (am.model && !has(models, am.model)) invalidModelRefs.push({ source: src, field: 'model', badValue: am.model });
+        if (am.compactModel && !has(models, am.compactModel)) invalidModelRefs.push({ source: src, field: 'compactModel', badValue: am.compactModel });
+        const subs: Array<{ id: string }> = Array.isArray(am.agents) ? am.agents : [];
+        subs.forEach((sub, i) => {
+            if (sub?.id && !agentIds.has(sub.id)) invalidAgentRefs.push({ source: src, field: `agents[${i}].id`, badValue: sub.id });
+        });
+    }
+
+    return {
+        invalidAgentRefs,
+        invalidSaverRefs,
+        invalidModelRefs,
+        invalidEmbeddingRefs,
+        invalidNoteRefs,
+        invalidWikiRefs,
+        invalidInsightProfileRefs,
+        invalidAgendaProfileRefs,
+    };
 }
 
 // ── listSessions 响应类型 ─────────────────────────────────────────────────────
@@ -654,16 +791,33 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     lastTotalTokens: number;
 }
 
-// ── cleanup report ────────────────────────────────────────────────────────────
+// ── cleanup / scan report ─────────────────────────────────────────────────────
+
+/** 一条无效引用：source 是引用方，field 是哪个字段，badValue 是不存在的目标 ID */
+export interface InvalidRef {
+    source: string;
+    field: string;
+    badValue: string;
+}
 
 export interface CleanupReport {
     dryRun: boolean;
+    /** 跨表残留行（cleanupOrphans 自动清理） */
     orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>;
     orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; userName: string }>;
     orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>;
     orphanHeartbeats: Array<{ id: number; target: number; name: string }>;
     /** 仅列出，cleanupOrphans 不会删；用户决定是否手删 */
     emptyVisibleProfiles: Array<{ id: number; name: string }>;
+    /** 配置间引用对方但目标已不存在（仅列出，需用户手动改） */
+    invalidAgentRefs: InvalidRef[];
+    invalidSaverRefs: InvalidRef[];
+    invalidModelRefs: InvalidRef[];
+    invalidEmbeddingRefs: InvalidRef[];
+    invalidNoteRefs: InvalidRef[];
+    invalidWikiRefs: InvalidRef[];
+    invalidInsightProfileRefs: InvalidRef[];
+    invalidAgendaProfileRefs: InvalidRef[];
 }
 
 export const channelDataService = new ChannelDataService();

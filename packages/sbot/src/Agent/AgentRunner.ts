@@ -16,11 +16,7 @@ import {
     WikiService,
     T_WikiSystemPromptTemplate,
     T_WikiToolDescs,
-    IInsightService, InsightService,
-    IInsightExtractor, InsightExtractor,
-    T_InsightDir,
-    T_InsightExtractorSystemPrompt,
-    T_InsightStaleDays, T_InsightArchiveDays, T_InsightSystemPromptTemplate,
+    IInsightService,
     IAgendaService,
     AgendaService,
     IAgendaStore,
@@ -43,6 +39,7 @@ import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
 import { agendaStorePool, agendaTriggerEnginePool } from "../Agenda";
+import { insightServicePool } from "./InsightServicePool";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -253,23 +250,12 @@ export class AgentRunner {
         insightId: string | null | undefined,
     ): Promise<void> {
         if (!insightId) return;
+        // 多对话共享同一 insightProfile 时通过 pool 共用一个 InsightService 实例，
+        // 避免并发 extractFromConversation / curate / HybridSearcher 缓存的竞态。
         const profileConfig = config.getInsightProfile(insightId);
         if (!profileConfig?.enabled) return;
-
-        const insightDir = config.getInsightPath(insightId);
-
-        const extractorModel = await config.getModelService(profileConfig.extractor, true);
-        container.registerWithArgs(IInsightExtractor, InsightExtractor, {
-            [IModelService]: extractorModel,
-            [T_InsightExtractorSystemPrompt]: loadPrompt(profileConfig.extractorPromptFile ?? 'insight/extractor/default.txt'),
-        });
-
-        container.registerWithArgs(IInsightService, InsightService, {
-            [T_InsightDir]: insightDir,
-            [T_InsightSystemPromptTemplate]: loadPrompt('insight/system.txt'),
-            [T_InsightStaleDays]: 30,
-            [T_InsightArchiveDays]: 90,
-        });
+        const service = await insightServicePool.get(insightId);
+        if (service) container.registerInstance(IInsightService, service);
     }
 
     private static async registerAgendaService(
