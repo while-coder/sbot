@@ -67,6 +67,7 @@ export class AgendaStore implements IAgendaStore {
                     nextFireAt     INTEGER,
                     skipNextFireAt INTEGER,
                     skipFireCount  INTEGER,
+                    derived        INTEGER NOT NULL DEFAULT 0,
                     createdAt      INTEGER NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS occurrences (
@@ -81,8 +82,17 @@ export class AgendaStore implements IAgendaStore {
                 CREATE INDEX IF NOT EXISTS idx_triggers_enabled ON triggers (enabled, nextFireAt);
                 CREATE INDEX IF NOT EXISTS idx_occurrences_item_status ON occurrences (itemId, status, scheduledAt);
             `);
+            this.runMigrations();
         }
         return this._db;
+    }
+
+    /** 旧库兼容：补齐后加的列。SQLite 不支持 IF NOT EXISTS 在 ADD COLUMN 上，靠读 table_info 判断。 */
+    private runMigrations(): void {
+        const cols = (this._db!.prepare("PRAGMA table_info(triggers)").all() as Array<{ name: string }>).map(r => r.name);
+        if (!cols.includes("derived")) {
+            this._db!.exec("ALTER TABLE triggers ADD COLUMN derived INTEGER NOT NULL DEFAULT 0");
+        }
     }
 
     private inferItemIdFromChildId(childId: number): number {
@@ -111,6 +121,7 @@ export class AgendaStore implements IAgendaStore {
         const triggers = (this.db.prepare("SELECT * FROM triggers WHERE itemId = ? ORDER BY id").all(item.id) as any[]).map(row => ({
             ...row,
             enabled: Boolean(row.enabled),
+            derived: Boolean(row.derived),
         })) as AgendaTrigger[];
         const occurrences = this.db.prepare("SELECT * FROM occurrences WHERE itemId = ? ORDER BY scheduledAt, id").all(item.id) as AgendaOccurrence[];
         return { item, triggers, occurrences };
@@ -200,13 +211,13 @@ export class AgendaStore implements IAgendaStore {
                 INSERT INTO triggers (
                     id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
                     fireCount, maxFires, lastFiredAt, nextFireAt, skipNextFireAt,
-                    skipFireCount, createdAt
+                    skipFireCount, derived, createdAt
                 ) VALUES (
                     @id, @itemId, @kind, @expr, @timezone, @action, @message, @channelHint, @enabled,
                     @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @skipNextFireAt,
-                    @skipFireCount, @createdAt
+                    @skipFireCount, @derived, @createdAt
                 )
-            `).run({ ...row, enabled: row.enabled ? 1 : 0 });
+            `).run({ ...row, enabled: row.enabled ? 1 : 0, derived: row.derived ? 1 : 0 });
             return row;
         });
     }

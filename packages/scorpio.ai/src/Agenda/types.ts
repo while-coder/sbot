@@ -24,22 +24,19 @@ export enum AgendaPriority {
 }
 
 /**
- * 类别。决定默认 completionMode、默认 action，并影响 list/view 的过滤。
- * 通常由 AgendaService.inferCategory 根据时间字段推断，LLM 一般不显式传：
- * - 有 action=invoke → Automation
+ * 形态分类。仅表达"时间形态"，与"是否 AI 处理"无关——后者交给 trigger.action（Invoke/Notify/Send）。
+ * 由 AgendaService.inferCategory 根据时间字段推断：
  * - 有 every/cron → Routine
- * - 有 at/after → Reminder
- * - 都没有 → Todo
+ * - 有 at/after  → Reminder
+ * - 都没有       → Todo
  */
 export enum AgendaCategory {
     /** 普通待办，无时间。LLM 说"我今天要写周报" → Todo。 */
     Todo = 'todo',
-    /** 一次性提醒。LLM 说"明天 9 点提醒我开会" → Reminder（带 at）。 */
+    /** 一次性。LLM 说"明天 9 点提醒我开会"或"明天 9 点帮我总结日志" → Reminder（区别在 action）。 */
     Reminder = 'reminder',
-    /** 周期任务。LLM 说"每天提醒我喝水" → Routine（带 every）。 */
+    /** 周期任务。LLM 说"每天提醒我喝水"或"每天 8 点帮我总结日志" → Routine（区别在 action）。 */
     Routine = 'routine',
-    /** 自动化。LLM 说"每天 8 点帮我总结昨天日志" → Automation（action=invoke）。 */
-    Automation = 'automation',
 }
 
 /**
@@ -48,7 +45,7 @@ export enum AgendaCategory {
  */
 export enum AgendaCompletionMode {
     /**
-     * 不需要手动完成。Reminder/Routine/Automation 的默认值。
+     * 不需要手动完成。Reminder/Routine 的默认值。
      * absolute trigger 触发完后系统自动把主体置 Done；周期任务则随 maxFires 耗尽自动 Done。
      */
     None = 'none',
@@ -90,14 +87,13 @@ export enum AgendaTriggerKind {
 }
 
 /**
- * 触发动作。决定 trigger fire 时往会话里送什么。
+ * 触发动作。仅表达"是否让 AI 处理"一个维度。
+ * 文本前缀/格式化由用户/LLM 在 message 字段里自己组织，系统不再自动套模板。
  */
 export enum AgendaTriggerAction {
-    /** 默认。发"提醒：${message} (#id)"格式的提示。 */
+    /** 默认。把 message 原文投给用户（不让 AI 处理）。 */
     Notify = 'notify',
-    /** 直接发 message 原文（不加"提醒："前缀）。 */
-    Send = 'send',
-    /** 把 message 当作用户输入投给 AI 处理。LLM 说"每天 8 点帮我总结" → Invoke。 */
+    /** 把 message 当作用户输入投给 AI 处理。LLM 说"每天 8 点帮我总结日志" → Invoke。 */
     Invoke = 'invoke',
 }
 
@@ -123,9 +119,9 @@ export enum AgendaListView {
     Todo = 'todo',
     /** 即将到来：仅有 enabled trigger 且有 nextFireAt 的条目。 */
     Upcoming = 'upcoming',
-    /** 仅周期任务。 */
+    /** 仅周期任务（category=Routine）。 */
     Routine = 'routine',
-    /** 仅自动化任务（含任何非 Notify 的 trigger）。 */
+    /** 仅"AI 处理类"任务：含任何非 Notify 的 trigger（Invoke/Send）。与 category 正交。 */
     Automation = 'automation',
     /** 全部。 */
     All = 'all',
@@ -144,8 +140,8 @@ export enum AgendaTimeUnit {
 }
 
 /**
- * 相对时间。LLM 说"1 小时后" → { amount: 1, unit: 'hour' }；
- * 说"100 天后" → { amount: 100, unit: 'day' }。
+ * 相对时间。仅用于"间隔"语义（every）。"未来时刻"统一用 ISO 字符串（at / startAt）。
+ * LLM 说"每天" → { amount: 1, unit: 'day' }；"每 90 分钟" → { amount: 90, unit: 'minute' }。
  */
 export interface AgendaRelativeTime {
     /** 数量。会被 floor 并取 max(1, ·)，所以传 0/负数会被规范成 1。 */
@@ -155,68 +151,77 @@ export interface AgendaRelativeTime {
 }
 
 /**
+ * Absolute 触发器：一次性，在 `at` 指定的 ISO 时刻触发。
+ * LLM 说"明天 9 点提醒开会" → { kind: 'absolute', at: '2026-06-12T09:00:00' }。
+ * "1 小时后" 的相对时刻请由 LLM 自行加到当前时间算成 ISO。
+ */
+export interface AgendaAbsoluteTriggerSpec {
+    kind: AgendaTriggerKind.Absolute;
+    /** ISO 时刻字符串。 */
+    at: string;
+}
+
+/**
+ * Interval 触发器：固定间隔重复。
+ * LLM 说"每天提醒我喝水" → { kind: 'interval', every: { amount: 1, unit: 'day' } }。
+ * 配合 startAt 推迟首次、count 限定总次数。
+ */
+export interface AgendaIntervalTriggerSpec {
+    kind: AgendaTriggerKind.Interval;
+    /** 间隔大小。 */
+    every: AgendaRelativeTime;
+    /**
+     * 首次触发的 ISO 时刻；不传则在创建后一个 every 间隔触发。
+     * LLM 说"从 100 天后开始每天提醒" → startAt = 当前时间 + 100 天的 ISO。
+     */
+    startAt?: string;
+    /** 总触发次数上限；省略=无限。LLM 说"连续提醒 7 天" → count = 7。 */
+    count?: number;
+}
+
+/**
+ * Cron 触发器：cron 表达式驱动的重复。
+ * LLM 说"工作日 9 点" → { kind: 'cron', expr: '0 0 9 * * 1-5' }。
+ */
+export interface AgendaCronTriggerSpec {
+    kind: AgendaTriggerKind.Cron;
+    /** 6 字段 cron 表达式（秒 分 时 日 月 周）。 */
+    expr: string;
+    /** 首次触发的 ISO 时刻；不传则取当前时间之后的第一个 cron 命中。 */
+    startAt?: string;
+    /** 总触发次数上限；省略=无限。 */
+    count?: number;
+}
+
+/**
+ * 触发器规格。create/update 时传给 service，service 根据 kind 走对应分支建 trigger。
+ */
+export type AgendaTriggerSpec =
+    | AgendaAbsoluteTriggerSpec
+    | AgendaIntervalTriggerSpec
+    | AgendaCronTriggerSpec;
+
+/**
  * 创建参数。LLM 通过 agenda_create 工具调用这个。
- *
- * 时间字段优先级（互斥，按顺序判定）：at > after > every > cron。
- * - at/after → Absolute 一次性 trigger
- * - every    → Interval 周期 trigger
- * - cron     → Cron 周期 trigger
- * - 都没有  → 不创建 trigger（纯 Todo）
- *
- * startAt/startAfter/count 仅对 every/cron 生效（推迟首次 + 限制总次数）。
+ * 时间相关全部封装在 trigger 字段里；不传 trigger = 纯 Todo（无调度）。
  */
 export interface AgendaCreateArgs {
     /** 主内容。LLM 说"提醒我喝水" → "喝水"。trim 后非空，否则抛错。 */
     content: string;
-    /** 显式类别。一般省略，由系统根据时间字段自动推断；显式传可覆盖。 */
+    /** 显式类别。一般省略，由系统根据 trigger.kind 自动推断；显式传可覆盖。 */
     category?: AgendaCategory;
     /** 优先级。默认 Normal。 */
     priority?: AgendaPriority;
-    /**
-     * 一次性绝对时刻（ISO 字符串）。
-     * LLM 说"明天上午 9 点提醒我开会" → at = "2026-06-12T09:00:00"。
-     */
-    at?: string;
-    /**
-     * 一次性相对时刻。
-     * LLM 说"半小时后提醒我" → after = { amount: 30, unit: 'minute' }。
-     */
-    after?: AgendaRelativeTime;
-    /**
-     * 周期间隔。
-     * LLM 说"每天提醒我喝水" → every = { amount: 1, unit: 'day' }。
-     * 默认无限重复，配合 count 可限定次数。
-     */
-    every?: AgendaRelativeTime;
-    /**
-     * 6 字段 cron 表达式（秒 分 时 日 月 周）。
-     * LLM 说"工作日早 9 点" → cron = "0 0 9 * * 1-5"。
-     */
-    cron?: string;
-    /**
-     * 仅 every/cron 有效：首次触发的绝对时刻。
-     * LLM 说"从 9 月 1 日开始每天提醒" → startAt = "2026-09-01T09:00:00"。
-     * every：之后按间隔累加；cron：之后按 cron 节奏。
-     */
-    startAt?: string;
-    /**
-     * 仅 every/cron 有效：相对 now 推迟首次触发。
-     * LLM 说"100 天后开始每天提醒" → startAfter = { amount: 100, unit: 'day' } + every = { amount: 1, unit: 'day' }。
-     */
-    startAfter?: AgendaRelativeTime;
-    /**
-     * 仅 every/cron 有效：总触发次数上限；省略=无限。
-     * LLM 说"连续提醒 7 天" → count = 7。落到 trigger.maxFires。
-     */
-    count?: number;
+    /** 调度规格；省略 = 纯 Todo（无 trigger）。 */
+    trigger?: AgendaTriggerSpec;
     /**
      * IANA 时区。影响 cron 计算和"今天/明天"的日界判断；缺省取本地时区。
      * 例："Asia/Shanghai" / "America/New_York"。
      */
     timezone?: string;
     /**
-     * 触发动作。缺省：Automation 类→Invoke，其余→Notify。
-     * LLM 说"每天总结一下" → Invoke。
+     * 触发动作。缺省 Notify。
+     * LLM 说"每天帮我总结一下"/"每天 8 点帮我跑数据" → 显式传 Invoke（让 AI 处理）。
      */
     action?: AgendaTriggerAction;
     /**
@@ -226,6 +231,15 @@ export interface AgendaCreateArgs {
     message?: string;
     /** 显式完成模式。一般省略，由系统按 category 推断。 */
     completionMode?: AgendaCompletionMode;
+    /**
+     * 显式截止时刻（ISO 字符串）。优先级最高，会覆盖系统从 trigger 推导的 dueAt。
+     * 主要给纯 Todo 用——LLM 说"周五前写完周报" → dueAt = "2026-06-13T23:59:59"。
+     * 副作用：当不传 trigger 时，系统会自动派生一条 Absolute trigger（at=dueAt）作为"截止前提醒"，
+     * 避免 dueAt 过期后无人通知；同时传 trigger 则用户调度优先，不派生。
+     * Reminder（Absolute trigger）默认 dueAt = trigger.at，无需显式传；
+     * 周期任务（Interval+count）默认 dueAt = 最后一次触发时刻。
+     */
+    dueAt?: string;
     /** 来源标记。LLM 调用时一般不传，由 service 根据上下文写入（Tool / Sync）。 */
     source?: AgendaSource;
 }
@@ -233,9 +247,9 @@ export interface AgendaCreateArgs {
 /**
  * 更新参数。LLM 通过 agenda_update 工具调用这个。
  *
- * 时间字段（at/after/every/cron）任一传入都视为"调度变更"：
- * 旧 trigger 全 disable，按新参数建一条新 trigger。
- * timezone/action/message 单独传则在不重建 trigger 的前提下原地改字段。
+ * - 传 `trigger` = "调度变更"：旧 trigger 全 disable，按新规格建一条新 trigger
+ * - 不传 `trigger` 但传 timezone/action/message = 原地改 trigger 字段，不重建
+ * - 都不传 = 仅改主体字段
  */
 export interface AgendaUpdatePatch {
     /** 改内容。LLM 说"把 #3 改成 '交月报'" → content = "交月报"。 */
@@ -245,23 +259,11 @@ export interface AgendaUpdatePatch {
     completionMode?: AgendaCompletionMode;
     /**
      * 显式改 dueAt（ISO 字符串或 null 清空）。
-     * 不传时若发生调度变更，dueAt 由新调度推导。
+     * 不传时若发生调度变更，dueAt 由新 trigger 推导。
      */
     dueAt?: string | null;
-    /** 重建为 Absolute trigger，见 AgendaCreateArgs.at。 */
-    at?: string;
-    /** 重建为 Absolute trigger（相对），见 AgendaCreateArgs.after。 */
-    after?: AgendaRelativeTime;
-    /** 重建为 Interval trigger，见 AgendaCreateArgs.every。 */
-    every?: AgendaRelativeTime;
-    /** 重建为 Cron trigger，见 AgendaCreateArgs.cron。 */
-    cron?: string;
-    /** 见 AgendaCreateArgs.startAt。 */
-    startAt?: string;
-    /** 见 AgendaCreateArgs.startAfter。 */
-    startAfter?: AgendaRelativeTime;
-    /** 见 AgendaCreateArgs.count。 */
-    count?: number;
+    /** 调度变更：传入新 spec 替换旧 trigger。省略 = 不动调度。 */
+    trigger?: AgendaTriggerSpec;
     /** 改时区；传 null 清空。单独传时不重建 trigger，只改 trigger.timezone 字段。 */
     timezone?: string | null;
     /** 改触发动作。单独传时不重建 trigger。 */
@@ -314,10 +316,12 @@ export interface AgendaItem {
     category: AgendaCategory;
     completionMode: AgendaCompletionMode;
     /**
-     * 截止时间戳（毫秒）；周期任务为 null。
-     * - at 创建：dueAt = at 的时刻
-     * - after 创建：dueAt = createdAt + after
-     * - every/cron 创建：dueAt = null（"周期"没有截止）
+     * 截止时间戳（毫秒）。写入规则（优先级从高到低）：
+     * - args.dueAt 显式传 → 用它
+     * - trigger.kind === Absolute → trigger.at
+     * - trigger.kind === Interval && count > 0 → startTime + (count-1) * everyMs（最后一次触发时刻）
+     * - 其他（Cron / 无 count 的周期 / 无 trigger 且未传 dueAt）→ null
+     * 用途：列表排序回退、findNearDuplicate 去重 key、UI "已过期"判断、LLM format 的 due= 字段。
      */
     dueAt: number | null;
     source: AgendaSource;
@@ -374,6 +378,11 @@ export interface AgendaTrigger {
     skipNextFireAt: number | null;
     /** skipNext 标记的待跳过 fireCount；fireCount 达到时不实际投递。 */
     skipFireCount: number | null;
+    /**
+     * 是否由系统从 dueAt 派生（true = 由 withDefaultDueAtTrigger 注入）。
+     * update 改 dueAt 时只动 derived=true 的 trigger，避免误伤用户显式建的调度。
+     */
+    derived: boolean;
     createdAt: number;
 }
 

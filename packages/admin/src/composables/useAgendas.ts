@@ -5,7 +5,7 @@ import { useConfirm, useToast } from 'sbot-ui'
 
 export type AgendaStatus = 'pending' | 'done' | 'cancelled'
 export type AgendaPriority = 'low' | 'normal' | 'high'
-export type AgendaCategory = 'todo' | 'reminder' | 'routine' | 'automation'
+export type AgendaCategory = 'todo' | 'reminder' | 'routine'
 export type AgendaViewFilter = 'todo' | 'upcoming' | 'routine' | 'automation' | 'all'
 export type AgendaStatusFilter = AgendaStatus | 'all'
 
@@ -15,7 +15,7 @@ export interface AgendaTrigger {
   kind: 'absolute' | 'interval' | 'cron'
   expr: string
   timezone: string | null
-  action: 'notify' | 'send' | 'invoke'
+  action: 'notify' | 'invoke'
   message: string | null
   channelHint: number
   enabled: boolean

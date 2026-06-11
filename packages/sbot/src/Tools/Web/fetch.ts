@@ -1,7 +1,15 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools'
 import { z } from 'zod'
 import TurndownService from 'turndown'
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai'
+import {
+    createTextContent,
+    createImageContent,
+    createAudioContent,
+    createDocumentContent,
+    createErrorResult,
+    createSuccessResult,
+    type MCPToolResult,
+} from 'scorpio.ai'
 import { loadPrompt } from '../../Core/PromptLoader'
 import { LoggerService } from '../../Core/LoggerService'
 
@@ -112,14 +120,17 @@ export function createWebFetchTool(): StructuredToolInterface {
                     mime.startsWith('image/') &&
                     mime !== 'image/svg+xml' &&
                     mime !== 'image/vnd.fastbidsheet'
+                const isAudio = mime.startsWith('audio/')
+                const isPdf = mime === 'application/pdf'
 
-                if (isImage) {
+                if (isImage || isAudio || isPdf) {
                     const base64Content = Buffer.from(arrayBuffer).toString('base64')
-                    return createSuccessResult(
-                        createTextContent(
-                            `size: ${arrayBuffer.byteLength} bytes\nbase64: data:${mime};base64,${base64Content}`,
-                        ),
-                    )
+                    const block = isImage
+                        ? createImageContent(base64Content, mime)
+                        : isAudio
+                            ? createAudioContent(base64Content, mime)
+                            : createDocumentContent(base64Content, mime)
+                    return createSuccessResult(block)
                 }
 
                 const content = new TextDecoder().decode(arrayBuffer)

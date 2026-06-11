@@ -10,6 +10,7 @@ import {
     AgendaPriority,
     AgendaTimeUnit,
     AgendaTriggerAction,
+    AgendaTriggerKind,
     type AgendaItemView,
 } from "../types";
 import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgendaExtractor";
@@ -19,17 +20,31 @@ const RelativeTimeSchema = z.object({
     unit: z.enum(AgendaTimeUnit),
 });
 
+const TriggerSpecSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal(AgendaTriggerKind.Absolute),
+        at: z.string(),
+    }),
+    z.object({
+        kind: z.literal(AgendaTriggerKind.Interval),
+        every: RelativeTimeSchema,
+        startAt: z.string().optional(),
+        count: z.number().int().positive().optional(),
+    }),
+    z.object({
+        kind: z.literal(AgendaTriggerKind.Cron),
+        expr: z.string(),
+        startAt: z.string().optional(),
+        count: z.number().int().positive().optional(),
+    }),
+]);
+
 const CreateArgsSchema = z.object({
     content: z.string(),
     category: z.enum(AgendaCategory).optional(),
     priority: z.enum(AgendaPriority).optional(),
-    at: z.string().optional(),
-    after: RelativeTimeSchema.optional(),
-    every: RelativeTimeSchema.optional(),
-    cron: z.string().optional(),
-    startAt: z.string().optional(),
-    startAfter: RelativeTimeSchema.optional(),
-    count: z.number().int().positive().optional(),
+    trigger: TriggerSpecSchema.optional(),
+    dueAt: z.string().optional(),
     timezone: z.string().optional(),
     action: z.enum(AgendaTriggerAction).optional(),
     message: z.string().optional(),

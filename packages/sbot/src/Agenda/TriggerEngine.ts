@@ -193,9 +193,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     }
 
     private buildMessage(item: AgendaItem, trigger: AgendaTrigger): string {
-        const message = trigger.message || item.content;
-        if (trigger.action === AgendaTriggerAction.Notify) return `提醒：${message} (#${item.id})`;
-        return message;
+        return trigger.message || item.content;
     }
 
     private shouldSkip(trigger: AgendaTrigger, scheduledAt: number): boolean {

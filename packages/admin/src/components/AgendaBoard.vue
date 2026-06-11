@@ -80,7 +80,6 @@ function statusVariant(s: AgendaStatus): 'success' | 'warning' | 'neutral' {
 function categoryVariant(c: AgendaCategory): 'success' | 'info' | 'warning' | 'neutral' {
   if (c === 'routine') return 'success'
   if (c === 'reminder') return 'warning'
-  if (c === 'automation') return 'info'
   return 'neutral'
 }
 
