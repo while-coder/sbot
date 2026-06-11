@@ -3,7 +3,7 @@ import { IModelService } from "../Model";
 import { ILoggerService, ILogger } from "../Logger";
 import { T_CompactPromptTemplate, T_PostCompactMessageTemplate, T_PostCompactContinuation } from "../Core/tokens";
 import { T_SummaryModelService } from "../Agents/AgentServiceBase";
-import { ChatMessage, MessageKind, MessageRole, NewStoredMessage, StoredMessage } from "./IAgentSaverService";
+import { ChatMessage, ContentPartType, MessageKind, MessageRole, NewStoredMessage, StoredMessage } from "./IAgentSaverService";
 import { estimateMessageTokens } from "./messageSerializer";
 
 const COMPACT_THRESHOLD = 0.7;
@@ -64,7 +64,7 @@ export class ConversationCompactor {
         const summary = !result ? '' :
             typeof result.content === 'string'
                 ? result.content
-                : result.content.map(p => (p.type === 'text' ? (p.text ?? '') : '')).join('');
+                : result.content.map(p => (p.type === ContentPartType.Text ? (p.text ?? '') : '')).join('');
 
         this.logger?.info(`Compact complete, summary length: ${summary.length}`);
 

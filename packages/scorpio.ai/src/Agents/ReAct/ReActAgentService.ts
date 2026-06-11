@@ -2,7 +2,7 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout, T_ToolOverflowDir } from "../../Core";
 import { INoteService } from "../../Note";
 import { IWikiService } from "../../Wiki";
-import { IAgentSaverService, TaskBackedSaver, ConversationCompactor, IConversationCompactor, type MessageContent } from "../../Saver";
+import { IAgentSaverService, TaskBackedSaver, ConversationCompactor, IConversationCompactor, ContentPartType, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole, ChatMessage } from "../AgentServiceBase";
@@ -69,14 +69,14 @@ export class ReActAgentService extends SingleAgentService {
 
     const parentMsg = await super.buildSystemMessage(query);
     if (!parentMsg) {
-      return { role: MessageRole.System, content: [{ type: "text", text: reactPrompt }] };
+      return { role: MessageRole.System, content: [{ type: ContentPartType.Text, text: reactPrompt }] };
     }
 
     const parentContent = parentMsg.content as Array<{ type: string; text: string }>;
     return {
       role: MessageRole.System,
       content: [
-        { type: "text", text: reactPrompt + "\n\n" + parentContent[0].text },
+        { type: ContentPartType.Text, text: reactPrompt + "\n\n" + parentContent[0].text },
         ...parentContent.slice(1),
       ],
     };

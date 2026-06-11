@@ -2,7 +2,7 @@ import { Command as CommanderCommand } from "commander";
 import { CommandContext, CommandRegistry, ICommand } from "../Command";
 import { AgentCancelledError } from "../Agents/AgentServiceBase";
 import { GlobalLoggerService, ILogger } from "../Logger";
-import type { MessageContent } from "../Saver/IAgentSaverService";
+import { ContentPartType, type MessageContent } from "../Saver/IAgentSaverService";
 import { truncateForLog } from "../Utils/contentUtils";
 
 export enum MessageType { Command = 'command', AI = 'ai' }
@@ -10,7 +10,7 @@ export enum MessageType { Command = 'command', AI = 'ai' }
 export function summarizeMultimodal(parts: Array<{ type: string; text?: string; [key: string]: any }>): string {
     const segments: string[] = [];
     for (const part of parts) {
-        if (part.type === 'text' && part.text) {
+        if (part.type === ContentPartType.Text && part.text) {
             segments.push(part.text);
         } else {
             segments.push(`[${part.type}]`);

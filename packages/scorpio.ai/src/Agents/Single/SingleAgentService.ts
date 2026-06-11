@@ -14,7 +14,7 @@ import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
-import type { MessageContent } from "../../Saver/IAgentSaverService";
+import { ContentPartType, type MessageContent } from "../../Saver/IAgentSaverService";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 
 export {
@@ -131,9 +131,9 @@ export class SingleAgentService extends AgentServiceBase {
         }
         const contentBlocks: Array<{ type: string; text: string }> = [];
         const staticContent = staticParts.join("\n\n").trim();
-        if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
+        if (staticContent) contentBlocks.push({ type: ContentPartType.Text, text: staticContent });
         const dynamicContent = dynamicParts.join("\n\n").trim();
-        if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
+        if (dynamicContent) contentBlocks.push({ type: ContentPartType.Text, text: dynamicContent });
         if (contentBlocks.length === 0) return undefined;
         return { role: MessageRole.System, content: contentBlocks };
     }
@@ -323,7 +323,7 @@ export class SingleAgentService extends AgentServiceBase {
                     : mcpResult.content.map(item => {
                         if (item.type === MCPContentType.ImageUrl) {
                             const raw = item.url ?? item.image_url!;
-                            return { type: 'image_url', image_url: { url: typeof raw === 'string' ? raw : raw.url } };
+                            return { type: ContentPartType.ImageUrl, image_url: { url: typeof raw === 'string' ? raw : raw.url } };
                         }
                         return item;
                     });

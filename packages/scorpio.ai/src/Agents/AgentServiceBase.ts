@@ -1,7 +1,7 @@
 import { ServiceContainer } from "scorpio.di";
 import { INoteService } from "../Note";
 import { IWikiService } from "../Wiki";
-import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageKind, MessageRole, type MessageContent, type ContentPart, type TokenUsage } from "../Saver";
+import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, ContentPartType, MessageKind, MessageRole, type MessageContent, type ContentPart, type TokenUsage } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
 import { resizeImageIfNeeded, detectImageMimeType } from "../Utils/contentUtils";
 
@@ -137,19 +137,19 @@ export abstract class AgentServiceBase {
         if (typeof content === 'string') return content;
         if (!Array.isArray(content)) return content;
         return Promise.all(content.map(async (part: ContentPart): Promise<ContentPart> => {
-            if (part.type === 'image' && typeof part.data === 'string') {
+            if (part.type === ContentPartType.Image && typeof part.data === 'string') {
                 const buf = Buffer.from(part.data, 'base64');
                 const resized = await resizeImageIfNeeded(buf);
                 if (resized === buf) return part;
-                return { type: 'image_url', image_url: { url: `data:${detectImageMimeType(resized)};base64,${resized.toString('base64')}` } };
+                return { type: ContentPartType.ImageUrl, image_url: { url: `data:${detectImageMimeType(resized)};base64,${resized.toString('base64')}` } };
             }
-            if (part.type === 'image_url') {
+            if (part.type === ContentPartType.ImageUrl) {
                 const raw = part.image_url ?? part.url;
                 const url = typeof raw === 'string' ? raw : raw?.url;
                 if (typeof url !== 'string') return part;
                 const resizedUrl = await resizeImageIfNeeded(url);
                 if (resizedUrl === url) return part;
-                return { type: 'image_url', image_url: { url: resizedUrl } };
+                return { type: ContentPartType.ImageUrl, image_url: { url: resizedUrl } };
             }
             return part;
         }));

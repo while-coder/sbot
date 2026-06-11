@@ -6,7 +6,7 @@ import { ILoggerService } from "../../Logger";
 import { INoteService } from "../../Note";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole } from "../AgentServiceBase";
 
-import type { MessageContent } from "../../Saver/IAgentSaverService";
+import { ContentPartType, type MessageContent } from "../../Saver/IAgentSaverService";
 
 export { ChatMessage, MessageRole, IAgentCallback, AgentCancelledError } from "../AgentServiceBase";
 
@@ -59,11 +59,11 @@ export class GenerativeAgentService extends AgentServiceBase {
 
             const history = this.truncateHistory(savedHistory);
 
-            const contentBlocks: Array<{ type: "text"; text: string }> = [];
+            const contentBlocks: Array<{ type: typeof ContentPartType.Text; text: string }> = [];
             const staticContent = this.staticSystemPrompts.join('\n\n').trim();
-            if (staticContent) contentBlocks.push({ type: "text", text: staticContent });
+            if (staticContent) contentBlocks.push({ type: ContentPartType.Text, text: staticContent });
             const dynamicContent = this.dynamicSystemPrompts.join('\n\n').trim();
-            if (dynamicContent) contentBlocks.push({ type: "text", text: dynamicContent });
+            if (dynamicContent) contentBlocks.push({ type: ContentPartType.Text, text: dynamicContent });
             const messages: ChatMessage[] = [
                 ...(contentBlocks.length > 0 ? [{ role: MessageRole.System, content: contentBlocks }] : []),
                 ...history,
@@ -108,7 +108,7 @@ export class GenerativeAgentService extends AgentServiceBase {
                     ? { type: MCPContentType.Audio, data: part.inlineData.data, mimeType: mime }
                     : { type: MCPContentType.Image, data: part.inlineData.data, mimeType: mime };
             }
-            if (part.type === 'image_url') {
+            if (part.type === ContentPartType.ImageUrl) {
                 const url = typeof part.image_url === 'string' ? part.image_url : part.image_url?.url;
                 if (url) return { type: MCPContentType.Image, data: url, mimeType: 'image/png' };
             }

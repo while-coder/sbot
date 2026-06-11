@@ -103,7 +103,7 @@ export async function readMediaAsContentPart(filePath: string, mediaAsFilePath =
 
     if (mediaAsFilePath) {
         const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath.slice(filePath.lastIndexOf('\\') + 1);
-        return { part: { type: 'text', text: `[${category}: ${name}](${filePath})` }, category };
+        return { part: { type: ContentPartType.Text, text: `[${category}: ${name}](${filePath})` }, category };
     }
 
     const { readFile } = await import('fs/promises');
@@ -111,7 +111,7 @@ export async function readMediaAsContentPart(filePath: string, mediaAsFilePath =
 
     switch (category) {
         case 'image': {
-            return { part: { type: 'image_url', image_url: { url: `data:${detectImageMimeType(buffer)};base64,${buffer.toString('base64')}` } }, category };
+            return { part: { type: ContentPartType.ImageUrl, image_url: { url: `data:${detectImageMimeType(buffer)};base64,${buffer.toString('base64')}` } }, category };
         }
         // case 'audio':
         //     return { part: { type: 'audio', data: buffer.toString('base64'), mimeType }, category };
@@ -123,7 +123,7 @@ export async function readMediaAsContentPart(filePath: string, mediaAsFilePath =
         // }
         default: {
             const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath.slice(filePath.lastIndexOf('\\') + 1);
-            return { part: { type: 'text', text: `[${category}: ${name}] (${mimeType}, ${buffer.length} bytes)` }, category };
+            return { part: { type: ContentPartType.Text, text: `[${category}: ${name}] (${mimeType}, ${buffer.length} bytes)` }, category };
         }
     }
 }
