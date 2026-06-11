@@ -1,8 +1,9 @@
 import { ServiceContainer } from "scorpio.di";
 import { INoteService } from "../Note";
 import { IWikiService } from "../Wiki";
-import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageKind, MessageRole, type MessageContent, type TokenUsage } from "../Saver";
+import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, MessageKind, MessageRole, type MessageContent, type ContentPart, type TokenUsage } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
+import { resizeImageIfNeeded, detectImageMimeType } from "../Utils/contentUtils";
 
 
 export const DEFAULT_MAX_HISTORY_TOKENS = 150_000;
@@ -126,6 +127,33 @@ export abstract class AgentServiceBase {
     }
 
     abstract stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]>;
+
+    /**
+     * 按 maxImageSize 等比缩放图片 part；text/audio/未知 part 透传。
+     * 用户输入（stream 入口）和工具结果（callToolsNode）共用此入口，
+     * 保证所有进入对话历史的图片走统一规则。
+     */
+    protected async resizeImagesInContent(content: MessageContent): Promise<MessageContent> {
+        if (typeof content === 'string') return content;
+        if (!Array.isArray(content)) return content;
+        return Promise.all(content.map(async (part: ContentPart): Promise<ContentPart> => {
+            if (part.type === 'image' && typeof part.data === 'string') {
+                const buf = Buffer.from(part.data, 'base64');
+                const resized = await resizeImageIfNeeded(buf);
+                if (resized === buf) return part;
+                return { type: 'image_url', image_url: { url: `data:${detectImageMimeType(resized)};base64,${resized.toString('base64')}` } };
+            }
+            if (part.type === 'image_url') {
+                const raw = part.image_url ?? part.url;
+                const url = typeof raw === 'string' ? raw : raw?.url;
+                if (typeof url !== 'string') return part;
+                const resizedUrl = await resizeImageIfNeeded(url);
+                if (resizedUrl === url) return part;
+                return { type: 'image_url', image_url: { url: resizedUrl } };
+            }
+            return part;
+        }));
+    }
 
     /**
      * 将运行/工具异常以 {@link MessageKind.Exception} 形式落库，便于回溯。

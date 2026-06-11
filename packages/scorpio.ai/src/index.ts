@@ -430,7 +430,7 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 // ========================================
 // Utils - 工具函数
 // ========================================
-export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, detectImageMimeType, setMaxImageSize, resizeImageIfNeeded } from "./Utils/contentUtils";
+export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, detectImageMimeType, setMaxImageSize } from "./Utils/contentUtils";
 export type { MediaCategory } from "./Utils/contentUtils";
 export { withRetry } from "./Utils/withRetry";
 export { UsageTracker, type UsageData } from "./Utils/UsageTracker";

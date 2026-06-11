@@ -48,6 +48,7 @@ export class GenerativeAgentService extends AgentServiceBase {
     }
 
     override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
+        query = await this.resizeImagesInContent(query);
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         try {

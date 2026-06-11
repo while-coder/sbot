@@ -15,7 +15,7 @@ import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
-import { contentToString, truncateForLog, resizeImageIfNeeded, detectImageMimeType } from "../../Utils/contentUtils";
+import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 
 export {
     GraphNodeType,
@@ -317,24 +317,17 @@ export class SingleAgentService extends AgentServiceBase {
                 const thinkId = mcpResult._meta?.thinkId;
                 const taskId = mcpResult._meta?.taskId;
                 // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组
-                // 图片走 resizeImageIfNeeded：configured maxImageSize 时按 max(w,h) 等比缩放
-                const content: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
+                // 图片 part 由 resizeImagesInContent 统一缩放（与 stream 入口共用规则）
+                const rawContent: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
                     ? mcpResult.content[0].text
-                    : await Promise.all(mcpResult.content.map(async item => {
-                        if (item.type === MCPContentType.Image) {
-                            const buf = Buffer.from(item.data, 'base64');
-                            const resized = await resizeImageIfNeeded(buf);
-                            const mime = resized === buf ? item.mimeType : detectImageMimeType(resized);
-                            return { type: 'image_url', image_url: { url: `data:${mime};base64,${resized.toString('base64')}` } };
-                        }
+                    : mcpResult.content.map(item => {
                         if (item.type === MCPContentType.ImageUrl) {
                             const raw = item.url ?? item.image_url!;
-                            const url = typeof raw === 'string' ? raw : raw.url;
-                            const resizedUrl = await resizeImageIfNeeded(url);
-                            return { type: 'image_url', image_url: { url: resizedUrl } };
+                            return { type: 'image_url', image_url: { url: typeof raw === 'string' ? raw : raw.url } };
                         }
                         return item;
-                    }));
+                    });
+                const content = await this.resizeImagesInContent(rawContent);
 
                 const extra: Record<string, unknown> = {};
                 if (thinkId) extra.thinkId = thinkId;
@@ -393,7 +386,8 @@ export class SingleAgentService extends AgentServiceBase {
      * 流式处理用户查询
      */
     override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
-        // 将本次用户消息压入历史
+        // 将本次用户消息压入历史（图片 part 在入口统一缩放）
+        query = await this.resizeImagesInContent(query);
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         const aiResponses: string[] = [];

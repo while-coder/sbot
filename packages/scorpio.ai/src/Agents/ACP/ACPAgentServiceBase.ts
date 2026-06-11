@@ -66,6 +66,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
             throw new Error(`ACP session ${sessionId} is already processing a prompt`);
         }
 
+        query = await this.resizeImagesInContent(query);
         const prompt = await this.preparePrompt(query);
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 

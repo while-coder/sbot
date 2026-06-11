@@ -1,7 +1,7 @@
-import type { ContentPart, MessageContent } from "../Saver/IAgentSaverService";
+import { ContentPartType, type ContentPart, type MessageContent } from "../Saver/IAgentSaverService";
 
-type TextPart = Extract<ContentPart, { type: 'text' }>;
-const isTextPart = (p: ContentPart): p is TextPart => p.type === 'text';
+type TextPart = Extract<ContentPart, { type: typeof ContentPartType.Text }>;
+const isTextPart = (p: ContentPart): p is TextPart => p.type === ContentPartType.Text;
 
 /** Extract a plain-text representation from MessageContent. */
 export function contentToString(content: MessageContent): string {
@@ -111,8 +111,7 @@ export async function readMediaAsContentPart(filePath: string, mediaAsFilePath =
 
     switch (category) {
         case 'image': {
-            const resized = await resizeImageIfNeeded(buffer);
-            return { part: { type: 'image_url', image_url: { url: `data:${detectImageMimeType(resized)};base64,${resized.toString('base64')}` } }, category };
+            return { part: { type: 'image_url', image_url: { url: `data:${detectImageMimeType(buffer)};base64,${buffer.toString('base64')}` } }, category };
         }
         // case 'audio':
         //     return { part: { type: 'audio', data: buffer.toString('base64'), mimeType }, category };

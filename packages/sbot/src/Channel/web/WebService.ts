@@ -3,7 +3,7 @@ import path from 'path';
 import http from 'http';
 import { randomUUID } from 'crypto';
 import { WebSocket, WebSocketServer } from 'ws';
-import { isEmptyContent, resizeImageIfNeeded, MessageRole, MessageKind, type ChatMessage, type MessageContent } from "scorpio.ai";
+import { isEmptyContent, MessageRole, MessageKind, type ChatMessage, type MessageContent } from "scorpio.ai";
 import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
 import { WsCommandType, WebChatEventType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { database, type ChannelSessionRow, type SessionProfileRow } from "../../Core/Database";
@@ -34,8 +34,7 @@ async function processMessage(parts: ContentPartInput[], attachments: Attachment
         if (p.type === 'text') {
             msgParts.push({ type: 'text', text: p.text });
         } else if (p.type === 'image' && p.dataUrl) {
-            const url = await resizeImageIfNeeded(p.dataUrl);
-            msgParts.push({ type: 'image_url', image_url: { url } });
+            msgParts.push({ type: 'image_url', image_url: { url: p.dataUrl } });
             hasImage = true;
         }
     }
@@ -43,8 +42,7 @@ async function processMessage(parts: ContentPartInput[], attachments: Attachment
     if (attachments?.length) {
         for (const att of attachments) {
             if (att.dataUrl && isImageDataUrl(att.dataUrl)) {
-                const url = await resizeImageIfNeeded(att.dataUrl);
-                msgParts.push({ type: 'image_url', image_url: { url } });
+                msgParts.push({ type: 'image_url', image_url: { url: att.dataUrl } });
                 hasImage = true;
             } else if (att.dataUrl) {
                 const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
