@@ -1,9 +1,9 @@
-import fs from "fs";
-import { database, HeartbeatRow, StateRow } from "../Core/Database";
-import { config } from "../Core/Config";
+import { database, HeartbeatMode, type HeartbeatCommonRow, type HeartbeatRow, type SmartHeartbeatRow } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
 import { TimerExecutor } from "../Core/TimerExecutor";
-import { executeHeartbeat, type HeartbeatExecutionContext } from "./executeHeartbeat";
+import { FixedHeartbeat } from "./FixedHeartbeat";
+import { HeartbeatBase, type HeartbeatScheduleContext } from "./HeartbeatBase";
+import { SmartHeartbeat } from "./SmartHeartbeat";
 
 const logger = LoggerService.getLogger("HeartbeatService.ts");
 
@@ -16,8 +16,13 @@ class HeartbeatService {
         concurrencyGuard: true,
     });
 
+    private scheduler: HeartbeatScheduleContext = {
+        setTimer: (heartbeatId, handle) => this.executor.set(heartbeatId, handle),
+        hasTimer: heartbeatId => this.executor.has(heartbeatId),
+        execute: heartbeatId => this.execute(heartbeatId),
+    };
+
     async start(): Promise<void> {
-        await this.migrateFromSettings();
         const rows = await database.findAll<HeartbeatRow>(database.heartbeat);
         let loaded = 0;
         for (const row of rows) {
@@ -30,43 +35,7 @@ class HeartbeatService {
     }
 
     private schedule(row: HeartbeatRow): boolean {
-        if (row.intervalMinutes <= 0) {
-            logger.error(`Heartbeat [${row.id}] invalid interval: ${row.intervalMinutes} minutes`);
-            return false;
-        }
-
-        if (row.mode === 'smart') {
-            this.scheduleNextSmart(row.id, row.intervalMinutes, row.jitterMinPct, row.jitterMaxPct);
-            return true;
-        }
-
-        const ms = row.intervalMinutes * 60_000;
-        const interval = setInterval(() => this.execute(row.id), ms);
-        this.executor.set(row.id, interval);
-        logger.info(`Heartbeat [${row.id}] scheduled (fixed interval: ${row.intervalMinutes}m)`);
-        return true;
-    }
-
-    private scheduleNextSmart(heartbeatId: number, intervalMinutes: number, jitterMinPct: number, jitterMaxPct: number): void {
-        const lo = Math.max(1, Math.min(jitterMinPct, jitterMaxPct));
-        const hi = Math.max(lo, Math.max(jitterMinPct, jitterMaxPct));
-        const factor = lo + Math.random() * (hi - lo);
-        const delayMs = Math.max(1_000, Math.round(intervalMinutes * 60_000 * factor / 100));
-        const handle = setTimeout(async () => {
-            try {
-                await this.execute(heartbeatId);
-            } finally {
-                // 仅在 timer 仍由我们持有时才续上下一次（execute 里若已 cancel——删除/禁用/切到 fixed——别复活）。
-                if (this.executor.has(heartbeatId)) {
-                    const fresh = await database.findByPk<HeartbeatRow>(database.heartbeat, heartbeatId);
-                    if (fresh?.enabled && fresh.mode === 'smart') {
-                        this.scheduleNextSmart(fresh.id, fresh.intervalMinutes, fresh.jitterMinPct, fresh.jitterMaxPct);
-                    }
-                }
-            }
-        }, delayMs);
-        this.executor.set(heartbeatId, handle);
-        logger.info(`Heartbeat [${heartbeatId}] smart next in ~${Math.round(delayMs / 60_000)}m (factor=${factor.toFixed(2)})`);
+        return this.createHeartbeat(row).schedule(this.scheduler);
     }
 
     private async execute(heartbeatId: number): Promise<void> {
@@ -78,8 +47,7 @@ class HeartbeatService {
         }
 
         const ran = await this.executor.execute(heartbeatId, async () => {
-            const ctx: HeartbeatExecutionContext = { heartbeatId, config: row };
-            await executeHeartbeat(ctx);
+            await this.createHeartbeat(row).execute();
         });
 
         if (!ran) {
@@ -118,7 +86,7 @@ class HeartbeatService {
         return database.findByPk<HeartbeatRow>(database.heartbeat, id);
     }
 
-    async create(data: Omit<HeartbeatRow, 'id' | 'lastRun' | 'createdAt' | 'lastSentAt' | 'dailySentDate' | 'dailySentCount'>): Promise<HeartbeatRow> {
+    async create(data: HeartbeatCreateData): Promise<HeartbeatRow> {
         const row = await database.create<HeartbeatRow>(database.heartbeat, {
             ...data,
             lastRun: null,
@@ -131,7 +99,7 @@ class HeartbeatService {
         return row;
     }
 
-    async update(id: number, data: Partial<Omit<HeartbeatRow, 'id' | 'lastRun' | 'createdAt'>>): Promise<HeartbeatRow | null> {
+    async update(id: number, data: HeartbeatUpdateData): Promise<HeartbeatRow | null> {
         await database.update(database.heartbeat, data, { where: { id } });
         const row = await database.findByPk<HeartbeatRow>(database.heartbeat, id);
         if (row) {
@@ -151,71 +119,30 @@ class HeartbeatService {
         return rows.map(row => ({ ...row, running: this.executor.isRunning(row.id) }));
     }
 
-    // ── 从旧 settings.json 一次性迁移 ──
-
-    private async migrateFromSettings(): Promise<void> {
-        const count = await database.count(database.heartbeat);
-        if (count > 0) return;
-
-        let raw: any;
-        try {
-            const settingsPath = config.getConfigPath("settings.json");
-            const content = fs.readFileSync(settingsPath, "utf-8");
-            raw = JSON.parse(content);
-        } catch {
-            return;
+    private createHeartbeat(row: HeartbeatRow): HeartbeatBase {
+        if (row.mode === HeartbeatMode.Smart) {
+            return new SmartHeartbeat(row);
         }
-
-        const heartbeats = raw?.heartbeats as Record<string, any> | undefined;
-        if (!heartbeats || Object.keys(heartbeats).length === 0) return;
-
-        logger.info(`Migrating ${Object.keys(heartbeats).length} heartbeat(s) from settings.json to database`);
-
-        for (const [oldId, hb] of Object.entries(heartbeats)) {
-            let lastRun: number | null = null;
-            try {
-                const row = await database.findOne<StateRow>(database.state, { where: { key: `heartbeat_lastRun_${oldId}` } });
-                if (row) lastRun = Number(row.value);
-            } catch {}
-
-            await database.create(database.heartbeat, {
-                name: hb.name ?? '',
-                intervalMinutes: parseExprToMinutes(hb.expr ?? '30m'),
-                promptFile: hb.promptFile ?? '',
-                target: hb.target ?? 0,
-                enabled: hb.enabled !== false,
-                activeHoursStart: hb.activeHours?.start ?? null,
-                activeHoursEnd: hb.activeHours?.end ?? null,
-                activeHoursTimezone: hb.activeHours?.timezone ?? null,
-                lastRun,
-                createdAt: Date.now(),
-            });
-
-            try {
-                await database.destroy(database.state, { where: { key: `heartbeat_lastRun_${oldId}` } });
-            } catch {}
-        }
-
-        try {
-            delete raw.heartbeats;
-            const settingsPath = config.getConfigPath("settings.json");
-            fs.writeFileSync(settingsPath, JSON.stringify(raw, null, 2), "utf-8");
-        } catch {}
-
-        logger.info("Heartbeat migration from settings.json completed");
+        return new FixedHeartbeat(row);
     }
 }
 
-const DURATION_RE = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
+type SmartHeartbeatConfig = Pick<SmartHeartbeatRow,
+    'decisionPromptFile' |
+    'decisionModelId'
+>;
 
-function parseExprToMinutes(expr: string): number {
-    const trimmed = expr.trim();
-    const match = trimmed.match(DURATION_RE);
-    if (!match) return 30;
-    const hours = parseInt(match[1] || '0', 10);
-    const minutes = parseInt(match[2] || '0', 10);
-    const total = hours * 60 + minutes;
-    return total > 0 ? total : 30;
-}
+type HeartbeatRuntimeFields = Pick<HeartbeatCommonRow,
+    'lastSentAt' |
+    'dailySentDate' |
+    'dailySentCount'
+>;
+
+type HeartbeatCreateData =
+    Omit<HeartbeatCommonRow, 'id' | 'lastRun' | 'createdAt' | keyof HeartbeatRuntimeFields> &
+    Partial<SmartHeartbeatConfig>;
+
+type HeartbeatUpdateData =
+    Partial<Omit<HeartbeatCommonRow, 'id' | 'lastRun' | 'createdAt'> & SmartHeartbeatConfig>;
 
 export const heartbeatService = new HeartbeatService();

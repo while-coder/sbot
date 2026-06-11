@@ -1,4 +1,17 @@
+---
+vars:
+  now: Current time
+  lastSentAgo: Time since this heartbeat last sent successfully
+  agendaList: Pending agenda items from the configured agenda profile
+---
 This is an automated heartbeat — a periodic self-check triggered by the system, not a message from the user. Decide whether anything requires proactive action right now.
+
+## Current state
+- Current time: {now}
+- Time since last send: {lastSentAgo}
+- Agenda context:
+
+{agendaList}
 
 ## What to check
 - Overdue or upcoming agenda items

@@ -21,33 +21,45 @@ export type MessageRow = {
 
 // ⚠️ enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
 // 仅可用真值检查，禁止 `=== true` / `=== false`。
-export type HeartbeatMode = 'fixed' | 'smart';
+export enum HeartbeatMode {
+  Fixed = 'fixed',
+  Smart = 'smart',
+}
 
-export type HeartbeatRow = {
+export type HeartbeatCommonRow = {
   id: number;
   name: string;
   intervalMinutes: number;
   promptFile: string;
-  target: number;
+  sessionId: number;
   enabled: boolean;
   activeHoursStart: number | null;
   activeHoursEnd: number | null;
   activeHoursTimezone: string | null;
   lastRun: number | null;
   createdAt: number;
-  // smart 模式：随机抖动 + LLM 决策"要不要发、发什么"。fixed 行为不变。
   mode: HeartbeatMode;
-  agendaId: string | null;            // smart 决策时拉取的 agenda 模板 id；null=不带 agenda 上下文
+  agendaId: string | null;            // heartbeat prompt/decision 可使用的 agenda 模板 id；null=不带 agenda 上下文
   jitterMinPct: number;               // 下次延迟下界 = intervalMinutes * jitterMinPct / 100
   jitterMaxPct: number;               // 下次延迟上界 = intervalMinutes * jitterMaxPct / 100
-  decisionPromptFile: string | null;  // smart 模式决策 prompt；null=用默认
-  decisionModelId: string | null;     // smart 模式决策 model id；null=用默认
   minGapMinutes: number;              // 节流：上次实发后 X 分钟内不再发，0=不限
   dailyLimit: number;                 // 节流：每日发送上限，0=不限
   lastSentAt: number | null;          // 上次"实际发送"时间戳（区别于 lastRun）
   dailySentDate: string | null;       // 当前计数所属 YYYY-MM-DD（按 activeHoursTimezone）
   dailySentCount: number;             // 当日已发送次数
 };
+
+export type FixedHeartbeatRow = HeartbeatCommonRow & {
+  mode: HeartbeatMode.Fixed;
+};
+
+export type SmartHeartbeatRow = HeartbeatCommonRow & {
+  mode: HeartbeatMode.Smart;
+  decisionPromptFile: string | null;  // smart 模式决策 prompt；null=用默认
+  decisionModelId: string | null;     // smart 模式决策 model id；null=用默认
+};
+
+export type HeartbeatRow = FixedHeartbeatRow | SmartHeartbeatRow;
 
 export type StateRow = {
   key: string;
@@ -687,7 +699,8 @@ class Database {
           defaultValue: "",
           comment: "prompt 文件路径",
         },
-        target: {
+        sessionId: {
+          field: "target",
           type: DataTypes.INTEGER,
           allowNull: false,
           defaultValue: 0,
@@ -732,7 +745,7 @@ class Database {
         mode: {
           type: DataTypes.STRING(16),
           allowNull: false,
-          defaultValue: "fixed",
+          defaultValue: HeartbeatMode.Fixed,
           comment: "fixed=固定周期, smart=LLM 判断+随机抖动",
         },
         agendaId: {

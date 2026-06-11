@@ -18,7 +18,7 @@ interface HeartbeatItem {
   name: string
   intervalMinutes: number
   promptFile: string
-  target: number
+  sessionId: number
   enabled: boolean
   activeHoursStart: number | null
   activeHoursEnd: number | null
@@ -133,13 +133,12 @@ function defaultForm() {
     mode: 'fixed' as HeartbeatMode,
     intervalMinutes: 30,
     promptFile: 'heartbeat/default.md',
-    target: null as number | null,
+    sessionId: null as number | null,
     enabled: true,
     activeHoursEnabled: false,
     activeHoursStart: 9,
     activeHoursEnd: 22,
     activeHoursTimezone: '',
-    // smart-only
     agendaId: '' as string,
     decisionPromptFile: 'heartbeat/smart-default.md',
     decisionModelId: '' as string,
@@ -184,7 +183,7 @@ function openEdit(hb: HeartbeatItem) {
     mode: hb.mode || 'fixed',
     intervalMinutes: hb.intervalMinutes || 30,
     promptFile: hb.promptFile || 'heartbeat/default.md',
-    target: hb.target ?? null,
+    sessionId: hb.sessionId ?? null,
     enabled: Boolean(hb.enabled),
     activeHoursEnabled: hb.activeHoursStart != null && hb.activeHoursEnd != null,
     activeHoursStart: hb.activeHoursStart ?? 9,
@@ -208,8 +207,13 @@ function buildBody() {
     mode: f.mode,
     intervalMinutes: f.intervalMinutes,
     promptFile: f.promptFile,
-    target: f.target,
+    sessionId: f.sessionId,
     enabled: f.enabled,
+    agendaId: f.agendaId || null,
+    jitterMinPct: f.jitterMinPct,
+    jitterMaxPct: f.jitterMaxPct,
+    minGapMinutes: f.minGapMinutes,
+    dailyLimit: f.dailyLimit,
   }
   if (f.activeHoursEnabled) {
     body.activeHoursStart = f.activeHoursStart
@@ -221,13 +225,8 @@ function buildBody() {
     body.activeHoursTimezone = null
   }
   if (f.mode === 'smart') {
-    body.agendaId = f.agendaId || null
     body.decisionPromptFile = f.decisionPromptFile || null
     body.decisionModelId = f.decisionModelId || null
-    body.jitterMinPct = f.jitterMinPct
-    body.jitterMaxPct = f.jitterMaxPct
-    body.minGapMinutes = f.minGapMinutes
-    body.dailyLimit = f.dailyLimit
   }
   return body
 }
@@ -235,9 +234,9 @@ function buildBody() {
 async function save() {
   const f = form.value
   if (!f.name.trim()) { show(t('common.name_required'), 'error'); return }
-  if (f.target == null) { show(t('heartbeats.target') + ' required', 'error'); return }
+  if (f.sessionId == null) { show(t('heartbeats.sessionId') + ' required', 'error'); return }
   if (f.mode === 'smart' && !f.decisionModelId) { show('decisionModelId required for smart mode', 'error'); return }
-  if (f.mode === 'smart' && (f.jitterMinPct <= 0 || f.jitterMaxPct < f.jitterMinPct)) {
+  if (f.jitterMinPct <= 0 || f.jitterMaxPct < f.jitterMinPct) {
     show('invalid jitter range', 'error'); return
   }
   try {
@@ -326,7 +325,7 @@ const heartbeatColumns = computed<STableColumn[]>(() => [
   { key: 'mode',        label: t('heartbeats.mode') },
   { key: 'interval',    label: t('heartbeats.interval') },
   { key: 'activeHours', label: t('heartbeats.activeHours') },
-  { key: 'target',      label: t('heartbeats.target') },
+  { key: 'sessionId',   label: t('heartbeats.sessionId') },
   { key: 'status',      label: t('heartbeats.status') },
   { key: 'lastRun',     label: t('heartbeats.last_run') },
   { key: 'nextRun',     label: t('heartbeats.next_run') },
@@ -350,13 +349,12 @@ function activeHoursTitle(hb: HeartbeatItem): string {
 
 function intervalDisplay(hb: HeartbeatItem): string {
   const base = intervalLabel(hb.intervalMinutes)
-  if (hb.mode !== 'smart') return base
   return `${base} ±[${hb.jitterMinPct}%-${hb.jitterMaxPct}%]`
 }
 
 function nextRunOf(hb: HeartbeatItem): string {
   if (!hb.enabled) return '-'
-  if (hb.mode === 'smart') return '~'
+  if (hb.jitterMinPct !== 100 || hb.jitterMaxPct !== 100) return '~'
   if (!hb.lastRun) return '-'
   return fmtTime(hb.lastRun + hb.intervalMinutes * 60_000)
 }
@@ -382,7 +380,7 @@ onMounted(async () => {
         <template #activeHours="{ row }">
           <span class="hb-small" :title="activeHoursTitle(row)">{{ activeHoursLabel(row) }}</span>
         </template>
-        <template #target="{ row }"><span class="hb-small">{{ sessionLabel(row.target) }}</span></template>
+        <template #sessionId="{ row }"><span class="hb-small">{{ sessionLabel(row.sessionId) }}</span></template>
         <template #status="{ row }">
           <SBadge :variant="statusVariant(row)">{{ statusLabel(row) }}</SBadge>
         </template>
@@ -427,8 +425,27 @@ onMounted(async () => {
         </div>
       </SFormItem>
 
-      <!-- smart: decision prompt + model + agenda + jitter + throttle -->
-      <template v-else>
+      <SFormItem :label="t('heartbeats.agenda')" :hint="t('heartbeats.agenda_hint')">
+        <SSelect v-model="form.agendaId">
+          <option value="">{{ t('heartbeats.agenda_none') }}</option>
+          <option v-for="a in agendaOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('heartbeats.jitter')" :hint="t('heartbeats.jitter_hint')">
+        <div class="hour-row">
+          <SInput v-model.number="form.jitterMinPct" type="number" min="10" max="500" />
+          <SInput v-model.number="form.jitterMaxPct" type="number" min="10" max="500" />
+        </div>
+      </SFormItem>
+      <SFormItem :label="t('heartbeats.minGap')" :hint="t('heartbeats.minGap_hint')">
+        <SInput v-model.number="form.minGapMinutes" type="number" min="0" max="1440" />
+      </SFormItem>
+      <SFormItem :label="t('heartbeats.dailyLimit')" :hint="t('heartbeats.dailyLimit_hint')">
+        <SInput v-model.number="form.dailyLimit" type="number" min="0" max="100" />
+      </SFormItem>
+
+      <!-- smart: decision prompt + model -->
+      <template v-if="form.mode === 'smart'">
         <SFormItem :label="t('heartbeats.decisionPromptFile')" :hint="t('heartbeats.decisionPromptFile_hint')">
           <div class="prompt-field">
             <SSelect v-model="form.decisionPromptFile" class="prompt-select">
@@ -445,28 +462,10 @@ onMounted(async () => {
             <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
           </SSelect>
         </SFormItem>
-        <SFormItem :label="t('heartbeats.agenda')" :hint="t('heartbeats.agenda_hint')">
-          <SSelect v-model="form.agendaId">
-            <option value="">{{ t('heartbeats.agenda_none') }}</option>
-            <option v-for="a in agendaOptions" :key="a.id" :value="a.id">{{ a.label }}</option>
-          </SSelect>
-        </SFormItem>
-        <SFormItem :label="t('heartbeats.jitter')" :hint="t('heartbeats.jitter_hint')">
-          <div class="hour-row">
-            <SInput v-model.number="form.jitterMinPct" type="number" min="10" max="500" />
-            <SInput v-model.number="form.jitterMaxPct" type="number" min="10" max="500" />
-          </div>
-        </SFormItem>
-        <SFormItem :label="t('heartbeats.minGap')" :hint="t('heartbeats.minGap_hint')">
-          <SInput v-model.number="form.minGapMinutes" type="number" min="0" max="1440" />
-        </SFormItem>
-        <SFormItem :label="t('heartbeats.dailyLimit')" :hint="t('heartbeats.dailyLimit_hint')">
-          <SInput v-model.number="form.dailyLimit" type="number" min="0" max="100" />
-        </SFormItem>
       </template>
 
-      <SFormItem :label="t('heartbeats.target') + ' *'" :hint="t('heartbeats.target_hint')">
-        <SSelect :model-value="form.target ?? ''" @update:model-value="form.target = $event === '' ? null : Number($event)">
+      <SFormItem :label="t('heartbeats.sessionId') + ' *'" :hint="t('heartbeats.sessionId_hint')">
+        <SSelect :model-value="form.sessionId ?? ''" @update:model-value="form.sessionId = $event === '' ? null : Number($event)">
           <option value="" disabled>--</option>
           <optgroup v-for="g in groupedSessions" :key="g.channelName" :label="g.channelName">
             <option v-for="s in g.sessions" :key="s.id" :value="s.id">

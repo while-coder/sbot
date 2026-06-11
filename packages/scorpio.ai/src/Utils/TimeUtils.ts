@@ -1,14 +1,13 @@
 import { CronJob } from "cron";
 
-/**
- * 通用时间工具集合。Agenda 专属的"相对时长解析 / 触发器下次发火计算"留在
- * `Agenda/time.ts`，本类只承担与具体业务无关的时间原语。
- */
 export class TimeUtils {
-    /** Node `setTimeout` 接受的最大延迟（约 24.85 天）。超过会立即触发，调度需自行分段。 */
+    static readonly SECOND_MS = 1_000;
+    static readonly MINUTE_MS = 60 * TimeUtils.SECOND_MS;
+    static readonly HOUR_MS = 60 * TimeUtils.MINUTE_MS;
+    static readonly DAY_MS = 24 * TimeUtils.HOUR_MS;
+
     static readonly MAX_TIMEOUT_MS = 2_147_483_647;
 
-    /** 当前时间戳（毫秒）。等价 `Date.now()`，仅用于让调用点在语义上更明确。 */
     static now(): number {
         return Date.now();
     }
@@ -17,14 +16,12 @@ export class TimeUtils {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    /** 解析 ISO/RFC2822 等可被 `Date.parse` 接受的时间串，无效值抛错。 */
     static parseAt(value: string): number {
         const ts = Date.parse(value);
         if (!Number.isFinite(ts)) throw new Error(`Invalid datetime: ${value}`);
         return ts;
     }
 
-    /** 给定 cron 表达式与时区，返回下一次触发的毫秒时间戳。 */
     static computeCronNext(expr: string, timezone?: string | null): number {
         const job = CronJob.from({
             cronTime: expr,
@@ -35,19 +32,61 @@ export class TimeUtils {
         return job.nextDate().toMillis();
     }
 
-    /** 英文 "Nd/Nh/Nm ago / just now"。适合简短日志/标签。 */
     static formatTimeAgo(timestamp: number): string {
         const diff = Date.now() - timestamp;
-        const minutes = Math.floor(diff / 60000);
-        const hours = Math.floor(diff / 3600000);
-        const days = Math.floor(diff / 86400000);
+        const minutes = Math.floor(diff / TimeUtils.MINUTE_MS);
+        const hours = Math.floor(diff / TimeUtils.HOUR_MS);
+        const days = Math.floor(diff / TimeUtils.DAY_MS);
         if (days > 0) return `${days}d ago`;
         if (hours > 0) return `${hours}h ago`;
         if (minutes > 0) return `${minutes}m ago`;
         return "just now";
     }
 
-    /** "ISO (X 分钟前/后)" 中文相对时间。适合给用户看的提醒/调度展示。 */
+    static formatDateTime(timestamp = Date.now(), timezone?: string | null): string {
+        const options: Intl.DateTimeFormatOptions | undefined = timezone ? { timeZone: timezone } : undefined;
+        return new Date(timestamp).toLocaleString("en-US", options);
+    }
+
+    static formatDateKey(timestamp: number, timezone?: string | null): string {
+        const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "2-digit", day: "2-digit" };
+        if (timezone) options.timeZone = timezone;
+        return new Date(timestamp).toLocaleDateString("en-CA", options);
+    }
+
+    static isNowInHourRange(startHour: number, endHour: number, timezone?: string | null): boolean {
+        return TimeUtils.isHourInRange(TimeUtils.getHour(Date.now(), timezone), startHour, endHour);
+    }
+
+    static isHourInRange(hour: number, startHour: number, endHour: number): boolean {
+        if (startHour <= endHour) {
+            return hour >= startHour && hour < endHour;
+        }
+        return hour >= startHour || hour < endHour;
+    }
+
+    static getHour(timestamp: number, timezone?: string | null): number {
+        if (!timezone) return new Date(timestamp).getHours();
+        const part = new Intl.DateTimeFormat("en-US", {
+            timeZone: timezone,
+            hour: "numeric",
+            hourCycle: "h23",
+        }).formatToParts(new Date(timestamp)).find(p => p.type === "hour");
+        return Number(part?.value ?? 0);
+    }
+
+    static computeJitterDelay(baseMs: number, minPct: number, maxPct: number, minMs = TimeUtils.SECOND_MS): { delayMs: number; factor: number } {
+        const min = Number.isFinite(minPct) ? minPct : 100;
+        const max = Number.isFinite(maxPct) ? maxPct : min;
+        const lo = Math.max(1, Math.min(min, max));
+        const hi = Math.max(lo, Math.max(min, max));
+        const factor = lo + Math.random() * (hi - lo);
+        return {
+            factor,
+            delayMs: Math.max(minMs, Math.round(baseMs * factor / 100)),
+        };
+    }
+
     static formatWhen(ts: number | null | undefined): string {
         if (!ts) return '';
         const date = new Date(ts);

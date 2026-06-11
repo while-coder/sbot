@@ -113,7 +113,7 @@ interface CleanupReport {
   orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>
   orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; userName: string }>
   orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>
-  orphanHeartbeats: Array<{ id: number; target: number; name: string }>
+  orphanHeartbeats: Array<{ id: number; sessionId: number; name: string }>
   // 仅列出
   emptyVisibleProfiles: Array<{ id: number; name: string }>
   // 引用了不存在目标（仅列出，需用户手改）
@@ -200,7 +200,7 @@ function fmtItem(category: string, item: any): string {
     case 'orphanAutoProfiles':
       return `#${item.id} autoForSessionId=${item.autoForSessionId} name="${item.name || ''}"`
     case 'orphanHeartbeats':
-      return `#${item.id} target=${item.target} name="${item.name || ''}"`
+      return `#${item.id} sessionId=${item.sessionId} name="${item.name || ''}"`
     case 'emptyVisibleProfiles':
       return `#${item.id} name="${item.name || ''}"`
     case 'invalidAgentRefs':

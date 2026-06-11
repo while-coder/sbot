@@ -1,17 +1,5 @@
-import { HeartbeatRow } from "../Core/Database";
-
-/**
- * 按 row.activeHoursTimezone 把 ts 折算成 YYYY-MM-DD。
- * 时区缺失时退回本地时区——dailySentDate 只是个用于"跨天重置"的对比 key，时区不严谨不影响正确性，
- * 只要前后两次比较用同一个时区即可。
- */
-export function formatLocalDate(ts: number, timezone: string | null): string {
-    const d = new Date(ts);
-    const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
-    if (timezone) opts.timeZone = timezone;
-    // en-CA 输出 yyyy-MM-dd
-    return d.toLocaleDateString('en-CA', opts);
-}
+import { TimeUtils } from "scorpio.ai";
+import { type HeartbeatCommonRow } from "../Core/Database";
 
 export interface ThrottleVerdict {
     pass: boolean;
@@ -21,16 +9,15 @@ export interface ThrottleVerdict {
 }
 
 /**
- * 决定一次"实际发送"是否被允许。仅检查 smart 模式专属的节流字段；
- * fixed 模式不应调用此函数（fixed 没有 minGapMinutes/dailyLimit 概念）。
+ * 决定一次"实际发送"是否被允许。
  */
-export function checkThrottle(row: HeartbeatRow, now: number): ThrottleVerdict {
-    const today = formatLocalDate(now, row.activeHoursTimezone);
+export function checkThrottle(row: HeartbeatCommonRow, now: number): ThrottleVerdict {
+    const today = TimeUtils.formatDateKey(now, row.activeHoursTimezone);
 
     if (row.minGapMinutes > 0 && row.lastSentAt != null) {
-        const gapMs = row.minGapMinutes * 60_000;
+        const gapMs = row.minGapMinutes * TimeUtils.MINUTE_MS;
         if (now - row.lastSentAt < gapMs) {
-            return { pass: false, reason: `min-gap not reached (${Math.round((now - row.lastSentAt) / 60_000)}min < ${row.minGapMinutes}min)` };
+            return { pass: false, reason: `min-gap not reached (${Math.round((now - row.lastSentAt) / TimeUtils.MINUTE_MS)}min < ${row.minGapMinutes}min)` };
         }
     }
 
@@ -49,8 +36,8 @@ export function checkThrottle(row: HeartbeatRow, now: number): ThrottleVerdict {
  * 发送成功后调用：返回需要写回数据库的字段。
  * 跨日时把 count 重置为 1，否则 +1。
  */
-export function recordSentPatch(row: HeartbeatRow, now: number): Partial<HeartbeatRow> {
-    const today = formatLocalDate(now, row.activeHoursTimezone);
+export function recordSentPatch(row: HeartbeatCommonRow, now: number): Partial<HeartbeatCommonRow> {
+    const today = TimeUtils.formatDateKey(now, row.activeHoursTimezone);
     const sameDay = row.dailySentDate === today;
     return {
         lastSentAt: now,
