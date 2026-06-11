@@ -104,8 +104,8 @@ const resourcesBadge = computed(() => {
   let n = 0
   if ((props.modelValue.notes?.length ?? 0) > 0) n++
   if ((props.modelValue.wikis?.length ?? 0) > 0) n++
-  if (props.modelValue.useChannelNotes !== null) n++
-  if (props.modelValue.useChannelWikis !== null) n++
+  if (props.modelValue.useChannelNotes) n++
+  if (props.modelValue.useChannelWikis) n++
   if (props.modelValue.workPath) n++
   if (props.modelValue.disableWorkspaceContext) n++
   if (props.modelValue.disableWorkspaceSkills) n++
@@ -147,6 +147,29 @@ function refSelectValue(key: 'insight' | 'agenda'): string {
 function updateRef(key: 'insight' | 'agenda', value: string) {
   update(key, value ? value : null)
 }
+
+/**
+ * 超时三态：
+ * - inherit: profile 模式下，null = 继承 channel 默认
+ * - off: 0 = 显式不超时（在 profile 模式下可覆盖 channel 的非零超时）
+ * - custom: > 0 = 自定义秒数
+ * channel 模式下没有 inherit 选项；channel 的 null 视作 off（沿用旧行为）。
+ */
+function timeoutMode(key: 'approvalTimeout' | 'askTimeout'): 'inherit' | 'off' | 'custom' {
+  const v = props.modelValue[key]
+  if (v == null) return isProfileMode() ? 'inherit' : 'off'
+  if (v === 0) return 'off'
+  return 'custom'
+}
+
+function setTimeoutMode(key: 'approvalTimeout' | 'askTimeout', mode: string) {
+  if (mode === 'inherit') update(key, null)
+  else if (mode === 'off') update(key, isProfileMode() ? 0 : null)
+  else {
+    const cur = props.modelValue[key]
+    update(key, cur != null && cur > 0 ? cur : 30)
+  }
+}
 </script>
 
 <template>
@@ -175,8 +198,7 @@ function updateRef(key: 'insight' | 'agenda', value: string) {
     <SFormItem :label="t('common.note')" :hint="inheritLabel('notes', fmtList)">
       <SMultiSelect :model-value="modelValue.notes ?? []" :options="noteOptions" @update:model-value="v => update('notes', v as string[])" />
       <SFormItem v-if="isProfileMode()" :label="t('channels.use_channel_notes')" :hint="t('channels.use_channel_notes_hint')" class="nested-form-item">
-        <SSelect :model-value="modelValue.useChannelNotes === null ? '' : String(modelValue.useChannelNotes)" @update:model-value="v => update('useChannelNotes', v === '' ? null : v === 'true')">
-          <option value="">{{ t('channels.use_channel_default') }}</option>
+        <SSelect :model-value="String(!!modelValue.useChannelNotes)" @update:model-value="v => update('useChannelNotes', v === 'true')">
           <option value="true">{{ t('common.enabled') }}</option>
           <option value="false">{{ t('common.disabled') }}</option>
         </SSelect>
@@ -186,8 +208,7 @@ function updateRef(key: 'insight' | 'agenda', value: string) {
     <SFormItem :label="t('common.wiki')" :hint="inheritLabel('wikis', fmtList)">
       <SMultiSelect :model-value="modelValue.wikis ?? []" :options="wikiOptions" @update:model-value="v => update('wikis', v as string[])" />
       <SFormItem v-if="isProfileMode()" :label="t('channels.use_channel_wikis')" :hint="t('channels.use_channel_wikis_hint')" class="nested-form-item">
-        <SSelect :model-value="modelValue.useChannelWikis === null ? '' : String(modelValue.useChannelWikis)" @update:model-value="v => update('useChannelWikis', v === '' ? null : v === 'true')">
-          <option value="">{{ t('channels.use_channel_default') }}</option>
+        <SSelect :model-value="String(!!modelValue.useChannelWikis)" @update:model-value="v => update('useChannelWikis', v === 'true')">
           <option value="true">{{ t('common.enabled') }}</option>
           <option value="false">{{ t('common.disabled') }}</option>
         </SSelect>
@@ -234,9 +255,16 @@ function updateRef(key: 'insight' | 'agenda', value: string) {
       </SSelect>
     </SFormItem>
     <SFormItem :label="t('channels.approval_timeout')" :hint="inheritLabel('approvalTimeout') || t('channels.approval_timeout_hint')">
-      <SInput :model-value="modelValue.approvalTimeout ?? ''" type="number" placeholder="0" @update:model-value="v => update('approvalTimeout', (v === '' || v === null || Number(v) <= 0) ? null : Number(v))" />
+      <SSelect :model-value="timeoutMode('approvalTimeout')" @update:model-value="v => setTimeoutMode('approvalTimeout', String(v))">
+        <option v-if="isProfileMode()" value="inherit">{{ t('channels.use_channel_default') }}</option>
+        <option value="off">{{ t('channels.timeout_off') }}</option>
+        <option value="custom">{{ t('channels.timeout_custom') }}</option>
+      </SSelect>
+      <SFormItem v-if="timeoutMode('approvalTimeout') === 'custom'" :label="t('channels.timeout_seconds')" class="nested-form-item">
+        <SInput :model-value="modelValue.approvalTimeout ?? ''" type="number" min="1" placeholder="30" @update:model-value="v => update('approvalTimeout', (v === '' || v === null || Number(v) <= 0) ? 1 : Number(v))" />
+      </SFormItem>
     </SFormItem>
-    <SFormItem v-if="modelValue.approvalTimeout != null && modelValue.approvalTimeout > 0" :label="t('channels.approval_timeout_value')" :hint="inheritLabel('approvalTimeoutValue', fmtApprovalValue)">
+    <SFormItem v-if="timeoutMode('approvalTimeout') === 'custom'" :label="t('channels.approval_timeout_value')" :hint="inheritLabel('approvalTimeoutValue', fmtApprovalValue)">
       <SSelect :model-value="modelValue.approvalTimeoutValue ?? ''" @update:model-value="v => update('approvalTimeoutValue', v === '' ? null : v as ApprovalTimeoutValue)">
         <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
         <option :value="ApprovalTimeoutValue.Deny">{{ t('channels.approval_timeout_value_deny') }}</option>
@@ -244,9 +272,16 @@ function updateRef(key: 'insight' | 'agenda', value: string) {
       </SSelect>
     </SFormItem>
     <SFormItem :label="t('channels.ask_timeout')" :hint="inheritLabel('askTimeout') || t('channels.ask_timeout_hint')">
-      <SInput :model-value="modelValue.askTimeout ?? ''" type="number" placeholder="0" @update:model-value="v => update('askTimeout', (v === '' || v === null || Number(v) <= 0) ? null : Number(v))" />
+      <SSelect :model-value="timeoutMode('askTimeout')" @update:model-value="v => setTimeoutMode('askTimeout', String(v))">
+        <option v-if="isProfileMode()" value="inherit">{{ t('channels.use_channel_default') }}</option>
+        <option value="off">{{ t('channels.timeout_off') }}</option>
+        <option value="custom">{{ t('channels.timeout_custom') }}</option>
+      </SSelect>
+      <SFormItem v-if="timeoutMode('askTimeout') === 'custom'" :label="t('channels.timeout_seconds')" class="nested-form-item">
+        <SInput :model-value="modelValue.askTimeout ?? ''" type="number" min="1" placeholder="30" @update:model-value="v => update('askTimeout', (v === '' || v === null || Number(v) <= 0) ? 1 : Number(v))" />
+      </SFormItem>
     </SFormItem>
-    <SFormItem v-if="modelValue.askTimeout != null && modelValue.askTimeout > 0" :label="t('channels.ask_timeout_message')" :hint="inheritLabel('askTimeoutMessage') || t('channels.ask_timeout_message_hint')">
+    <SFormItem v-if="timeoutMode('askTimeout') === 'custom'" :label="t('channels.ask_timeout_message')" :hint="inheritLabel('askTimeoutMessage') || t('channels.ask_timeout_message_hint')">
       <SInput :model-value="modelValue.askTimeoutMessage ?? ''" type="text" @update:model-value="v => update('askTimeoutMessage', String(v).trim() ? String(v) : null)" />
     </SFormItem>
     <SFormItem :label="t('channels.intent_model')" :hint="inheritLabel('intentModel', fmtModel) || t('channels.intent_model_hint')">
