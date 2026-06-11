@@ -54,7 +54,7 @@ interface ChannelSessionRow {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
-  insight: string | null
+  memory: string | null
   agenda: string | null
   // ── token 统计 ──
   inputTokens: number
@@ -124,7 +124,7 @@ const saverOptions  = computed(() => Object.entries(store.settings.savers   || {
 const noteOptions   = computed(() => Object.entries(store.settings.notes     || {}).map(([id, n]) => ({ id, label: n.name  || id })))
 const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
 const modelOptions  = computed(() => Object.entries(store.settings.models   || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
-const insightProfileOptions = computed(() => Object.entries(store.settings.insightProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
+const memoryProfileOptions = computed(() => Object.entries(store.settings.memoryProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 
 const saverViewModal     = ref<InstanceType<typeof SaverViewModal>>()
@@ -162,7 +162,7 @@ interface ProfileFull extends ProfileOption {
   intentModel?: string | null
   intentPrompt?: string | null
   intentThreshold?: number | null
-  insight?: string | null
+  memory?: string | null
   agenda?: string | null
 }
 
@@ -186,7 +186,7 @@ function emptyOverrides(): SessionOverrides {
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
-    insight: null,
+    memory: null,
     agenda: null,
   }
 }
@@ -217,7 +217,7 @@ function profileToOverrides(p: ProfileFull): SessionOverrides {
     intentModel: p.intentModel ?? null,
     intentPrompt: p.intentPrompt ?? null,
     intentThreshold: p.intentThreshold ?? null,
-    insight: p.insight ?? null,
+    memory: p.memory ?? null,
     agenda: p.agenda ?? null,
   }
 }
@@ -334,7 +334,7 @@ async function saveSession() {
     intentModel: o.intentModel,
     intentPrompt: o.intentModel == null ? null : o.intentPrompt,
     intentThreshold: o.intentModel == null ? null : o.intentThreshold,
-    insight: o.insight,
+    memory: o.memory,
     agenda: o.agenda,
   }
 
@@ -360,7 +360,7 @@ async function saveSession() {
     intentModel: orig.intentModel,
     intentPrompt: orig.intentModel == null ? null : orig.intentPrompt,
     intentThreshold: orig.intentModel == null ? null : orig.intentThreshold,
-    insight: orig.insight,
+    memory: orig.memory,
     agenda: orig.agenda,
   }
   const profileChanged = originalEquivalent == null
@@ -425,7 +425,7 @@ const channelDataConfig = computed<DataConfigValue>({
     intentModel: form.value.intentModel || null,
     intentPrompt: form.value.intentPrompt || null,
     intentThreshold: form.value.intentThreshold ?? 0.7,
-    insight: (form.value as any).insight ?? null,
+    memory: (form.value as any).memory ?? null,
     agenda: (form.value as any).agenda ?? null,
   }),
   set: (v) => {
@@ -445,7 +445,7 @@ const channelDataConfig = computed<DataConfigValue>({
     form.value.intentModel = v.intentModel || ''
     form.value.intentPrompt = v.intentPrompt || ''
     form.value.intentThreshold = v.intentThreshold ?? 0.7
-    ;(form.value as any).insight = v.insight ?? undefined
+    ;(form.value as any).memory = v.memory ?? undefined
     ;(form.value as any).agenda = v.agenda ?? undefined
   },
 })
@@ -621,7 +621,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, insight: (c as any).insight ?? undefined, agenda: (c as any).agenda ?? undefined }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
   formTools.value = [...(c.tools ?? [])]
   formTriggerTools.value = [...(c.triggerTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
@@ -633,7 +633,7 @@ async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
-  const channelInsight = ((form.value as any).insight as string | null) || undefined
+  const channelMemory = ((form.value as any).memory as string | null) || undefined
   const channelAgenda = ((form.value as any).agenda as string | null) || undefined
   if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   if (formTriggerToolsMode.value === 'whitelist' && formTriggerTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
@@ -671,7 +671,7 @@ async function save() {
       intentPrompt: form.value.intentPrompt?.trim() || undefined,
       intentThreshold: form.value.intentModel ? form.value.intentThreshold : undefined,
       mergeWindow: form.value.mergeWindow || undefined,
-      insight: channelInsight,
+      memory: channelMemory,
       agenda: channelAgenda,
       tools: modeToTools(formToolsMode.value, formTools.value),
       triggerTools: modeToTools(formTriggerToolsMode.value, formTriggerTools.value),
@@ -902,7 +902,7 @@ async function refresh() {
             :note-options="noteOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
-            :insight-profile-options="insightProfileOptions"
+            :memory-profile-options="memoryProfileOptions"
             :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(channelDataConfig.workPath || '')"
           />
@@ -988,7 +988,7 @@ async function refresh() {
             :note-options="noteOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
-            :insight-profile-options="insightProfileOptions"
+            :memory-profile-options="memoryProfileOptions"
             :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(sessionForm.overrides.workPath || '')"
           />

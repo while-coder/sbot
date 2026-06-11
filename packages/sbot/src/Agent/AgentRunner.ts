@@ -16,7 +16,7 @@ import {
     WikiService,
     T_WikiSystemPromptTemplate,
     T_WikiToolDescs,
-    IInsightService,
+    IMemoryService,
     IAgendaService,
     AgendaService,
     IAgendaStore,
@@ -39,7 +39,7 @@ import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
 import { agendaStorePool, agendaTriggerEnginePool } from "../Agenda";
-import { insightServicePool } from "./InsightServicePool";
+import { memoryServicePool } from "../Memory/MemoryServicePool";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -68,8 +68,8 @@ export interface AgentRunOptions {
     agentTools?: StructuredToolInterface[];
     /** 归属会话 DB 主键（channel_session.id） */
     dbSessionId: string;
-    /** insightProfiles 中的 UUID；空表示不启用 insight */
-    insightId?: string | null;
+    /** memoryProfiles 中的 UUID；空表示不启用 memory */
+    memoryId?: string | null;
     /** agendaProfiles 中的 UUID；空表示不启用 agenda */
     agendaId?: string | null;
 }
@@ -121,18 +121,21 @@ export class AgentRunner {
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
-        await AgentRunner.registerInsightService(container, options.insightId);
+        await AgentRunner.registerMemoryService(container, options.memoryId);
         await AgentRunner.registerAgendaService(container, options.agendaId, dbSessionId);
 
         const saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
         container.registerInstance(IAgentSaverService, saverHandle.saver);
+
+        // Memory 系统由后台 MemoryWriter LLM 自主 CRUD，不需要显式记忆工具。
+        const finalAgentTools: StructuredToolInterface[] = [...(agentTools ?? [])];
 
         const agent = await AgentFactory.create({
             agentId,
             container,
             extraPrompts,
             dynamicPrompts,
-            agentTools,
+            agentTools: finalAgentTools,
             dbSessionId,
             workPath,
             disableWorkspaceSkills: options.disableWorkspaceSkills,
@@ -245,17 +248,19 @@ export class AgentRunner {
         }
     }
 
-    private static async registerInsightService(
+    /**
+     * Memory（skill 风格）系统注册。命中 memoryProfiles 才注册；否则不启用记忆。
+     */
+    private static async registerMemoryService(
         container: ServiceContainer,
-        insightId: string | null | undefined,
-    ): Promise<void> {
-        if (!insightId) return;
-        // 多对话共享同一 insightProfile 时通过 pool 共用一个 InsightService 实例，
-        // 避免并发 extractFromConversation / curate / HybridSearcher 缓存的竞态。
-        const profileConfig = config.getInsightProfile(insightId);
-        if (!profileConfig?.enabled) return;
-        const service = await insightServicePool.get(insightId);
-        if (service) container.registerInstance(IInsightService, service);
+        memoryId: string | null | undefined,
+    ): Promise<IMemoryService | null> {
+        if (!memoryId) return null;
+        const profileConfig = config.getMemoryProfile(memoryId);
+        if (!profileConfig?.enabled) return null;
+        const service = await memoryServicePool.get(memoryId);
+        if (service) container.registerInstance(IMemoryService, service);
+        return service;
     }
 
     private static async registerAgendaService(

@@ -7,7 +7,7 @@ import { refreshGlobalSkillService } from '../../Agent/GlobalSkillService';
 import { refreshGlobalAgentToolService } from '../../Agent/GlobalAgentToolService';
 import { database, type UsageLogRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
-import { insightServicePool } from '../../Agent/InsightServicePool';
+import { memoryServicePool } from '../../Memory/MemoryServicePool';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
 
@@ -23,8 +23,8 @@ export class SystemRoutes {
             config.reloadSettings();
             refreshGlobalSkillService();
             refreshGlobalAgentToolService();
-            // settings 重新加载后，缓存的 InsightService 可能绑着旧 extractor / prompt，全部丢掉
-            insightServicePool.disposeAll();
+            // settings 重新加载后，缓存的 MemoryService 可能绑着旧 writerModel / prompt，全部丢掉
+            memoryServicePool.disposeAll();
             return { message: 'Config reloaded' };
         }));
 

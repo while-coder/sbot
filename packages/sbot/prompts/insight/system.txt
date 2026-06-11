@@ -1,8 +1,0 @@
----
-vars:
-  items: 相关 insight 条目列表 (XML 格式)
----
-<relevant-insights>
-{items}
-  <note>These are insights relevant to the current query. Access them using read_skill_file / list_skill_files tools.</note>
-</relevant-insights>

@@ -9,7 +9,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBSchemaVersion = "profile-runtime-v2";
+const DBSchemaVersion = "memory-rename-v1";
 const DBVersion: string = `${config.pkg.version}:${DBSchemaVersion}`;
 export type MessageRow = {
   id: string;
@@ -131,7 +131,7 @@ export type SessionProfileRow = {
   intentPrompt: string | null;
   intentThreshold: number | null;
 
-  insight: string | null;           // insightProfiles 中的 UUID，null = 跟随 ChannelConfig
+  memory: string | null;            // memoryProfiles 中的 UUID，null = 跟随 ChannelConfig
   agenda: string | null;            // agendaProfiles 中的 UUID，null = 跟随 ChannelConfig
 
   // ── 运行时统计 ──
@@ -516,11 +516,11 @@ class Database {
           defaultValue: null,
           comment: "意图识别置信度阈值 (0-1)",
         },
-        insight: {
+        memory: {
           type: DataTypes.STRING(64),
           allowNull: true,
           defaultValue: null,
-          comment: "insightProfiles 中的 UUID，null = 跟随 ChannelConfig",
+          comment: "memoryProfiles 中的 UUID，null = 跟随 ChannelConfig",
         },
         agenda: {
           type: DataTypes.STRING(64),

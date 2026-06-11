@@ -3,7 +3,7 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, truncate } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
-import { IInsightService } from "../../Insight";
+import { IMemoryService, MemoryToolProvider } from "../../Memory";
 import { IAgendaService, AgendaToolProvider } from "../../Agenda";
 import { INoteService, NoteToolProvider } from "../../Note";
 import { IWikiService } from "../../Wiki";
@@ -56,7 +56,7 @@ type SingleAgentState = {
 export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
     protected skillService: ISkillService;
-    protected insightService?: IInsightService;
+    protected memoryService?: IMemoryService;
     protected agendaService?: IAgendaService;
     protected toolService?: IAgentToolService;
     protected staticSystemPrompts: string[];
@@ -73,7 +73,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
-        @inject(IInsightService, { optional: true }) insightService?: IInsightService,
+        @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
         @inject(IAgendaService, { optional: true }) agendaService?: IAgendaService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
         @inject(INoteService, { optional: true }) noteServices?: INoteService[],
@@ -84,7 +84,7 @@ export class SingleAgentService extends AgentServiceBase {
         super(loggerService, agentSaver, noteServices, wikiServices);
         this.modelService = modelService;
         this.skillService = skillService;
-        this.insightService = insightService;
+        this.memoryService = memoryService;
         this.agendaService = agendaService;
         this.toolService = toolService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
@@ -112,9 +112,12 @@ export class SingleAgentService extends AgentServiceBase {
         const dynamicParts: string[] = [...this.dynamicSystemPrompts];
         const queryText = contentToString(query);
 
-        if (this.insightService) {
-            const insightMessage = await this.insightService.getSystemMessage(queryText);
-            if (insightMessage) dynamicParts.push(insightMessage);
+        if (this.memoryService) {
+            // 注入 Memory（skill 风格）menu prompt：
+            // 渲染好的 read 模板 + slug/description 列表；agent 通过
+            // read_memory / search_memory 两个工具按需深读。
+            const memoryMenu = await this.memoryService.getMemoryMenuPrompt();
+            if (memoryMenu) dynamicParts.push(memoryMenu);
         }
 
         if (this.noteServices.length > 0) {
@@ -152,6 +155,9 @@ export class SingleAgentService extends AgentServiceBase {
         }
         if (this.agendaService) {
             tools.push(...AgendaToolProvider.getTools(this.agendaService));
+        }
+        if (this.memoryService) {
+            tools.push(...MemoryToolProvider.getTools(this.memoryService));
         }
 
         // 同名工具会被 OpenAI 兼容端点判为非法请求（400），按首次出现去重
@@ -445,24 +451,21 @@ export class SingleAgentService extends AgentServiceBase {
             await this.recordException(err);
             throw err;
         }
-        // 静默并行提取 insight 和 agenda（互不影响）
+        // 静默后台提取：
+        // - memory 由 MemoryExtractScheduler 在独立后台跑（session idle 后批量抽取），
+        //   不在 turn 末尾阻塞
+        // - agenda 仍是 per-turn 抽取（agenda 依赖即时识别用户意图）
         const queryText = contentToString(query);
         const aiText = aiResponses.length > 0 ? aiResponses : undefined;
-        const extractTasks: Promise<unknown>[] = [];
-        if (this.insightService) {
-            extractTasks.push(this.insightService.extractFromConversation(queryText, aiText));
-        }
         if (this.agendaService) {
-            extractTasks.push(this.agendaService.extractFromConversation(queryText, aiText));
-        }
-        if (extractTasks.length > 0) {
-            const results = await Promise.allSettled(extractTasks);
-            for (const r of results) {
-                if (r.status === 'rejected') {
-                    this.logger?.warn(`Background extraction failed: ${(r.reason as Error)?.message}`);
-                }
+            try {
+                await this.agendaService.extractFromConversation(queryText, aiText);
+            } catch (e: any) {
+                this.logger?.warn(`Background agenda extraction failed: ${e?.message}`);
             }
         }
+
+        // Memory 反馈走 read_memory 工具调用累加 read_count，不再需要 citation 钩子。
 
         return outputMessages;
     }

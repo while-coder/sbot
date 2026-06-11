@@ -153,6 +153,7 @@ export interface ChatLabels {
   workpath?: string
   workpathPlaceholder?: string
   note?: string
+  memory?: string
   wiki?: string
   autoApproveAll?: string
   useChannelDefault?: string

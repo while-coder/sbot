@@ -4,8 +4,8 @@ import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
 import { ModelProvider, EmbeddingProvider } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, InsightProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, InsightProfileConfig, AgendaProfileConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "sbot.commons";
 export type { TunnelConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';
@@ -106,7 +106,8 @@ export interface Settings {
   savers?: Record<string, SaverConfig>;
   notes?: Record<string, NoteConfig>;
   wikis?: Record<string, WikiConfig>;
-  insightProfiles?: Record<string, InsightProfileConfig>;
+  /** Memory（skill 风格）配置 */
+  memoryProfiles?: Record<string, MemoryProfileConfig>;
   agendaProfiles?: Record<string, AgendaProfileConfig>;
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
@@ -119,7 +120,7 @@ const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
   startupCommands: true, checkUpdateTime: true, maxImageSize: true, contextFileNames: true,
   models: true, embeddings: true, savers: true, notes: true, wikis: true,
-  insightProfiles: true, agendaProfiles: true, channels: true,
+  memoryProfiles: true, agendaProfiles: true, channels: true,
   plugins: true, agentSources: true, tunnel: true,
 } satisfies Record<keyof Settings, true>));
 
@@ -518,14 +519,14 @@ class Config {
   getAgentSkillsPath(agentName: string) {
     return this.getConfigPath(`agents/${agentName}/skills`, true)
   }
-  getInsightPath(insightId: string) {
-    return this.getConfigPath(`insights/${insightId}`, true)
+  getMemoryPath(memoryId: string) {
+    return this.getConfigPath(`memories/${memoryId}`, true)
   }
   getAgendaPath(agendaId: string) {
     return this.getConfigPath(`agendas/${agendaId}`, true)
   }
-  getInsightProfile(id: string): InsightProfileConfig | undefined {
-    return this._settings.insightProfiles?.[id.trim()];
+  getMemoryProfile(id: string): MemoryProfileConfig | undefined {
+    return this._settings.memoryProfiles?.[id.trim()];
   }
   getAgendaProfile(id: string): AgendaProfileConfig | undefined {
     return this._settings.agendaProfiles?.[id.trim()];

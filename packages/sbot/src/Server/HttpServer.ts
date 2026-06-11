@@ -26,6 +26,7 @@ import { agentStoreRoutes } from './routes/agentStore';
 import { promptRoutes } from './routes/prompts';
 import { dataRoutes } from './routes/data';
 import { agendaRoutes } from './routes/agendas';
+import { memoryRoutes } from './routes/memories';
 import { heartbeatRoutes } from './routes/heartbeats';
 import { userRoutes } from './routes/users';
 import { logRoutes } from './routes/logs';
@@ -114,6 +115,7 @@ class HttpServer {
         promptRoutes.register(app, ctx);
         dataRoutes.register(app, ctx);
         agendaRoutes.register(app, ctx);
+        memoryRoutes.register(app, ctx);
         heartbeatRoutes.register(app, ctx);
         logRoutes.register(app, ctx);
         userRoutes.register(app, ctx);

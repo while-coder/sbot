@@ -23,8 +23,8 @@ export interface DataConfigValue {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
-  /** insightProfiles 中的 UUID；profile 模式下 null = 沿用 channel；channel 模式下 null = 不启用 */
-  insight: string | null
+  /** memoryProfiles 中的 UUID；profile 模式下 null = 沿用 channel；channel 模式下 null = 不启用 */
+  memory: string | null
   /** agendaProfiles 中的 UUID；profile 模式下 null = 沿用 channel；channel 模式下 null = 不启用 */
   agenda: string | null
 }
@@ -46,7 +46,7 @@ const props = withDefaults(defineProps<{
   noteOptions: Option[]
   wikiOptions: Option[]
   modelOptions: Option[]
-  insightProfileOptions: Option[]
+  memoryProfileOptions: Option[]
   agendaProfileOptions: Option[]
 }>(), {
   mode: 'profile',
@@ -97,7 +97,7 @@ const fmtModel = (v: any) => props.modelOptions.find(m => m.id === v)?.label || 
 const fmtBool = (v: any) => v ? t('common.enabled') : t('common.disabled')
 const fmtList = (v: any) => Array.isArray(v) ? `${v.length} ${t('channels.items_count_suffix')}` : String(v ?? '')
 const fmtApprovalValue = (v: any) => v === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : v === ApprovalTimeoutValue.Deny ? t('channels.approval_timeout_value_deny') : String(v ?? '')
-const fmtInsight = (v: any) => props.insightProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
+const fmtMemory = (v: any) => props.memoryProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
 const fmtAgenda = (v: any) => props.agendaProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
 
 const resourcesBadge = computed(() => {
@@ -114,7 +114,7 @@ const resourcesBadge = computed(() => {
 
 const automationBadge = computed(() => {
   let n = 0
-  if (props.modelValue.insight) n++
+  if (props.modelValue.memory) n++
   if (props.modelValue.agenda) n++
   return n || ''
 })
@@ -139,12 +139,12 @@ function updateBool(key: 'streamVerbose' | 'autoApproveAllTools' | 'disableWorks
   update(key, isProfileMode() && value === '' ? null : value === 'true')
 }
 
-/** insight/agenda 引用：profile 模式下空串 = 沿用 channel；channel 模式下空串 = 不启用 */
-function refSelectValue(key: 'insight' | 'agenda'): string {
+/** memory/agenda 引用：profile 模式下空串 = 沿用 channel；channel 模式下空串 = 不启用 */
+function refSelectValue(key: 'memory' | 'agenda'): string {
   return props.modelValue[key] ?? ''
 }
 
-function updateRef(key: 'insight' | 'agenda', value: string) {
+function updateRef(key: 'memory' | 'agenda', value: string) {
   update(key, value ? value : null)
 }
 
@@ -303,10 +303,10 @@ function setTimeoutMode(key: 'approvalTimeout' | 'askTimeout', mode: string) {
 
     <SFormDetails :summary="t('channels.section_automation_memory')" :badge="automationBadge" :open="isSectionOpen('automation')">
 
-    <SFormItem :label="t('agents.insight_enabled')" :hint="inheritLabel('insight', fmtInsight) || t('agents.insight_hint')">
-      <SSelect :model-value="refSelectValue('insight')" @update:model-value="v => updateRef('insight', String(v))">
-        <option value="">{{ isProfileMode() ? t('channels.use_channel_default') : t('agents.insight_disabled') }}</option>
-        <option v-for="p in insightProfileOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
+    <SFormItem :label="t('agents.memory_enabled')" :hint="inheritLabel('memory', fmtMemory) || t('agents.memory_hint')">
+      <SSelect :model-value="refSelectValue('memory')" @update:model-value="v => updateRef('memory', String(v))">
+        <option value="">{{ isProfileMode() ? t('channels.use_channel_default') : t('agents.memory_disabled') }}</option>
+        <option v-for="p in memoryProfileOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
       </SSelect>
     </SFormItem>
 

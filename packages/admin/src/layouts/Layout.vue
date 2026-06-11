@@ -76,7 +76,7 @@ const menuGroups = computed(() => [
     items: [
       { label: t('nav.agenda'), key: '/agenda' },
       { label: t('nav.agenda_profiles'), key: '/agenda-profiles' },
-      { label: t('nav.insight_profiles'), key: '/insight-profiles' },
+      { label: t('nav.memory_profiles'), key: '/memory-profiles' },
     ],
   },
   {

@@ -94,7 +94,7 @@ export class SkillService implements ISkillService {
 
   async getSystemMessage(): Promise<string | null> {
     if (!this.systemPromptTemplate) return null;
-    const skills = this.getAllSkills().filter(s => s.type !== 'insight');
+    const skills = this.getAllSkills();
     if (skills.length === 0) return null;
 
     return this.systemPromptTemplate.replace('{skills}', formatSkillItems(skills));

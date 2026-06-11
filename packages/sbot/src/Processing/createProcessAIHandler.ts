@@ -111,7 +111,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             disableWorkspaceContext,
             disableWorkspaceSkills,
             agentTools,
-            insightId: resolved.insight,
+            memoryId: resolved.memory,
             agendaId: resolved.agenda,
         });
     };

@@ -123,7 +123,7 @@ interface CleanupReport {
   invalidEmbeddingRefs: InvalidRef[]
   invalidNoteRefs: InvalidRef[]
   invalidWikiRefs: InvalidRef[]
-  invalidInsightProfileRefs: InvalidRef[]
+  invalidMemoryProfileRefs: InvalidRef[]
   invalidAgendaProfileRefs: InvalidRef[]
 }
 
@@ -149,7 +149,7 @@ const cleanupCategories = computed<Array<{ key: keyof CleanupReport; label: stri
     { key: 'invalidEmbeddingRefs',      label: t('settings.invalid_embedding_refs'),      cleaned: false, items: r.invalidEmbeddingRefs },
     { key: 'invalidNoteRefs',           label: t('settings.invalid_note_refs'),           cleaned: false, items: r.invalidNoteRefs },
     { key: 'invalidWikiRefs',           label: t('settings.invalid_wiki_refs'),           cleaned: false, items: r.invalidWikiRefs },
-    { key: 'invalidInsightProfileRefs', label: t('settings.invalid_insight_profile_refs'),cleaned: false, items: r.invalidInsightProfileRefs },
+    { key: 'invalidMemoryProfileRefs', label: t('settings.invalid_memory_profile_refs'),cleaned: false, items: r.invalidMemoryProfileRefs },
     { key: 'invalidAgendaProfileRefs',  label: t('settings.invalid_agenda_profile_refs'), cleaned: false, items: r.invalidAgendaProfileRefs },
   ]
 })
@@ -209,7 +209,7 @@ function fmtItem(category: string, item: any): string {
     case 'invalidEmbeddingRefs':
     case 'invalidNoteRefs':
     case 'invalidWikiRefs':
-    case 'invalidInsightProfileRefs':
+    case 'invalidMemoryProfileRefs':
     case 'invalidAgendaProfileRefs':
       return `${item.source} → ${item.field} = "${item.badValue}"`
   }

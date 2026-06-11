@@ -34,8 +34,8 @@ export interface EffectiveSessionResolved {
     intentModel?: string;
     intentPrompt?: string;
     intentThreshold?: number;
-    /** 经验洞察模板 UUID（resolve 后的引用），未启用时为 null */
-    insight: string | null;
+    /** Memory 模板 UUID（resolve 后的引用），未启用时为 null */
+    memory: string | null;
     /** Agenda 模板 UUID（resolve 后的引用），未启用时为 null */
     agenda: string | null;
 }
@@ -85,12 +85,12 @@ function normalizeRef(value: any): string | null {
  * 跨服务依赖（由本类调用，反向不允许）：
  * - heartbeatService.reloadAll —— heartbeat 自治
  * - channelManager.reloadChannel —— channel 运行时自治（在 routes 层调用，避开循环）
- * 注：agenda/insight 数据按 agendaId/insightId 共享，由 settings 顶层管理；
+ * 注：agenda/memory 数据按 agendaId/memoryId 共享，由 settings 顶层管理；
  * profile 删除时不再级联清。
  */
 export class ChannelDataService {
-    // 注：agenda/insight 数据现在按 agendaId/insightId 共享，不再随 profile 删除而清。
-    // 数据生命周期由 /api/agenda-profiles、/api/insight-profiles 的 DELETE 路由管理。
+    // 注：agenda/memory 数据现在按 agendaId/memoryId 共享，不再随 profile 删除而清。
+    // 数据生命周期由 /api/agenda-profiles、/api/memory-profiles 的 DELETE 路由管理。
 
     // ── reads ────────────────────────────────────────────────────────────────
 
@@ -148,7 +148,7 @@ export class ChannelDataService {
             intentModel: profile.intentModel ?? channel?.intentModel ?? undefined,
             intentPrompt: profile.intentPrompt ?? channel?.intentPrompt ?? undefined,
             intentThreshold: profile.intentThreshold ?? channel?.intentThreshold ?? undefined,
-            insight: profile.insight ?? channel?.insight ?? null,
+            memory: profile.memory ?? channel?.memory ?? null,
             agenda: profile.agenda ?? channel?.agenda ?? null,
         };
 
@@ -246,7 +246,7 @@ export class ChannelDataService {
                 intentModel: p?.intentModel ?? null,
                 intentPrompt: p?.intentPrompt ?? null,
                 intentThreshold: p?.intentThreshold ?? null,
-                insight: p?.insight ?? null,
+                memory: p?.memory ?? null,
                 agenda: p?.agenda ?? null,
                 inputTokens: p?.inputTokens ?? 0,
                 outputTokens: p?.outputTokens ?? 0,
@@ -256,6 +256,36 @@ export class ChannelDataService {
                 lastTotalTokens: p?.lastTotalTokens ?? 0,
             };
         });
+    }
+
+    /**
+     * 列出绑定到指定 memoryId 的 session（按 thread 维度去重）。
+     * 解析顺序与 getEffective 一致：profile.memory ?? channel.memory。
+     * 同一 thread（即同一 profileId）可能被多个 channelSession 引用（共享 visible profile），
+     * 此处只保留每个 thread 最早的 channelSessionId（用于 SaverPool 解析 saver）。
+     */
+    async listSessionsByMemory(memoryId: string): Promise<MemorySessionCandidate[]> {
+        if (!memoryId) return [];
+        const sessions = await this.listSessions();
+        const seenThreads = new Set<string>();
+        const out: MemorySessionCandidate[] = [];
+        for (const s of sessions) {
+            const channelMemory = config.getChannel(s.channelId)?.memory ?? null;
+            const effectiveMemory = s.memory ?? channelMemory;
+            if (effectiveMemory !== memoryId) continue;
+            const threadId = String(s.profileId);
+            if (seenThreads.has(threadId)) continue;
+            seenThreads.add(threadId);
+            const channelWorkPath = config.getChannel(s.channelId)?.workPath ?? null;
+            out.push({
+                channelSessionId: s.id,
+                threadId,
+                profileId: s.profileId,
+                workPath: s.workPath ?? channelWorkPath,
+                sessionLabel: s.sessionName || s.autoSessionName || `${s.channelId}/${s.sessionId}`,
+            });
+        }
+        return out;
     }
 
     /** 仅允许改 sessionName / avatar / profileId（其他配置写 profile，由 updateProfile 负责） */
@@ -282,7 +312,7 @@ export class ChannelDataService {
      * - 该 session 的 auto profile（visible profile 共享，不动）
      * - heartbeat where sessionId = session.id
      * - heartbeat 服务 reload
-     * 注：profile 引用的 agenda/insight 模板数据归 admin 管理，这里不动。
+     * 注：profile 引用的 agenda/memory 模板数据归 admin 管理，这里不动。
      */
     async deleteSession(id: number): Promise<void> {
         await database.destroy(database.sessionProfile, { where: { autoForSessionId: id } });
@@ -325,7 +355,7 @@ export class ChannelDataService {
     async updateProfile(id: number, body: Record<string, any>): Promise<void> {
         const noteSer = body.notes === undefined ? undefined : (body.notes === null ? null : JSON.stringify(body.notes || []));
         const wikiSer = body.wikis === undefined ? undefined : (body.wikis === null ? null : JSON.stringify(body.wikis || []));
-        const insightRef = body.insight === undefined ? undefined : normalizeRef(body.insight);
+        const memoryRef = body.memory === undefined ? undefined : normalizeRef(body.memory);
         const agendaRef = body.agenda === undefined ? undefined : normalizeRef(body.agenda);
         const update = pickDefined({
             name: body.name,
@@ -347,7 +377,7 @@ export class ChannelDataService {
             intentModel: body.intentModel === undefined ? undefined : (body.intentModel ?? null),
             intentPrompt: body.intentPrompt === undefined ? undefined : (body.intentPrompt || null),
             intentThreshold: body.intentThreshold === undefined ? undefined : (body.intentThreshold ?? null),
-            insight: insightRef,
+            memory: memoryRef,
             agenda: agendaRef,
         });
         if (Object.keys(update).length === 0) return;
@@ -392,7 +422,7 @@ export class ChannelDataService {
             intentModel: current?.intentModel ?? null,
             intentPrompt: current?.intentPrompt ?? null,
             intentThreshold: current?.intentThreshold ?? null,
-            insight: current?.insight ?? null,
+            memory: current?.memory ?? null,
             agenda: current?.agenda ?? null,
             createdAt: Date.now(),
         });
@@ -423,7 +453,7 @@ export class ChannelDataService {
      * - heartbeat where sessionId in sessionIds
      * - channel_session / channel_user 行
      * - heartbeat 服务 reload（channelManager.reloadChannel 由 routes 层在 settingsCrud 流程里完成）
-     * 注：profile 引用的 agenda/insight 模板数据归 admin 管理，这里不动。
+     * 注：profile 引用的 agenda/memory 模板数据归 admin 管理，这里不动。
      */
     async deleteChannel(channelId: string): Promise<void> {
         const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { channelId } });
@@ -472,7 +502,7 @@ export class ChannelDataService {
             workPath: body.workPath ?? null,
             disableWorkspaceContext: body.disableWorkspaceContext ?? null,
             disableWorkspaceSkills: body.disableWorkspaceSkills ?? null,
-            insight: normalizeRef(body.insight),
+            memory: normalizeRef(body.memory),
             agenda: normalizeRef(body.agenda),
         }, { where: { id: profile.id } });
         return { session, profile };
@@ -494,7 +524,7 @@ export class ChannelDataService {
         if (body.autoApproveAllTools !== undefined) profileUpdate.autoApproveAllTools = !!body.autoApproveAllTools;
         if (body.disableWorkspaceContext !== undefined) profileUpdate.disableWorkspaceContext = body.disableWorkspaceContext ?? null;
         if (body.disableWorkspaceSkills !== undefined) profileUpdate.disableWorkspaceSkills = body.disableWorkspaceSkills ?? null;
-        if (body.insight !== undefined) profileUpdate.insight = normalizeRef(body.insight);
+        if (body.memory !== undefined) profileUpdate.memory = normalizeRef(body.memory);
         if (body.agenda !== undefined) profileUpdate.agenda = normalizeRef(body.agenda);
         if (Object.keys(profileUpdate).length > 0) {
             await database.update(database.sessionProfile, profileUpdate, { where: { id: profile.id } });
@@ -629,10 +659,10 @@ export class ChannelDataService {
  * 覆盖：
  * - agent ID（profile.agentId / channel.agent / agent.agents[].id）
  * - saver UUID（profile.saver / channel.saver）
- * - model UUID（intentModel / agent.model / agent.compactModel / insightProfile.extractor / agendaProfile.syncModel）
+ * - model UUID（intentModel / agent.model / agent.compactModel / memoryProfile.writerModel / agendaProfile.syncModel）
  * - embedding UUID（note.embedding / wiki.embedding）
  * - note/wiki UUID（profile.notes[] / channel.notes[]，wikis 同理）
- * - insightProfile / agendaProfile UUID（profile.insight / channel.insight，agenda 同理）
+ * - memoryProfile / agendaProfile UUID（profile.memory / channel.memory，agenda 同理）
  */
 function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
     invalidAgentRefs: InvalidRef[];
@@ -641,7 +671,7 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
     invalidEmbeddingRefs: InvalidRef[];
     invalidNoteRefs: InvalidRef[];
     invalidWikiRefs: InvalidRef[];
-    invalidInsightProfileRefs: InvalidRef[];
+    invalidMemoryProfileRefs: InvalidRef[];
     invalidAgendaProfileRefs: InvalidRef[];
 } {
     const settings = config.settings;
@@ -651,7 +681,7 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
     const savers = settings.savers ?? {};
     const notes = settings.notes ?? {};
     const wikis = settings.wikis ?? {};
-    const insightProfiles = settings.insightProfiles ?? {};
+    const memoryProfiles = settings.memoryProfiles ?? {};
     const agendaProfiles = settings.agendaProfiles ?? {};
     const agentIds = new Set(config.listAgents().map(a => a.id));
 
@@ -664,7 +694,7 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
     const invalidEmbeddingRefs: InvalidRef[] = [];
     const invalidNoteRefs: InvalidRef[] = [];
     const invalidWikiRefs: InvalidRef[] = [];
-    const invalidInsightProfileRefs: InvalidRef[] = [];
+    const invalidMemoryProfileRefs: InvalidRef[] = [];
     const invalidAgendaProfileRefs: InvalidRef[] = [];
 
     const profileSource = (p: SessionProfileRow): string => {
@@ -678,7 +708,7 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         if (p.agentId && !agentIds.has(p.agentId)) invalidAgentRefs.push({ source: src, field: 'agentId', badValue: p.agentId });
         if (p.saver && !has(savers, p.saver)) invalidSaverRefs.push({ source: src, field: 'saver', badValue: p.saver });
         if (p.intentModel && !has(models, p.intentModel)) invalidModelRefs.push({ source: src, field: 'intentModel', badValue: p.intentModel });
-        if (p.insight && !has(insightProfiles, p.insight)) invalidInsightProfileRefs.push({ source: src, field: 'insight', badValue: p.insight });
+        if (p.memory && !has(memoryProfiles, p.memory)) invalidMemoryProfileRefs.push({ source: src, field: 'memory', badValue: p.memory });
         if (p.agenda && !has(agendaProfiles, p.agenda)) invalidAgendaProfileRefs.push({ source: src, field: 'agenda', badValue: p.agenda });
 
         const noteIds = parseNotes(p.notes);
@@ -697,7 +727,7 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         if (c.agent && !agentIds.has(c.agent)) invalidAgentRefs.push({ source: src, field: 'agent', badValue: c.agent });
         if (c.saver && !has(savers, c.saver)) invalidSaverRefs.push({ source: src, field: 'saver', badValue: c.saver });
         if (c.intentModel && !has(models, c.intentModel)) invalidModelRefs.push({ source: src, field: 'intentModel', badValue: c.intentModel });
-        if (c.insight && !has(insightProfiles, c.insight)) invalidInsightProfileRefs.push({ source: src, field: 'insight', badValue: c.insight });
+        if (c.memory && !has(memoryProfiles, c.memory)) invalidMemoryProfileRefs.push({ source: src, field: 'memory', badValue: c.memory });
         if (c.agenda && !has(agendaProfiles, c.agenda)) invalidAgendaProfileRefs.push({ source: src, field: 'agenda', badValue: c.agenda });
         (c.notes ?? []).forEach((id, i) => {
             if (!has(notes, id)) invalidNoteRefs.push({ source: src, field: `notes[${i}]`, badValue: id });
@@ -719,10 +749,11 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         }
     }
 
-    // ── insightProfiles / agendaProfiles 引用 model ──────────────────────
-    for (const [iid, ip] of Object.entries(insightProfiles)) {
-        if (ip.extractor && !has(models, ip.extractor)) {
-            invalidModelRefs.push({ source: `insightProfile:${iid}${ip.name ? `(${ip.name})` : ''}`, field: 'extractor', badValue: ip.extractor });
+    // ── memoryProfiles / agendaProfiles 引用 model ───────────────────────
+    for (const [iid, mp] of Object.entries(memoryProfiles)) {
+        const src = `memoryProfile:${iid}${mp.name ? `(${mp.name})` : ''}`;
+        if (mp.writerModel && !has(models, mp.writerModel)) {
+            invalidModelRefs.push({ source: src, field: 'writerModel', badValue: mp.writerModel });
         }
     }
     for (const [aid, ap] of Object.entries(agendaProfiles)) {
@@ -750,7 +781,7 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         invalidEmbeddingRefs,
         invalidNoteRefs,
         invalidWikiRefs,
-        invalidInsightProfileRefs,
+        invalidMemoryProfileRefs,
         invalidAgendaProfileRefs,
     };
 }
@@ -781,7 +812,7 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     intentModel: string | null;
     intentPrompt: string | null;
     intentThreshold: number | null;
-    insight: string | null;
+    memory: string | null;
     agenda: string | null;
     inputTokens: number;
     outputTokens: number;
@@ -789,6 +820,22 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     lastInputTokens: number;
     lastOutputTokens: number;
     lastTotalTokens: number;
+}
+
+/**
+ * MemoryExtractScheduler 关心的 session 元数据子集。
+ * threadId = String(profileId)，对应 saver 维度；多个 channelSession 共享同一 profile 时只取一条。
+ */
+export interface MemorySessionCandidate {
+    /** 用于 SaverPool.acquireByDBSessionId */
+    channelSessionId: number;
+    /** = String(profileId) */
+    threadId: string;
+    profileId: number;
+    /** 解析后的工作目录（profile 优先，回退 channel） */
+    workPath: string | null;
+    /** session 显示标签（admin 调试用） */
+    sessionLabel: string;
 }
 
 // ── cleanup / scan report ─────────────────────────────────────────────────────
@@ -816,7 +863,7 @@ export interface CleanupReport {
     invalidEmbeddingRefs: InvalidRef[];
     invalidNoteRefs: InvalidRef[];
     invalidWikiRefs: InvalidRef[];
-    invalidInsightProfileRefs: InvalidRef[];
+    invalidMemoryProfileRefs: InvalidRef[];
     invalidAgendaProfileRefs: InvalidRef[];
 }
 

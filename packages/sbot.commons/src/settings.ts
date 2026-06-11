@@ -75,15 +75,45 @@ export interface EmbeddingConfig {
   model: string
 }
 
-export interface InsightProfileConfig {
+/**
+ * Memory（skill 风格记忆系统）配置。
+ *
+ * 一个 memoryProfile = 一组共享的长期记忆（一个目录 + 一个 SQLite 文件）。
+ * 写入由后台 MemoryWriterWorker 跑，读取通过 read_memory / search_memory 工具 + menu 注入。
+ *
+ * channel.memory / sessionProfile.memory 字段的 UUID 在 memoryProfiles 查找。
+ */
+export interface MemoryProfileConfig {
   /** 显示名称 */
   name: string
-  /** 整个模板的启停；false 时引用方仍可指向，但运行时不启用 */
+  /** 整个模板的启停；false 时不启动后台 worker */
   enabled: boolean
-  /** 提取使用的模型 UUID（对应 models 中的 key） */
-  extractor: string
-  /** 提取 prompt 文件相对路径（不设置则用默认） */
-  extractorPromptFile?: string
+
+  // ── 模型 ──
+  /** MemoryLLM 模型 UUID（必填） */
+  writerModel: string
+
+  // ── prompt 文件（不设置则使用默认） ──
+  /** MemoryWriter 系统提示路径，默认 'memory/memory_write.md' */
+  writerPromptFile?: string
+  /** 注入到主 agent 的 read 模板路径，默认 'memory/memory_read.md'（含 {{ memory_menu }} 占位符） */
+  readPromptFile?: string
+
+  // ── 调度（可选，省略走默认） ──
+  /** session 距最后一条用户消息多久后触发抽取（毫秒），默认 600_000 (10 min) */
+  idleMs?: number
+  /** 自上次抽取后累计消息数上限触发，默认 50 */
+  maxMessages?: number
+  /** 来回轮数下限，低于此跳过排队（省 token），默认 2 */
+  minTurns?: number
+  /** worker 并发上限，默认 3 */
+  concurrency?: number
+  /** 单 job 最大重试次数，默认 3 */
+  maxAttempts?: number
+
+  // ── 注入 ──
+  /** 注入 menu 时的最大条目数（控 token），默认 200 */
+  menuMaxEntries?: number
 }
 
 export interface AgendaProfileConfig {
@@ -228,8 +258,8 @@ export interface SessionConfig {
   disableWorkspaceContext?: boolean
   /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
   disableWorkspaceSkills?: boolean
-  /** 经验洞察模板 UUID（对应 insightProfiles 中的 key） */
-  insight?: string
+  /** Memory profile UUID（对应 memoryProfiles 中的 key） */
+  memory?: string
   /** Agenda 模板 UUID（对应 agendaProfiles 中的 key） */
   agenda?: string
 }
@@ -284,8 +314,8 @@ export interface ChannelConfig {
   intentThreshold?: number
   /** 消息合并窗口（毫秒），同一会话在此时间内的连续消息会合并后再处理。0 或不设置表示不合并 */
   mergeWindow?: number
-  /** 经验洞察模板 UUID（对应 insightProfiles 中的 key） */
-  insight?: string
+  /** Memory profile UUID（对应 memoryProfiles 中的 key） */
+  memory?: string
   /** Agenda 模板 UUID（对应 agendaProfiles 中的 key） */
   agenda?: string
   /** 日常对话工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
@@ -316,7 +346,8 @@ export interface Settings {
   notes?: Record<string, NoteConfig>
   wikis?: Record<string, WikiConfig>
   savers?: Record<string, SaverConfig>
-  insightProfiles?: Record<string, InsightProfileConfig>
+  /** Memory（skill 风格）配置 */
+  memoryProfiles?: Record<string, MemoryProfileConfig>
   agendaProfiles?: Record<string, AgendaProfileConfig>
   channels?: Record<string, ChannelConfig>
 

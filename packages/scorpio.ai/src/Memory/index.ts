@@ -1,0 +1,34 @@
+export {
+    IMemoryStore,
+    type MemoryRow,
+    type MemoryMenuEntry,
+    type MemorySearchHit,
+    type CreateMemoryInput,
+    type UpdateMemoryInput,
+    type ExtractJobRow,
+    type ExtractJobStatus,
+    type EnqueueExtractInput,
+} from './IMemoryStore';
+
+export { MemoryStore } from './MemoryStore';
+export { buildFtsQuery } from './FtsQuery';
+export { SecretRedactor } from './SecretRedactor';
+export { renderConversation, countTurns } from './ConversationRenderer';
+export {
+    MemoryWriterWorker,
+    MemoryOpSchema,
+    MemoryWriteOutputSchema,
+    type MemoryWriteOutput,
+    type MemoryOp,
+    type MemoryWriterJobContext,
+    type MemoryWriterRunOptions,
+    type MemoryWriterStats,
+} from './MemoryWriterWorker';
+
+export { IMemoryService, type MemoryToolDescs } from './IMemoryService';
+export { MemoryService } from './MemoryService';
+export {
+    MemoryToolProvider,
+    READ_MEMORY_TOOL_NAME,
+    SEARCH_MEMORY_TOOL_NAME,
+} from './MemoryToolProvider';

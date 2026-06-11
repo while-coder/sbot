@@ -31,7 +31,7 @@ interface ProfileRow {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
-  insight: string | null
+  memory: string | null
   agenda: string | null
   inputTokens: number
   outputTokens: number
@@ -98,7 +98,7 @@ const saverOptions = computed(() => Object.entries(store.settings.savers || {}).
 const noteOptions = computed(() => Object.entries(store.settings.notes || {}).map(([id, n]: [string, any]) => ({ id, label: n.name || id })))
 const wikiOptions = computed(() => Object.entries(store.settings.wikis || {}).map(([id, w]) => ({ id, label: (w as any).name || id })))
 const modelOptions = computed(() => Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id })))
-const insightProfileOptions = computed(() => Object.entries(store.settings.insightProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
+const memoryProfileOptions = computed(() => Object.entries(store.settings.memoryProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 
 async function loadAll() {
@@ -137,7 +137,7 @@ function emptyOverrides(): SessionOverrides {
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
-    insight: null,
+    memory: null,
     agenda: null,
   }
 }
@@ -184,7 +184,7 @@ function openEdit(p: ProfileRow) {
       intentModel: p.intentModel ?? null,
       intentPrompt: p.intentPrompt,
       intentThreshold: p.intentThreshold,
-      insight: p.insight,
+      memory: p.memory,
       agenda: p.agenda,
     },
   }
@@ -242,7 +242,7 @@ function buildPayload(f: ProfileForm): Record<string, any> {
     intentModel: o.intentModel,
     intentPrompt: o.intentModel == null ? null : o.intentPrompt,
     intentThreshold: o.intentModel == null ? null : o.intentThreshold,
-    insight: o.insight,
+    memory: o.memory,
     agenda: o.agenda,
   }
 }
@@ -314,7 +314,7 @@ async function remove(p: ProfileRow) {
             :note-options="noteOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
-            :insight-profile-options="insightProfileOptions"
+            :memory-profile-options="memoryProfileOptions"
             :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(form.overrides.workPath || '')"
           />

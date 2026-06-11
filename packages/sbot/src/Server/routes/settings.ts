@@ -111,20 +111,20 @@ export class SettingsRoutes {
         settingsCrudHelper.register(app, 'savers', { label: 'Saver config', getSettings });
         settingsCrudHelper.register(app, 'notes', { label: 'Note config', getSettings });
         settingsCrudHelper.register(app, 'wikis', { label: 'Wiki config', getSettings });
-        settingsCrudHelper.register(app, 'insightProfiles', {
-            label: 'Insight profile',
+        settingsCrudHelper.register(app, 'memoryProfiles', {
+            label: 'Memory profile',
             checkOnDelete: true,
             getSettings,
-            // 改了或删了配置，丢掉缓存的 InsightService 实例（绑定 extractor 模型 / prompt 已变）
+            // 改了或删了配置，丢掉缓存的 MemoryService 实例（writerModel / prompt 可能已变）
             afterSave: async (id) => {
-                const { insightServicePool } = await import('../../Agent/InsightServicePool');
-                insightServicePool.invalidate(id);
+                const { memoryServicePool } = await import('../../Memory/MemoryServicePool');
+                memoryServicePool.invalidate(id);
             },
             afterDelete: async (id) => {
-                const { insightServicePool } = await import('../../Agent/InsightServicePool');
-                insightServicePool.invalidate(id);
+                const { memoryServicePool } = await import('../../Memory/MemoryServicePool');
+                memoryServicePool.invalidate(id);
                 const fs = await import('fs');
-                const dir = config.getInsightPath(id);
+                const dir = config.getMemoryPath(id);
                 try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
             },
         });
@@ -179,7 +179,7 @@ export class SettingsRoutes {
                     autoApproveAllTools: profile?.autoApproveAllTools || undefined,
                     disableWorkspaceContext: profile?.disableWorkspaceContext ?? undefined,
                     disableWorkspaceSkills: profile?.disableWorkspaceSkills ?? undefined,
-                    insight: profile?.insight ?? channel?.insight ?? null,
+                    memory: profile?.memory ?? channel?.memory ?? null,
                     agenda: profile?.agenda ?? channel?.agenda ?? null,
                 });
             }

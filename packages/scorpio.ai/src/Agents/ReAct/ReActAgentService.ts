@@ -7,7 +7,7 @@ import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole, ChatMessage } from "../AgentServiceBase";
 import { ISkillService } from "../../Skills";
-import { IInsightService } from "../../Insight";
+import { IMemoryService } from "../../Memory";
 import { IAgendaService } from "../../Agenda";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
@@ -45,7 +45,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
-    @inject(IInsightService, { optional: true }) insightService?: IInsightService,
+    @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject(IAgendaService, { optional: true }) agendaService?: IAgendaService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(INoteService, { optional: true }) noteServices?: INoteService[],
@@ -53,7 +53,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
     @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
   ) {
-    super(thinkModelService, skillService, toolOverflowDir, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor);
+    super(thinkModelService, skillService, toolOverflowDir, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }

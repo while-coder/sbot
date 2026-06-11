@@ -50,6 +50,7 @@ export const defaultLabels: Required<ChatLabels> = {
   storage: '存储',
   workpath: '工作目录',
   workpathPlaceholder: '选择工作目录',
+  note: '笔记',
   memory: '记忆',
   wiki: 'Wiki',
   autoApproveAll: '自动审批',

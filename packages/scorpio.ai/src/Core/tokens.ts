@@ -35,14 +35,14 @@ export const T_AgendaDbPath               = Symbol("scorpio:T_AgendaDbPath");
 export const T_AgendaChannelSessionId     = Symbol("scorpio:T_AgendaChannelSessionId");
 export const T_AgendaToolDescs            = Symbol("scorpio:T_AgendaToolDescs");
 
-// Insight tokens
-export const T_InsightDir            = Symbol("scorpio:T_InsightDir");
-export const T_InsightDbPath         = Symbol("scorpio:T_InsightDbPath");
-export const T_InsightLimit          = Symbol("scorpio:T_InsightLimit");
-export const T_InsightStaleDays      = Symbol("scorpio:T_InsightStaleDays");
-export const T_InsightArchiveDays    = Symbol("scorpio:T_InsightArchiveDays");
-export const T_InsightExtractorSystemPrompt = Symbol("scorpio:T_InsightExtractorSystemPrompt");
-export const T_InsightSystemPromptTemplate  = Symbol("scorpio:T_InsightSystemPromptTemplate");
+// Memory tokens（skill-style 记忆系统）
+export const T_MemoryDir    = Symbol("scorpio:T_MemoryDir");
+export const T_MemoryDbPath = Symbol("scorpio:T_MemoryDbPath");
+/**
+ * 注入到主 agent system prompt 的 memory_read 模板。
+ * 占位符 `{{ memory_menu }}` 在 MemoryService 渲染时替换为当前 menu（slug + description 列表）。
+ */
+export const T_MemoryReadTemplate = Symbol("scorpio:T_MemoryReadTemplate");
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");

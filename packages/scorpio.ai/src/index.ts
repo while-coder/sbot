@@ -59,12 +59,9 @@ export {
   T_SkillToolListDesc,
   T_SkillToolExecDesc,
   T_NoteSystemPromptTemplate,
-  T_InsightDir,
-  T_InsightLimit,
-  T_InsightStaleDays,
-  T_InsightArchiveDays,
-  T_InsightExtractorSystemPrompt,
-  T_InsightSystemPromptTemplate,
+  T_MemoryDir,
+  T_MemoryDbPath,
+  T_MemoryReadTemplate,
   T_WikiSystemPromptTemplate,
   T_ModelCallTimeout,
   T_ToolOverflowDir,
@@ -220,20 +217,38 @@ export {
 } from "./Retrieval";
 
 // ========================================
-// Insight - 经验洞察系统
+// Memory - 长期记忆（skill 风格 + MemoryLLM CRUD + FTS5 检索）
 // ========================================
 export {
-  // 接口 + Symbol Token
-  IInsightService,
-
-  // 实现类
-  InsightService,
-
-  // 提取器
-  IInsightExtractor,
-  InsightExtractor,
-  type ExtractedInsight,
-} from "./Insight";
+  IMemoryStore,
+  MemoryStore,
+  buildFtsQuery,
+  SecretRedactor,
+  renderConversation,
+  countTurns,
+  MemoryWriterWorker,
+  MemoryOpSchema,
+  MemoryWriteOutputSchema,
+  IMemoryService,
+  MemoryService,
+  MemoryToolProvider,
+  READ_MEMORY_TOOL_NAME,
+  SEARCH_MEMORY_TOOL_NAME,
+  type MemoryRow,
+  type MemoryMenuEntry,
+  type MemorySearchHit,
+  type CreateMemoryInput,
+  type UpdateMemoryInput,
+  type ExtractJobRow,
+  type ExtractJobStatus,
+  type EnqueueExtractInput,
+  type MemoryWriteOutput,
+  type MemoryOp,
+  type MemoryWriterJobContext,
+  type MemoryWriterRunOptions,
+  type MemoryWriterStats,
+  type MemoryToolDescs,
+} from "./Memory";
 
 // ========================================
 // Agenda - 统一事项系统
