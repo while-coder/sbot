@@ -15,6 +15,7 @@ export interface SessionItem {
   wikis?: string[]
   workPath?: string
   autoApproveAllTools?: boolean
+  agenda?: string | null
 }
 
 export interface AgentOption { id: string; name?: string }

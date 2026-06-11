@@ -160,6 +160,7 @@ export class SettingsRoutes {
                 where: { channelId: WEB_CHANNEL_ID },
                 order: [['createdAt', 'DESC']],
             });
+            const channel = config.getChannel(WEB_CHANNEL_ID);
             const result: any[] = [];
             const seenProfileIds = new Set<number>();
             for (const r of rows) {
@@ -178,8 +179,8 @@ export class SettingsRoutes {
                     autoApproveAllTools: profile?.autoApproveAllTools || undefined,
                     disableWorkspaceContext: profile?.disableWorkspaceContext ?? undefined,
                     disableWorkspaceSkills: profile?.disableWorkspaceSkills ?? undefined,
-                    insight: profile?.insight ?? null,
-                    agenda: profile?.agenda ?? null,
+                    insight: profile?.insight ?? channel?.insight ?? null,
+                    agenda: profile?.agenda ?? channel?.agenda ?? null,
                 });
             }
             return result;

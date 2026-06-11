@@ -16,14 +16,15 @@ const transport = new WebSocketTransport()
 const agendaListModal = ref<InstanceType<typeof AgendaListModal>>()
 
 function openAgenda(session: SessionItem) {
-  agendaListModal.value?.openByProfileId(session.id, session.name || session.id)
+  if (!session.agenda) return
+  agendaListModal.value?.openByAgendaId(session.agenda, session.name || session.id)
 }
 </script>
 
 <template>
   <ChatView :transport="transport" :show-attachments="true">
     <template #status-actions="{ session }">
-      <SButton v-if="session" type="outline" size="sm" @click="openAgenda(session)">
+      <SButton v-if="session?.agenda" type="outline" size="sm" @click="openAgenda(session)">
         {{ t('agenda.title') }}
       </SButton>
     </template>
