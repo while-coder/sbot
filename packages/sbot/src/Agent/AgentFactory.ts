@@ -278,6 +278,7 @@ export class AgentFactory {
             [T_CreateAgent]: createAgentFn,
             [T_ThinkModelService]: await config.getModelService(entry.model, true),
             [T_StaticSystemPrompts]: systemPrompts,
+            [T_ToolOverflowDir]: config.getConfigPath("tool-overflow", true),
             [T_ReactSystemPromptTemplate]: loadPrompt('agent/react_system.txt'),
             [T_ReactSubNodePrompt]: loadPrompt('agent/react_subnode.txt'),
             [T_ReactTaskToolDesc]: loadPrompt('agent/react_task.txt'),

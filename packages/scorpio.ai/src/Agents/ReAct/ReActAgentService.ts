@@ -40,6 +40,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ReactSubNodePrompt) private subNodePrompt: string,
     @inject(T_ReactTaskToolDesc) private taskToolDesc: string,
     @inject(ISkillService) skillService: ISkillService,
+    @inject(T_ToolOverflowDir) toolOverflowDir: string,
     @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
     @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
@@ -51,9 +52,8 @@ export class ReActAgentService extends SingleAgentService {
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
     @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
-    @inject(T_ToolOverflowDir, { optional: true }) toolOverflowDir?: string,
   ) {
-    super(thinkModelService, skillService, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, toolOverflowDir);
+    super(thinkModelService, skillService, toolOverflowDir, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, insightService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }

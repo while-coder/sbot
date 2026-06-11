@@ -63,11 +63,12 @@ export class SingleAgentService extends AgentServiceBase {
     protected dynamicSystemPrompts: string[];
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
-    protected toolOverflowDir?: string;
+    protected toolOverflowDir: string;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
         @inject(ISkillService) skillService: ISkillService,
+        @inject(T_ToolOverflowDir) toolOverflowDir: string,
         @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
         @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
@@ -79,7 +80,6 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
-        @inject(T_ToolOverflowDir, { optional: true }) toolOverflowDir?: string,
     ) {
         super(loggerService, agentSaver, noteServices, wikiServices);
         this.modelService = modelService;
@@ -300,24 +300,15 @@ export class SingleAgentService extends AgentServiceBase {
                 let mcpResult = normalizeToMCPResult(result);
 
                 // 单条 result 过大时纯头部截断 + 溢出落盘，防止 token 一下被打爆。
-                // 失败降级为不带路径的截断；spillDir 未注入则跳过整个步骤。
-                if (this.toolOverflowDir) {
-                    const beforeBlocks = mcpResult.content.length;
-                    const beforeChars = mcpResult.content.reduce((sum, b) => sum + (b.type === MCPContentType.Text && typeof b.text === 'string' ? b.text.length : 0), 0);
-                    this.logger?.debug(`调用 truncateMCPToolResult ${tool.name} blocks=${beforeBlocks} totalTextChars=${beforeChars} spillDir=${this.toolOverflowDir}`);
-                    try {
-                        mcpResult = await truncateMCPToolResult(mcpResult, {
-                            spillDir: this.toolOverflowDir,
-                            toolCallId: toolCall.id ?? `noid-${Date.now()}-${i}`,
-                            toolName: tool.name,
-                        });
-                        const afterChars = mcpResult.content.reduce((sum, b) => sum + (b.type === MCPContentType.Text && typeof b.text === 'string' ? b.text.length : 0), 0);
-                        this.logger?.debug(`truncateMCPToolResult 返回 ${tool.name} totalTextChars=${beforeChars}->${afterChars}`);
-                    } catch (err: any) {
-                        this.logger?.warn(`工具结果截断失败 ${tool.name}: ${err?.message ?? err}`);
-                    }
-                } else {
-                    this.logger?.debug(`跳过 truncateMCPToolResult ${tool.name}：toolOverflowDir 未配置`);
+                // 失败降级为不带路径的截断。
+                try {
+                    mcpResult = await truncateMCPToolResult(mcpResult, {
+                        spillDir: this.toolOverflowDir,
+                        toolCallId: toolCall.id ?? `noid-${Date.now()}-${i}`,
+                        toolName: tool.name,
+                    });
+                } catch (err: any) {
+                    this.logger?.warn(`工具结果截断失败 ${tool.name}: ${err?.message ?? err}`);
                 }
 
                 const resultStr = JSON.stringify(mcpResult);

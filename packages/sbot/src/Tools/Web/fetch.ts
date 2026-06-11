@@ -8,7 +8,6 @@ import { LoggerService } from '../../Core/LoggerService'
 const logger = LoggerService.getLogger('Tools/Web/webfetch.ts')
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024  // 5MB
-const MAX_OUTPUT_SIZE   = 20000            // 20000 chars
 const DEFAULT_TIMEOUT_SEC = 30
 const MAX_TIMEOUT_MS = 120 * 1000
 
@@ -143,11 +142,7 @@ export function createWebFetchTool(): StructuredToolInterface {
                         break
                 }
 
-                const truncated = output.length > MAX_OUTPUT_SIZE
-                const finalOutput = truncated
-                    ? output.slice(0, MAX_OUTPUT_SIZE) + `\n\n(Content truncated at ${MAX_OUTPUT_SIZE} characters.)`
-                    : output
-                return createSuccessResult(createTextContent(finalOutput))
+                return createSuccessResult(createTextContent(output))
             } catch (err: any) {
                 if (err.name === 'AbortError') {
                     return createErrorResult(`Request timed out after ${timeoutMs / 1000} seconds: ${url}`)

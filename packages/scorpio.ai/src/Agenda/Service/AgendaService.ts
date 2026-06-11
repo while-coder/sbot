@@ -131,6 +131,9 @@ export class AgendaService implements IAgendaService {
                 after: patch.after,
                 every: patch.every,
                 cron: patch.cron,
+                startAt: patch.startAt,
+                startAfter: patch.startAfter,
+                count: patch.count,
                 timezone: patch.timezone ?? undefined,
                 action,
                 message: patch.message ?? undefined,
@@ -266,6 +269,9 @@ export class AgendaService implements IAgendaService {
         let nextFireAt: number | null = null;
         let maxFires = 1;
 
+        const startTime = this.computeStartTime(args, now);
+        const count = args.count != null && args.count > 0 ? Math.floor(args.count) : 0;
+
         if (args.at) {
             kind = AgendaTriggerKind.Absolute;
             expr = new Date(TimeUtils.parseAt(args.at)).toISOString();
@@ -277,13 +283,15 @@ export class AgendaService implements IAgendaService {
         } else if (args.every) {
             kind = AgendaTriggerKind.Interval;
             expr = String(relativeToMs(args.every));
-            nextFireAt = computeInitialNextFire(kind, expr, now, args.timezone);
-            maxFires = 0;
+            // startTime 覆盖默认的 now+interval；首次触发由 startTime 控制，之后按 interval 累加。
+            nextFireAt = startTime ?? computeInitialNextFire(kind, expr, now, args.timezone);
+            maxFires = count;
         } else if (args.cron?.trim()) {
             kind = AgendaTriggerKind.Cron;
             expr = args.cron.trim();
-            nextFireAt = computeInitialNextFire(kind, expr, now, args.timezone);
-            maxFires = 0;
+            // cron + startTime：首次按 startTime（不一定是 cron 命中时刻），之后由 advanceAfterFire 走 cron 节奏。
+            nextFireAt = startTime ?? computeInitialNextFire(kind, expr, now, args.timezone);
+            maxFires = count;
         }
         if (!kind) return null;
 
@@ -304,6 +312,12 @@ export class AgendaService implements IAgendaService {
             skipFireCount: null,
             createdAt: now,
         });
+    }
+
+    private computeStartTime(args: AgendaCreateArgs, now: number): number | null {
+        if (args.startAt) return TimeUtils.parseAt(args.startAt);
+        if (args.startAfter) return now + relativeToMs(args.startAfter);
+        return null;
     }
 
     private hasSchedulePatch(patch: AgendaUpdatePatch): boolean {
