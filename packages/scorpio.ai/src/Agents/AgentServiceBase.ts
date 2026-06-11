@@ -144,7 +144,9 @@ export abstract class AgentServiceBase {
                 return { type: ContentPartType.ImageUrl, image_url: { url: `data:${detectImageMimeType(resized)};base64,${resized.toString('base64')}` } };
             }
             if (part.type === ContentPartType.ImageUrl) {
-                const raw = part.image_url ?? part.url;
+                // 兼容两种形状：ContentPart.ImageUrlPart（只有 image_url）和 MCPImageUrlContent（可能用 url 或 image_url）
+                const candidate = part as { image_url?: string | { url?: string }; url?: string | { url?: string } };
+                const raw = candidate.image_url ?? candidate.url;
                 const url = typeof raw === 'string' ? raw : raw?.url;
                 if (typeof url !== 'string') return part;
                 const resizedUrl = await resizeImageIfNeeded(url);

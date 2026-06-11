@@ -14,7 +14,7 @@ import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
-import { ContentPartType, type MessageContent } from "../../Saver/IAgentSaverService";
+import { ContentPartType, type MessageContent, type ContentPart } from "../../Saver/IAgentSaverService";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 
 export {
@@ -316,17 +316,11 @@ export class SingleAgentService extends AgentServiceBase {
 
                 const thinkId = mcpResult._meta?.thinkId;
                 const taskId = mcpResult._meta?.taskId;
-                // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组
-                // 图片 part 由 resizeImagesInContent 统一缩放（与 stream 入口共用规则）
+                // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组。
+                // MCPContent 与 ContentPart 形状大体兼容（image_url 顶层 url/image_url 两种形态由 resizeImagesInContent 统一处理）
                 const rawContent: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
                     ? mcpResult.content[0].text
-                    : mcpResult.content.map(item => {
-                        if (item.type === MCPContentType.ImageUrl) {
-                            const raw = item.url ?? item.image_url!;
-                            return { type: ContentPartType.ImageUrl, image_url: { url: typeof raw === 'string' ? raw : raw.url } };
-                        }
-                        return item;
-                    });
+                    : mcpResult.content as unknown as ContentPart[];
                 const content = await this.resizeImagesInContent(rawContent);
 
                 const extra: Record<string, unknown> = {};
