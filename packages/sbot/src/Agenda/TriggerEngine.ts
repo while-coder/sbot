@@ -25,15 +25,15 @@ const ABSOLUTE_RETRY_INTERVAL_MS = 5 * 60 * 1000;
 const ABSOLUTE_RETRY_DEADLINE_MS = 30 * 60 * 1000;
 
 /**
- * 单 profile 的触发器运行时。绑定一个 profileId + store，
- * 内部 timer 池仅追踪该 profile 的 trigger，跨 profile 操作由 AgendaTriggerEnginePool 协调。
+ * 单 agenda 模板的触发器运行时。绑定一个 agendaId + store，
+ * 内部 timer 池仅追踪该模板的 trigger，跨模板操作由 AgendaTriggerEnginePool 协调。
  */
 export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     private executor = new TimerExecutor<NodeJS.Timeout>({ name: "AgendaTrigger", stop: handle => clearTimeout(handle), concurrencyGuard: true });
     private started = false;
 
     constructor(
-        private readonly profileId: number,
+        private readonly agendaId: string,
         private readonly store: IAgendaStore,
     ) {}
 
@@ -43,7 +43,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         for (const trigger of triggers) {
             await this.reload(trigger.id);
         }
-        logger.info(`Agenda trigger engine [profile=${this.profileId}] started, loaded ${triggers.length} trigger(s)`);
+        logger.info(`Agenda trigger engine [agenda=${this.agendaId}] started, loaded ${triggers.length} trigger(s)`);
     }
 
     stopAll(): void {
@@ -124,7 +124,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
             }
 
             let delivered = false;
-            const delivery = await resolveAgendaDelivery(item, freshTrigger);
+            const delivery = await resolveAgendaDelivery(this.agendaId, item, freshTrigger);
             try {
                 if (!delivery) throw new Error("no delivery session");
                 const message = this.buildMessage(item, freshTrigger);

@@ -15,9 +15,8 @@ import {
     type AgendaToolDescs,
 } from 'scorpio.ai';
 import { agendaStorePool, agendaTriggerEnginePool } from '../../Agenda';
-import type { ChannelSessionRow } from '../../Core/Database';
-import { database } from '../../Core/Database';
 import { LoggerService } from '../../Core/LoggerService';
+import { config } from '../../Core/Config';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
 
@@ -36,26 +35,47 @@ function num(v: unknown): number | undefined {
     return Number.isInteger(n) ? n : undefined;
 }
 
+function requireAgendaId(value: unknown): string {
+    if (value == null) throwBad('Missing agendaId');
+    const s = String(value).trim();
+    if (!s) throwBad('Missing agendaId');
+    if (!config.getAgendaProfile(s)) throwBad(`Unknown agendaId: ${s}`);
+    return s;
+}
+
 export class AgendaRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
+        // 列出某个 agenda 模板下的所有 items；不传 agendaId 则跨所有模板聚合
+        // 返回项里附 agendaId，便于前端按模板分组/操作
         app.get('/api/agendas', api(async req => {
-            const profileId = num(req.query.profileId);
-            if (req.query.profileId != null && !profileId) throwBad('Invalid profileId');
             const filter = this.parseFilter(req.query);
-            if (profileId) {
-                const service = await this.createService(profileId, await this.resolveChannelSessionId(profileId));
-                return service.list(filter);
+            const agendaIdRaw = req.query.agendaId;
+            if (agendaIdRaw != null && String(agendaIdRaw).trim()) {
+                const agendaId = requireAgendaId(agendaIdRaw);
+                const service = await this.createService(agendaId, 0);
+                const items = await service.list(filter);
+                return items.map(item => ({ ...item, agendaId }));
             }
-            const profileIds = await agendaStorePool.listAllProfileIds();
-            const records = await agendaStorePool.listItemsAcross(profileIds);
-            return AgendaService.buildList(records, filter);
+            const all = await agendaStorePool.listItemsAcross(agendaStorePool.listAllAgendaIds());
+            const grouped = new Map<string, typeof all[number]['record'][]>();
+            for (const { agendaId, record } of all) {
+                if (!grouped.has(agendaId)) grouped.set(agendaId, []);
+                grouped.get(agendaId)!.push(record);
+            }
+            const items: any[] = [];
+            for (const [agendaId, records] of grouped) {
+                for (const item of AgendaService.buildList(records, filter)) {
+                    items.push({ ...item, agendaId });
+                }
+            }
+            return items;
         }));
 
         app.post('/api/agendas', api(async req => {
             const body = req.body || {};
-            const profileId = Number(body.profileId);
-            if (!Number.isInteger(profileId) || profileId <= 0) throwBad('Invalid profileId');
-            const service = await this.createService(profileId, await this.resolveChannelSessionId(profileId, body.channelSessionId));
+            const agendaId = requireAgendaId(body.agendaId);
+            const channelSessionId = num(body.channelSessionId) ?? 0;
+            const service = await this.createService(agendaId, channelSessionId);
             return service.create({
                 content: String(body.content ?? ''),
                 category: body.category,
@@ -74,25 +94,25 @@ export class AgendaRoutes {
         app.patch('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-            const item = (await agendaStorePool.findItem(id))?.item;
-            if (!item) throwBad('Agenda item not found');
-            const service = await this.createService(item.profileId, await this.resolveChannelSessionId(item.profileId));
+            const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
+            const service = await this.createService(agendaId, 0);
             const updated = await service.update(id, req.body || {});
             if (!updated) throwBad('Agenda item not found');
             return updated;
         }));
 
-        app.post('/api/agendas/:id/complete', api(req => this.applyItemAction(this.singleParam(req.params.id), 'complete')));
-        app.post('/api/agendas/:id/cancel', api(req => this.applyItemAction(this.singleParam(req.params.id), 'cancel')));
-        app.post('/api/agendas/:id/skip-next', api(req => this.applyItemAction(this.singleParam(req.params.id), 'skipNext')));
+        app.post('/api/agendas/:id/complete', api(req => this.applyItemAction(req, 'complete')));
+        app.post('/api/agendas/:id/cancel', api(req => this.applyItemAction(req, 'cancel')));
+        app.post('/api/agendas/:id/skip-next', api(req => this.applyItemAction(req, 'skipNext')));
 
         app.delete('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-            const store = agendaStorePool.storeForItemId(id);
-            const deleted = store ? await store.deleteItem(id) : null;
+            const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
+            const store = agendaStorePool.get(agendaId);
+            const deleted = await store.deleteItem(id);
             if (!deleted) throwBad('Agenda item not found');
-            const engine = agendaTriggerEnginePool.get(deleted.item.profileId);
+            const engine = agendaTriggerEnginePool.get(agendaId);
             for (const trigger of deleted.triggers) engine.cancel(trigger.id);
             return { id };
         }));
@@ -114,41 +134,26 @@ export class AgendaRoutes {
         return 'all';
     }
 
-    private singleParam(value: string | string[]): string {
-        return Array.isArray(value) ? value[0] : value;
-    }
-
-    private async applyItemAction(rawId: string, action: 'complete' | 'cancel' | 'skipNext') {
-        const id = Number(rawId);
+    private async applyItemAction(req: express.Request, action: 'complete' | 'cancel' | 'skipNext') {
+        const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
-        const item = (await agendaStorePool.findItem(id))?.item;
-        if (!item) throwBad('Agenda item not found');
-        const service = await this.createService(item.profileId, await this.resolveChannelSessionId(item.profileId));
+        const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
+        const service = await this.createService(agendaId, 0);
         if (action === 'complete') return service.complete(id);
         if (action === 'cancel') return service.cancel(id);
         return service.skipNext(id);
     }
 
-    private async createService(profileId: number, channelSessionId: number): Promise<AgendaService> {
+    private async createService(agendaId: string, channelSessionId: number): Promise<AgendaService> {
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         container.registerWithArgs(AgendaService, {
             [T_AgendaChannelSessionId]: channelSessionId,
             [T_AgendaToolDescs]: ADMIN_DESCS,
-            [IAgendaStore]: agendaStorePool.get(profileId),
-            [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(profileId),
+            [IAgendaStore]: agendaStorePool.get(agendaId),
+            [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(agendaId),
         });
         return container.resolve(AgendaService);
-    }
-
-    private async resolveChannelSessionId(profileId: number, preferred?: unknown): Promise<number> {
-        const p = Number(preferred);
-        if (Number.isInteger(p) && p > 0) return p;
-        const session = await database.findOne<ChannelSessionRow>(database.channelSession, {
-            where: { profileId },
-            order: [['id', 'ASC']],
-        });
-        return session?.id ?? 0;
     }
 }
 

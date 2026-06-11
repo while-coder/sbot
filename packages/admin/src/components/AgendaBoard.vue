@@ -51,7 +51,7 @@ const viewOptions: Array<{ value: AgendaViewFilter; label: string }> = [
 ]
 
 const visibleCount = computed(() => props.items.length)
-const profileCount = computed(() => new Set(props.items.map(row => row.profileId)).size)
+const profileCount = computed(() => new Set(props.items.map(row => row.agendaId)).size)
 const selectedAgenda = computed(() => {
   if (selectedId.value == null) return props.items[0] ?? null
   return props.items.find(row => row.id === selectedId.value) ?? props.items[0] ?? null
@@ -183,7 +183,7 @@ function selectAgenda(row: AgendaItem) {
             </span>
             <span class="agenda-item__content">{{ row.content }}</span>
             <span class="agenda-item__meta">
-              <span v-if="showProfile" class="agenda-item__profile">P#{{ row.profileId }}</span>
+              <span v-if="showProfile" class="agenda-item__profile">{{ row.agendaId.slice(0, 8) }}</span>
               <span class="agenda-item__time" :class="{ 'agenda-item__time--overdue': isOverdue(row) }">
                 {{ t('agenda.due_col') }} {{ formatTime(row.dueAt) }}
               </span>
@@ -219,7 +219,7 @@ function selectAgenda(row: AgendaItem) {
           <dl class="agenda-detail-grid">
             <div v-if="showProfile">
               <dt>{{ t('agenda.profile_col') }}</dt>
-              <dd class="agenda-mono">#{{ selectedAgenda.profileId }}</dd>
+              <dd class="agenda-mono">{{ selectedAgenda.agendaId }}</dd>
             </div>
             <div>
               <dt>{{ t('agenda.source_col') }}</dt>

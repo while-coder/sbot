@@ -6,15 +6,15 @@ import type {
 } from "../types";
 
 /**
- * 单 profile 维度的 agenda 存储。每个实例只读写一个 profile 的 db 文件，
- * 不允许跨 profile 访问。所有方法都隐式作用于该 profile 的数据。
+ * 单 agenda 模板维度的存储。每个实例只读写一个模板的 db 文件，
+ * 不允许跨模板访问。所有方法都隐式作用于该模板的数据。
  */
 export interface IAgendaStore {
     listItems(): Promise<AgendaRecord[]>;
     findItem(itemId: number): Promise<AgendaRecord | null>;
     findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTrigger } | null>;
     listEnabledTriggers(): Promise<AgendaTrigger[]>;
-    createItem(item: Omit<AgendaItem, "id" | "profileId">): Promise<AgendaRecord>;
+    createItem(item: Omit<AgendaItem, "id">): Promise<AgendaRecord>;
     updateItem(itemId: number, fields: Partial<AgendaItem>): Promise<AgendaRecord | null>;
     updateTrigger(triggerId: number, fields: Partial<AgendaTrigger>): Promise<AgendaRecord | null>;
     updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTrigger>, exceptTriggerId?: number): Promise<number[]>;

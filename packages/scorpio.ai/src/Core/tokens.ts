@@ -31,8 +31,7 @@ export const T_NoteToolDescs              = Symbol("scorpio:T_NoteToolDescs");
 export const T_WikiToolDescs              = Symbol("scorpio:T_WikiToolDescs");
 export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
 export const T_AgendaExtractorSystemPrompt = Symbol("scorpio:T_AgendaExtractorSystemPrompt");
-export const T_AgendaProfileDbPath        = Symbol("scorpio:T_AgendaProfileDbPath");
-export const T_AgendaProfileId            = Symbol("scorpio:T_AgendaProfileId");
+export const T_AgendaDbPath               = Symbol("scorpio:T_AgendaDbPath");
 export const T_AgendaChannelSessionId     = Symbol("scorpio:T_AgendaChannelSessionId");
 export const T_AgendaToolDescs            = Symbol("scorpio:T_AgendaToolDescs");
 

@@ -105,8 +105,8 @@ export type SessionProfileRow = {
   intentPrompt: string | null;
   intentThreshold: number | null;
 
-  insight: string | null;           // JSON 字符串，Insight 配置
-  agenda: string | null;            // JSON 字符串，Agenda 同步配置
+  insight: string | null;           // insightProfiles 中的 UUID，null = 跟随 ChannelConfig
+  agenda: string | null;            // agendaProfiles 中的 UUID，null = 跟随 ChannelConfig
 
   // ── 运行时统计 ──
   inputTokens: number;
@@ -491,16 +491,16 @@ class Database {
           comment: "意图识别置信度阈值 (0-1)",
         },
         insight: {
-          type: DataTypes.TEXT,
+          type: DataTypes.STRING(64),
           allowNull: true,
           defaultValue: null,
-          comment: "Insight 配置（JSON 字符串）",
+          comment: "insightProfiles 中的 UUID，null = 跟随 ChannelConfig",
         },
         agenda: {
-          type: DataTypes.TEXT,
+          type: DataTypes.STRING(64),
           allowNull: true,
           defaultValue: null,
-          comment: "Agenda 同步配置（JSON 字符串）",
+          comment: "agendaProfiles 中的 UUID，null = 跟随 ChannelConfig",
         },
         inputTokens: {
           type: DataTypes.INTEGER,

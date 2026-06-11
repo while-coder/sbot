@@ -17,6 +17,8 @@ defineProps<{
   noteOptions: Option[]
   wikiOptions: Option[]
   modelOptions: Option[]
+  insightProfileOptions: Option[]
+  agendaProfileOptions: Option[]
 }>()
 
 defineEmits<{
@@ -37,6 +39,8 @@ defineEmits<{
     :note-options="noteOptions"
     :wiki-options="wikiOptions"
     :model-options="modelOptions"
+    :insight-profile-options="insightProfileOptions"
+    :agenda-profile-options="agendaProfileOptions"
     @update:model-value="$emit('update:modelValue', $event)"
     @browse-path="$emit('browse-path')"
   />

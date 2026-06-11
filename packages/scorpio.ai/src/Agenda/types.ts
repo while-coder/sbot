@@ -121,7 +121,6 @@ export interface AgendaCreateResult {
 
 export interface AgendaItem {
     id: number;
-    profileId: number;
     content: string;
     status: AgendaStatus;
     priority: AgendaPriority;

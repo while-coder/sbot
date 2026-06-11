@@ -4,9 +4,9 @@ import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
 import { ModelProvider, EmbeddingProvider } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig } from "sbot.commons";
-export type { InsightConfig, AgendaConfig, TunnelConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, InsightProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, InsightProfileConfig, AgendaProfileConfig } from "sbot.commons";
+export type { TunnelConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';
 export type { AgentSourceEntry } from "sbot.commons";
@@ -106,6 +106,8 @@ export interface Settings {
   savers?: Record<string, SaverConfig>;
   notes?: Record<string, NoteConfig>;
   wikis?: Record<string, WikiConfig>;
+  insightProfiles?: Record<string, InsightProfileConfig>;
+  agendaProfiles?: Record<string, AgendaProfileConfig>;
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
   agentSources?: AgentSourceEntry[];
@@ -116,7 +118,8 @@ export interface Settings {
 const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
   startupCommands: true, checkUpdateTime: true, maxImageSize: true, contextFileNames: true,
-  models: true, embeddings: true, savers: true, notes: true, wikis: true, channels: true,
+  models: true, embeddings: true, savers: true, notes: true, wikis: true,
+  insightProfiles: true, agendaProfiles: true, channels: true,
   plugins: true, agentSources: true, tunnel: true,
 } satisfies Record<keyof Settings, true>));
 
@@ -515,11 +518,17 @@ class Config {
   getAgentSkillsPath(agentName: string) {
     return this.getConfigPath(`agents/${agentName}/skills`, true)
   }
-  getProfileInsightsPath(profileId: string) {
-    return this.getConfigPath(`profiles/${profileId}/insights`, true)
+  getInsightPath(insightId: string) {
+    return this.getConfigPath(`insights/${insightId}`, true)
   }
-  getProfileAgendaPath(profileId: string) {
-    return this.getConfigPath(`profiles/${profileId}/agendas`, true)
+  getAgendaPath(agendaId: string) {
+    return this.getConfigPath(`agendas/${agendaId}`, true)
+  }
+  getInsightProfile(id: string): InsightProfileConfig | undefined {
+    return this._settings.insightProfiles?.[id.trim()];
+  }
+  getAgendaProfile(id: string): AgendaProfileConfig | undefined {
+    return this._settings.agendaProfiles?.[id.trim()];
   }
   getAgentMcpServers(agentName: string): MCPServers {
     const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);

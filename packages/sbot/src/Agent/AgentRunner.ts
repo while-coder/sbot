@@ -33,7 +33,7 @@ import {
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
-import { config, type AgendaConfig, type InsightConfig } from "../Core/Config";
+import { config } from "../Core/Config";
 import { loadWorkspaceContext } from "../Core/WorkspaceContext";
 
 import { AgentFactory } from "./AgentFactory";
@@ -71,10 +71,10 @@ export interface AgentRunOptions {
     agentTools?: StructuredToolInterface[];
     /** 归属会话 DB 主键（channel_session.id） */
     dbSessionId: string;
-    /** Profile 级 Insight 配置 */
-    insightConfig?: InsightConfig | null;
-    /** Profile 级 Agenda 配置；disabled 时不注册 Agenda 工具和同步 */
-    agendaConfig?: AgendaConfig | null;
+    /** insightProfiles 中的 UUID；空表示不启用 insight */
+    insightId?: string | null;
+    /** agendaProfiles 中的 UUID；空表示不启用 agenda */
+    agendaId?: string | null;
 }
 
 export class AgentRunner {
@@ -124,8 +124,8 @@ export class AgentRunner {
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
-        await AgentRunner.registerInsightService(container, options.insightConfig, threadId);
-        await AgentRunner.registerAgendaService(container, options.agendaConfig, threadId, dbSessionId);
+        await AgentRunner.registerInsightService(container, options.insightId);
+        await AgentRunner.registerAgendaService(container, options.agendaId, dbSessionId);
 
         const saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
         container.registerInstance(IAgentSaverService, saverHandle.saver);
@@ -250,17 +250,18 @@ export class AgentRunner {
 
     private static async registerInsightService(
         container: ServiceContainer,
-        insightConfig: InsightConfig | null | undefined,
-        threadId: string,
+        insightId: string | null | undefined,
     ): Promise<void> {
-        if (!insightConfig?.enabled) return;
+        if (!insightId) return;
+        const profileConfig = config.getInsightProfile(insightId);
+        if (!profileConfig?.enabled) return;
 
-        const insightDir = config.getProfileInsightsPath(threadId);
+        const insightDir = config.getInsightPath(insightId);
 
-        const extractorModel = await config.getModelService(insightConfig.extractor, true);
+        const extractorModel = await config.getModelService(profileConfig.extractor, true);
         container.registerWithArgs(IInsightExtractor, InsightExtractor, {
             [IModelService]: extractorModel,
-            [T_InsightExtractorSystemPrompt]: loadPrompt(insightConfig.extractorPromptFile ?? 'insight/extractor/default.txt'),
+            [T_InsightExtractorSystemPrompt]: loadPrompt(profileConfig.extractorPromptFile ?? 'insight/extractor/default.txt'),
         });
 
         container.registerWithArgs(IInsightService, InsightService, {
@@ -273,13 +274,17 @@ export class AgentRunner {
 
     private static async registerAgendaService(
         container: ServiceContainer,
-        agendaConfig: AgendaConfig | null | undefined,
-        threadId: string,
+        agendaId: string | null | undefined,
         dbSessionId: string,
     ): Promise<void> {
-        if (!agendaConfig?.enabled) return;
+        if (!agendaId) return;
+        const profileConfig = config.getAgendaProfile(agendaId);
+        if (!profileConfig?.enabled) return;
 
-        const syncModelId = agendaConfig.syncModel;
+        const channelSessionId = parseInt(dbSessionId, 10);
+        if (!channelSessionId) return;
+
+        const syncModelId = profileConfig.syncModel;
         let extractor: IAgendaExtractor | undefined;
         if (syncModelId) {
             const extractorModel = await config.getModelService(syncModelId, true);
@@ -288,14 +293,10 @@ export class AgentRunner {
                 sub.registerInstance(ILoggerService, await container.resolve(ILoggerService));
             }
             sub.registerInstance(IModelService, extractorModel);
-            sub.registerInstance(T_AgendaExtractorSystemPrompt, loadPrompt(agendaConfig.syncPromptFile ?? 'agenda/sync/default.txt'));
+            sub.registerInstance(T_AgendaExtractorSystemPrompt, loadPrompt(profileConfig.syncPromptFile ?? 'agenda/sync/default.txt'));
             sub.registerSingleton(IAgendaExtractor, AgendaExtractor);
             extractor = await sub.resolve<IAgendaExtractor>(IAgendaExtractor);
         }
-
-        const profileId = parseInt(threadId, 10);
-        const channelSessionId = parseInt(dbSessionId, 10);
-        if (!profileId || !channelSessionId) return;
 
         const args: Record<string | symbol, any> = {
             [T_AgendaChannelSessionId]: channelSessionId,
@@ -307,10 +308,11 @@ export class AgentRunner {
                 cancel: loadPrompt('agenda/tools/cancel.txt'),
                 skipNext: loadPrompt('agenda/tools/skip_next.txt'),
             },
-            [IAgendaStore]: agendaStorePool.get(profileId),
-            [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(profileId),
+            [IAgendaStore]: agendaStorePool.get(agendaId),
+            [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(agendaId),
         };
         if (extractor) args[IAgendaExtractor] = extractor;
         container.registerWithArgs(IAgendaService, AgendaService, args);
     }
 }
+1

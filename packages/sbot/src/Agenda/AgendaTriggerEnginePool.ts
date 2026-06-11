@@ -2,52 +2,40 @@ import { agendaStorePool } from "./AgendaStorePool";
 import { LoggerService } from "../Core/LoggerService";
 import { AgendaTriggerEngine } from "./TriggerEngine";
 
-const ITEM_ID_FACTOR = 1_000_000;
-const CHILD_ID_FACTOR = 1_000;
-
 const logger = LoggerService.getLogger("Agenda/AgendaTriggerEnginePool.ts");
 
 /**
- * 维护 profileId → 单 profile AgendaTriggerEngine 的映射。
- * 每个引擎绑定一个 profile + 对应 store，跨 profile 协调（启动/关闭/profile 删除）由 pool 承担。
+ * 维护 agendaId → AgendaTriggerEngine 的映射。
+ * 每个引擎绑定一个 agenda 模板 + 对应 store，跨模板协调（启动/关闭/模板删除）由 pool 承担。
  */
 class AgendaTriggerEnginePool {
-    private cache = new Map<number, AgendaTriggerEngine>();
+    private cache = new Map<string, AgendaTriggerEngine>();
 
-    get(profileId: number): AgendaTriggerEngine {
-        let engine = this.cache.get(profileId);
+    get(agendaId: string): AgendaTriggerEngine {
+        let engine = this.cache.get(agendaId);
         if (!engine) {
-            engine = new AgendaTriggerEngine(profileId, agendaStorePool.get(profileId));
-            this.cache.set(profileId, engine);
+            engine = new AgendaTriggerEngine(agendaId, agendaStorePool.get(agendaId));
+            this.cache.set(agendaId, engine);
         }
         return engine;
     }
 
-    remove(profileId: number): void {
-        const engine = this.cache.get(profileId);
+    remove(agendaId: string): void {
+        const engine = this.cache.get(agendaId);
         if (engine) {
             engine.stopAll();
-            this.cache.delete(profileId);
+            this.cache.delete(agendaId);
         }
     }
 
-    engineForItemId(itemId: number): AgendaTriggerEngine | null {
-        const profileId = Math.floor(itemId / ITEM_ID_FACTOR);
-        return profileId > 0 ? this.get(profileId) : null;
-    }
-
-    engineForTriggerId(triggerId: number): AgendaTriggerEngine | null {
-        return this.engineForItemId(Math.floor(triggerId / CHILD_ID_FACTOR));
-    }
-
     async startAll(): Promise<void> {
-        const profileIds = await agendaStorePool.listAllProfileIds();
-        for (const profileId of profileIds) {
+        const agendaIds = agendaStorePool.listAllAgendaIds();
+        for (const agendaId of agendaIds) {
             try {
-                await this.get(profileId).start();
+                await this.get(agendaId).start();
             } catch (e: any) {
-                // 单个 profile 启动失败（如 sqlite 文件损坏）不应阻塞其他 profile 的调度。
-                logger.warn(`Agenda trigger engine [profile=${profileId}] start failed: ${e?.message ?? String(e)}`);
+                // 单个模板启动失败（如 sqlite 文件损坏）不应阻塞其他模板的调度。
+                logger.warn(`Agenda trigger engine [agenda=${agendaId}] start failed: ${e?.message ?? String(e)}`);
             }
         }
     }

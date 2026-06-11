@@ -7,26 +7,34 @@ import { agendaStorePool } from "./AgendaStorePool";
 
 const logger = LoggerService.getLogger("Agenda/Delivery.ts");
 
-export async function resolveAgendaDelivery(item: AgendaItem, trigger: AgendaTrigger): Promise<ChannelSessionRow | null> {
-    const profileId = item.profileId;
-    if (!profileId || profileId <= 0) return null;
-    const profile = await channelDataService.getProfile(profileId);
-    if (!profile) return null;
-
-    const primary = trigger.channelHint > 0
-        ? await channelDataService.getSession(trigger.channelHint)
-        : null;
-    if (primary && primary.profileId === profileId) return primary;
-
-    const candidates = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { profileId } });
-    if (candidates.length === 0) {
-        logger.warn(`Agenda trigger [${trigger.id}] no fallback session under profileId=${profileId}`);
-        return null;
+/**
+ * 在 agenda 模板触发时，解析投递目标（channel session）。
+ *
+ * 因为 agenda 模板是跨 profile/channel 共享的，没有唯一"所有者会话"。
+ * 优先级：
+ *   1. trigger.channelHint：上次成功投递时记录的会话；仍指向该 agenda 模板则继续使用
+ *   2. 扫描所有 session：寻找 effective.resolved.agenda === agendaId 的第一个匹配
+ */
+export async function resolveAgendaDelivery(agendaId: string, _item: AgendaItem, trigger: AgendaTrigger): Promise<ChannelSessionRow | null> {
+    if (trigger.channelHint > 0) {
+        const hinted = await channelDataService.getSession(trigger.channelHint);
+        if (hinted && await sessionUsesAgenda(hinted, agendaId)) return hinted;
     }
 
-    const sameChannel = primary ? candidates.find(c => c.channelId === primary.channelId) : undefined;
-    const picked = sameChannel ?? candidates[0];
-    await agendaStorePool.get(profileId).updateTrigger(trigger.id, { channelHint: picked.id });
-    trigger.channelHint = picked.id;
-    return picked;
+    const candidates = await database.findAll<ChannelSessionRow>(database.channelSession);
+    for (const candidate of candidates) {
+        if (await sessionUsesAgenda(candidate, agendaId)) {
+            await agendaStorePool.get(agendaId).updateTrigger(trigger.id, { channelHint: candidate.id });
+            trigger.channelHint = candidate.id;
+            return candidate;
+        }
+    }
+
+    logger.warn(`Agenda trigger [${trigger.id}] no session uses agenda=${agendaId}`);
+    return null;
+}
+
+async function sessionUsesAgenda(session: ChannelSessionRow, agendaId: string): Promise<boolean> {
+    const eff = await channelDataService.getEffective(session.id);
+    return eff?.resolved.agenda === agendaId;
 }

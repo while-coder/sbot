@@ -3,7 +3,7 @@ import { existsSync, mkdirSync } from "fs";
 import { rm } from "fs/promises";
 import path from "path";
 import { inject } from "scorpio.di";
-import { T_AgendaProfileDbPath, T_AgendaProfileId } from "../../Core";
+import { T_AgendaDbPath } from "../../Core";
 import { IAgendaStore } from "./IAgendaStore";
 import type {
     AgendaItem,
@@ -12,13 +12,14 @@ import type {
     AgendaTrigger,
 } from "../types";
 
-const ITEM_ID_FACTOR = 1_000_000;
+// triggerId / occurrenceId 编码：itemId * CHILD_ID_FACTOR + 自增 sub。
+// 沿用这个编码是为了 inferItemIdFromChildId 不查 DB 也能拿到 itemId。
 const CHILD_ID_FACTOR = 1_000;
 
 type AgendaTable = "items" | "triggers" | "occurrences";
 
 /**
- * 单 profile 的 agenda 存储。绑定一个 profileId + 一个 db 文件路径，构造后不再变化。
+ * 单 agenda 模板的存储。绑定一个 db 文件路径，构造后不再变化。
  * 通过 `get db()` 懒初始化 SQLite 连接，进程生命周期内复用同一连接，
  * 调用 `dispose()` 显式关闭。
  */
@@ -27,8 +28,7 @@ export class AgendaStore implements IAgendaStore {
     private lock = Promise.resolve();
 
     constructor(
-        @inject(T_AgendaProfileId) private readonly profileId: number,
-        @inject(T_AgendaProfileDbPath) private readonly dbPath: string,
+        @inject(T_AgendaDbPath) private readonly dbPath: string,
     ) {}
 
     private get db(): Database.Database {
@@ -39,8 +39,7 @@ export class AgendaStore implements IAgendaStore {
             this._db.pragma("journal_mode = WAL");
             this._db.exec(`
                 CREATE TABLE IF NOT EXISTS items (
-                    id                INTEGER PRIMARY KEY,
-                    profileId         INTEGER NOT NULL,
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
                     content           TEXT    NOT NULL,
                     status            TEXT    NOT NULL,
                     priority          TEXT    NOT NULL,
@@ -117,16 +116,17 @@ export class AgendaStore implements IAgendaStore {
         return { item, triggers, occurrences };
     }
 
-    private insertItem(item: AgendaItem): void {
-        this.db.prepare(`
+    private insertItem(item: Omit<AgendaItem, "id">): number {
+        const result = this.db.prepare(`
             INSERT INTO items (
-                id, profileId, content, status, priority, category, completionMode,
+                content, status, priority, category, completionMode,
                 dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
-                @id, @profileId, @content, @status, @priority, @category, @completionMode,
+                @content, @status, @priority, @category, @completionMode,
                 @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
         `).run(item);
+        return Number(result.lastInsertRowid);
     }
 
     async listItems(): Promise<AgendaRecord[]> {
@@ -154,11 +154,10 @@ export class AgendaStore implements IAgendaStore {
         return triggers.sort((a, b) => a.id - b.id);
     }
 
-    async createItem(item: Omit<AgendaItem, "id" | "profileId">): Promise<AgendaRecord> {
+    async createItem(item: Omit<AgendaItem, "id">): Promise<AgendaRecord> {
         return this.withLock(async () => {
-            const fullItem: AgendaItem = { id: this.nextItemIdInDb(), profileId: this.profileId, ...item };
-            this.insertItem(fullItem);
-            return { item: fullItem, triggers: [], occurrences: [] };
+            const id = this.insertItem(item);
+            return { item: { id, ...item }, triggers: [], occurrences: [] };
         });
     }
 
@@ -260,12 +259,6 @@ export class AgendaStore implements IAgendaStore {
     dispose(): void {
         this._db?.close();
         this._db = undefined;
-    }
-
-    private nextItemIdInDb(): number {
-        const base = this.profileId * ITEM_ID_FACTOR;
-        const row = this.db.prepare("SELECT MAX(id) AS id FROM items").get() as { id: number | null };
-        return Math.max(base, row.id ?? 0) + 1;
     }
 
     private nextChildIdInDb(table: "triggers" | "occurrences", itemId: number): number {

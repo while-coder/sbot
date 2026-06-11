@@ -30,7 +30,8 @@ export interface AgendaTrigger {
 
 export interface AgendaItem {
   id: number
-  profileId: number
+  /** 服务端按模板分组返回；标识此 item 属于哪个 agenda 模板 */
+  agendaId: string
   content: string
   status: AgendaStatus
   priority: AgendaPriority
@@ -117,7 +118,7 @@ export function useAgendas(opts: UseAgendasOptions) {
   async function complete(row: AgendaItem) {
     if (!await confirm(t('agenda.confirm_complete', { id: row.id }))) return
     try {
-      await apiFetch(`/api/agendas/${row.id}/complete`, 'POST')
+      await apiFetch(`/api/agendas/${row.id}/complete`, 'POST', { agendaId: row.agendaId })
       show(t('common.saved'))
       await load()
     } catch (e: any) {
@@ -128,7 +129,7 @@ export function useAgendas(opts: UseAgendasOptions) {
   async function cancel(row: AgendaItem) {
     if (!await confirm(t('agenda.confirm_cancel', { id: row.id }), { danger: true })) return
     try {
-      await apiFetch(`/api/agendas/${row.id}/cancel`, 'POST')
+      await apiFetch(`/api/agendas/${row.id}/cancel`, 'POST', { agendaId: row.agendaId })
       show(t('common.saved'))
       await load()
     } catch (e: any) {
@@ -138,7 +139,7 @@ export function useAgendas(opts: UseAgendasOptions) {
 
   async function skipNext(row: AgendaItem) {
     try {
-      await apiFetch(`/api/agendas/${row.id}/skip-next`, 'POST')
+      await apiFetch(`/api/agendas/${row.id}/skip-next`, 'POST', { agendaId: row.agendaId })
       show(t('agenda.skipped_next'))
       await load()
     } catch (e: any) {
@@ -149,7 +150,7 @@ export function useAgendas(opts: UseAgendasOptions) {
   async function remove(row: AgendaItem) {
     if (!await confirm(t('agenda.confirm_delete', { id: row.id }), { danger: true })) return
     try {
-      await apiFetch(`/api/agendas/${row.id}`, 'DELETE')
+      await apiFetch(`/api/agendas/${row.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
       show(t('common.deleted'))
       await load()
     } catch (e: any) {

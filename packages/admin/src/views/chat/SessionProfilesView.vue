@@ -6,7 +6,6 @@ import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable, SModal } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
 import { ApprovalTimeoutValue } from 'sbot.commons'
-import { type AgendaConfig, type InsightConfig } from '@/shared/types'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides } from '@/components/SessionConfigOverridesEditor.vue'
 
@@ -99,6 +98,8 @@ const saverOptions = computed(() => Object.entries(store.settings.savers || {}).
 const noteOptions = computed(() => Object.entries(store.settings.notes || {}).map(([id, n]: [string, any]) => ({ id, label: n.name || id })))
 const wikiOptions = computed(() => Object.entries(store.settings.wikis || {}).map(([id, w]) => ({ id, label: (w as any).name || id })))
 const modelOptions = computed(() => Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id })))
+const insightProfileOptions = computed(() => Object.entries(store.settings.insightProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
+const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 
 async function loadAll() {
   try {
@@ -152,34 +153,6 @@ function parseList(raw: string | null): string[] {
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
 }
 
-function parseAgenda(raw: string | null): AgendaConfig | null {
-  if (!raw) return null;
-  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? v as AgendaConfig : null } catch { return null }
-}
-
-function parseInsight(raw: string | null): InsightConfig | null {
-  if (!raw) return null;
-  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? v as InsightConfig : null } catch { return null }
-}
-
-function normalizeAgenda(raw: AgendaConfig | null): AgendaConfig | null {
-  if (!raw) return null
-  return {
-    enabled: !!raw.enabled,
-    syncModel: raw.syncModel || '',
-    syncPromptFile: raw.syncPromptFile || undefined,
-  }
-}
-
-function normalizeInsight(raw: InsightConfig | null): InsightConfig | null {
-  if (!raw) return null
-  return {
-    enabled: !!raw.enabled,
-    extractor: raw.extractor || '',
-    extractorPromptFile: raw.extractorPromptFile || undefined,
-  }
-}
-
 function openAdd() {
   isCreating.value = true
   editing.value = { id: 0, name: '' } as ProfileRow
@@ -211,8 +184,8 @@ function openEdit(p: ProfileRow) {
       intentModel: p.intentModel ?? null,
       intentPrompt: p.intentPrompt,
       intentThreshold: p.intentThreshold,
-      insight: parseInsight(p.insight),
-      agenda: parseAgenda(p.agenda),
+      insight: p.insight,
+      agenda: p.agenda,
     },
   }
 }
@@ -220,9 +193,6 @@ function openEdit(p: ProfileRow) {
 async function save() {
   const f = form.value
   if (!f.name.trim()) { show(t('common.name_required'), 'error'); return }
-  if (f.overrides.insight?.enabled && !f.overrides.insight.extractor) {
-    show(t('agents.error_insight_extractor'), 'error'); return
-  }
   // 编辑时若被多 session 共享，弹警告
   if (!isCreating.value && editing.value) {
     const count = editing.value.sessionCount ?? 0
@@ -272,8 +242,8 @@ function buildPayload(f: ProfileForm): Record<string, any> {
     intentModel: o.intentModel,
     intentPrompt: o.intentModel == null ? null : o.intentPrompt,
     intentThreshold: o.intentModel == null ? null : o.intentThreshold,
-    insight: normalizeInsight(o.insight),
-    agenda: normalizeAgenda(o.agenda),
+    insight: o.insight,
+    agenda: o.agenda,
   }
 }
 
@@ -344,6 +314,8 @@ async function remove(p: ProfileRow) {
             :note-options="noteOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
+            :insight-profile-options="insightProfileOptions"
+            :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(form.overrides.workPath || '')"
           />
         </div>

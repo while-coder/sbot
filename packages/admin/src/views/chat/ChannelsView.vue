@@ -5,7 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from 'sbot-ui'
 import QRCode from 'qrcode'
-import { ApprovalTimeoutValue, type AgendaConfig, type ChannelConfig, type InsightConfig } from '@/shared/types'
+import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
@@ -54,8 +54,8 @@ interface ChannelSessionRow {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
-  insight: InsightConfig | null
-  agenda: AgendaConfig | null
+  insight: string | null
+  agenda: string | null
   // ── token 统计 ──
   inputTokens: number
   outputTokens: number
@@ -124,6 +124,8 @@ const saverOptions  = computed(() => Object.entries(store.settings.savers   || {
 const noteOptions   = computed(() => Object.entries(store.settings.notes     || {}).map(([id, n]) => ({ id, label: n.name  || id })))
 const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
 const modelOptions  = computed(() => Object.entries(store.settings.models   || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
+const insightProfileOptions = computed(() => Object.entries(store.settings.insightProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
+const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 
 const saverViewModal     = ref<InstanceType<typeof SaverViewModal>>()
 const agendaListModal    = ref<InstanceType<typeof AgendaListModal>>()
@@ -194,44 +196,6 @@ function parseList(raw: string | null | undefined): string[] {
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
 }
 
-function parseAgenda(raw: string | null | undefined): AgendaConfig | null {
-  if (!raw) return null
-  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? v as AgendaConfig : null } catch { return null }
-}
-
-function parseInsight(raw: string | null | undefined): InsightConfig | null {
-  if (!raw) return null
-  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? v as InsightConfig : null } catch { return null }
-}
-
-function normalizeAgenda(raw: AgendaConfig | null): AgendaConfig | null {
-  if (!raw) return null
-  return {
-    enabled: !!raw.enabled,
-    syncModel: raw.syncModel || '',
-    syncPromptFile: raw.syncPromptFile || undefined,
-  }
-}
-
-function normalizeInsight(raw: InsightConfig | null): InsightConfig | null {
-  if (!raw) return null
-  return {
-    enabled: !!raw.enabled,
-    extractor: raw.extractor || '',
-    extractorPromptFile: raw.extractorPromptFile || undefined,
-  }
-}
-
-function normalizeChannelAgenda(raw: AgendaConfig | null | undefined): AgendaConfig | null {
-  const agenda = normalizeAgenda(raw ?? null)
-  return agenda?.enabled ? agenda : null
-}
-
-function normalizeChannelInsight(raw: InsightConfig | null | undefined): InsightConfig | null {
-  const insight = normalizeInsight(raw ?? null)
-  return insight?.enabled ? insight : null
-}
-
 function profileToOverrides(p: ProfileFull): SessionOverrides {
   const toTriBool = (v: any): boolean | null => v == null ? null : !!v
   return {
@@ -253,8 +217,8 @@ function profileToOverrides(p: ProfileFull): SessionOverrides {
     intentModel: p.intentModel ?? null,
     intentPrompt: p.intentPrompt ?? null,
     intentThreshold: p.intentThreshold ?? null,
-    insight: parseInsight(p.insight),
-    agenda: parseAgenda(p.agenda),
+    insight: p.insight ?? null,
+    agenda: p.agenda ?? null,
   }
 }
 
@@ -351,9 +315,6 @@ async function saveSession() {
   const validNoteIds = new Set(noteOptions.value.map(n => n.id))
   const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
   const o = sessionForm.value.overrides
-  if (o.insight?.enabled && !o.insight.extractor) {
-    show(t('agents.error_insight_extractor'), 'error'); return
-  }
   const profilePayload = {
     agentId: o.agentId,
     saver: o.saver,
@@ -373,8 +334,8 @@ async function saveSession() {
     intentModel: o.intentModel,
     intentPrompt: o.intentModel == null ? null : o.intentPrompt,
     intentThreshold: o.intentModel == null ? null : o.intentThreshold,
-    insight: normalizeInsight(o.insight),
-    agenda: normalizeAgenda(o.agenda),
+    insight: o.insight,
+    agenda: o.agenda,
   }
 
   // 比较 profile 是否有变化（含清洗：原始 notes/wikis 不过滤，与清洗后的 payload 对比，
@@ -399,8 +360,8 @@ async function saveSession() {
     intentModel: orig.intentModel,
     intentPrompt: orig.intentModel == null ? null : orig.intentPrompt,
     intentThreshold: orig.intentModel == null ? null : orig.intentThreshold,
-    insight: normalizeInsight(orig.insight),
-    agenda: normalizeAgenda(orig.agenda),
+    insight: orig.insight,
+    agenda: orig.agenda,
   }
   const profileChanged = originalEquivalent == null
     || JSON.stringify(profilePayload) !== JSON.stringify(originalEquivalent)
@@ -672,11 +633,8 @@ async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
   if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
-  const channelInsight = normalizeChannelInsight((form.value as any).insight ?? null)
-  const channelAgenda = normalizeChannelAgenda((form.value as any).agenda ?? null)
-  if (channelInsight?.enabled && !channelInsight.extractor) {
-    show(t('agents.error_insight_extractor'), 'error'); return
-  }
+  const channelInsight = ((form.value as any).insight as string | null) || undefined
+  const channelAgenda = ((form.value as any).agenda as string | null) || undefined
   if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   if (formTriggerToolsMode.value === 'whitelist' && formTriggerTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
   try {
@@ -834,7 +792,7 @@ async function refresh() {
                 </template>
                 <template #ops="{ item: s }">
                   <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
-                  <SButton type="outline" size="sm" @click="agendaListModal?.openByProfileId(String(s.profileId), s.sessionName || s.autoSessionName || s.sessionId)">{{ t('agenda.title') }}</SButton>
+                  <SButton v-if="s.agenda || c.agenda" type="outline" size="sm" @click="agendaListModal?.openByAgendaId(s.agenda || c.agenda, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('agenda.title') }}</SButton>
                   <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                   <SButton type="danger" size="sm" @click="removeSession(c.id, s)">{{ t('common.delete') }}</SButton>
                 </template>
@@ -944,6 +902,8 @@ async function refresh() {
             :note-options="noteOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
+            :insight-profile-options="insightProfileOptions"
+            :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(channelDataConfig.workPath || '')"
           />
 
@@ -1028,6 +988,8 @@ async function refresh() {
             :note-options="noteOptions"
             :wiki-options="wikiOptions"
             :model-options="modelOptions"
+            :insight-profile-options="insightProfileOptions"
+            :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(sessionForm.overrides.workPath || '')"
           />
         </div>

@@ -8,7 +8,7 @@ import { useAgendas } from '@/composables/useAgendas'
 const { t } = useI18n()
 
 const visible = ref(false)
-const profileIdRef = ref('')
+const agendaIdRef = ref('')
 const sessionLabel = ref('')
 
 const {
@@ -25,24 +25,24 @@ const {
   skipNext,
   remove,
 } = useAgendas({
-  buildQuery: () => profileIdRef.value ? `profileId=${encodeURIComponent(profileIdRef.value)}` : null,
+  buildQuery: () => agendaIdRef.value ? `agendaId=${encodeURIComponent(agendaIdRef.value)}` : null,
   limit: 300,
 })
 
 const title = computed(() => sessionLabel.value ? `${t('agenda.title')} - ${sessionLabel.value}` : t('agenda.title'))
 
-async function openByProfileId(profileId: string | number, label?: string) {
-  profileIdRef.value = String(profileId)
-  sessionLabel.value = label || String(profileId)
+async function openByAgendaId(agendaId: string | null | undefined, label?: string) {
+  agendaIdRef.value = agendaId ? String(agendaId) : ''
+  sessionLabel.value = label || (agendaId ? String(agendaId) : '')
   visible.value = true
-  await load()
+  if (agendaIdRef.value) await load()
 }
 
 watch([statusFilter, viewFilter], () => {
-  if (visible.value) load()
+  if (visible.value && agendaIdRef.value) load()
 })
 
-defineExpose({ openByProfileId })
+defineExpose({ openByAgendaId })
 </script>
 
 <template>

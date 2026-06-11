@@ -14,16 +14,6 @@ import { agentRoutes } from './agents';
 import { acpRoutes } from './acp';
 import type { RouteContext } from './types';
 
-function parseAgenda(raw: string | null | undefined) {
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
-}
-
-function parseInsight(raw: string | null | undefined) {
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
-}
-
 export class SettingsRoutes {
     register(app: express.Application, ctx: RouteContext): void {
         app.get('/api/settings', api(() => ctx.settingsWithAgents()));
@@ -121,6 +111,27 @@ export class SettingsRoutes {
         settingsCrudHelper.register(app, 'savers', { label: 'Saver config', getSettings });
         settingsCrudHelper.register(app, 'notes', { label: 'Note config', getSettings });
         settingsCrudHelper.register(app, 'wikis', { label: 'Wiki config', getSettings });
+        settingsCrudHelper.register(app, 'insightProfiles', {
+            label: 'Insight profile',
+            checkOnDelete: true,
+            getSettings,
+            afterDelete: async (id) => {
+                const fs = await import('fs');
+                const dir = config.getInsightPath(id);
+                try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+            },
+        });
+        settingsCrudHelper.register(app, 'agendaProfiles', {
+            label: 'Agenda profile',
+            checkOnDelete: true,
+            getSettings,
+            afterDelete: async (id) => {
+                const { agendaStorePool, agendaTriggerEnginePool } = await import('../../Agenda');
+                agendaTriggerEnginePool.remove(id);
+                try { await agendaStorePool.get(id).deleteAll(); } catch {}
+                agendaStorePool.remove(id);
+            },
+        });
         // heartbeats 已迁移到独立数据库表，CRUD 在 HeartbeatRoutes 中
         agentRoutes.register(app, ctx);
         acpRoutes.register(app, ctx);
@@ -160,8 +171,8 @@ export class SettingsRoutes {
                     autoApproveAllTools: profile?.autoApproveAllTools || undefined,
                     disableWorkspaceContext: profile?.disableWorkspaceContext ?? undefined,
                     disableWorkspaceSkills: profile?.disableWorkspaceSkills ?? undefined,
-                    insight: parseInsight(profile?.insight),
-                    agenda: parseAgenda(profile?.agenda),
+                    insight: profile?.insight ?? null,
+                    agenda: profile?.agenda ?? null,
                 });
             }
             return result;

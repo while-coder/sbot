@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SInput, STextarea, SSelect, SFormItem, SMultiSelect, SButton, SFormDetails } from 'sbot-ui'
-import { ApprovalTimeoutValue, type AgendaConfig, type InsightConfig } from 'sbot.commons'
-import { apiFetch } from '@/shared/api'
-import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
+import { ApprovalTimeoutValue } from 'sbot.commons'
 
 export interface DataConfigValue {
   agentId: string | null
@@ -25,8 +23,10 @@ export interface DataConfigValue {
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
-  insight: InsightConfig | null
-  agenda: AgendaConfig | null
+  /** insightProfiles 中的 UUID；profile 模式下 null = 沿用 channel；channel 模式下 null = 不启用 */
+  insight: string | null
+  /** agendaProfiles 中的 UUID；profile 模式下 null = 沿用 channel；channel 模式下 null = 不启用 */
+  agenda: string | null
 }
 
 export type DataConfigMode = 'channel' | 'profile'
@@ -46,6 +46,8 @@ const props = withDefaults(defineProps<{
   noteOptions: Option[]
   wikiOptions: Option[]
   modelOptions: Option[]
+  insightProfileOptions: Option[]
+  agendaProfileOptions: Option[]
 }>(), {
   mode: 'profile',
 })
@@ -56,7 +58,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const inheritToken = '__inherit__'
 const isProfileMode = () => props.mode === 'profile'
 
 const resolvedDefaultOpenSections = computed<DataConfigSection[]>(() =>
@@ -96,7 +97,8 @@ const fmtModel = (v: any) => props.modelOptions.find(m => m.id === v)?.label || 
 const fmtBool = (v: any) => v ? t('common.enabled') : t('common.disabled')
 const fmtList = (v: any) => Array.isArray(v) ? `${v.length} ${t('channels.items_count_suffix')}` : String(v ?? '')
 const fmtApprovalValue = (v: any) => v === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : v === ApprovalTimeoutValue.Deny ? t('channels.approval_timeout_value_deny') : String(v ?? '')
-const fmtFeature = (v: any) => v?.enabled ? t('common.enabled') : t('common.disabled')
+const fmtInsight = (v: any) => props.insightProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
+const fmtAgenda = (v: any) => props.agendaProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
 
 const resourcesBadge = computed(() => {
   let n = 0
@@ -112,9 +114,8 @@ const resourcesBadge = computed(() => {
 
 const automationBadge = computed(() => {
   let n = 0
-  if (props.modelValue.insight?.enabled) n++
-  if (props.modelValue.agenda?.enabled) n++
-  if (props.modelValue.insight?.enabled === false || props.modelValue.agenda?.enabled === false) n++
+  if (props.modelValue.insight) n++
+  if (props.modelValue.agenda) n++
   return n || ''
 })
 
@@ -128,25 +129,6 @@ const runtimeBadge = computed(() => {
   return n || ''
 })
 
-const insightPrompts = ref<{ path: string; isUserOnly?: boolean }[]>([])
-const showCreateInsightPrompt = ref(false)
-const agendaPrompts = ref<{ path: string; isUserOnly?: boolean }[]>([])
-const showCreateAgendaPrompt = ref(false)
-
-async function loadInsightPrompts() {
-  try {
-    const res = await apiFetch('/api/prompts/files?prefix=insight/extractor')
-    insightPrompts.value = res.data || []
-  } catch {}
-}
-
-async function loadAgendaPrompts() {
-  try {
-    const res = await apiFetch('/api/prompts/files?prefix=agenda/sync')
-    agendaPrompts.value = res.data || []
-  } catch {}
-}
-
 function booleanSelectValue(key: 'streamVerbose' | 'autoApproveAllTools' | 'disableWorkspaceContext' | 'disableWorkspaceSkills'): string {
   const v = props.modelValue[key]
   if (isProfileMode() && v === null) return ''
@@ -157,90 +139,14 @@ function updateBool(key: 'streamVerbose' | 'autoApproveAllTools' | 'disableWorks
   update(key, isProfileMode() && value === '' ? null : value === 'true')
 }
 
-function insightEnabledValue(): string {
-  const insight = props.modelValue.insight
-  if (isProfileMode() && !insight) return inheritToken
-  return insight?.enabled ? 'true' : 'false'
+/** insight/agenda 引用：profile 模式下空串 = 沿用 channel；channel 模式下空串 = 不启用 */
+function refSelectValue(key: 'insight' | 'agenda'): string {
+  return props.modelValue[key] ?? ''
 }
 
-function updateInsightEnabled(value: string) {
-  if (value === inheritToken) {
-    update('insight', null)
-    return
-  }
-  if (value === 'false') {
-    update('insight', isProfileMode() ? { enabled: false, extractor: '' } : null)
-    return
-  }
-  update('insight', {
-    enabled: true,
-    extractor: props.modelValue.insight?.extractor || '',
-    extractorPromptFile: props.modelValue.insight?.extractorPromptFile,
-  })
+function updateRef(key: 'insight' | 'agenda', value: string) {
+  update(key, value ? value : null)
 }
-
-function updateInsightField<K extends keyof InsightConfig>(key: K, value: InsightConfig[K]) {
-  update('insight', {
-    ...(props.modelValue.insight || {}),
-    enabled: true,
-    [key]: value,
-  })
-}
-
-function agendaEnabledValue(): string {
-  const agenda = props.modelValue.agenda
-  if (isProfileMode() && !agenda) return inheritToken
-  return agenda?.enabled ? 'true' : 'false'
-}
-
-function updateAgendaEnabled(value: string) {
-  if (value === inheritToken) {
-    update('agenda', null)
-    return
-  }
-  if (value === 'false') {
-    update('agenda', isProfileMode() ? { enabled: false } : null)
-    return
-  }
-  update('agenda', {
-    enabled: true,
-    syncModel: props.modelValue.agenda?.syncModel || '',
-    syncPromptFile: props.modelValue.agenda?.syncPromptFile,
-  })
-}
-
-function updateAgendaField<K extends keyof AgendaConfig>(key: K, value: AgendaConfig[K]) {
-  update('agenda', {
-    ...(props.modelValue.agenda || {}),
-    enabled: true,
-    [key]: value,
-  })
-}
-
-function openCreateInsightPrompt() {
-  showCreateInsightPrompt.value = true
-}
-
-async function onInsightPromptCreated(filePath: string) {
-  showCreateInsightPrompt.value = false
-  await loadInsightPrompts()
-  updateInsightField('extractorPromptFile', filePath)
-}
-
-function openCreateAgendaPrompt() {
-  showCreateAgendaPrompt.value = true
-}
-
-async function onAgendaPromptCreated(filePath: string) {
-  showCreateAgendaPrompt.value = false
-  await loadAgendaPrompts()
-  updateAgendaField('syncPromptFile', filePath)
-}
-
-onMounted(() => {
-  loadInsightPrompts()
-  loadAgendaPrompts()
-})
 </script>
 
 <template>
@@ -362,60 +268,21 @@ onMounted(() => {
 
     <SFormDetails :summary="t('channels.section_automation_memory')" :badge="automationBadge" :open="isSectionOpen('automation')">
 
-    <SFormItem :label="t('agents.insight_enabled')" :hint="inheritLabel('insight', fmtFeature) || t('agents.insight_hint')">
-      <SSelect :model-value="insightEnabledValue()" @update:model-value="v => updateInsightEnabled(String(v))">
-        <option v-if="isProfileMode()" :value="inheritToken">{{ t('channels.use_channel_default') }}</option>
-        <option value="false">{{ t('agents.insight_disabled') }}</option>
-        <option value="true">{{ t('agents.insight_profile') }}</option>
+    <SFormItem :label="t('agents.insight_enabled')" :hint="inheritLabel('insight', fmtInsight) || t('agents.insight_hint')">
+      <SSelect :model-value="refSelectValue('insight')" @update:model-value="v => updateRef('insight', String(v))">
+        <option value="">{{ isProfileMode() ? t('channels.use_channel_default') : t('agents.insight_disabled') }}</option>
+        <option v-for="p in insightProfileOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
       </SSelect>
     </SFormItem>
-    <template v-if="modelValue.insight?.enabled">
-      <SFormItem :label="t('agents.insight_extractor') + ' *'" :hint="t('agents.insight_extractor_hint')">
-        <SSelect :model-value="modelValue.insight?.extractor ?? ''" @update:model-value="v => updateInsightField('extractor', String(v))">
-          <option value="">{{ t('agents.insight_extractor_placeholder') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
-      </SFormItem>
-      <SFormItem :label="t('agents.insight_prompt_file')" :hint="t('agents.insight_prompt_file_hint')">
-        <div class="prompt-row">
-          <SSelect :model-value="modelValue.insight?.extractorPromptFile ?? ''" style="flex:1" @update:model-value="v => updateInsightField('extractorPromptFile', String(v) || undefined)">
-            <option value="">{{ t('agents.insight_prompt_file_default') }}</option>
-            <option v-for="p in insightPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
-          </SSelect>
-          <SButton type="outline" size="sm" @click="openCreateInsightPrompt" title="+">+</SButton>
-        </div>
-      </SFormItem>
-    </template>
 
-    <SFormItem :label="t('agents.agenda_enabled')" :hint="inheritLabel('agenda', fmtFeature) || t('agents.agenda_hint')">
-      <SSelect :model-value="agendaEnabledValue()" @update:model-value="v => updateAgendaEnabled(String(v))">
-        <option v-if="isProfileMode()" :value="inheritToken">{{ t('channels.use_channel_default') }}</option>
-        <option value="false">{{ t('agents.agenda_disabled') }}</option>
-        <option value="true">{{ t('agents.agenda_profile') }}</option>
+    <SFormItem :label="t('agents.agenda_enabled')" :hint="inheritLabel('agenda', fmtAgenda) || t('agents.agenda_hint')">
+      <SSelect :model-value="refSelectValue('agenda')" @update:model-value="v => updateRef('agenda', String(v))">
+        <option value="">{{ isProfileMode() ? t('channels.use_channel_default') : t('agents.agenda_disabled') }}</option>
+        <option v-for="p in agendaProfileOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
       </SSelect>
     </SFormItem>
-    <template v-if="modelValue.agenda?.enabled">
-      <SFormItem :label="t('agents.agenda_sync_model')" :hint="t('agents.agenda_sync_model_hint')">
-        <SSelect :model-value="modelValue.agenda?.syncModel ?? ''" @update:model-value="v => updateAgendaField('syncModel', String(v))">
-          <option value="">{{ t('agents.agenda_sync_model_placeholder') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
-      </SFormItem>
-      <SFormItem :label="t('agents.agenda_sync_prompt_file')" :hint="t('agents.agenda_sync_prompt_file_hint')">
-        <div class="prompt-row">
-          <SSelect :model-value="modelValue.agenda?.syncPromptFile ?? ''" style="flex:1" @update:model-value="v => updateAgendaField('syncPromptFile', String(v) || undefined)">
-            <option value="">{{ t('agents.agenda_sync_prompt_file_default') }}</option>
-            <option v-for="p in agendaPrompts" :key="p.path" :value="p.path">{{ p.path.split('/').pop() }}</option>
-          </SSelect>
-          <SButton type="outline" size="sm" @click="openCreateAgendaPrompt" title="+">+</SButton>
-        </div>
-      </SFormItem>
-    </template>
     </SFormDetails>
   </div>
-
-  <CreatePromptModal v-model:visible="showCreateInsightPrompt" prefix="insight/extractor/" default-ext=".txt" @created="onInsightPromptCreated" @close="showCreateInsightPrompt = false" />
-  <CreatePromptModal v-model:visible="showCreateAgendaPrompt" prefix="agenda/sync/" default-ext=".txt" @created="onAgendaPromptCreated" @close="showCreateAgendaPrompt = false" />
 </template>
 
 <style scoped>

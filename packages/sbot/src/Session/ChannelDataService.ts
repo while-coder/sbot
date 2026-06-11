@@ -1,4 +1,4 @@
-import { ApprovalTimeoutValue, type AgendaConfig, type InsightConfig } from "sbot.commons";
+import { ApprovalTimeoutValue } from "sbot.commons";
 import {
     database,
     parseNotes,
@@ -10,7 +10,6 @@ import {
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { heartbeatService } from "../Heartbeat/HeartbeatService";
-import { agendaStorePool, agendaTriggerEnginePool } from "../Agenda";
 
 const logger = LoggerService.getLogger("ChannelDataService.ts");
 
@@ -35,8 +34,10 @@ export interface EffectiveSessionResolved {
     intentModel?: string;
     intentPrompt?: string;
     intentThreshold?: number;
-    insight?: InsightConfig | null;
-    agenda?: AgendaConfig | null;
+    /** 经验洞察模板 UUID（resolve 后的引用），未启用时为 null */
+    insight: string | null;
+    /** Agenda 模板 UUID（resolve 后的引用），未启用时为 null */
+    agenda: string | null;
 }
 
 export interface EffectiveSession {
@@ -62,68 +63,11 @@ function pickDefined<T extends Record<string, any>>(obj: T): Partial<T> {
     return out;
 }
 
-function normalizeAgendaConfig(value: any): AgendaConfig | null {
-    if (!value || typeof value !== "object") return null;
-    if (value.enabled !== true && value.enabled !== false) return null;
-    const agenda: AgendaConfig = { enabled: value.enabled };
-    if (value.syncModel) agenda.syncModel = String(value.syncModel);
-    if (value.syncPromptFile) agenda.syncPromptFile = String(value.syncPromptFile);
-    return agenda;
-}
-
-function parseAgendaConfig(raw: string | null | undefined): AgendaConfig | null {
-    if (!raw) return null;
-    try {
-        return normalizeAgendaConfig(JSON.parse(raw));
-    } catch {
-        return null;
-    }
-}
-
-function serializeAgendaConfig(value: any): string | null {
-    const agenda = normalizeAgendaConfig(value);
-    return agenda ? JSON.stringify(agenda) : null;
-}
-
-function resolveAgendaConfig(profileRaw: string | null | undefined, channelValue: any): AgendaConfig | null {
-    const profile = parseAgendaConfig(profileRaw);
-    if (profile?.enabled === false) return null;
-    if (profile?.enabled === true) return profile;
-    const channel = normalizeAgendaConfig(channelValue);
-    return channel?.enabled ? channel : null;
-}
-
-function normalizeInsightConfig(value: any): InsightConfig | null {
-    if (!value || typeof value !== "object") return null;
-    if (value.enabled !== true && value.enabled !== false) return null;
-    const insight: InsightConfig = {
-        enabled: value.enabled,
-        extractor: value.extractor ? String(value.extractor) : "",
-    };
-    if (value.extractorPromptFile) insight.extractorPromptFile = String(value.extractorPromptFile);
-    return insight;
-}
-
-function parseInsightConfig(raw: string | null | undefined): InsightConfig | null {
-    if (!raw) return null;
-    try {
-        return normalizeInsightConfig(JSON.parse(raw));
-    } catch {
-        return null;
-    }
-}
-
-function serializeInsightConfig(value: any): string | null {
-    const insight = normalizeInsightConfig(value);
-    return insight ? JSON.stringify(insight) : null;
-}
-
-function resolveInsightConfig(profileRaw: string | null | undefined, channelValue: any): InsightConfig | null {
-    const profile = parseInsightConfig(profileRaw);
-    if (profile?.enabled === false) return null;
-    if (profile?.enabled === true) return profile;
-    const channel = normalizeInsightConfig(channelValue);
-    return channel?.enabled ? channel : null;
+/** 把 admin 提交的 ref 规范成 string|null：空串/null 都视为 null（清空覆盖） */
+function normalizeRef(value: any): string | null {
+    if (value == null) return null;
+    const s = String(value).trim();
+    return s ? s : null;
 }
 
 // ── ChannelDataService ────────────────────────────────────────────────────────
@@ -139,16 +83,14 @@ function resolveInsightConfig(profileRaw: string | null | undefined, channelValu
  * 不进入：纯单点 findByPk / findOne by 唯一键（直接走 database 即可）。
  *
  * 跨服务依赖（由本类调用，反向不允许）：
- * - agendaTriggerEnginePool —— agenda 触发器运行时自治（per-profile）
  * - heartbeatService.reloadAll —— heartbeat 自治
  * - channelManager.reloadChannel —— channel 运行时自治（在 routes 层调用，避开循环）
+ * 注：agenda/insight 数据按 agendaId/insightId 共享，由 settings 顶层管理；
+ * profile 删除时不再级联清。
  */
 export class ChannelDataService {
-    private async deleteAgendaByProfile(profileId: number): Promise<void> {
-        agendaTriggerEnginePool.remove(profileId);
-        await agendaStorePool.get(profileId).deleteAll();
-        agendaStorePool.remove(profileId);
-    }
+    // 注：agenda/insight 数据现在按 agendaId/insightId 共享，不再随 profile 删除而清。
+    // 数据生命周期由 /api/agenda-profiles、/api/insight-profiles 的 DELETE 路由管理。
 
     // ── reads ────────────────────────────────────────────────────────────────
 
@@ -206,8 +148,8 @@ export class ChannelDataService {
             intentModel: profile.intentModel ?? channel?.intentModel ?? undefined,
             intentPrompt: profile.intentPrompt ?? channel?.intentPrompt ?? undefined,
             intentThreshold: profile.intentThreshold ?? channel?.intentThreshold ?? undefined,
-            insight: resolveInsightConfig(profile.insight, channel?.insight),
-            agenda: resolveAgendaConfig(profile.agenda, channel?.agenda),
+            insight: profile.insight ?? channel?.insight ?? null,
+            agenda: profile.agenda ?? channel?.agenda ?? null,
         };
 
         return { session, profile, resolved };
@@ -304,8 +246,8 @@ export class ChannelDataService {
                 intentModel: p?.intentModel ?? null,
                 intentPrompt: p?.intentPrompt ?? null,
                 intentThreshold: p?.intentThreshold ?? null,
-                insight: parseInsightConfig(p?.insight),
-                agenda: parseAgendaConfig(p?.agenda),
+                insight: p?.insight ?? null,
+                agenda: p?.agenda ?? null,
                 inputTokens: p?.inputTokens ?? 0,
                 outputTokens: p?.outputTokens ?? 0,
                 totalTokens: p?.totalTokens ?? 0,
@@ -338,13 +280,11 @@ export class ChannelDataService {
     /**
      * 删 session 级联：
      * - 该 session 的 auto profile（visible profile 共享，不动）
-     * - 上述 auto profile 名下的 agenda
      * - heartbeat where target = sessionId
      * - heartbeat 服务 reload
+     * 注：profile 引用的 agenda/insight 模板数据归 admin 管理，这里不动。
      */
     async deleteSession(id: number): Promise<void> {
-        const auto = await database.findOne<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: id } });
-        if (auto) await this.deleteAgendaByProfile(auto.id);
         await database.destroy(database.sessionProfile, { where: { autoForSessionId: id } });
         await database.destroy(database.heartbeat, { where: { target: id } });
         await database.destroy(database.channelSession, { where: { id } });
@@ -385,8 +325,8 @@ export class ChannelDataService {
     async updateProfile(id: number, body: Record<string, any>): Promise<void> {
         const noteSer = body.notes === undefined ? undefined : (body.notes === null ? null : JSON.stringify(body.notes || []));
         const wikiSer = body.wikis === undefined ? undefined : (body.wikis === null ? null : JSON.stringify(body.wikis || []));
-        const insightSer = body.insight === undefined ? undefined : serializeInsightConfig(body.insight);
-        const agendaSer = body.agenda === undefined ? undefined : serializeAgendaConfig(body.agenda);
+        const insightRef = body.insight === undefined ? undefined : normalizeRef(body.insight);
+        const agendaRef = body.agenda === undefined ? undefined : normalizeRef(body.agenda);
         const update = pickDefined({
             name: body.name,
             agentId: body.agentId === undefined ? undefined : (body.agentId || null),
@@ -407,21 +347,20 @@ export class ChannelDataService {
             intentModel: body.intentModel === undefined ? undefined : (body.intentModel ?? null),
             intentPrompt: body.intentPrompt === undefined ? undefined : (body.intentPrompt || null),
             intentThreshold: body.intentThreshold === undefined ? undefined : (body.intentThreshold ?? null),
-            insight: insightSer,
-            agenda: agendaSer,
+            insight: insightRef,
+            agenda: agendaRef,
         });
         if (Object.keys(update).length === 0) return;
         await database.update(database.sessionProfile, update, { where: { id } });
     }
 
-    /** 仅删 visible profile，校验：非 auto + 无 session 引用；级联 agenda */
+    /** 仅删 visible profile，校验：非 auto + 无 session 引用 */
     async deleteVisibleProfile(id: number): Promise<void> {
         const profile = await this.getProfile(id);
         if (!profile) throw new Error(`Profile id=${id} not found`);
         if (profile.autoForSessionId != null) throw new Error("Cannot delete an auto profile directly");
         const refCount = await database.count(database.channelSession, { where: { profileId: id } });
         if (refCount > 0) throw new Error(`Profile id=${id} is still referenced by ${refCount} session(s)`);
-        await this.deleteAgendaByProfile(id);
         await database.destroy(database.sessionProfile, { where: { id } });
     }
 
@@ -480,18 +419,17 @@ export class ChannelDataService {
 
     /**
      * 删 channel 级联：
-     * - 这些 session 的 auto profile + 名下 agenda（visible profile 共享不动）
+     * - 这些 session 的 auto profile（visible profile 共享不动）
      * - heartbeat where target ∈ sessionIds
      * - channel_session / channel_user 行
      * - heartbeat 服务 reload（channelManager.reloadChannel 由 routes 层在 settingsCrud 流程里完成）
+     * 注：profile 引用的 agenda/insight 模板数据归 admin 管理，这里不动。
      */
     async deleteChannel(channelId: string): Promise<void> {
         const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { channelId } });
         const sessionIds = sessions.map(s => s.id);
         if (sessionIds.length > 0) {
             await database.destroy(database.heartbeat, { where: { target: sessionIds } });
-            const autoProfiles = await database.findAll<SessionProfileRow>(database.sessionProfile, { where: { autoForSessionId: sessionIds } });
-            for (const p of autoProfiles) await this.deleteAgendaByProfile(p.id);
             await database.destroy(database.sessionProfile, { where: { autoForSessionId: sessionIds } });
         }
         await database.destroy(database.channelSession, { where: { channelId } });
@@ -534,8 +472,8 @@ export class ChannelDataService {
             workPath: body.workPath ?? null,
             disableWorkspaceContext: body.disableWorkspaceContext ?? null,
             disableWorkspaceSkills: body.disableWorkspaceSkills ?? null,
-            insight: serializeInsightConfig(body.insight),
-            agenda: serializeAgendaConfig(body.agenda),
+            insight: normalizeRef(body.insight),
+            agenda: normalizeRef(body.agenda),
         }, { where: { id: profile.id } });
         return { session, profile };
     }
@@ -556,8 +494,8 @@ export class ChannelDataService {
         if (body.autoApproveAllTools !== undefined) profileUpdate.autoApproveAllTools = !!body.autoApproveAllTools;
         if (body.disableWorkspaceContext !== undefined) profileUpdate.disableWorkspaceContext = body.disableWorkspaceContext ?? null;
         if (body.disableWorkspaceSkills !== undefined) profileUpdate.disableWorkspaceSkills = body.disableWorkspaceSkills ?? null;
-        if (body.insight !== undefined) profileUpdate.insight = serializeInsightConfig(body.insight);
-        if (body.agenda !== undefined) profileUpdate.agenda = serializeAgendaConfig(body.agenda);
+        if (body.insight !== undefined) profileUpdate.insight = normalizeRef(body.insight);
+        if (body.agenda !== undefined) profileUpdate.agenda = normalizeRef(body.agenda);
         if (Object.keys(profileUpdate).length > 0) {
             await database.update(database.sessionProfile, profileUpdate, { where: { id: profile.id } });
         }
@@ -630,7 +568,6 @@ export class ChannelDataService {
                 if (orphanChannelSessionIds.has(p.autoForSessionId!)) continue; // 已被 Step 1 清
                 const stillExists = await database.findByPk<SessionProfileRow>(database.sessionProfile, p.id);
                 if (!stillExists) continue;
-                await this.deleteAgendaByProfile(p.id);
                 await database.destroy(database.sessionProfile, { where: { id: p.id } });
             }
 
@@ -707,8 +644,8 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     intentModel: string | null;
     intentPrompt: string | null;
     intentThreshold: number | null;
-    insight: InsightConfig | null;
-    agenda: AgendaConfig | null;
+    insight: string | null;
+    agenda: string | null;
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;

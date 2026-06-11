@@ -75,15 +75,25 @@ export interface EmbeddingConfig {
   model: string
 }
 
-export interface InsightConfig {
+export interface InsightProfileConfig {
+  /** 显示名称 */
+  name: string
+  /** 整个模板的启停；false 时引用方仍可指向，但运行时不启用 */
   enabled: boolean
+  /** 提取使用的模型 UUID（对应 models 中的 key） */
   extractor: string
+  /** 提取 prompt 文件相对路径（不设置则用默认） */
   extractorPromptFile?: string
 }
 
-export interface AgendaConfig {
+export interface AgendaProfileConfig {
+  /** 显示名称 */
+  name: string
+  /** 整个模板的启停；false 时引用方仍可指向，但运行时不启用 */
   enabled: boolean
+  /** 同步使用的模型 UUID；不设置则不启用同步 */
   syncModel?: string
+  /** 同步 prompt 文件相对路径（不设置则用默认） */
   syncPromptFile?: string
 }
 
@@ -218,10 +228,10 @@ export interface SessionConfig {
   disableWorkspaceContext?: boolean
   /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
   disableWorkspaceSkills?: boolean
-  /** 经验洞察配置 */
-  insight?: InsightConfig
-  /** Agenda 工具和同步配置 */
-  agenda?: AgendaConfig
+  /** 经验洞察模板 UUID（对应 insightProfiles 中的 key） */
+  insight?: string
+  /** Agenda 模板 UUID（对应 agendaProfiles 中的 key） */
+  agenda?: string
 }
 
 /** Approval 超时返回值 */
@@ -274,10 +284,10 @@ export interface ChannelConfig {
   intentThreshold?: number
   /** 消息合并窗口（毫秒），同一会话在此时间内的连续消息会合并后再处理。0 或不设置表示不合并 */
   mergeWindow?: number
-  /** 经验洞察配置 */
-  insight?: InsightConfig
-  /** Agenda 工具和同步配置 */
-  agenda?: AgendaConfig
+  /** 经验洞察模板 UUID（对应 insightProfiles 中的 key） */
+  insight?: string
+  /** Agenda 模板 UUID（对应 agendaProfiles 中的 key） */
+  agenda?: string
   /** 日常对话工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
   tools?: string[]
   /** 后台触发（heartbeat / agenda 等）工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
@@ -306,6 +316,8 @@ export interface Settings {
   notes?: Record<string, NoteConfig>
   wikis?: Record<string, WikiConfig>
   savers?: Record<string, SaverConfig>
+  insightProfiles?: Record<string, InsightProfileConfig>
+  agendaProfiles?: Record<string, AgendaProfileConfig>
   channels?: Record<string, ChannelConfig>
 
   agentSources?: AgentSourceEntry[]

@@ -1,70 +1,52 @@
 import path from "path";
 import { AgendaStore, type AgendaRecord, type AgendaTrigger } from "scorpio.ai";
-import type { SessionProfileRow } from "../Core/Database";
-import { database } from "../Core/Database";
 import { config } from "../Core/Config";
 
-const ITEM_ID_FACTOR = 1_000_000;
-const CHILD_ID_FACTOR = 1_000;
-
 /**
- * 维护 profileId → 单 profile AgendaStore 的映射。
- * 跨 profile 路由（按 itemId/triggerId 反推 profile）和聚合在这一层完成，
- * AgendaStore 自身只看自己 profile 的数据。
+ * 维护 agendaId → AgendaStore 的映射。
+ * 每个 store 绑定一个 agenda 模板的 db 文件；跨模板的聚合在这一层完成。
+ *
+ * 注：旧版按 profileId 反推 store（itemId/triggerId 编进 profileId）的设计已废弃，
+ * 调用方现在持有 agendaId，直接 get(agendaId) 即可。
  */
 class AgendaStorePool {
-    private cache = new Map<number, AgendaStore>();
+    private cache = new Map<string, AgendaStore>();
 
-    get(profileId: number): AgendaStore {
-        let store = this.cache.get(profileId);
+    get(agendaId: string): AgendaStore {
+        let store = this.cache.get(agendaId);
         if (!store) {
-            const dbPath = path.join(config.getProfileAgendaPath(String(profileId)), "agenda.db");
-            store = new AgendaStore(profileId, dbPath);
-            this.cache.set(profileId, store);
+            const dbPath = path.join(config.getAgendaPath(agendaId), "agenda.db");
+            store = new AgendaStore(dbPath);
+            this.cache.set(agendaId, store);
         }
         return store;
     }
 
-    remove(profileId: number): void {
-        const store = this.cache.get(profileId);
+    remove(agendaId: string): void {
+        const store = this.cache.get(agendaId);
         if (store) {
             store.dispose();
-            this.cache.delete(profileId);
+            this.cache.delete(agendaId);
         }
     }
 
-    storeForItemId(itemId: number): AgendaStore | null {
-        const profileId = Math.floor(itemId / ITEM_ID_FACTOR);
-        return profileId > 0 ? this.get(profileId) : null;
+    listAllAgendaIds(): string[] {
+        return Object.keys(config.settings.agendaProfiles ?? {});
     }
 
-    storeForTriggerId(triggerId: number): AgendaStore | null {
-        return this.storeForItemId(Math.floor(triggerId / CHILD_ID_FACTOR));
-    }
-
-    async findItem(itemId: number): Promise<AgendaRecord | null> {
-        return this.storeForItemId(itemId)?.findItem(itemId) ?? null;
-    }
-
-    async findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTrigger } | null> {
-        return this.storeForTriggerId(triggerId)?.findTrigger(triggerId) ?? null;
-    }
-
-    async listAllProfileIds(): Promise<number[]> {
-        const profiles = await database.findAll<SessionProfileRow>(database.sessionProfile);
-        return profiles.map(p => p.id).filter(id => Number.isInteger(id) && id > 0);
-    }
-
-    async listEnabledTriggersAcross(profileIds: number[]): Promise<AgendaTrigger[]> {
+    async listEnabledTriggersAcross(agendaIds: string[]): Promise<AgendaTrigger[]> {
         const all: AgendaTrigger[] = [];
-        for (const id of profileIds) all.push(...await this.get(id).listEnabledTriggers());
+        for (const id of agendaIds) all.push(...await this.get(id).listEnabledTriggers());
         return all.sort((a, b) => a.id - b.id);
     }
 
-    async listItemsAcross(profileIds: number[]): Promise<AgendaRecord[]> {
-        const all: AgendaRecord[] = [];
-        for (const id of profileIds) all.push(...await this.get(id).listItems());
-        return all.sort((a, b) => a.item.profileId - b.item.profileId || a.item.id - b.item.id);
+    async listItemsAcross(agendaIds: string[]): Promise<Array<{ agendaId: string; record: AgendaRecord }>> {
+        const all: Array<{ agendaId: string; record: AgendaRecord }> = [];
+        for (const id of agendaIds) {
+            const records = await this.get(id).listItems();
+            for (const record of records) all.push({ agendaId: id, record });
+        }
+        return all.sort((a, b) => a.agendaId.localeCompare(b.agendaId) || a.record.item.id - b.record.item.id);
     }
 
     disposeAll(): void {
