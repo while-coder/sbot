@@ -411,7 +411,6 @@ export class AgendaService implements IAgendaService {
             triggers: record.triggers.map(t => ({
                 ...t,
                 enabled: Boolean(t.enabled),
-                action: AgendaService.normalizeLegacyAction(t.action),
             })),
             occurrences: record.occurrences,
         };
@@ -429,14 +428,6 @@ export class AgendaService implements IAgendaService {
         }
         if (record.item.dueAt != null) return AgendaCategory.Reminder;
         return AgendaCategory.Todo;
-    }
-
-    /**
-     * 兼容旧库：trigger.action='send' 在新枚举里被合并到 Notify（语义已等同：发原文 + 不让 AI 处理）。
-     */
-    private static normalizeLegacyAction(raw: AgendaTriggerAction): AgendaTriggerAction {
-        if ((raw as string) === 'send') return AgendaTriggerAction.Notify;
-        return raw;
     }
 
     private static matchesFilter(item: AgendaItemView, filter?: AgendaListFilter): boolean {
