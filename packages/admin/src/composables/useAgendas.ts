@@ -6,16 +6,35 @@ import { useConfirm, useToast } from 'sbot-ui'
 export type AgendaStatus = 'pending' | 'done' | 'cancelled'
 export type AgendaPriority = 'low' | 'normal' | 'high'
 export type AgendaCategory = 'todo' | 'reminder' | 'routine'
+export type AgendaCompletionMode = 'none' | 'item' | 'occurrence'
+export type AgendaSource = 'user' | 'tool' | 'sync' | 'rule'
+export type AgendaTriggerKind = 'absolute' | 'interval' | 'cron'
+export type AgendaTriggerAction = 'notify' | 'invoke'
+export type AgendaOccurrenceStatus = 'pending' | 'done' | 'cancelled'
 export type AgendaViewFilter = 'todo' | 'upcoming' | 'routine' | 'automation' | 'all'
 export type AgendaStatusFilter = AgendaStatus | 'all'
+
+export interface AgendaItem {
+  id: number
+  content: string
+  status: AgendaStatus
+  priority: AgendaPriority
+  category: AgendaCategory
+  completionMode: AgendaCompletionMode
+  dueAt: number | null
+  source: AgendaSource
+  createdAt: number
+  updatedAt: number
+  doneAt: number | null
+}
 
 export interface AgendaTrigger {
   id: number
   itemId: number
-  kind: 'absolute' | 'interval' | 'cron'
+  kind: AgendaTriggerKind
   expr: string
   timezone: string | null
-  action: 'notify' | 'invoke'
+  action: AgendaTriggerAction
   message: string | null
   channelHint: number
   enabled: boolean
@@ -23,24 +42,24 @@ export interface AgendaTrigger {
   maxFires: number
   lastFiredAt: number | null
   nextFireAt: number | null
+  derived: boolean
   createdAt: number
 }
 
-export interface AgendaItem {
+export interface AgendaOccurrence {
   id: number
-  /** 服务端按模板分组返回；标识此 item 属于哪个 agenda 模板 */
-  agendaId: string
-  content: string
-  status: AgendaStatus
-  priority: AgendaPriority
-  category: AgendaCategory
-  completionMode: 'none' | 'item' | 'occurrence'
-  dueAt: number | null
-  source: 'user' | 'tool' | 'sync' | 'rule'
-  createdAt: number
-  updatedAt: number
+  itemId: number
+  scheduledAt: number
+  status: AgendaOccurrenceStatus
   doneAt: number | null
+}
+
+/** 列表行：服务端 AgendaRecord + 所属模板 id。 */
+export interface AgendaRow {
+  item: AgendaItem
   triggers: AgendaTrigger[]
+  occurrences: AgendaOccurrence[]
+  agendaId: string
 }
 
 export interface UseAgendasOptions {
@@ -48,7 +67,7 @@ export interface UseAgendasOptions {
   limit?: number
 }
 
-export function firstNextFire(row: AgendaItem): number | null {
+export function firstNextFire(row: AgendaRow): number | null {
   const values = row.triggers
     .filter(t => t.enabled && t.nextFireAt)
     .map(t => t.nextFireAt as number)
@@ -56,8 +75,9 @@ export function firstNextFire(row: AgendaItem): number | null {
   return values[0] ?? null
 }
 
-export function isOverdue(row: AgendaItem, now = Date.now()): boolean {
-  return row.status === 'pending' && row.dueAt != null && row.dueAt < now
+export function isOverdue(row: AgendaRow, now = Date.now()): boolean {
+  const item = row.item
+  return item.status === 'pending' && item.dueAt != null && item.dueAt < now
 }
 
 export function priorityRank(p: AgendaPriority): number {
@@ -66,13 +86,13 @@ export function priorityRank(p: AgendaPriority): number {
   return 2
 }
 
-export function sortAgendas(rows: AgendaItem[]): AgendaItem[] {
+export function sortAgendas(rows: AgendaRow[]): AgendaRow[] {
   return [...rows].sort((a, b) => {
-    if (a.status !== b.status) return a.status === 'pending' ? -1 : 1
-    const an = firstNextFire(a) ?? a.dueAt ?? a.createdAt
-    const bn = firstNextFire(b) ?? b.dueAt ?? b.createdAt
+    if (a.item.status !== b.item.status) return a.item.status === 'pending' ? -1 : 1
+    const an = firstNextFire(a) ?? a.item.dueAt ?? a.item.createdAt
+    const bn = firstNextFire(b) ?? b.item.dueAt ?? b.item.createdAt
     if (an !== bn) return an - bn
-    return priorityRank(a.priority) - priorityRank(b.priority)
+    return priorityRank(a.item.priority) - priorityRank(b.item.priority)
   })
 }
 
@@ -81,12 +101,12 @@ export function useAgendas(opts: UseAgendasOptions) {
   const { show } = useToast()
   const { confirm } = useConfirm()
 
-  const agendas = ref<AgendaItem[]>([])
+  const agendas = ref<AgendaRow[]>([])
   const loading = ref(false)
   const statusFilter = ref<AgendaStatusFilter>('pending')
   const viewFilter = ref<AgendaViewFilter>('all')
   const sortedAgendas = computed(() => sortAgendas(agendas.value))
-  const pendingCount = computed(() => agendas.value.filter(x => x.status === 'pending').length)
+  const pendingCount = computed(() => agendas.value.filter(x => x.item.status === 'pending').length)
   const dueCount = computed(() => agendas.value.filter(x => isOverdue(x)).length)
   const triggerCount = computed(() => agendas.value.reduce((n, x) => n + x.triggers.filter(t => t.enabled).length, 0))
 
@@ -113,10 +133,10 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
-  async function complete(row: AgendaItem) {
-    if (!await confirm(t('agenda.confirm_complete', { id: row.id }))) return
+  async function complete(row: AgendaRow) {
+    if (!await confirm(t('agenda.confirm_complete', { id: row.item.id }))) return
     try {
-      await apiFetch(`/api/agendas/${row.id}/complete`, 'POST', { agendaId: row.agendaId })
+      await apiFetch(`/api/agendas/${row.item.id}/complete`, 'POST', { agendaId: row.agendaId })
       show(t('common.saved'))
       await load()
     } catch (e: any) {
@@ -124,10 +144,10 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
-  async function cancel(row: AgendaItem) {
-    if (!await confirm(t('agenda.confirm_cancel', { id: row.id }), { danger: true })) return
+  async function cancel(row: AgendaRow) {
+    if (!await confirm(t('agenda.confirm_cancel', { id: row.item.id }), { danger: true })) return
     try {
-      await apiFetch(`/api/agendas/${row.id}/cancel`, 'POST', { agendaId: row.agendaId })
+      await apiFetch(`/api/agendas/${row.item.id}/cancel`, 'POST', { agendaId: row.agendaId })
       show(t('common.saved'))
       await load()
     } catch (e: any) {
@@ -135,10 +155,10 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
-  async function remove(row: AgendaItem) {
-    if (!await confirm(t('agenda.confirm_delete', { id: row.id }), { danger: true })) return
+  async function remove(row: AgendaRow) {
+    if (!await confirm(t('agenda.confirm_delete', { id: row.item.id }), { danger: true })) return
     try {
-      await apiFetch(`/api/agendas/${row.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
+      await apiFetch(`/api/agendas/${row.item.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
       show(t('common.deleted'))
       await load()
     } catch (e: any) {

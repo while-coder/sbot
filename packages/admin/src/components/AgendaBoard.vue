@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SButton, SSelect } from 'sbot-ui'
+import { SBadge, SButton, SEntityList, SSelect } from 'sbot-ui'
 import {
   firstNextFire,
   isOverdue,
   type AgendaCategory,
   type AgendaItem,
+  type AgendaOccurrence,
+  type AgendaOccurrenceStatus,
   type AgendaPriority,
+  type AgendaRow,
   type AgendaStatus,
   type AgendaStatusFilter,
   type AgendaTrigger,
@@ -15,7 +18,7 @@ import {
 } from '@/composables/useAgendas'
 
 const props = withDefaults(defineProps<{
-  items: AgendaItem[]
+  items: AgendaRow[]
   loading: boolean
   pendingCount: number
   dueCount: number
@@ -33,13 +36,12 @@ const emit = defineEmits<{
   (e: 'update:viewFilter', value: AgendaViewFilter): void
   (e: 'update:statusFilter', value: AgendaStatusFilter): void
   (e: 'refresh'): void
-  (e: 'complete', row: AgendaItem): void
-  (e: 'cancel', row: AgendaItem): void
-  (e: 'remove', row: AgendaItem): void
+  (e: 'complete', row: AgendaRow): void
+  (e: 'cancel', row: AgendaRow): void
+  (e: 'remove', row: AgendaRow): void
 }>()
 
 const { t } = useI18n()
-const selectedId = ref<number | null>(null)
 
 const viewOptions: Array<{ value: AgendaViewFilter; label: string }> = [
   { value: 'all', label: 'agenda.view_all' },
@@ -51,18 +53,6 @@ const viewOptions: Array<{ value: AgendaViewFilter; label: string }> = [
 
 const visibleCount = computed(() => props.items.length)
 const profileCount = computed(() => new Set(props.items.map(row => row.agendaId)).size)
-const selectedAgenda = computed(() => {
-  if (selectedId.value == null) return props.items[0] ?? null
-  return props.items.find(row => row.id === selectedId.value) ?? props.items[0] ?? null
-})
-
-watch(() => props.items, rows => {
-  if (rows.length === 0) {
-    selectedId.value = null
-    return
-  }
-  if (!rows.some(row => row.id === selectedId.value)) selectedId.value = rows[0].id
-}, { immediate: true })
 
 function priorityVariant(p: AgendaPriority): 'danger' | 'info' | 'neutral' {
   if (p === 'high') return 'danger'
@@ -82,21 +72,29 @@ function categoryVariant(c: AgendaCategory): 'success' | 'info' | 'warning' | 'n
   return 'neutral'
 }
 
+function occurrenceVariant(s: AgendaOccurrenceStatus): 'success' | 'warning' | 'neutral' {
+  if (s === 'done') return 'success'
+  if (s === 'pending') return 'warning'
+  return 'neutral'
+}
+
 function priorityLabel(p: AgendaPriority): string { return t(`agenda.priority_${p}`) }
 function statusLabel(s: AgendaStatus): string { return t(`agenda.status_${s}`) }
 function categoryLabel(c: AgendaCategory): string { return t(`agenda.category_${c}`) }
 function sourceLabel(s: AgendaItem['source']): string { return t(`agenda.source_${s}`) }
+function completionModeLabel(m: AgendaItem['completionMode']): string { return t(`agenda.completion_${m}`) }
 function triggerKindLabel(trigger: AgendaTrigger): string { return t(`agenda.trigger_${trigger.kind}`) }
 function triggerActionLabel(trigger: AgendaTrigger): string { return t(`agenda.action_${trigger.action}`) }
+function occurrenceStatusLabel(o: AgendaOccurrence): string { return t(`agenda.occurrence_${o.status}`) }
 
 function formatTime(ts: number | null | undefined): string {
   if (!ts) return t('agenda.no_time')
   return new Date(ts).toLocaleString()
 }
 
-function selectAgenda(row: AgendaItem) {
-  selectedId.value = row.id
-}
+function rowKeyFn(row: AgendaRow): number { return row.item.id }
+function pendingOccurrences(row: AgendaRow): number { return row.occurrences.filter(o => o.status === 'pending').length }
+function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t => t.enabled).length }
 </script>
 
 <template>
@@ -148,116 +146,97 @@ function selectAgenda(row: AgendaItem) {
       </div>
     </section>
 
-    <div class="agenda-main">
-      <section class="agenda-list-panel">
-        <div class="agenda-panel-header">
-          <h3>{{ t('agenda.list_title') }}</h3>
-          <span>{{ visibleCount }}</span>
-        </div>
+    <SEntityList
+      :items="items"
+      :row-key="rowKeyFn"
+      expandable
+      :loading="loading"
+      :loading-text="t('common.loading')"
+      :empty-text="t('agenda.empty')"
+    >
+      <template #title="{ item: row }">
+        <span class="agenda-row__id">#{{ row.item.id }}</span>
+        <span
+          class="agenda-row__content"
+          :class="{ 'agenda-row__content--done': row.item.status !== 'pending' }"
+        >{{ row.item.content }}</span>
+        <SBadge :variant="statusVariant(row.item.status)" size="xs">{{ statusLabel(row.item.status) }}</SBadge>
+        <SBadge :variant="categoryVariant(row.item.category)" size="xs">{{ categoryLabel(row.item.category) }}</SBadge>
+        <SBadge v-if="row.item.priority !== 'normal'" :variant="priorityVariant(row.item.priority)" size="xs">{{ priorityLabel(row.item.priority) }}</SBadge>
+        <SBadge v-if="isOverdue(row)" variant="danger" size="xs">{{ t('agenda.overdue') }}</SBadge>
+      </template>
 
-        <div v-if="loading" class="agenda-empty">{{ t('common.loading') }}</div>
-        <div v-else-if="items.length === 0" class="agenda-empty">{{ t('agenda.empty') }}</div>
-        <div v-else class="agenda-list">
-          <button
-            v-for="row in items"
-            :key="row.id"
-            type="button"
-            class="agenda-item"
-            :class="{
-              'agenda-item--selected': selectedAgenda?.id === row.id,
-              'agenda-item--done': row.status !== 'pending',
-            }"
-            @click="selectAgenda(row)"
-          >
-            <span class="agenda-item__top">
-              <span class="agenda-item__id">#{{ row.id }}</span>
-              <SBadge :variant="categoryVariant(row.category)" size="xs">{{ categoryLabel(row.category) }}</SBadge>
-              <SBadge :variant="priorityVariant(row.priority)" size="xs">{{ priorityLabel(row.priority) }}</SBadge>
-              <SBadge :variant="statusVariant(row.status)" size="xs">{{ statusLabel(row.status) }}</SBadge>
-            </span>
-            <span class="agenda-item__content">{{ row.content }}</span>
-            <span class="agenda-item__meta">
-              <span v-if="showProfile" class="agenda-item__profile">{{ row.agendaId.slice(0, 8) }}</span>
-              <span class="agenda-item__time" :class="{ 'agenda-item__time--overdue': isOverdue(row) }">
-                {{ t('agenda.due_col') }} {{ formatTime(row.dueAt) }}
-              </span>
-              <span class="agenda-item__time">
-                {{ t('agenda.next_fire_col') }} {{ formatTime(firstNextFire(row)) }}
-              </span>
-            </span>
-          </button>
-        </div>
-      </section>
+      <template #aside="{ item: row }">
+        <span v-if="firstNextFire(row)" class="agenda-row__next" :title="t('agenda.next_fire_col')">
+          ⏰ {{ formatTime(firstNextFire(row)) }}
+        </span>
+        <span v-else-if="row.item.dueAt" class="agenda-row__next" :class="{ 'agenda-row__next--overdue': isOverdue(row) }" :title="t('agenda.due_col')">
+          ⏳ {{ formatTime(row.item.dueAt) }}
+        </span>
+      </template>
 
-      <aside class="agenda-detail-panel">
-        <template v-if="selectedAgenda">
-          <div class="agenda-detail-head">
-            <div class="agenda-detail-title">
-              <span class="agenda-detail-id">#{{ selectedAgenda.id }}</span>
-              <h3>{{ selectedAgenda.content }}</h3>
-            </div>
-            <div class="agenda-detail-badges">
-              <SBadge :variant="categoryVariant(selectedAgenda.category)" size="sm">{{ categoryLabel(selectedAgenda.category) }}</SBadge>
-              <SBadge :variant="priorityVariant(selectedAgenda.priority)" size="sm">{{ priorityLabel(selectedAgenda.priority) }}</SBadge>
-              <SBadge :variant="statusVariant(selectedAgenda.status)" size="sm">{{ statusLabel(selectedAgenda.status) }}</SBadge>
-            </div>
-          </div>
+      <template #ops="{ item: row }">
+        <SButton v-if="row.item.status === 'pending'" type="primary" size="sm" @click="emit('complete', row)">{{ t('agenda.complete') }}</SButton>
+        <SButton v-if="row.item.status === 'pending'" type="outline" size="sm" @click="emit('cancel', row)">{{ t('agenda.cancel') }}</SButton>
+        <SButton type="danger" size="sm" @click="emit('remove', row)">{{ t('common.delete') }}</SButton>
+      </template>
 
-          <div class="agenda-detail-actions">
-            <SButton v-if="selectedAgenda.status === 'pending'" type="primary" size="sm" @click="emit('complete', selectedAgenda)">{{ t('agenda.complete') }}</SButton>
-            <SButton v-if="selectedAgenda.status === 'pending'" type="outline" size="sm" @click="emit('cancel', selectedAgenda)">{{ t('agenda.cancel') }}</SButton>
-            <SButton type="danger" size="sm" @click="emit('remove', selectedAgenda)">{{ t('common.delete') }}</SButton>
-          </div>
+      <template #meta="{ item: row }">
+        <span v-if="showProfile" class="agenda-meta-chip mono">{{ t('agenda.profile_col') }}: {{ row.agendaId.slice(0, 8) }}</span>
+        <span class="agenda-meta-chip">{{ t('agenda.source_col') }}: {{ sourceLabel(row.item.source) }}</span>
+        <span class="agenda-meta-chip">{{ t('agenda.completion_col') }}: {{ completionModeLabel(row.item.completionMode) }}</span>
+        <span v-if="row.triggers.length" class="agenda-meta-chip blue">
+          {{ t('agenda.triggers_col') }}: {{ activeTriggers(row) }}/{{ row.triggers.length }}
+        </span>
+        <span v-if="row.occurrences.length" class="agenda-meta-chip orange" :title="t('agenda.occurrence_chip_hint')">
+          {{ t('agenda.occurrence_section') }}: {{ pendingOccurrences(row) }}/{{ row.occurrences.length }}
+        </span>
+        <span v-if="row.item.dueAt" class="agenda-meta-chip" :class="{ overdue: isOverdue(row) }">
+          {{ t('agenda.due_col') }}: {{ formatTime(row.item.dueAt) }}
+        </span>
+      </template>
 
+      <template #expanded="{ item: row }">
+        <div class="agenda-expanded">
           <dl class="agenda-detail-grid">
-            <div v-if="showProfile">
-              <dt>{{ t('agenda.profile_col') }}</dt>
-              <dd class="agenda-mono">{{ selectedAgenda.agendaId }}</dd>
-            </div>
-            <div>
-              <dt>{{ t('agenda.source_col') }}</dt>
-              <dd>{{ sourceLabel(selectedAgenda.source) }}</dd>
-            </div>
-            <div>
-              <dt>{{ t('agenda.due_col') }}</dt>
-              <dd :class="{ 'agenda-time--overdue': isOverdue(selectedAgenda) }">{{ formatTime(selectedAgenda.dueAt) }}</dd>
-            </div>
-            <div>
-              <dt>{{ t('agenda.next_fire_col') }}</dt>
-              <dd>{{ formatTime(firstNextFire(selectedAgenda)) }}</dd>
-            </div>
             <div>
               <dt>{{ t('agenda.created_at') }}</dt>
-              <dd>{{ formatTime(selectedAgenda.createdAt) }}</dd>
+              <dd>{{ formatTime(row.item.createdAt) }}</dd>
             </div>
             <div>
               <dt>{{ t('agenda.updated_at') }}</dt>
-              <dd>{{ formatTime(selectedAgenda.updatedAt) }}</dd>
+              <dd>{{ formatTime(row.item.updatedAt) }}</dd>
+            </div>
+            <div v-if="row.item.doneAt">
+              <dt>{{ t('agenda.done_at') }}</dt>
+              <dd>{{ formatTime(row.item.doneAt) }}</dd>
+            </div>
+            <div v-if="showProfile">
+              <dt>{{ t('agenda.profile_col') }}</dt>
+              <dd class="mono">{{ row.agendaId }}</dd>
             </div>
           </dl>
 
-          <section class="agenda-trigger-section">
-            <div class="agenda-section-title">
+          <section class="agenda-sub-section">
+            <div class="agenda-sub-title">
               <h4>{{ t('agenda.trigger_details') }}</h4>
-              <SBadge variant="neutral" size="xs">{{ selectedAgenda.triggers.length }}</SBadge>
+              <SBadge variant="neutral" size="xs">{{ row.triggers.length }}</SBadge>
             </div>
-            <div v-if="selectedAgenda.triggers.length === 0" class="agenda-trigger-empty">{{ t('agenda.no_trigger') }}</div>
+            <div v-if="row.triggers.length === 0" class="agenda-sub-empty">{{ t('agenda.no_trigger') }}</div>
             <ul v-else class="agenda-trigger-list">
               <li
-                v-for="trigger in selectedAgenda.triggers"
+                v-for="trigger in row.triggers"
                 :key="trigger.id"
                 class="agenda-trigger-row"
                 :class="{ 'agenda-trigger-row--disabled': !trigger.enabled }"
               >
                 <div class="agenda-trigger-main">
                   <SBadge :variant="trigger.enabled ? 'success' : 'neutral'" size="xs">{{ triggerKindLabel(trigger) }}</SBadge>
-                  <span class="agenda-trigger-expr">{{ trigger.expr }}</span>
+                  <SBadge variant="info" size="xs">{{ triggerActionLabel(trigger) }}</SBadge>
+                  <SBadge v-if="trigger.derived" variant="neutral" size="xs">{{ t('agenda.trigger_derived') }}</SBadge>
+                  <code class="agenda-trigger-expr">{{ trigger.expr }}</code>
                 </div>
                 <dl class="agenda-trigger-grid">
-                  <div>
-                    <dt>{{ t('agenda.trigger_action') }}</dt>
-                    <dd>{{ triggerActionLabel(trigger) }}</dd>
-                  </div>
                   <div>
                     <dt>{{ t('agenda.trigger_next') }}</dt>
                     <dd>{{ formatTime(trigger.nextFireAt) }}</dd>
@@ -268,13 +247,13 @@ function selectAgenda(row: AgendaItem) {
                   </div>
                   <div>
                     <dt>{{ t('agenda.trigger_count') }}</dt>
-                    <dd>{{ trigger.fireCount }} / {{ trigger.maxFires || '-' }}</dd>
+                    <dd>{{ trigger.fireCount }} / {{ trigger.maxFires || '∞' }}</dd>
                   </div>
                   <div v-if="trigger.timezone">
                     <dt>{{ t('agenda.trigger_timezone') }}</dt>
                     <dd>{{ trigger.timezone }}</dd>
                   </div>
-                  <div v-if="trigger.message">
+                  <div v-if="trigger.message" class="agenda-trigger-msg">
                     <dt>{{ t('agenda.trigger_message') }}</dt>
                     <dd>{{ trigger.message }}</dd>
                   </div>
@@ -282,15 +261,35 @@ function selectAgenda(row: AgendaItem) {
               </li>
             </ul>
           </section>
-        </template>
-        <div v-else class="agenda-empty">{{ t('agenda.no_selection') }}</div>
-      </aside>
-    </div>
+
+          <section v-if="row.occurrences.length" class="agenda-sub-section">
+            <div class="agenda-sub-title">
+              <h4>{{ t('agenda.occurrence_section') }}</h4>
+              <SBadge variant="warning" size="xs">{{ pendingOccurrences(row) }} / {{ row.occurrences.length }}</SBadge>
+            </div>
+            <p class="agenda-sub-hint">{{ t('agenda.occurrence_hint') }}</p>
+            <ul class="agenda-occurrence-list">
+              <li
+                v-for="occ in row.occurrences"
+                :key="occ.id"
+                class="agenda-occurrence-row"
+                :class="{ 'agenda-occurrence-row--done': occ.status === 'done', 'agenda-occurrence-row--cancelled': occ.status === 'cancelled' }"
+              >
+                <SBadge :variant="occurrenceVariant(occ.status)" size="xs">{{ occurrenceStatusLabel(occ) }}</SBadge>
+                <span class="agenda-occurrence-time mono">{{ formatTime(occ.scheduledAt) }}</span>
+                <span v-if="occ.doneAt" class="agenda-occurrence-time mono muted">→ {{ formatTime(occ.doneAt) }}</span>
+              </li>
+            </ul>
+          </section>
+        </div>
+      </template>
+    </SEntityList>
   </div>
 </template>
 
 <style scoped>
 .agenda-board { min-height: 100%; }
+
 .agenda-summary {
   display: grid;
   grid-template-columns: repeat(5, minmax(120px, 1fr));
@@ -304,9 +303,20 @@ function selectAgenda(row: AgendaItem) {
   border: 1px solid var(--sui-border);
   border-radius: var(--sui-radius-md);
   background: var(--sui-bg);
+  transition: border-color 120ms ease, background 120ms ease;
 }
-.agenda-stat--strong { border-color: var(--sui-border-strong); }
-.agenda-stat--danger { border-color: var(--sui-danger); }
+.agenda-stat--strong {
+  border-color: var(--sui-info);
+  background: var(--sui-info-soft);
+}
+.agenda-stat--strong .agenda-stat__label,
+.agenda-stat--strong .agenda-stat__value { color: var(--sui-on-info-soft); }
+.agenda-stat--danger {
+  border-color: var(--sui-danger);
+  background: var(--sui-danger-soft);
+}
+.agenda-stat--danger .agenda-stat__label,
+.agenda-stat--danger .agenda-stat__value { color: var(--sui-on-danger-soft); }
 .agenda-stat__label {
   display: block;
   color: var(--sui-fg-muted);
@@ -321,7 +331,7 @@ function selectAgenda(row: AgendaItem) {
   color: var(--sui-fg);
   line-height: 1.1;
 }
-.agenda-stat--danger .agenda-stat__value { color: var(--sui-danger); }
+
 .agenda-controls {
   display: flex;
   align-items: center;
@@ -345,202 +355,201 @@ function selectAgenda(row: AgendaItem) {
   padding: var(--sui-sp-2) var(--sui-sp-4);
   font-size: var(--sui-fs-sm);
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 .agenda-view-tab:hover { background: var(--sui-bg-hover); }
 .agenda-view-tab--active {
   border-color: var(--sui-primary);
   background: var(--sui-info-soft);
-  color: var(--sui-primary);
+  color: var(--sui-on-info-soft);
   font-weight: 600;
 }
 .agenda-status-select { width: 150px; }
-.agenda-main {
-  display: grid;
-  grid-template-columns: minmax(360px, 1fr) minmax(360px, 0.9fr);
-  gap: var(--sui-sp-4);
-  align-items: start;
-}
-.agenda-board--compact .agenda-main {
-  grid-template-columns: minmax(300px, 1fr) minmax(300px, 0.9fr);
-}
-.agenda-list-panel,
-.agenda-detail-panel {
-  min-width: 0;
-  border: 1px solid var(--sui-border);
-  border-radius: var(--sui-radius-md);
-  background: var(--sui-bg);
-  overflow: hidden;
-}
-.agenda-detail-panel {
-  position: sticky;
-  top: var(--sui-sp-4);
-}
-.agenda-board--compact .agenda-detail-panel { position: static; }
-.agenda-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sui-sp-3);
-  padding: var(--sui-sp-4) var(--sui-sp-5);
-  border-bottom: 1px solid var(--sui-border);
-}
-.agenda-panel-header h3,
-.agenda-detail-title h3,
-.agenda-section-title h4 {
-  margin: 0;
-  color: var(--sui-fg);
-}
-.agenda-panel-header h3,
-.agenda-detail-title h3 { font-size: var(--sui-fs-lg); }
-.agenda-panel-header span {
+
+/* ── Row title / aside / meta ── */
+.agenda-row__id {
   font-family: var(--sui-font-mono);
   color: var(--sui-fg-muted);
   font-size: var(--sui-fs-sm);
+  flex-shrink: 0;
 }
-.agenda-list {
-  max-height: calc(100vh - 300px);
-  overflow: auto;
+.agenda-row__content {
+  font-weight: 600;
+  color: var(--sui-fg);
+  overflow-wrap: anywhere;
+  flex: 1 1 auto;
+  min-width: 0;
 }
-.agenda-board--compact .agenda-list { max-height: 52vh; }
-.agenda-item {
-  display: block;
-  width: 100%;
-  padding: var(--sui-sp-4) var(--sui-sp-5);
-  border: none;
-  border-bottom: 1px solid var(--sui-border);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-.agenda-item:last-child { border-bottom: none; }
-.agenda-item:hover { background: var(--sui-bg-hover); }
-.agenda-item--selected {
-  background: var(--sui-info-soft);
-  box-shadow: inset 3px 0 0 var(--sui-info);
-}
-.agenda-item--done .agenda-item__content {
+.agenda-row__content--done {
   color: var(--sui-fg-muted);
   text-decoration: line-through;
 }
-.agenda-item__top,
-.agenda-item__meta,
-.agenda-detail-badges,
-.agenda-detail-actions,
-.agenda-section-title,
+.agenda-row__next {
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-fg-secondary);
+  white-space: nowrap;
+}
+.agenda-row__next--overdue { color: var(--sui-danger); font-weight: 600; }
+
+.agenda-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--sui-bg-hover);
+  color: var(--sui-fg-secondary);
+  font-size: var(--sui-fs-xs);
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agenda-meta-chip.mono { font-family: var(--sui-font-mono); }
+.agenda-meta-chip.blue {
+  background: var(--sui-info-soft);
+  color: var(--sui-on-info-soft);
+}
+.agenda-meta-chip.orange {
+  background: var(--sui-warning-soft);
+  color: var(--sui-on-warning-soft);
+}
+.agenda-meta-chip.overdue {
+  background: var(--sui-danger-soft);
+  color: var(--sui-on-danger-soft);
+  font-weight: 600;
+}
+
+/* ── Expanded body ── */
+.agenda-expanded {
+  padding: var(--sui-sp-4) var(--sui-sp-5);
+  background: var(--sui-bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sui-sp-4);
+}
+.agenda-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sui-sp-3);
+  margin: 0;
+}
+.agenda-detail-grid div { min-width: 0; }
+.agenda-detail-grid dt {
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-xs);
+}
+.agenda-detail-grid dd {
+  margin: var(--sui-sp-1) 0 0;
+  color: var(--sui-fg);
+  font-size: var(--sui-fs-sm);
+  overflow-wrap: anywhere;
+}
+.agenda-detail-grid dd.mono { font-family: var(--sui-font-mono); }
+
+.agenda-sub-section {
+  background: var(--sui-bg);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-md);
+  padding: var(--sui-sp-3) var(--sui-sp-4);
+}
+.agenda-sub-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  margin-bottom: var(--sui-sp-3);
+}
+.agenda-sub-title h4 {
+  margin: 0;
+  color: var(--sui-fg);
+  font-size: var(--sui-fs-md);
+}
+.agenda-sub-empty {
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+  padding: var(--sui-sp-3) 0;
+}
+
+.agenda-trigger-list,
+.agenda-occurrence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sui-sp-2);
+}
+.agenda-trigger-row {
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-sm);
+  padding: var(--sui-sp-2) var(--sui-sp-3);
+  background: var(--sui-bg-soft);
+}
+.agenda-trigger-row--disabled { opacity: 0.6; }
 .agenda-trigger-main {
   display: flex;
   align-items: center;
   gap: var(--sui-sp-2);
   flex-wrap: wrap;
 }
-.agenda-item__id,
-.agenda-detail-id,
-.agenda-mono {
+.agenda-trigger-expr {
   font-family: var(--sui-font-mono);
-  color: var(--sui-fg-muted);
-}
-.agenda-item__content {
-  display: block;
-  margin-top: var(--sui-sp-2);
-  color: var(--sui-fg);
-  font-weight: 600;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-.agenda-item__meta {
-  margin-top: var(--sui-sp-2);
-  color: var(--sui-fg-muted);
   font-size: var(--sui-fs-sm);
-}
-.agenda-item__profile { font-family: var(--sui-font-mono); }
-.agenda-item__time--overdue,
-.agenda-time--overdue { color: var(--sui-danger); font-weight: 600; }
-.agenda-detail-panel { padding: var(--sui-sp-5); }
-.agenda-detail-head {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sui-sp-4);
-  align-items: flex-start;
-}
-.agenda-detail-title { min-width: 0; }
-.agenda-detail-title h3 {
-  margin-top: var(--sui-sp-1);
-  line-height: 1.35;
+  color: var(--sui-fg-secondary);
+  background: var(--sui-bg);
+  padding: 1px 6px;
+  border-radius: var(--sui-radius-sm);
   overflow-wrap: anywhere;
 }
-.agenda-detail-actions {
-  margin-top: var(--sui-sp-4);
-  padding-bottom: var(--sui-sp-4);
-  border-bottom: 1px solid var(--sui-border);
-}
-.agenda-detail-grid,
 .agenda-trigger-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sui-sp-3);
-  margin: var(--sui-sp-4) 0 0;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sui-sp-2) var(--sui-sp-3);
+  margin: var(--sui-sp-2) 0 0;
 }
-.agenda-detail-grid div,
 .agenda-trigger-grid div { min-width: 0; }
-.agenda-detail-grid dt,
 .agenda-trigger-grid dt {
   color: var(--sui-fg-muted);
   font-size: var(--sui-fs-xs);
 }
-.agenda-detail-grid dd,
 .agenda-trigger-grid dd {
-  margin: var(--sui-sp-1) 0 0;
+  margin: 0;
   color: var(--sui-fg);
   font-size: var(--sui-fs-sm);
   overflow-wrap: anywhere;
 }
-.agenda-trigger-section { margin-top: var(--sui-sp-5); }
-.agenda-section-title {
-  justify-content: space-between;
-  padding-top: var(--sui-sp-4);
-  border-top: 1px solid var(--sui-border);
-}
-.agenda-section-title h4 { font-size: var(--sui-fs-md); }
-.agenda-trigger-empty,
-.agenda-empty {
-  padding: var(--sui-sp-8);
-  color: var(--sui-fg-muted);
-  text-align: center;
-}
-.agenda-trigger-list {
-  list-style: none;
-  margin: var(--sui-sp-3) 0 0;
-  padding: 0;
+.agenda-trigger-msg { grid-column: 1 / -1; }
+
+.agenda-occurrence-row {
   display: flex;
-  flex-direction: column;
-  gap: var(--sui-sp-3);
-}
-.agenda-trigger-row {
-  border: 1px solid var(--sui-border);
-  border-radius: var(--sui-radius-md);
-  padding: var(--sui-sp-3);
-}
-.agenda-trigger-row--disabled { opacity: 0.65; }
-.agenda-trigger-expr {
-  font-family: var(--sui-font-mono);
-  color: var(--sui-fg-secondary);
+  align-items: center;
+  gap: var(--sui-sp-2);
+  padding: var(--sui-sp-1) var(--sui-sp-2);
+  border-radius: var(--sui-radius-sm);
   font-size: var(--sui-fs-sm);
-  overflow-wrap: anywhere;
 }
+.agenda-occurrence-row--done { opacity: 0.65; }
+.agenda-occurrence-row--cancelled {
+  background: var(--sui-bg-soft);
+  color: var(--sui-fg-muted);
+  text-decoration: line-through;
+}
+.agenda-sub-hint {
+  margin: 0 0 var(--sui-sp-2);
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-xs);
+  line-height: 1.5;
+}
+.agenda-occurrence-time { color: var(--sui-fg); }
+.agenda-occurrence-time.mono { font-family: var(--sui-font-mono); }
+.agenda-occurrence-time.muted { color: var(--sui-fg-muted); }
 
 @media (max-width: 1100px) {
   .agenda-summary { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
-  .agenda-main,
-  .agenda-board--compact .agenda-main { grid-template-columns: 1fr; }
-  .agenda-detail-panel { position: static; }
-  .agenda-list { max-height: none; }
 }
-
 @media (max-width: 700px) {
   .agenda-summary,
   .agenda-board--compact .agenda-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .agenda-detail-head { flex-direction: column; }
-  .agenda-detail-grid,
-  .agenda-trigger-grid { grid-template-columns: 1fr; }
+  .agenda-meta-chip { max-width: 100%; }
 }
 </style>

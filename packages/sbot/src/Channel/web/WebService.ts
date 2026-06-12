@@ -110,7 +110,6 @@ export class WebService implements IChannelService {
                     const raw = data.toString();
                     const msg = JSON.parse(raw) as { type?: string;[key: string]: any };
                     const { session, profileId, channelSessionId } = await this.resolveIncomingSession(msg);
-                    logger.debug(`ws recv: type=${msg.type} profileId=${profileId} channelSessionId=${channelSessionId} bytes=${raw.length}`);
                     switch (msg.type) {
                         case WsCommandType.Query: {
                             const partsCount = msg.parts?.length ?? 0;
@@ -129,7 +128,6 @@ export class WebService implements IChannelService {
                                 logger.debug(`ws query empty: profileId=${profileId} parts=${partsCount} attachments=${attCount}`);
                                 break;
                             }
-                            logger.debug(`ws query dispatch: profileId=${profileId} dbSessionId=${session.id} parts=${partsCount} attachments=${attCount} enrichedType=${typeof enriched === 'string' ? 'text' : 'parts'}`);
                             sessionManager.onReceiveChannelMessage(enriched, {
                                 channelType: WEB_CHANNEL_TYPE,
                                 channelId: WEB_CHANNEL_ID,
@@ -156,11 +154,9 @@ export class WebService implements IChannelService {
     }
 
     broadcast(data: string): void {
-        let sent = 0;
         for (const ws of this.wsClients) {
-            if (ws.readyState === WebSocket.OPEN) { ws.send(data); sent++; }
+            if (ws.readyState === WebSocket.OPEN) { ws.send(data); }
         }
-        logger.debug(`broadcast: sent=${sent}/${this.wsClients.size} bytes=${data.length}`);
     }
 
     // ── IChannelService ──
