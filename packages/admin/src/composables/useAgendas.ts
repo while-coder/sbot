@@ -23,8 +23,6 @@ export interface AgendaTrigger {
   maxFires: number
   lastFiredAt: number | null
   nextFireAt: number | null
-  skipNextFireAt: number | null
-  skipFireCount: number | null
   createdAt: number
 }
 
@@ -137,16 +135,6 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
-  async function skipNext(row: AgendaItem) {
-    try {
-      await apiFetch(`/api/agendas/${row.id}/skip-next`, 'POST', { agendaId: row.agendaId })
-      show(t('agenda.skipped_next'))
-      await load()
-    } catch (e: any) {
-      show(e.message, 'error')
-    }
-  }
-
   async function remove(row: AgendaItem) {
     if (!await confirm(t('agenda.confirm_delete', { id: row.id }), { danger: true })) return
     try {
@@ -170,7 +158,6 @@ export function useAgendas(opts: UseAgendasOptions) {
     load,
     complete,
     cancel,
-    skipNext,
     remove,
   }
 }

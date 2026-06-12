@@ -26,7 +26,6 @@ const ADMIN_DESCS: AgendaToolDescs = {
     update: 'Update agenda item from admin API',
     complete: 'Complete agenda item from admin API',
     cancel: 'Cancel agenda item from admin API',
-    skipNext: 'Skip next agenda trigger from admin API',
 };
 
 function num(v: unknown): number | undefined {
@@ -101,7 +100,6 @@ export class AgendaRoutes {
 
         app.post('/api/agendas/:id/complete', api(req => this.applyItemAction(req, 'complete')));
         app.post('/api/agendas/:id/cancel', api(req => this.applyItemAction(req, 'cancel')));
-        app.post('/api/agendas/:id/skip-next', api(req => this.applyItemAction(req, 'skipNext')));
 
         app.delete('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);
@@ -132,14 +130,13 @@ export class AgendaRoutes {
         return 'all';
     }
 
-    private async applyItemAction(req: express.Request, action: 'complete' | 'cancel' | 'skipNext') {
+    private async applyItemAction(req: express.Request, action: 'complete' | 'cancel') {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
         const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
         const service = await this.createService(agendaId, 0);
         if (action === 'complete') return service.complete(id);
-        if (action === 'cancel') return service.cancel(id);
-        return service.skipNext(id);
+        return service.cancel(id);
     }
 
     private async createService(agendaId: string, channelSessionId: number): Promise<AgendaService> {

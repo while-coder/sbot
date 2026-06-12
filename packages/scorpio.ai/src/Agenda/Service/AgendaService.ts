@@ -220,32 +220,6 @@ export class AgendaService implements IAgendaService {
         return this.getView(id);
     }
 
-    async skipNext(id: number): Promise<AgendaItemView | null> {
-        const item = await this.requireOwnedItem(id);
-        if (!item) return null;
-        const record = await this.agendaStore.findItem(id);
-        const trigger = record?.triggers
-            .filter(t => t.enabled && t.nextFireAt)
-            .sort((a, b) => (a.nextFireAt ?? 0) - (b.nextFireAt ?? 0))[0];
-        if (!trigger) return this.getView(id);
-        if (trigger.kind === AgendaTriggerKind.Absolute) {
-            await this.agendaStore.updateTrigger(trigger.id, {
-                enabled: false,
-                nextFireAt: null,
-                skipNextFireAt: trigger.nextFireAt,
-                skipFireCount: trigger.fireCount ?? 0,
-            });
-            this.triggerEngine.cancel(trigger.id);
-        } else {
-            await this.agendaStore.updateTrigger(trigger.id, {
-                skipNextFireAt: trigger.nextFireAt,
-                skipFireCount: trigger.fireCount ?? 0,
-            });
-            await this.triggerEngine.reload(trigger.id);
-        }
-        return this.getView(id);
-    }
-
     async delete(id: number): Promise<AgendaRecord | null> {
         const data = await this.agendaStore.deleteItem(id);
         if (data) for (const trigger of data.triggers) this.triggerEngine.cancel(trigger.id);
@@ -337,8 +311,6 @@ export class AgendaService implements IAgendaService {
             maxFires,
             lastFiredAt: null,
             nextFireAt,
-            skipNextFireAt: null,
-            skipFireCount: null,
             derived,
             createdAt: now,
         });

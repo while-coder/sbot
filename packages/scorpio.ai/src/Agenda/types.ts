@@ -107,8 +107,6 @@ export enum AgendaOccurrenceStatus {
     Done = 'done',
     /** 已取消。 */
     Cancelled = 'cancelled',
-    /** 被 skipNext 等机制跳过。 */
-    Skipped = 'skipped',
 }
 
 /**
@@ -374,10 +372,6 @@ export interface AgendaTrigger {
      * 引擎按这个值调度 setTimeout。
      */
     nextFireAt: number | null;
-    /** skipNext 标记的待跳过时刻；触发时若匹配则不实际投递。 */
-    skipNextFireAt: number | null;
-    /** skipNext 标记的待跳过 fireCount；fireCount 达到时不实际投递。 */
-    skipFireCount: number | null;
     /**
      * 是否由系统从 dueAt 派生（true = 由 withDefaultDueAtTrigger 注入）。
      * update 改 dueAt 时只动 derived=true 的 trigger，避免误伤用户显式建的调度。

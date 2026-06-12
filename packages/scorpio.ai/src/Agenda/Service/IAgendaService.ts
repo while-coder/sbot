@@ -12,7 +12,6 @@ export interface AgendaToolDescs {
     update: string;
     complete: string;
     cancel: string;
-    skipNext: string;
 }
 
 export interface IAgendaService {
@@ -22,7 +21,6 @@ export interface IAgendaService {
     update(id: number, patch: AgendaUpdatePatch): Promise<AgendaItemView | null>;
     complete(id: number): Promise<AgendaItemView | null>;
     cancel(id: number): Promise<AgendaItemView | null>;
-    skipNext(id: number): Promise<AgendaItemView | null>;
     formatForLLM(filter?: AgendaListFilter): Promise<string>;
     extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void>;
 }

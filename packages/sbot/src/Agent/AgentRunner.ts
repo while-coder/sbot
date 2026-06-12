@@ -297,7 +297,6 @@ export class AgentRunner {
                 update: loadPrompt('agenda/tools/update.txt'),
                 complete: loadPrompt('agenda/tools/complete.txt'),
                 cancel: loadPrompt('agenda/tools/cancel.txt'),
-                skipNext: loadPrompt('agenda/tools/skip_next.txt'),
             },
             [IAgendaStore]: agendaStorePool.get(agendaId),
             [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(agendaId),

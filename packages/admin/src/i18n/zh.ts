@@ -567,8 +567,6 @@ export default {
     no_trigger: '无触发器',
     complete: '完成',
     cancel: '取消事项',
-    skip_next: '跳过下次',
-    skipped_next: '已跳过下次触发',
     confirm_delete: '删除事项 #{id}？',
     confirm_complete: '完成事项 #{id}？',
     confirm_cancel: '取消事项 #{id}？',

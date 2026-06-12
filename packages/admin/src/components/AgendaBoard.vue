@@ -35,7 +35,6 @@ const emit = defineEmits<{
   (e: 'refresh'): void
   (e: 'complete', row: AgendaItem): void
   (e: 'cancel', row: AgendaItem): void
-  (e: 'skip-next', row: AgendaItem): void
   (e: 'remove', row: AgendaItem): void
 }>()
 
@@ -93,10 +92,6 @@ function triggerActionLabel(trigger: AgendaTrigger): string { return t(`agenda.a
 function formatTime(ts: number | null | undefined): string {
   if (!ts) return t('agenda.no_time')
   return new Date(ts).toLocaleString()
-}
-
-function canSkip(row: AgendaItem): boolean {
-  return row.status === 'pending' && row.triggers.some(trigger => trigger.enabled && trigger.nextFireAt)
 }
 
 function selectAgenda(row: AgendaItem) {
@@ -211,7 +206,6 @@ function selectAgenda(row: AgendaItem) {
           <div class="agenda-detail-actions">
             <SButton v-if="selectedAgenda.status === 'pending'" type="primary" size="sm" @click="emit('complete', selectedAgenda)">{{ t('agenda.complete') }}</SButton>
             <SButton v-if="selectedAgenda.status === 'pending'" type="outline" size="sm" @click="emit('cancel', selectedAgenda)">{{ t('agenda.cancel') }}</SButton>
-            <SButton v-if="canSkip(selectedAgenda)" type="outline" size="sm" @click="emit('skip-next', selectedAgenda)">{{ t('agenda.skip_next') }}</SButton>
             <SButton type="danger" size="sm" @click="emit('remove', selectedAgenda)">{{ t('common.delete') }}</SButton>
           </div>
 

@@ -65,8 +65,6 @@ export class AgendaStore implements IAgendaStore {
                     maxFires       INTEGER NOT NULL,
                     lastFiredAt    INTEGER,
                     nextFireAt     INTEGER,
-                    skipNextFireAt INTEGER,
-                    skipFireCount  INTEGER,
                     derived        INTEGER NOT NULL DEFAULT 0,
                     createdAt      INTEGER NOT NULL
                 );
@@ -210,12 +208,10 @@ export class AgendaStore implements IAgendaStore {
             this.db.prepare(`
                 INSERT INTO triggers (
                     id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
-                    fireCount, maxFires, lastFiredAt, nextFireAt, skipNextFireAt,
-                    skipFireCount, derived, createdAt
+                    fireCount, maxFires, lastFiredAt, nextFireAt, derived, createdAt
                 ) VALUES (
                     @id, @itemId, @kind, @expr, @timezone, @action, @message, @channelHint, @enabled,
-                    @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @skipNextFireAt,
-                    @skipFireCount, @derived, @createdAt
+                    @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @derived, @createdAt
                 )
             `).run({ ...row, enabled: row.enabled ? 1 : 0, derived: row.derived ? 1 : 0 });
             return row;

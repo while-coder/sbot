@@ -567,8 +567,6 @@ export default {
     no_trigger: 'No trigger',
     complete: 'Complete',
     cancel: 'Cancel item',
-    skip_next: 'Skip next',
-    skipped_next: 'Next trigger skipped',
     confirm_delete: 'Delete agenda item #{id}?',
     confirm_complete: 'Complete agenda item #{id}?',
     confirm_cancel: 'Cancel agenda item #{id}?',

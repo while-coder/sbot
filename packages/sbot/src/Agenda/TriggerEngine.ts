@@ -118,10 +118,6 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
             }
 
             const scheduledAt = freshTrigger.nextFireAt ?? Date.now();
-            if (this.shouldSkip(freshTrigger, scheduledAt)) {
-                await this.advanceAfterFire(freshTrigger, item, scheduledAt, false);
-                return;
-            }
 
             let delivered = false;
             const delivery = await resolveAgendaDelivery(this.agendaId, item, freshTrigger);
@@ -157,8 +153,6 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                     await this.store.updateTrigger(freshTrigger.id, {
                         enabled: false,
                         nextFireAt: null,
-                        skipNextFireAt: null,
-                        skipFireCount: null,
                     });
                     logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed past retry deadline; giving up`);
                     return;
@@ -166,8 +160,6 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 await this.store.updateTrigger(freshTrigger.id, {
                     enabled: false,
                     nextFireAt: null,
-                    skipNextFireAt: null,
-                    skipFireCount: null,
                 });
                 logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed; expr unparseable, giving up`);
                 return;
@@ -183,7 +175,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 });
             }
 
-            await this.advanceAfterFire(freshTrigger, item, scheduledAt, true);
+            await this.advanceAfterFire(freshTrigger, item, scheduledAt);
         });
     }
 
@@ -196,38 +188,29 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         return trigger.message || item.content;
     }
 
-    private shouldSkip(trigger: AgendaTrigger, scheduledAt: number): boolean {
-        if (trigger.skipFireCount != null) return trigger.skipFireCount === (trigger.fireCount ?? 0);
-        return Boolean(trigger.skipNextFireAt && Math.abs(trigger.skipNextFireAt - scheduledAt) < 60 * 1000);
-    }
-
     private async markMissed(trigger: AgendaTrigger, scheduledAt: number): Promise<void> {
         await this.store.updateTrigger(trigger.id, {
             enabled: false,
             nextFireAt: null,
-            skipNextFireAt: null,
-            skipFireCount: null,
         });
         logger.warn(`Agenda trigger [${trigger.id}] missed scheduled fire at ${new Date(scheduledAt).toISOString()} beyond grace window`);
     }
 
-    private async advanceAfterFire(trigger: AgendaTrigger, item: AgendaItem, scheduledAt: number, countFire: boolean): Promise<void> {
+    private async advanceAfterFire(trigger: AgendaTrigger, item: AgendaItem, scheduledAt: number): Promise<void> {
         const now = Date.now();
-        const fireCount = countFire ? (trigger.fireCount ?? 0) + 1 : trigger.fireCount ?? 0;
+        const fireCount = (trigger.fireCount ?? 0) + 1;
         const maxReached = trigger.maxFires > 0 && fireCount >= trigger.maxFires;
         const nextFireAt = maxReached ? null : computeNextAfterFire({ ...trigger, fireCount }, now);
         const enabled = Boolean(nextFireAt);
 
         await this.store.updateTrigger(trigger.id, {
             fireCount,
-            lastFiredAt: countFire ? now : trigger.lastFiredAt,
+            lastFiredAt: now,
             nextFireAt,
             enabled,
-            skipNextFireAt: null,
-            skipFireCount: null,
         });
 
-        if (countFire && item.completionMode === AgendaCompletionMode.None && !enabled) {
+        if (item.completionMode === AgendaCompletionMode.None && !enabled) {
             await this.store.updateItem(item.id, {
                 status: AgendaStatus.Done,
                 doneAt: now,

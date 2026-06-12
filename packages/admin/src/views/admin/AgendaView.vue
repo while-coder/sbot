@@ -18,7 +18,6 @@ const {
   load,
   complete,
   cancel,
-  skipNext,
   remove,
 } = useAgendas({ buildQuery: () => '', limit: 1000 })
 
@@ -43,7 +42,6 @@ onMounted(load)
           @refresh="load"
           @complete="complete"
           @cancel="cancel"
-          @skip-next="skipNext"
           @remove="remove"
         />
       </div>

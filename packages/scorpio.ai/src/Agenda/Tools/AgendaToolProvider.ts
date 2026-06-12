@@ -20,7 +20,6 @@ export const AGENDA_LIST_TOOL_NAME = 'agenda_list' as const;
 export const AGENDA_UPDATE_TOOL_NAME = 'agenda_update' as const;
 export const AGENDA_COMPLETE_TOOL_NAME = 'agenda_complete' as const;
 export const AGENDA_CANCEL_TOOL_NAME = 'agenda_cancel' as const;
-export const AGENDA_SKIP_NEXT_TOOL_NAME = 'agenda_skip_next' as const;
 
 const RelativeTimeSchema = z.object({
     amount: z.number().describe('Positive amount'),
@@ -142,19 +141,6 @@ export class AgendaToolProvider {
                         return item ? `Cancelled agenda #${item.id}: ${item.content}` : `Agenda #${id} not found.`;
                     } catch (e: any) {
                         return `Failed to cancel agenda #${id}: ${e.message}`;
-                    }
-                },
-            }),
-            new DynamicStructuredTool({
-                name: AGENDA_SKIP_NEXT_TOOL_NAME,
-                description: descs.skipNext,
-                schema: z.object({ id: z.number() }),
-                func: async ({ id }: { id: number }) => {
-                    try {
-                        const item = await agendaService.skipNext(id);
-                        return item ? `Skipped next trigger for agenda #${item.id}: ${item.content}` : `Agenda #${id} not found.`;
-                    } catch (e: any) {
-                        return `Failed to skip next agenda trigger #${id}: ${e.message}`;
                     }
                 },
             }),

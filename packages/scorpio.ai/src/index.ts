@@ -267,7 +267,6 @@ export {
   AGENDA_UPDATE_TOOL_NAME,
   AGENDA_COMPLETE_TOOL_NAME,
   AGENDA_CANCEL_TOOL_NAME,
-  AGENDA_SKIP_NEXT_TOOL_NAME,
   AgendaStatus,
   AgendaPriority,
   AgendaCategory,
