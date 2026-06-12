@@ -1,16 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, init, T_WikiSystemPromptTemplate, T_WikiToolDescs } from "../../Core";
-import { HybridSearcher, SearchableItem } from "../../Retrieval/HybridSearcher";
+import { inject, init, T_WikiSystemPromptTemplate, T_WikiToolDescs, T_WikiCachePath } from "../../Core";
+import { HybridSearcher } from "../../Retrieval/HybridSearcher";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
 import { WikiPage } from "../Types";
 import { IWikiService } from "./IWikiService";
 import { WikiToolDescs } from "../Tools/WikiToolProvider";
 
-const toSearchable = (page: WikiPage): SearchableItem => ({
-  key: page.id,
-  text: page.title + '\n' + page.tags.join(' ') + '\n' + page.content,
-  embeddingText: page.title,
-});
+const toText = (page: WikiPage): string => page.title;
 
 export class WikiService implements IWikiService {
   private searcher: HybridSearcher;
@@ -19,8 +15,9 @@ export class WikiService implements IWikiService {
     @inject(IWikiDatabase) private db: IWikiDatabase,
     @inject(T_WikiSystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_WikiToolDescs) private toolDescs: WikiToolDescs,
+    @inject(T_WikiCachePath) cachePath: string,
   ) {
-    this.searcher = new HybridSearcher({});
+    this.searcher = new HybridSearcher({ cachePath });
   }
 
   @init()
@@ -100,7 +97,7 @@ export class WikiService implements IWikiService {
   async search(query: string, limit: number = 5): Promise<WikiPage[]> {
     const pages = await this.db.getAll();
     if (pages.length === 0) return [];
-    const results = await this.searcher.search(query, pages, toSearchable, limit);
+    const results = await this.searcher.search(query, pages, toText, limit);
     return results.map(r => r.item);
   }
 

@@ -16,6 +16,7 @@ import {
     WikiService,
     T_WikiSystemPromptTemplate,
     T_WikiToolDescs,
+    T_WikiCachePath,
     IMemoryService,
     IAgendaService,
     AgendaService,
@@ -225,6 +226,7 @@ export class AgentRunner {
         sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
 
         const args: Record<string | symbol, any> = {
+            [T_WikiCachePath]: wikiDir,
             [T_WikiSystemPromptTemplate]: loadPrompt('wiki/system.txt'),
             [T_WikiToolDescs]: {
                 search: loadPrompt('tools/wiki/search.txt'),

@@ -1,1 +1,4 @@
-export { HybridSearcher, type SearchableItem, type HybridSearchOptions } from './HybridSearcher';
+export {
+    HybridSearcher,
+    type HybridSearcherOptions,
+} from './HybridSearcher';

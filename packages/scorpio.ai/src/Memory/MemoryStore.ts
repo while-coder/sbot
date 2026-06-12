@@ -15,7 +15,7 @@ import {
     type ExtractJobStatus,
     type EnqueueExtractInput,
 } from "./IMemoryStore";
-import { buildFtsQuery } from "./FtsQuery";
+import { HybridSearcher } from "../Retrieval";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
@@ -32,6 +32,7 @@ export class MemoryStore implements IMemoryStore {
     public readonly memoriesDir: string;
     public readonly archiveDir: string;
     private _db: Database.Database | undefined;
+    private _searcher: HybridSearcher | undefined;
 
     constructor(
         @inject(T_MemoryDir) public readonly rootDir: string,
@@ -44,8 +45,21 @@ export class MemoryStore implements IMemoryStore {
     async init(): Promise<void> {
         if (!existsSync(this.memoriesDir)) mkdirSync(this.memoriesDir, { recursive: true });
         if (!existsSync(this.archiveDir)) mkdirSync(this.archiveDir, { recursive: true });
-        // 触发 lazy init
+        // 触发 lazy init（DB schema + HybridSearcher 自管 searcher.sqlite）
         void this.db;
+        void this.searcher;
+    }
+
+    /**
+     * HybridSearcher 自管 SQLite（searcher.sqlite 在 rootDir 下）。
+     * 与 memory.db 是两个独立文件：memory.db 装元数据 + 抽取队列；
+     * searcher.sqlite 装 FTS5 + embedding 缓存，可以独立重建。
+     */
+    private get searcher(): HybridSearcher {
+        if (!this._searcher) {
+            this._searcher = new HybridSearcher({ cachePath: this.rootDir });
+        }
+        return this._searcher;
     }
 
     private get db(): Database.Database {
@@ -70,25 +84,12 @@ export class MemoryStore implements IMemoryStore {
                 CREATE INDEX IF NOT EXISTS idx_memories_updated ON memories(updated_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_memories_lastread ON memories(last_read_at DESC, updated_at DESC);
 
-                CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
-                    title, body,
-                    content='memories',
-                    content_rowid='id',
-                    tokenize='unicode61 remove_diacritics 1'
-                );
-
-                -- external content FTS5 同步触发器（参考 MiMo migration 20260521020000）
-                -- DELETE / UPDATE 必须用 'delete' magic command，不能 DELETE FROM vtab
-                CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
-                    INSERT INTO memories_fts(rowid, title, body) VALUES (NEW.id, NEW.title, NEW.body);
-                END;
-                CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-                    INSERT INTO memories_fts(memories_fts, rowid, title, body) VALUES('delete', OLD.id, OLD.title, OLD.body);
-                END;
-                CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
-                    INSERT INTO memories_fts(memories_fts, rowid, title, body) VALUES('delete', OLD.id, OLD.title, OLD.body);
-                    INSERT INTO memories_fts(rowid, title, body) VALUES (NEW.id, NEW.title, NEW.body);
-                END;
+                -- FTS5 全文索引由 SqliteHybridIndex 持有（前缀 memory_，docs / docs_fts 表）。
+                -- 旧版 memories_fts 与触发器已迁移；如有残留通过 DROP IF EXISTS 兼容老库：
+                DROP TRIGGER IF EXISTS memories_ai;
+                DROP TRIGGER IF EXISTS memories_ad;
+                DROP TRIGGER IF EXISTS memories_au;
+                DROP TABLE   IF EXISTS memories_fts;
 
                 -- transcript 抽取队列（取代 codex-port 的 phase1_jobs）
                 CREATE TABLE IF NOT EXISTS memory_extract_jobs (
@@ -198,6 +199,7 @@ export class MemoryStore implements IMemoryStore {
         }
 
         this.db.prepare(`DELETE FROM memories WHERE slug = ?`).run(slug);
+        // FTS5 由 HybridSearcher 内部 syncCorpus 在下一次 search 时基于 list() 对账清理
         return archiveName;
     }
 
@@ -225,37 +227,31 @@ export class MemoryStore implements IMemoryStore {
     // ── 检索 ──
 
     async search(query: string, limit: number, floorRatio: number): Promise<MemorySearchHit[]> {
-        const fts = buildFtsQuery(query);
-        if (!fts) return [];
+        // 把当前所有 memories 喂进 HybridSearcher（内部 syncCorpus 自动对账 docs / docs_fts）。
+        // floorRatio 在归一化分数 [0,1] 上做：保留 #1，其余按 top * floorRatio 截断。
+        const all = await this.list();
+        if (all.length === 0) return [];
 
-        // over-fetch 3x（≤50）让 floor 把 common-word 噪音剔掉而不饿死结果列表
         const fetchLimit = Math.min(limit * 3, 50);
+        const hits = await this.searcher.search(
+            query,
+            all,
+            (row) => `${row.title}\n${row.body}`,
+            fetchLimit,
+        );
+        if (hits.length === 0) return [];
 
-        // bm25() lower=better；外部内容 vtab 通过 rowid join 回 base 表
-        const rows = this.db.prepare(`
-            SELECT memories.slug   AS slug,
-                   memories.title  AS title,
-                   snippet(memories_fts, 1, '<<', '>>', '...', 32) AS snippet,
-                   bm25(memories_fts) AS score
-            FROM memories_fts
-            JOIN memories ON memories.id = memories_fts.rowid
-            WHERE memories_fts MATCH @fts
-            ORDER BY score
-            LIMIT @limit
-        `).all({ fts, limit: fetchLimit }) as Array<{ slug: string; title: string; snippet: string; score: number }>;
-
-        if (rows.length === 0) return [];
-
-        const mapped: MemorySearchHit[] = rows.map(r => ({
-            slug: r.slug,
-            title: r.title,
-            snippet: r.snippet,
-            score: -r.score,  // 转成 higher=better 给调用方
-        }));
-        // 始终保留 #1（hit 就是 hit），其余按 floorRatio 截断
-        const top = mapped[0].score;
+        const top = hits[0].score;
         const cutoff = floorRatio > 0 ? top * floorRatio : -Infinity;
-        return mapped.filter((r, i) => i === 0 || r.score >= cutoff).slice(0, limit);
+        return hits
+            .filter((r, i) => i === 0 || r.score >= cutoff)
+            .slice(0, limit)
+            .map(h => ({
+                slug: h.item.slug,
+                title: h.item.title,
+                snippet: h.snippet ?? '',
+                score: h.score,
+            }));
     }
 
     async recordRead(slug: string, now: number): Promise<void> {
@@ -286,7 +282,7 @@ export class MemoryStore implements IMemoryStore {
         const indexed = this.db.prepare(`SELECT slug, fingerprint FROM memories`).all() as Array<{ slug: string; fingerprint: string }>;
         const indexedMap = new Map(indexed.map(r => [this.slugToPath(r.slug), r.fingerprint] as const));
 
-        // Direction B：DB 有而 FS 没了的 → 删 DB
+        // Direction B：DB 有而 FS 没了的 → 删 DB（FTS5 索引由下次 search 的 syncCorpus 对账）
         let pruned = 0;
         for (const [absPath] of indexedMap) {
             if (!fsFiles.has(absPath)) {
@@ -421,6 +417,8 @@ export class MemoryStore implements IMemoryStore {
     }
 
     dispose(): void {
+        this._searcher?.dispose();
+        this._searcher = undefined;
         this._db?.close();
         this._db = undefined;
     }

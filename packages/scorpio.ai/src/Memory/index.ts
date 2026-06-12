@@ -11,7 +11,6 @@ export {
 } from './IMemoryStore';
 
 export { MemoryStore } from './MemoryStore';
-export { buildFtsQuery } from './FtsQuery';
 export { SecretRedactor } from './SecretRedactor';
 export { renderConversation, countTurns } from './ConversationRenderer';
 export {

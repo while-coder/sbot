@@ -46,3 +46,5 @@ export const T_MemoryReadTemplate = Symbol("scorpio:T_MemoryReadTemplate");
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");
+/** Wiki HybridSearcher 的 cachePath（单 wikiId 一份 searcher.sqlite）。 */
+export const T_WikiCachePath               = Symbol("scorpio:T_WikiCachePath");

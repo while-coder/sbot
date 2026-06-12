@@ -63,6 +63,7 @@ export {
   T_MemoryDbPath,
   T_MemoryReadTemplate,
   T_WikiSystemPromptTemplate,
+  T_WikiCachePath,
   T_ModelCallTimeout,
   T_ToolOverflowDir,
   T_CompactPromptTemplate,
@@ -208,12 +209,11 @@ export {
 } from "./Skills";
 
 // ========================================
-// Retrieval - 混合检索
+// Retrieval - 混合检索（BM25 + jaccard + embedding，自管 SQLite 缓存）
 // ========================================
 export {
   HybridSearcher,
-  type SearchableItem,
-  type HybridSearchOptions,
+  type HybridSearcherOptions,
 } from "./Retrieval";
 
 // ========================================
@@ -222,7 +222,6 @@ export {
 export {
   IMemoryStore,
   MemoryStore,
-  buildFtsQuery,
   SecretRedactor,
   renderConversation,
   countTurns,
@@ -285,7 +284,6 @@ export {
   type AgendaItem,
   type AgendaTrigger,
   type AgendaOccurrence,
-  type AgendaItemView,
   type AgendaToolDescs,
   type AgendaAction,
   type AgendaRecord,
