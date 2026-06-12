@@ -14,4 +14,4 @@ When the user asks "哪几次没做 / 哪天没发 / 我今天漏了几次 / 还
 read the missed and pending lists and answer with the concrete times (e.g. "12:00 和 13:00 没喝水"), not just a count.
 Compare against <now> to decide whether a pending instance is "the current one waiting" vs "already overdue and should be confirmed/cancelled".
 
-Missed instances are permanent — they cannot be retroactively completed. If the user wants to "make up" a missed time, acknowledge but do NOT call agenda_complete; just confirm with them that the routine works on a "use it or lose it" basis.
+If the user wants to backfill a missed instance ("我现在补交周一的周报" / "16:38 喝了忘了回复"), call agenda_complete with `at` set to that occurrence's scheduledAt — both pending and missed are reachable that way.

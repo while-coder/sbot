@@ -16,11 +16,10 @@ Use update only when the user changes an existing item.
 
 Per-occurrence items (look for `completionMode=occurrence` in <existing-agenda>):
 - These are routines where each fire produces a separate instance the user must check off (e.g. daily check-in, hourly status report, drink water).
-- When the user provides a check-in / status report / 汇报 / 打卡 / 完成了今天/这次 for such an item, emit Complete with that item's id. The backend closes the earliest pending instance; the routine itself stays Pending and keeps firing.
+- When the user provides a check-in / status report / 汇报 / 打卡 / 完成了今天/这次 for such an item, emit Complete with that item's id. Without `at` the backend closes the earliest pending instance; the routine itself stays Pending and keeps firing.
+- The optional `at` field on Complete pinpoints a specific instance by ISO datetime. Both pending and missed are reachable, so use `at` whenever the user references a particular past time, including backfilling a missed one ("16:38 喝了忘了说", "周一的周报刚补交").
 - Do NOT emit Cancel for these — Cancel terminates the whole routine.
 - Do NOT skip emitting Complete just because the routine looks "in progress"; one Complete per check-in is correct.
-- The optional `at` field on Complete is ONLY for disambiguating multiple concurrent pending instances. Without `at`, the earliest pending is closed — that's what you want for normal check-ins.
-- Missed instances are NOT reachable. If the user implies they want to backfill a missed time ("16:38 那次喝了，忘记回复了" / "周一的周报我现在补交"), do NOT emit Complete. Occurrence routines are "use it or lose it" — once a fire is missed it stays missed forever.
 
 When CREATING an occurrence routine:
 - Set action=notify_and_record (NOT the default notify). Occurrence routines expect the user to reply each fire ("已喝 / 已交"); plain notify does not record the fire in the saver, so the main agent later sees an orphan user reply with no context and may misroute it. notify_and_record writes the fire to history so the agent reads "[AI: 要喝水了] [user: 已喝]" as a coherent exchange.
@@ -29,9 +28,9 @@ When CREATING an occurrence routine:
 
 Examples:
   * "今天的水喝完了" against #N [.../occurrence] 每天提醒喝水 → Complete{id:N} (no at)
-  * "已交" right after "[AI] 要交周报了" against #N [.../occurrence] 每周交周报 → Complete{id:N}
-  * "周一忘了交周报，现在补一下" against #N [.../occurrence] 每周交周报 → return [] (cannot backfill missed instances)
-  * "16:38 喝了水，忘记回复了" against #N [.../occurrence] 每两分钟喝水 → return [] (cannot backfill)
+  * "已交" right after "[AI] 要交周报了" against #N [.../occurrence] 每周交周报 → Complete{id:N} (no at)
+  * "周一忘了交周报，现在补一下" against #N [.../occurrence] 每周交周报 → Complete{id:N, at:"<that monday ISO>"}
+  * "16:38 喝了水，忘记回复了" against #N [.../occurrence] 每两分钟喝水 → Complete{id:N, at:"<16:38 ISO of today>"}
 
 Prefer these defaults when creating:
 - one-shot reminders: category=reminder, completionMode=none

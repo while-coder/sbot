@@ -153,20 +153,19 @@ export class AgendaService implements IAgendaService {
         const item = await this.loadItem(id);
         if (!item) return null;
         const now = Date.now();
-        // Occurrence 模式：只消费一条 pending occurrence，不影响 routine 主体。
-        // - 不传 at: 关最早的 pending（普通打卡语义）
-        // - 传 at: 在 pending 中找 scheduledAt 最接近 at 的（用于多条 pending 同存时精确指定）
-        // missed 状态不可达——occurrence 一旦错过就保留为历史，不允许补办；
+        // Occurrence 模式：只消费一条 occurrence，不影响 routine 主体。
+        // - 不传 at: 关最早的 pending（普通打卡语义；补办场景必须显式传 at）
+        // - 传 at: 在 pending + missed 中找 scheduledAt 最接近 at 的（支持补办过去 missed）
         // 用户若要终止整条 routine，应使用 cancel。
         if (item.completionMode === AgendaCompletionMode.Occurrence) {
-            const target = await this.pickPendingOccurrence(id, at);
+            const target = await this.pickOccurrenceForComplete(id, at);
             if (target) {
                 await this.agendaStore.updateOccurrence(target.id, {
                     status: AgendaOccurrenceStatus.Done,
                     doneAt: now,
                 });
             } else {
-                this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no pending occurrence`);
+                this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no matching occurrence`);
             }
             return this.agendaStore.findItem(id);
         }
@@ -179,21 +178,27 @@ export class AgendaService implements IAgendaService {
         return this.agendaStore.findItem(id);
     }
 
-    private async pickPendingOccurrence(
+    private async pickOccurrenceForComplete(
         itemId: number,
         at: string | undefined,
     ): Promise<AgendaOccurrence | null> {
         const record = await this.agendaStore.findItem(itemId);
         if (!record) return null;
-        const pendings = record.occurrences.filter(o => o.status === AgendaOccurrenceStatus.Pending);
-        if (pendings.length === 0) return null;
 
         if (at) {
+            // 显式补办/精确指定：在 pending + missed 中找最接近 at 的
+            const candidates = record.occurrences.filter(o =>
+                o.status === AgendaOccurrenceStatus.Pending || o.status === AgendaOccurrenceStatus.Missed,
+            );
+            if (candidates.length === 0) return null;
             const target = TimeUtils.parseAt(at);
-            return pendings.reduce((best, cur) =>
+            return candidates.reduce((best, cur) =>
                 Math.abs(cur.scheduledAt - target) < Math.abs(best.scheduledAt - target) ? cur : best,
             );
         }
+        // 普通打卡：仅看 pending，关最早的
+        const pendings = record.occurrences.filter(o => o.status === AgendaOccurrenceStatus.Pending);
+        if (pendings.length === 0) return null;
         return pendings.reduce((earliest, cur) => cur.scheduledAt < earliest.scheduledAt ? cur : earliest);
     }
 

@@ -65,7 +65,7 @@ const AgendaExtractSchema = z.object({
         z.object({
             type: z.literal(AgendaActionType.Complete),
             id: z.number(),
-            at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Omit for "current/latest" check-ins.'),
+            at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Use it when the user references a past time — including backfilling missed instances. Omit for plain "现在/just now" check-ins.'),
         }),
         z.object({ type: z.literal(AgendaActionType.Cancel), id: z.number() }),
     ])).describe("Agenda actions extracted from the conversation. Return [] if no agenda change is needed."),

@@ -121,7 +121,7 @@ export class AgendaToolProvider {
                 description: descs.complete,
                 schema: z.object({
                     id: z.number(),
-                    at: z.string().optional().describe('Optional ISO datetime to disambiguate WHICH pending occurrence to close — only meaningful for completionMode=occurrence routines that have multiple pending instances. The system picks the pending occurrence with scheduledAt closest to `at`. Omit for the common case (close the earliest pending). MISSED instances are not reachable: once a fire is missed (next fire arrived before user confirmed), it stays missed forever; if the user references such a past time, acknowledge but do not call this tool.'),
+                    at: z.string().optional().describe('Optional ISO datetime pointing at WHICH occurrence the user is completing — only meaningful for completionMode=occurrence routines. With `at` the system searches BOTH pending and missed instances and picks the one with scheduledAt closest to `at`. Use it whenever the user references a specific past time, including backfilling missed instances ("16:38 喝了忘了说" → at=16:38 ISO; "周一的周报刚补交了" → at=that monday). Omit for plain "我喝了 / 完成了" check-ins — the system closes the earliest pending instance.'),
                 }),
                 func: async ({ id, at }: { id: number; at?: string }) => {
                     try {
