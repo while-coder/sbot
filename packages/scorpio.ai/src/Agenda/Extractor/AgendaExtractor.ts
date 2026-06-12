@@ -11,7 +11,7 @@ import {
     AgendaTimeUnit,
     AgendaTriggerAction,
     AgendaTriggerKind,
-    type AgendaItemView,
+    type AgendaRecord,
 } from "../types";
 import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgendaExtractor";
 
@@ -79,7 +79,7 @@ export class AgendaExtractor implements IAgendaExtractor {
         this.logger = loggerService?.getLogger("AgendaExtractor");
     }
 
-    async extract(userMessage: string, assistantMessages: string[], existingItems: AgendaItemView[]): Promise<AgendaAction[]> {
+    async extract(userMessage: string, assistantMessages: string[], existingItems: AgendaRecord[]): Promise<AgendaAction[]> {
         try {
             const assistant = assistantMessages?.filter(Boolean) ?? [];
             let human = assistant.length
@@ -87,8 +87,9 @@ export class AgendaExtractor implements IAgendaExtractor {
                 : `<user>${userMessage}</user>`;
 
             if (existingItems.length > 0) {
-                const lines = existingItems.slice(0, 80).map(item => {
-                    const next = item.triggers
+                const lines = existingItems.slice(0, 80).map(record => {
+                    const item = record.item;
+                    const next = record.triggers
                         .filter(t => t.enabled && t.nextFireAt)
                         .map(t => new Date(t.nextFireAt!).toISOString())
                         .sort()[0];

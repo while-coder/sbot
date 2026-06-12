@@ -1,6 +1,6 @@
 import type {
     AgendaCreateArgs,
-    AgendaItemView,
+    AgendaRecord,
     AgendaUpdatePatch,
 } from "../types";
 
@@ -18,7 +18,7 @@ export type AgendaAction =
     | { type: AgendaActionType.Cancel; id: number };
 
 export interface IAgendaExtractor {
-    extract(userMessage: string, assistantMessages: string[], existingItems: AgendaItemView[]): Promise<AgendaAction[]>;
+    extract(userMessage: string, assistantMessages: string[], existingItems: AgendaRecord[]): Promise<AgendaAction[]>;
 }
 
 export const IAgendaExtractor = Symbol("IAgendaExtractor");

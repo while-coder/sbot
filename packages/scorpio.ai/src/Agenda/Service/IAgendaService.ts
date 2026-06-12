@@ -1,8 +1,8 @@
 import type {
     AgendaCreateArgs,
     AgendaCreateResult,
-    AgendaItemView,
     AgendaListFilter,
+    AgendaRecord,
     AgendaUpdatePatch,
 } from "../types";
 
@@ -17,10 +17,10 @@ export interface AgendaToolDescs {
 export interface IAgendaService {
     getToolDescs(): AgendaToolDescs;
     create(args: AgendaCreateArgs): Promise<AgendaCreateResult>;
-    list(filter?: AgendaListFilter): Promise<AgendaItemView[]>;
-    update(id: number, patch: AgendaUpdatePatch): Promise<AgendaItemView | null>;
-    complete(id: number): Promise<AgendaItemView | null>;
-    cancel(id: number): Promise<AgendaItemView | null>;
+    list(filter?: AgendaListFilter): Promise<AgendaRecord[]>;
+    update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null>;
+    complete(id: number): Promise<AgendaRecord | null>;
+    cancel(id: number): Promise<AgendaRecord | null>;
     formatForLLM(filter?: AgendaListFilter): Promise<string>;
     extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void>;
 }

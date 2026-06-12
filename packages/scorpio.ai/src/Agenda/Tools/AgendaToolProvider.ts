@@ -66,7 +66,7 @@ export class AgendaToolProvider {
                 func: async (args: AgendaCreateArgs) => {
                     try {
                         const result = await agendaService.create(args);
-                        const item = result.item;
+                        const item = result.item.item;
                         if (result.existed) {
                             return `Agenda #${item.id} already exists: ${item.content}\nNo new agenda item was created.`;
                         }
@@ -111,8 +111,8 @@ export class AgendaToolProvider {
                 }),
                 func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {
                     try {
-                        const item = await agendaService.update(id, patch);
-                        return item ? `Updated agenda #${item.id}: ${item.content}` : `Agenda #${id} not found.`;
+                        const record = await agendaService.update(id, patch);
+                        return record ? `Updated agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
                     } catch (e: any) {
                         return `Failed to update agenda #${id}: ${e.message}`;
                     }
@@ -124,8 +124,8 @@ export class AgendaToolProvider {
                 schema: z.object({ id: z.number() }),
                 func: async ({ id }: { id: number }) => {
                     try {
-                        const item = await agendaService.complete(id);
-                        return item ? `Completed agenda #${item.id}: ${item.content}` : `Agenda #${id} not found.`;
+                        const record = await agendaService.complete(id);
+                        return record ? `Completed agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
                     } catch (e: any) {
                         return `Failed to complete agenda #${id}: ${e.message}`;
                     }
@@ -137,8 +137,8 @@ export class AgendaToolProvider {
                 schema: z.object({ id: z.number() }),
                 func: async ({ id }: { id: number }) => {
                     try {
-                        const item = await agendaService.cancel(id);
-                        return item ? `Cancelled agenda #${item.id}: ${item.content}` : `Agenda #${id} not found.`;
+                        const record = await agendaService.cancel(id);
+                        return record ? `Cancelled agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
                     } catch (e: any) {
                         return `Failed to cancel agenda #${id}: ${e.message}`;
                     }

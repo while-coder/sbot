@@ -290,8 +290,8 @@ export interface AgendaListFilter {
  * 创建结果。命中近重复时 created=false / existed=true，不会重复建条。
  */
 export interface AgendaCreateResult {
-    /** 命中重复时返回已存在的视图，否则是新建条目的视图。 */
-    item: AgendaItemView;
+    /** 命中重复时返回已存在的记录，否则是新建条目的记录。 */
+    item: AgendaRecord;
     /** 是否本次新建。 */
     created: boolean;
     /** 是否命中了 findNearDuplicate（同内容 + 同 dueAt ±2 分钟内的 Pending 项）。 */
@@ -395,19 +395,12 @@ export interface AgendaOccurrence {
 }
 
 /**
- * 给上层（list/format/UI）使用的视图：item + 关联 trigger 列表 + 可选 occurrence 列表。
- */
-export interface AgendaItemView extends AgendaItem {
-    triggers: AgendaTrigger[];
-    /** 仅 Occurrence 模式才有意义；其他模式可能为空数组或省略。 */
-    occurrences?: AgendaOccurrence[];
-}
-
-/**
- * 内部用的"三件套"原始记录，AgendaStore 直接产出，service 内部再 build 成 view。
+ * agenda 三件套：item 主行 + 关联 trigger 列表 + 关联 occurrence 列表。
+ * AgendaStore 直接产出此结构；service / 上层 list/format/UI 也直接消费它。
  */
 export interface AgendaRecord {
     item: AgendaItem;
     triggers: AgendaTrigger[];
+    /** 仅 Occurrence 模式才会被填充；其他模式恒为空数组。 */
     occurrences: AgendaOccurrence[];
 }

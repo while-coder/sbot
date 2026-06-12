@@ -14,7 +14,6 @@ import {
     type AgendaCreateArgs,
     type AgendaCreateResult,
     type AgendaItem,
-    type AgendaItemView,
     type AgendaListFilter,
     type AgendaOccurrence,
     type AgendaRecord,
@@ -82,27 +81,27 @@ export class AgendaService implements IAgendaService {
         const effectiveArgs = this.withDefaultDueAtTrigger(args);
         const trigger = await this.createTriggerIfNeeded(record.item, effectiveArgs, action, now, isDerivedFromDueAt);
         if (trigger) await this.triggerEngine.reload(trigger.id);
-        const view = await this.getView(record.item.id) as AgendaItemView;
-        return { item: view, created: true, existed: false };
+        const fresh = await this.agendaStore.findItem(record.item.id);
+        return { item: fresh!, created: true, existed: false };
     }
 
-    async list(filter?: AgendaListFilter): Promise<AgendaItemView[]> {
+    async list(filter?: AgendaListFilter): Promise<AgendaRecord[]> {
         return AgendaService.buildList(await this.agendaStore.listItems(), filter);
     }
 
-    static buildList(records: AgendaRecord[], filter?: AgendaListFilter): AgendaItemView[] {
-        const views = records.map(record => AgendaService.buildView(record)).filter(view => AgendaService.matchesFilter(view, filter));
-        views.sort((a, b) => {
-            const an = AgendaService.firstNextFire(a) ?? a.dueAt ?? a.createdAt;
-            const bn = AgendaService.firstNextFire(b) ?? b.dueAt ?? b.createdAt;
-            if (a.status !== b.status) return a.status === AgendaStatus.Pending ? -1 : 1;
+    static buildList(records: AgendaRecord[], filter?: AgendaListFilter): AgendaRecord[] {
+        const filtered = records.filter(r => AgendaService.matchesFilter(r, filter));
+        filtered.sort((a, b) => {
+            const an = AgendaService.firstNextFire(a) ?? a.item.dueAt ?? a.item.createdAt;
+            const bn = AgendaService.firstNextFire(b) ?? b.item.dueAt ?? b.item.createdAt;
+            if (a.item.status !== b.item.status) return a.item.status === AgendaStatus.Pending ? -1 : 1;
             return an - bn;
         });
-        return views.slice(0, Math.max(1, filter?.limit ?? 50));
+        return filtered.slice(0, Math.max(1, filter?.limit ?? 50));
     }
 
-    async update(id: number, patch: AgendaUpdatePatch): Promise<AgendaItemView | null> {
-        const item = await this.requireOwnedItem(id);
+    async update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null> {
+        const item = await this.loadItem(id);
         if (!item) return null;
         const now = Date.now();
         const fields: Partial<AgendaItem> = { updatedAt: now };
@@ -112,7 +111,7 @@ export class AgendaService implements IAgendaService {
         if (patch.completionMode != null) fields.completionMode = patch.completionMode;
         if (patch.dueAt !== undefined) {
             fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
-        } else if (this.hasSchedulePatch(patch)) {
+        } else if (patch.trigger !== undefined) {
             // 调度变更但未显式指定 dueAt：依据新 trigger 推导，与 create 保持一致。
             fields.dueAt = AgendaService.deriveDueAtFromSpec(patch.trigger, now);
         }
@@ -121,7 +120,7 @@ export class AgendaService implements IAgendaService {
         const updatedItem = data?.item;
         if (!updatedItem) return null;
 
-        if (this.hasSchedulePatch(patch)) {
+        if (patch.trigger !== undefined) {
             const category = updatedItem.category;
             const action = patch.action ?? AgendaTriggerAction.Notify;
             const trigger = await this.createTriggerIfNeeded(updatedItem, {
@@ -152,7 +151,7 @@ export class AgendaService implements IAgendaService {
             for (const trigger of activeTriggers) await this.agendaStore.updateTrigger(trigger.id, triggerFields);
             await this.triggerEngine.reloadItem(id);
         }
-        return this.getView(id);
+        return this.agendaStore.findItem(id);
     }
 
     /**
@@ -183,8 +182,8 @@ export class AgendaService implements IAgendaService {
         }
     }
 
-    async complete(id: number): Promise<AgendaItemView | null> {
-        const item = await this.requireOwnedItem(id);
+    async complete(id: number): Promise<AgendaRecord | null> {
+        const item = await this.loadItem(id);
         if (!item) return null;
         const now = Date.now();
         // Occurrence 模式：只消费一次 pending occurrence，不影响 routine 主体。
@@ -197,7 +196,7 @@ export class AgendaService implements IAgendaService {
                     doneAt: now,
                 });
             }
-            return this.getView(id);
+            return this.agendaStore.findItem(id);
         }
         await this.agendaStore.updateItem(id, {
             status: AgendaStatus.Done,
@@ -205,11 +204,11 @@ export class AgendaService implements IAgendaService {
             updatedAt: now,
         });
         await this.disableItemTriggers(id);
-        return this.getView(id);
+        return this.agendaStore.findItem(id);
     }
 
-    async cancel(id: number): Promise<AgendaItemView | null> {
-        const item = await this.requireOwnedItem(id);
+    async cancel(id: number): Promise<AgendaRecord | null> {
+        const item = await this.loadItem(id);
         if (!item) return null;
         const now = Date.now();
         await this.agendaStore.updateItem(id, {
@@ -217,7 +216,7 @@ export class AgendaService implements IAgendaService {
             updatedAt: now,
         });
         await this.disableItemTriggers(id);
-        return this.getView(id);
+        return this.agendaStore.findItem(id);
     }
 
     async delete(id: number): Promise<AgendaRecord | null> {
@@ -227,17 +226,18 @@ export class AgendaService implements IAgendaService {
     }
 
     async formatForLLM(filter?: AgendaListFilter): Promise<string> {
-        const items = await this.list(filter);
-        if (items.length === 0) return "No agenda items.";
-        const lines = items.map(item => {
-            const next = AgendaService.firstNextFire(item);
+        const records = await this.list(filter);
+        if (records.length === 0) return "No agenda items.";
+        const lines = records.map(record => {
+            const item = record.item;
+            const next = AgendaService.firstNextFire(record);
             const due = item.dueAt ? ` due=${TimeUtils.formatWhen(item.dueAt)}` : '';
             const nextText = next ? ` next=${TimeUtils.formatWhen(next)}` : '';
-            const occ = item.occurrences?.filter(o => o.status === AgendaOccurrenceStatus.Pending).length ?? 0;
+            const occ = record.occurrences.filter(o => o.status === AgendaOccurrenceStatus.Pending).length;
             const occText = occ > 0 ? ` pending_occurrences=${occ}` : '';
             return `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}] ${item.content}${due}${nextText}${occText}`;
         });
-        return `${items.length} agenda item(s):\n\n${lines.join('\n')}`;
+        return `${records.length} agenda item(s):\n\n${lines.join('\n')}`;
     }
 
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
@@ -270,33 +270,28 @@ export class AgendaService implements IAgendaService {
 
         let kind: AgendaTriggerKind;
         let expr: string;
-        let nextFireAt: number | null;
-        let maxFires = 1;
 
         if (spec.kind === AgendaTriggerKind.Absolute) {
             if (!spec.at) return null;
             kind = AgendaTriggerKind.Absolute;
             expr = new Date(TimeUtils.parseAt(spec.at)).toISOString();
-            nextFireAt = computeInitialNextFire(kind, expr, now, args.timezone);
         } else if (spec.kind === AgendaTriggerKind.Interval) {
             kind = AgendaTriggerKind.Interval;
             expr = String(relativeToMs(spec.every));
-            // startAt 覆盖默认的 now+interval；首次触发由 startAt 控制，之后按 interval 累加。
-            const startTime = spec.startAt ? TimeUtils.parseAt(spec.startAt) : null;
-            nextFireAt = startTime ?? computeInitialNextFire(kind, expr, now, args.timezone);
-            maxFires = AgendaService.coerceCount(spec.count);
         } else if (spec.kind === AgendaTriggerKind.Cron) {
             const trimmed = spec.expr.trim();
             if (!trimmed) return null;
             kind = AgendaTriggerKind.Cron;
             expr = trimmed;
-            // cron + startAt：首次按 startAt（不一定是 cron 命中时刻），之后由 advanceAfterFire 走 cron 节奏。
-            const startTime = spec.startAt ? TimeUtils.parseAt(spec.startAt) : null;
-            nextFireAt = startTime ?? computeInitialNextFire(kind, expr, now, args.timezone);
-            maxFires = AgendaService.coerceCount(spec.count);
         } else {
             return null;
         }
+
+        // Interval/Cron 的 startAt 覆盖默认首次触发时刻（之后按 every / cron 节奏推进）；Absolute 无此字段。
+        const startTime = spec.kind !== AgendaTriggerKind.Absolute && spec.startAt
+            ? TimeUtils.parseAt(spec.startAt) : null;
+        const nextFireAt = startTime ?? computeInitialNextFire(kind, expr, now, args.timezone);
+        const maxFires = spec.kind === AgendaTriggerKind.Absolute ? 1 : AgendaService.coerceCount(spec.count);
 
         return this.agendaStore.appendTrigger(item.id, {
             itemId: item.id,
@@ -319,10 +314,6 @@ export class AgendaService implements IAgendaService {
     /** 把外部传入的 count 规范化到 trigger.maxFires：>0 → floor，其他 → 0（无限）。 */
     private static coerceCount(count: number | undefined): number {
         return count != null && count > 0 ? Math.floor(count) : 0;
-    }
-
-    private hasSchedulePatch(patch: AgendaUpdatePatch): boolean {
-        return patch.trigger !== undefined;
     }
 
     private hasTriggerFieldPatch(patch: AgendaUpdatePatch): boolean {
@@ -377,15 +368,15 @@ export class AgendaService implements IAgendaService {
         return null;
     }
 
-    private async findNearDuplicate(content: string, dueAt: number | null): Promise<AgendaItemView | null> {
+    private async findNearDuplicate(content: string, dueAt: number | null): Promise<AgendaRecord | null> {
         const records = await this.agendaStore.listItems();
         const normalized = this.normalize(content);
         for (const record of records.slice(-30).reverse()) {
             const row = record.item;
             if (row.status !== AgendaStatus.Pending) continue;
             if (this.normalize(row.content) !== normalized) continue;
-            if (dueAt == null && row.dueAt == null) return AgendaService.buildView(record);
-            if (dueAt != null && row.dueAt != null && Math.abs(dueAt - row.dueAt) < 2 * 60 * 1000) return AgendaService.buildView(record);
+            if (dueAt == null && row.dueAt == null) return record;
+            if (dueAt != null && row.dueAt != null && Math.abs(dueAt - row.dueAt) < 2 * 60 * 1000) return record;
         }
         return null;
     }
@@ -394,44 +385,14 @@ export class AgendaService implements IAgendaService {
         return value.replace(/\s+/g, '').toLowerCase();
     }
 
-    private async requireOwnedItem(id: number): Promise<AgendaItem | null> {
+    private async loadItem(id: number): Promise<AgendaItem | null> {
         const record = await this.agendaStore.findItem(id);
         return record?.item ?? null;
     }
 
-    private async getView(id: number): Promise<AgendaItemView | null> {
-        const record = await this.agendaStore.findItem(id);
-        return record ? AgendaService.buildView(record) : null;
-    }
-
-    static buildView(record: AgendaRecord): AgendaItemView {
-        return {
-            ...record.item,
-            category: AgendaService.normalizeLegacyCategory(record),
-            triggers: record.triggers.map(t => ({
-                ...t,
-                enabled: Boolean(t.enabled),
-            })),
-            occurrences: record.occurrences,
-        };
-    }
-
-    /**
-     * 兼容旧库：曾经存在 category='automation' 的行，新枚举里不再有此值。
-     * 按 trigger/dueAt 推断为合理的形态分类，避免上层取到 enum 之外的值。
-     */
-    private static normalizeLegacyCategory(record: AgendaRecord): AgendaCategory {
-        const raw = record.item.category;
-        if ((raw as string) !== 'automation') return raw;
-        if (record.triggers.some(t => t.kind === AgendaTriggerKind.Interval || t.kind === AgendaTriggerKind.Cron)) {
-            return AgendaCategory.Routine;
-        }
-        if (record.item.dueAt != null) return AgendaCategory.Reminder;
-        return AgendaCategory.Todo;
-    }
-
-    private static matchesFilter(item: AgendaItemView, filter?: AgendaListFilter): boolean {
+    private static matchesFilter(record: AgendaRecord, filter?: AgendaListFilter): boolean {
         const status = filter?.status ?? AgendaStatus.Pending;
+        const item = record.item;
         if (status !== 'all' && item.status !== status) return false;
         if (filter?.category && item.category !== filter.category) return false;
         if (filter?.priority && item.priority !== filter.priority) return false;
@@ -439,18 +400,18 @@ export class AgendaService implements IAgendaService {
         if (view === AgendaListView.All) return true;
         if (view === AgendaListView.Routine) return item.category === AgendaCategory.Routine;
         // Automation view 由 trigger.action 决定：含任何非 Notify 的 trigger 即视为"自动化任务"。
-        if (view === AgendaListView.Automation) return AgendaService.isAutomation(item);
-        if (view === AgendaListView.Upcoming) return item.triggers.some(t => t.enabled && t.nextFireAt);
+        if (view === AgendaListView.Automation) return AgendaService.isAutomation(record);
+        if (view === AgendaListView.Upcoming) return record.triggers.some(t => t.enabled && t.nextFireAt);
         // 默认 Todo view：排除"自动化"类（口径同 Automation view），与历史行为一致。
-        return !AgendaService.isAutomation(item);
+        return !AgendaService.isAutomation(record);
     }
 
-    private static isAutomation(item: AgendaItemView): boolean {
-        return item.triggers.some(t => t.action !== AgendaTriggerAction.Notify);
+    private static isAutomation(record: AgendaRecord): boolean {
+        return record.triggers.some(t => t.action !== AgendaTriggerAction.Notify);
     }
 
-    private static firstNextFire(item: AgendaItemView): number | null {
-        const values = item.triggers
+    private static firstNextFire(record: AgendaRecord): number | null {
+        const values = record.triggers
             .filter(t => t.enabled && t.nextFireAt)
             .map(t => t.nextFireAt as number)
             .sort((a, b) => a - b);
