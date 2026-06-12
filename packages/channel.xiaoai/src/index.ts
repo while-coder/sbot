@@ -1,3 +1,5 @@
+export { XiaoaiAPI, XiaoaiAuthMode } from './XiaoaiAPI';
+export type { XiaoaiAPIOptions, XiaoaiSpeakOptions } from './XiaoaiAPI';
 export { XiaoaiService } from './XiaoaiService';
 export type { XiaoaiServiceOptions, XiaoaiMessageArgs } from './XiaoaiService';
 export { XiaoaiChatProvider } from './XiaoaiChatProvider';

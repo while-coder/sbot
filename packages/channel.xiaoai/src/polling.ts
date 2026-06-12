@@ -1,5 +1,5 @@
-import { getConversations } from './mi/mina';
-import type { AuthedAccount, MiConversation } from './mi/types';
+import type { XiaoaiAPI } from './XiaoaiAPI';
+import type { MiConversation } from './types';
 import type { ILogger } from 'channel.base';
 
 export interface PollingMessage {
@@ -24,7 +24,7 @@ export class MessagePoller {
   private backoffs = new Map<string, number>();
 
   constructor(
-    private account: AuthedAccount,
+    private api: XiaoaiAPI,
     private heartbeat: number,
     private onMessage: (msg: PollingMessage) => Promise<void>,
     private logger?: ILogger,
@@ -71,7 +71,7 @@ export class MessagePoller {
 
     let nextDelay = this.heartbeat;
     try {
-      const records = await getConversations(this.account, state.hardware, state.deviceId, 2);
+      const records = await this.api.getConversations(state.hardware, 2);
       const newMessages = this.extractNewMessages(state, records);
 
       for (const msg of newMessages) {

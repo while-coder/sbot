@@ -4,7 +4,7 @@ import {
   type MessageContent, type MessageType,
 } from 'channel.base';
 import { XiaoaiChatProvider } from './XiaoaiChatProvider';
-import type { XiaoaiService, XiaoaiMessageArgs } from './XiaoaiService';
+import type { XiaoaiService } from './XiaoaiService';
 
 export class XiaoaiSessionHandler extends ChannelSessionHandler<XiaoaiChatProvider> {
   constructor(session: SessionService, private service: XiaoaiService) {
@@ -12,14 +12,7 @@ export class XiaoaiSessionHandler extends ChannelSessionHandler<XiaoaiChatProvid
   }
 
   async onProcessStart(_query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
-    const { deviceId } = args as XiaoaiMessageArgs;
-    const account = this.service.getAuthedAccount();
-    if (!account) throw new Error('XiaoAi account not authenticated');
-
-    this.provider = new XiaoaiChatProvider(account, deviceId, {
-      chunkLimit: this.service.textChunkLimit,
-      volume: this.service.volume,
-    });
+    this.provider = new XiaoaiChatProvider(this.service, args.sessionId);
   }
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {

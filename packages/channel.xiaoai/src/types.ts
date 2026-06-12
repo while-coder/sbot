@@ -1,11 +1,3 @@
-export interface MiAccount {
-  userId: string;
-  password: string;
-  passToken?: string;
-  serviceToken?: string;
-  deviceId?: string;
-}
-
 export interface MiNADevice {
   deviceID: string;
   miotDID: string;
@@ -24,12 +16,6 @@ export interface MiConversation {
     tts?: string;
     url?: string;
   }>;
-}
-
-export interface MiConversations {
-  records: MiConversation[];
-  hasMore: boolean;
-  nextEndTime?: number;
 }
 
 export interface AuthedAccount {

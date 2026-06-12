@@ -2,29 +2,12 @@ import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from 'channel.base';
-import { XiaoaiService, XiaoaiAuthMode } from './XiaoaiService';
+import { XiaoaiAuthMode } from './XiaoaiAPI';
+import { XiaoaiService } from './XiaoaiService';
 import type { XiaoaiMessageArgs } from './XiaoaiService';
 
 function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function resolveAuthMode(config: Record<string, any>): XiaoaiAuthMode {
-  if (config.mode === XiaoaiAuthMode.Password) return XiaoaiAuthMode.Password;
-  if (config.mode === XiaoaiAuthMode.PassToken) return XiaoaiAuthMode.PassToken;
-  return XiaoaiAuthMode.PassToken;
-}
-
-function resolveCredential(config: Record<string, any>): string {
-  return readString(config.credential);
-}
-
-const HEARTBEAT_MIN_MS = 500;
-const HEARTBEAT_DEFAULT_MS = 5000;
-
-function resolveHeartbeat(value: unknown): number {
-  const n = Number(value);
-  return Number.isFinite(n) && n >= HEARTBEAT_MIN_MS ? n : HEARTBEAT_DEFAULT_MS;
 }
 
 export const xiaoaiPlugin: ChannelPlugin = {
@@ -42,11 +25,11 @@ export const xiaoaiPlugin: ChannelPlugin = {
       label: '登录方式',
       type: ConfigFieldType.Select,
       required: true,
-      default: 'passToken',
+      default: XiaoaiAuthMode.PassToken,
       description: '推荐使用辅助工具导出的 passToken',
       options: [
-        { label: 'passToken（推荐）', value: 'passToken' },
-        { label: '密码', value: 'password' },
+        { label: 'passToken（推荐）', value: XiaoaiAuthMode.PassToken },
+        { label: '密码', value: XiaoaiAuthMode.Password },
       ],
     },
     credential: {
@@ -89,19 +72,20 @@ export const xiaoaiPlugin: ChannelPlugin = {
     const { config, logger, filterEvent, initSession, onReceiveMessage } = ctx;
 
     const userId = readString(config.userId);
-    const mode = resolveAuthMode(config);
-    const credential = resolveCredential(config);
+    const authMode = config.mode === XiaoaiAuthMode.Password ? XiaoaiAuthMode.Password : XiaoaiAuthMode.PassToken;
+    const credential = readString(config.credential);
     const loginDeviceId = readString(config.loginDeviceId);
     const deviceName = readString(config.deviceName);
+    const heartbeat = Number(config.heartbeat);
     if (!userId || !deviceName || !credential) return undefined;
 
     const service = new XiaoaiService({
       userId,
-      mode,
+      authMode,
       credential,
       loginDeviceId,
       deviceName,
-      heartbeat: resolveHeartbeat(config.heartbeat),
+      heartbeat: Number.isFinite(heartbeat) && heartbeat >= 500 ? heartbeat : 5000,
       textChunkLimit: Number(config.textChunkLimit) || 200,
       volume: config.volume ? Number(config.volume) : undefined,
       logger,

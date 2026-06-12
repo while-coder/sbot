@@ -1,14 +1,12 @@
 import { AbstractChatProvider, parseMessages2Text, GlobalLoggerService } from 'channel.base';
-import { speak } from './speaker';
-import type { AuthedAccount } from './mi/types';
+import type { XiaoaiService } from './XiaoaiService';
 
 const getLogger = () => GlobalLoggerService.getLogger('XiaoaiChatProvider');
 
 export class XiaoaiChatProvider extends AbstractChatProvider {
   constructor(
-    private account: AuthedAccount,
-    private deviceId: string,
-    private options: { chunkLimit: number; volume?: number },
+    private xiaoaiService: XiaoaiService,
+    private sessionId: string,
   ) {
     super();
   }
@@ -19,10 +17,7 @@ export class XiaoaiChatProvider extends AbstractChatProvider {
     const text = parseMessages2Text(this.messages);
     if (!text) return;
     try {
-      await speak(this.account, this.deviceId, text, {
-        chunkLimit: this.options.chunkLimit,
-        volume: this.options.volume,
-      });
+      await this.xiaoaiService.sendTextToSession(this.sessionId, text);
     } catch (e: any) {
       getLogger()?.error(`TTS finish error: ${e.message}`, e.stack);
     }

@@ -2,17 +2,9 @@ import {
   IChannelService, ChannelSessionHandler, SessionService,
   type ChannelMessageArgs, type ILogger, type MessageContent,
 } from 'channel.base';
-import { login } from './mi/account';
-import { getDeviceList } from './mi/mina';
+import { XiaoaiAPI, XiaoaiAuthMode } from './XiaoaiAPI';
 import { MessagePoller, type PollingMessage } from './polling';
-import { speak } from './speaker';
-import type { AuthedAccount } from './mi/types';
 import { XiaoaiSessionHandler } from './XiaoaiSessionHandler';
-
-export enum XiaoaiAuthMode {
-  Password = 'password',
-  PassToken = 'passToken',
-}
 
 export interface XiaoaiMessageArgs extends ChannelMessageArgs {
   accountUserId: string;
@@ -22,7 +14,7 @@ export interface XiaoaiMessageArgs extends ChannelMessageArgs {
 
 export interface XiaoaiServiceOptions {
   userId: string;
-  mode: XiaoaiAuthMode;
+  authMode: XiaoaiAuthMode;
   credential: string;
   loginDeviceId?: string;
   deviceName: string;
@@ -35,15 +27,20 @@ export interface XiaoaiServiceOptions {
 }
 
 export class XiaoaiService implements IChannelService {
-  private authed: AuthedAccount | undefined;
+  private api: XiaoaiAPI;
   private poller: MessagePoller | undefined;
-  private speakerDeviceId: string = '';
   private logger?: ILogger;
   private options: XiaoaiServiceOptions;
 
   constructor(options: XiaoaiServiceOptions) {
     this.options = options;
     this.logger = options.logger;
+    this.api = new XiaoaiAPI({
+      userId: options.userId,
+      authMode: options.authMode,
+      credential: options.credential,
+      deviceId: options.loginDeviceId,
+    });
   }
 
   createSessionHandler(session: SessionService): ChannelSessionHandler {
@@ -51,33 +48,16 @@ export class XiaoaiService implements IChannelService {
   }
 
   async sendTextToSession(_sessionId: string, text: string): Promise<void> {
-    if (!this.authed || !this.speakerDeviceId) return;
-    await speak(this.authed, this.speakerDeviceId, text, {
+    await this.api.speak(text, {
       chunkLimit: this.options.textChunkLimit,
       volume: this.options.volume,
     });
   }
 
-  getAuthedAccount(): AuthedAccount | undefined {
-    return this.authed;
-  }
-
-  get textChunkLimit(): number {
-    return this.options.textChunkLimit;
-  }
-
-  get volume(): number | undefined {
-    return this.options.volume;
-  }
-
   async start(): Promise<void> {
-    const { userId, mode, credential, loginDeviceId, deviceName } = this.options;
-    const password = mode === XiaoaiAuthMode.Password ? credential : '';
-    const passToken = mode === XiaoaiAuthMode.PassToken ? credential : undefined;
+    const { userId, deviceName } = this.options;
 
-    this.authed = await login({ userId, password, passToken, deviceId: loginDeviceId });
-
-    const allDevices = await getDeviceList(this.authed);
+    const allDevices = await this.api.getDeviceList();
 
     const matched = allDevices.find((d) => d.name === deviceName || d.alias === deviceName);
     if (!matched) {
@@ -86,12 +66,12 @@ export class XiaoaiService implements IChannelService {
     }
 
     this.poller = new MessagePoller(
-      this.authed,
+      this.api,
       this.options.heartbeat,
       (msg) => this.handleMessage(msg),
       this.logger,
     );
-    this.speakerDeviceId = matched.deviceID;
+    this.api.setSpeakerDeviceId(matched.deviceID);
     this.poller.startDevice(matched.deviceID, deviceName, matched.hardware);
     this.logger?.info(
       `XiaoAi started: userId=${userId}, deviceName=${deviceName}, deviceId=${matched.deviceID}, hardware=${matched.hardware}`,
