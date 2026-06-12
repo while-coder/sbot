@@ -244,50 +244,21 @@ export class LarkService implements IChannelService {
     }], header);
   }
 
-  private collectInteractiveText(node: any, segments: string[]) {
-    if (node == null) return;
-    if (typeof node === 'string') {
-      const text = node.trim();
-      if (text) segments.push(text);
-      return;
-    }
-    if (Array.isArray(node)) {
-      for (const item of node) this.collectInteractiveText(item, segments);
-      return;
-    }
-    if (typeof node !== 'object') return;
-
-    if (
-      (node.tag === 'markdown' || node.tag === 'plain_text' || node.tag === 'lark_md') &&
-      typeof node.content === 'string'
-    ) {
-      const text = node.content.trim();
-      if (text) segments.push(text);
-    } else if (node.tag === 'text' && typeof node.text === 'string') {
-      const text = node.text.trim();
-      if (text) segments.push(text);
-    }
-
-    if (node.tag === 'div' || node.tag === 'button' || node.tag === 'img') {
-      this.collectInteractiveText(node.text ?? node.alt, segments);
-    }
-
-    for (const key of [
-      'title',
-      'header',
-      'i18n_header',
-      'body',
-      'elements',
-      'i18n_elements',
-      'fields',
-      'columns',
-      'actions',
-      'options',
-      'extra',
-      'placeholder',
-    ]) {
-      this.collectInteractiveText(node[key], segments);
-    }
+  private extractInteractiveContent(msg: any): string | undefined {
+    if (typeof msg?.user_dsl !== 'string') return undefined;
+    const userDsl = parseJson(msg.user_dsl, undefined) as any;
+    const header = userDsl?.header;
+    const headerContent = [
+      typeof header?.title?.content === 'string' ? header.title.content.trim() : '',
+      typeof header?.subtitle?.content === 'string' ? header.subtitle.content.trim() : '',
+    ];
+    const elements = userDsl?.body?.elements;
+    const bodyContent = elements
+      ?.map((element: any) => typeof element?.content === 'string' ? element.content.trim() : '') ?? [];
+    const content = [...headerContent, ...bodyContent]
+      .filter(Boolean)
+      .join('\n');
+    return content || undefined;
   }
 
   async updateCardMessage(messageId: string, elements: any[], header?: any, replyFileOnFailure?: boolean) {
@@ -338,9 +309,9 @@ export class LarkService implements IChannelService {
     } else if (messageType === 'text') {
       result = String(msg.text ?? '').trim();
     } else if (messageType === 'interactive') {
-      const segments: string[] = [];
-      this.collectInteractiveText(msg, segments);
-      result = segments.join('\n');
+      const interactiveContent = this.extractInteractiveContent(msg);
+      if (interactiveContent == null) return undefined;
+      result = interactiveContent;
     } else if (messageType === 'image' || messageType === 'audio' || messageType === 'file') {
       let filePath: string;
       let fileKey: string;

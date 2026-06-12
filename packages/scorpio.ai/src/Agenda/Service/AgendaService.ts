@@ -30,7 +30,7 @@ import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
 import { IAgendaStore } from "../Storage/IAgendaStore";
 import { TimeUtils } from "../../Utils/TimeUtils";
 import { computeInitialNextFire, relativeToMs } from "../time";
-import { type AgendaToolDescs, IAgendaService } from "./IAgendaService";
+import { type AgendaCompleteResult, type AgendaToolDescs, IAgendaService } from "./IAgendaService";
 
 export class AgendaService implements IAgendaService {
     private readonly logger?: ILogger;
@@ -149,7 +149,7 @@ export class AgendaService implements IAgendaService {
         return this.agendaStore.findItem(id);
     }
 
-    async complete(id: number, at?: string): Promise<AgendaRecord | null> {
+    async complete(id: number, at?: string): Promise<AgendaCompleteResult | null> {
         const item = await this.loadItem(id);
         if (!item) return null;
         const now = Date.now();
@@ -159,6 +159,8 @@ export class AgendaService implements IAgendaService {
         // 用户若要终止整条 routine，应使用 cancel。
         if (item.completionMode === AgendaCompletionMode.Occurrence) {
             const target = await this.pickOccurrenceForComplete(id, at);
+            // 注意：target 是引用 record.occurrences 数组里的对象，未经 updateOccurrence 修改，
+            // 因此返回时它的 status/doneAt 仍是"关闭前"的快照——这是给调用方诊断用的。
             if (target) {
                 await this.agendaStore.updateOccurrence(target.id, {
                     status: AgendaOccurrenceStatus.Done,
@@ -167,7 +169,8 @@ export class AgendaService implements IAgendaService {
             } else {
                 this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no matching occurrence`);
             }
-            return this.agendaStore.findItem(id);
+            const record = await this.agendaStore.findItem(id);
+            return record ? { record, closedOccurrence: target ?? null } : null;
         }
         await this.agendaStore.updateItem(id, {
             status: AgendaStatus.Done,
@@ -175,7 +178,8 @@ export class AgendaService implements IAgendaService {
             updatedAt: now,
         });
         await this.disableItemTriggers(id);
-        return this.agendaStore.findItem(id);
+        const record = await this.agendaStore.findItem(id);
+        return record ? { record, closedOccurrence: null } : null;
     }
 
     private async pickOccurrenceForComplete(

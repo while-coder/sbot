@@ -125,8 +125,20 @@ export class AgendaToolProvider {
                 }),
                 func: async ({ id, at }: { id: number; at?: string }) => {
                     try {
-                        const record = await agendaService.complete(id, at);
-                        return record ? `Completed agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
+                        const result = await agendaService.complete(id, at);
+                        if (!result) return `Agenda #${id} not found.`;
+                        const { record, closedOccurrence } = result;
+                        const head = `agenda #${record.item.id}: ${record.item.content}`;
+                        if (record.item.completionMode !== AgendaCompletionMode.Occurrence) {
+                            return `Completed ${head}`;
+                        }
+                        if (!closedOccurrence) {
+                            return `No matching occurrence to close on ${head}${at ? ` (requested at=${at})` : ' (no pending instance available)'}. Verify whether the routine has a pending/missed instance the user actually meant before retrying or apologizing.`;
+                        }
+                        const closedIso = new Date(closedOccurrence.scheduledAt).toISOString().slice(0, 16);
+                        const fromStatus = closedOccurrence.status; // 关闭前的快照
+                        const reqLine = at ? ` (requested at=${at})` : '';
+                        return `Closed occurrence at ${closedIso} (was ${fromStatus}) on ${head}${reqLine}. If this scheduledAt does not match what the user described, the routing was approximate — clarify with the user before assuming success.`;
                     } catch (e: any) {
                         return `Failed to complete agenda #${id}: ${e.message}`;
                     }
