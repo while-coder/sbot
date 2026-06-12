@@ -57,7 +57,6 @@ export class AgendaStore implements IAgendaStore {
                     itemId         INTEGER NOT NULL,
                     kind           TEXT    NOT NULL,
                     expr           TEXT    NOT NULL,
-                    timezone       TEXT,
                     action         TEXT    NOT NULL,
                     message        TEXT,
                     channelHint    INTEGER NOT NULL,
@@ -199,10 +198,10 @@ export class AgendaStore implements IAgendaStore {
             const row = { ...trigger, id: this.nextChildIdInDb("triggers", itemId) };
             this.db.prepare(`
                 INSERT INTO triggers (
-                    id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
+                    id, itemId, kind, expr, action, message, channelHint, enabled,
                     fireCount, maxFires, lastFiredAt, nextFireAt, createdAt
                 ) VALUES (
-                    @id, @itemId, @kind, @expr, @timezone, @action, @message, @channelHint, @enabled,
+                    @id, @itemId, @kind, @expr, @action, @message, @channelHint, @enabled,
                     @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @createdAt
                 )
             `).run({ ...row, enabled: row.enabled ? 1 : 0 });

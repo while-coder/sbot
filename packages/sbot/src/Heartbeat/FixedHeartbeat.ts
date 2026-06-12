@@ -1,4 +1,4 @@
-import { AgendaTriggerAction, TimeUtils } from "scorpio.ai";
+import { SessionDeliveryMode, TimeUtils } from "scorpio.ai";
 import { database, HeartbeatMode, type FixedHeartbeatRow, type HeartbeatRow } from "../Core/Database";
 import { LoggerService } from "../Core/LoggerService";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -28,7 +28,7 @@ export class FixedHeartbeat extends HeartbeatBase<FixedHeartbeatRow> {
         const result = await triggerSession({
             targetId: row.sessionId,
             message: prompt,
-            mode: AgendaTriggerAction.Invoke,
+            mode: SessionDeliveryMode.Invoke,
             awaitCompletion: true,
             tag,
         });

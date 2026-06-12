@@ -35,7 +35,6 @@ export interface AgendaTrigger {
   itemId: number
   kind: AgendaTriggerKind
   expr: string
-  timezone: string | null
   action: AgendaTriggerAction
   message: string | null
   channelHint: number

@@ -15,7 +15,7 @@ export function relativeToMs(value: AgendaRelativeTime): number {
     }
 }
 
-export function computeInitialNextFire(kind: AgendaTriggerKind, expr: string, now = Date.now(), timezone?: string | null): number | null {
+export function computeInitialNextFire(kind: AgendaTriggerKind, expr: string, now = Date.now()): number | null {
     if (kind === AgendaTriggerKind.Absolute) {
         return TimeUtils.parseAt(expr);
     }
@@ -24,7 +24,7 @@ export function computeInitialNextFire(kind: AgendaTriggerKind, expr: string, no
         if (!Number.isFinite(interval) || interval <= 0) throw new Error(`Invalid interval milliseconds: ${expr}`);
         return now + interval;
     }
-    return TimeUtils.computeCronNext(expr, timezone);
+    return TimeUtils.computeCronNext(expr);
 }
 
 export function computeNextAfterFire(trigger: AgendaTrigger, now = Date.now()): number | null {
@@ -34,6 +34,6 @@ export function computeNextAfterFire(trigger: AgendaTrigger, now = Date.now()): 
         if (!Number.isFinite(interval) || interval <= 0) return null;
         return now + interval;
     }
-    if (trigger.kind === AgendaTriggerKind.Cron) return TimeUtils.computeCronNext(trigger.expr, trigger.timezone);
+    if (trigger.kind === AgendaTriggerKind.Cron) return TimeUtils.computeCronNext(trigger.expr);
     return null;
 }

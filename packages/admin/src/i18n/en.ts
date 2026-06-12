@@ -595,7 +595,6 @@ export default {
     trigger_last: 'Last',
     trigger_count: 'Runs',
     trigger_action: 'Action',
-    trigger_timezone: 'Timezone',
     trigger_message: 'Message',
     no_selection: 'Select an agenda item',
     action_notify: 'Notify',

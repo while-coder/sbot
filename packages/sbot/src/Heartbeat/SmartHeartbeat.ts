@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AgendaTriggerAction, MessageRole, TimeUtils } from "scorpio.ai";
+import { MessageRole, SessionDeliveryMode, TimeUtils } from "scorpio.ai";
 import { database, HeartbeatMode, type HeartbeatRow, type SmartHeartbeatRow } from "../Core/Database";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
@@ -42,7 +42,7 @@ export class SmartHeartbeat extends HeartbeatBase<SmartHeartbeatRow> {
         const result = await triggerSession({
             targetId: row.sessionId,
             message: decision.message,
-            mode: AgendaTriggerAction.Notify,
+            mode: SessionDeliveryMode.Notify,
             tag,
         });
         if (!result.ok) {

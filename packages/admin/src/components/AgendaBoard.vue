@@ -268,10 +268,6 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
                     <dt>{{ t('agenda.trigger_count') }}</dt>
                     <dd>{{ trigger.fireCount }} / {{ trigger.maxFires || '∞' }}</dd>
                   </div>
-                  <div v-if="trigger.timezone">
-                    <dt>{{ t('agenda.trigger_timezone') }}</dt>
-                    <dd>{{ trigger.timezone }}</dd>
-                  </div>
                   <div v-if="trigger.message" class="agenda-trigger-msg">
                     <dt>{{ t('agenda.trigger_message') }}</dt>
                     <dd>{{ trigger.message }}</dd>

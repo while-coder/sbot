@@ -45,7 +45,6 @@ const CreateArgsSchema = z.object({
     priority: z.enum(AgendaPriority).optional(),
     trigger: TriggerSpecSchema.optional(),
     dueAt: z.string().optional(),
-    timezone: z.string().optional(),
     action: z.enum(AgendaTriggerAction).optional(),
     message: z.string().optional(),
     completionMode: z.enum(AgendaCompletionMode).optional(),

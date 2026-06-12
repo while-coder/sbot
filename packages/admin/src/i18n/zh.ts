@@ -595,7 +595,6 @@ export default {
     trigger_last: '上次',
     trigger_count: '次数',
     trigger_action: '动作',
-    trigger_timezone: '时区',
     trigger_message: '消息',
     no_selection: '请选择一个事项',
     action_notify: '通知',

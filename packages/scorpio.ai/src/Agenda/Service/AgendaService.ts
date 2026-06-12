@@ -130,7 +130,6 @@ export class AgendaService implements IAgendaService {
                 priority: updatedItem.priority,
                 completionMode: updatedItem.completionMode,
                 trigger: patch.trigger,
-                timezone: patch.timezone ?? undefined,
                 action,
                 message: patch.message ?? undefined,
             }, action, now);
@@ -141,7 +140,6 @@ export class AgendaService implements IAgendaService {
             }
         } else if (this.hasTriggerFieldPatch(patch)) {
             const triggerFields: Partial<AgendaTrigger> = {};
-            if (patch.timezone !== undefined) triggerFields.timezone = patch.timezone;
             if (patch.action !== undefined) triggerFields.action = patch.action;
             if (patch.message !== undefined) triggerFields.message = patch.message?.trim() || null;
             const record = await this.agendaStore.findItem(id);
@@ -352,14 +350,13 @@ export class AgendaService implements IAgendaService {
         // Interval/Cron 的 startAt 覆盖默认首次触发时刻（之后按 every / cron 节奏推进）；Absolute 无此字段。
         const startTime = spec.kind !== AgendaTriggerKind.Absolute && spec.startAt
             ? TimeUtils.parseAt(spec.startAt) : null;
-        const nextFireAt = startTime ?? computeInitialNextFire(kind, expr, now, args.timezone);
+        const nextFireAt = startTime ?? computeInitialNextFire(kind, expr, now);
         const maxFires = spec.kind === AgendaTriggerKind.Absolute ? 1 : AgendaService.coerceCount(spec.count);
 
         return this.agendaStore.appendTrigger(item.id, {
             itemId: item.id,
             kind,
             expr,
-            timezone: args.timezone ?? null,
             action,
             message: args.message?.trim() || null,
             channelHint: this.channelSessionId,
@@ -378,7 +375,7 @@ export class AgendaService implements IAgendaService {
     }
 
     private hasTriggerFieldPatch(patch: AgendaUpdatePatch): boolean {
-        return patch.timezone !== undefined || patch.action !== undefined || patch.message !== undefined;
+        return patch.action !== undefined || patch.message !== undefined;
     }
 
     private inferCategory(args: AgendaCreateArgs): AgendaCategory {

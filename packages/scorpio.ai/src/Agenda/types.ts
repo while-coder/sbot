@@ -87,25 +87,12 @@ export enum AgendaTriggerKind {
 }
 
 /**
- * 触发动作。仅表达"是否让 AI 处理"一个维度。
- * 文本前缀/格式化由用户/LLM 在 message 字段里自己组织，系统不再自动套模板。
+ * 触发动作 = 通用的「session 投递模式」。
+ * agenda trigger / heartbeat 都共用这一套，定义集中在 SessionDeliveryMode；
+ * 这里以历史名 `AgendaTriggerAction` 对外别名导出，保持 agenda 模块对外的命名一致性。
  */
-export enum AgendaTriggerAction {
-    /**
-     * 默认。把 message 原文投给用户（不进 saver，不让 AI 处理）。
-     * 适合一次性通知/外发提醒——用户响应不需要 AI 看到这次提醒上下文。
-     */
-    Notify = 'notify',
-    /**
-     * 投递 message 给用户 + 同时把 message 以 AI 角色写入 saver（kind=Normal）。
-     * 用户后续回复时，主对话 agent 能看到"刚才系统提醒过 X"，避免上下文断裂。
-     * 适合 occurrence 打卡/汇报类 routine（喝水、周报）——用户响应"已喝/已交"时 AI 需要识别上下文。
-     * 注意：每次触发都会增加一条 saver 记录，高频 routine 会让对话历史膨胀。
-     */
-    NotifyAndRecord = 'notify_and_record',
-    /** 把 message 当作用户输入投给 AI 处理。LLM 说"每天 8 点帮我总结日志" → Invoke。 */
-    Invoke = 'invoke',
-}
+import { SessionDeliveryMode } from "../Trigger";
+export { SessionDeliveryMode as AgendaTriggerAction };
 
 /**
  * Occurrence 状态。仅 Occurrence 完成模式下使用。
@@ -228,15 +215,10 @@ export interface AgendaCreateArgs {
     /** 调度规格；省略 = 纯 Todo（无 trigger）。 */
     trigger?: AgendaTriggerSpec;
     /**
-     * IANA 时区。影响 cron 计算和"今天/明天"的日界判断；缺省取本地时区。
-     * 例："Asia/Shanghai" / "America/New_York"。
-     */
-    timezone?: string;
-    /**
      * 触发动作。缺省 Notify。
      * LLM 说"每天帮我总结一下"/"每天 8 点帮我跑数据" → 显式传 Invoke（让 AI 处理）。
      */
-    action?: AgendaTriggerAction;
+    action?: SessionDeliveryMode;
     /**
      * 触发时投递的消息文本。缺省=content。
      * LLM 说"每天 9 点用'记得交周报'提醒我" → message = "记得交周报"。
@@ -268,7 +250,7 @@ export interface AgendaCreateArgs {
  * 更新参数。LLM 通过 agenda_update 工具调用这个。
  *
  * - 传 `trigger` = "调度变更"：旧 trigger 全 disable，按新规格建一条新 trigger
- * - 不传 `trigger` 但传 timezone/action/message = 原地改 trigger 字段，不重建
+ * - 不传 `trigger` 但传 action/message = 原地改 trigger 字段，不重建
  * - 都不传 = 仅改主体字段
  */
 export interface AgendaUpdatePatch {
@@ -286,10 +268,8 @@ export interface AgendaUpdatePatch {
     dueAt?: string | null;
     /** 调度变更：传入新 spec 替换旧 trigger。省略 = 不动调度。 */
     trigger?: AgendaTriggerSpec;
-    /** 改时区；传 null 清空。单独传时不重建 trigger，只改 trigger.timezone 字段。 */
-    timezone?: string | null;
     /** 改触发动作。单独传时不重建 trigger。 */
-    action?: AgendaTriggerAction;
+    action?: SessionDeliveryMode;
     /** 改触发消息；传 null 清空回退到 content。单独传时不重建 trigger。 */
     message?: string | null;
 }
@@ -376,9 +356,7 @@ export interface AgendaTrigger {
      * - Cron：6 字段 cron 字符串
      */
     expr: string;
-    /** IANA 时区；null 表示用本地。 */
-    timezone: string | null;
-    action: AgendaTriggerAction;
+    action: SessionDeliveryMode;
     /** 投递文本，null 时由 fire 时回退到 item.content。 */
     message: string | null;
     /** 投递通道（频道会话 id）。当前由 channelSessionId 注入。 */
