@@ -21,8 +21,6 @@ export interface AgendaItem {
   priority: AgendaPriority
   category: AgendaCategory
   completionMode: AgendaCompletionMode
-  /** 仅 occurrence 模式有意义：true = missed 实例可补办 */
-  allowLateComplete: boolean
   dueAt: number | null
   source: AgendaSource
   createdAt: number

@@ -48,7 +48,6 @@ const CreateArgsSchema = z.object({
     action: z.enum(AgendaTriggerAction).optional(),
     message: z.string().optional(),
     completionMode: z.enum(AgendaCompletionMode).optional(),
-    allowLateComplete: z.boolean().optional(),
 });
 
 const UpdatePatchSchema = z.object({
@@ -56,7 +55,6 @@ const UpdatePatchSchema = z.object({
     category: z.enum(AgendaCategory).optional(),
     priority: z.enum(AgendaPriority).optional(),
     completionMode: z.enum(AgendaCompletionMode).optional(),
-    allowLateComplete: z.boolean().optional(),
     dueAt: z.string().nullable().optional(),
 });
 

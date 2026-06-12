@@ -45,7 +45,6 @@ export class AgendaStore implements IAgendaStore {
                     priority            TEXT    NOT NULL,
                     category            TEXT    NOT NULL,
                     completionMode      TEXT    NOT NULL,
-                    allowLateComplete   INTEGER NOT NULL DEFAULT 0,
                     dueAt               INTEGER,
                     source              TEXT    NOT NULL,
                     createdAt           INTEGER NOT NULL,
@@ -106,26 +105,24 @@ export class AgendaStore implements IAgendaStore {
     }
 
     private buildAgendaRecord(item: AgendaItem): AgendaRecord {
-        // SQLite 用 INTEGER 0/1 存 boolean，读出来要还原。
-        const normalizedItem: AgendaItem = { ...item, allowLateComplete: Boolean(item.allowLateComplete) };
         const triggers = (this.db.prepare("SELECT * FROM triggers WHERE itemId = ? ORDER BY id").all(item.id) as any[]).map(row => ({
             ...row,
             enabled: Boolean(row.enabled),
         })) as AgendaTrigger[];
         const occurrences = this.db.prepare("SELECT * FROM occurrences WHERE itemId = ? ORDER BY scheduledAt, id").all(item.id) as AgendaOccurrence[];
-        return { item: normalizedItem, triggers, occurrences };
+        return { item, triggers, occurrences };
     }
 
     private insertItem(item: Omit<AgendaItem, "id">): number {
         const result = this.db.prepare(`
             INSERT INTO items (
-                content, status, priority, category, completionMode, allowLateComplete,
+                content, status, priority, category, completionMode,
                 dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
-                @content, @status, @priority, @category, @completionMode, @allowLateComplete,
+                @content, @status, @priority, @category, @completionMode,
                 @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
-        `).run({ ...item, allowLateComplete: item.allowLateComplete ? 1 : 0 });
+        `).run(item);
         return Number(result.lastInsertRowid);
     }
 
@@ -164,7 +161,7 @@ export class AgendaStore implements IAgendaStore {
     async updateItem(itemId: number, fields: Partial<AgendaItem>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return null;
-            this.updateById("items", itemId, fields, new Set(["allowLateComplete"]));
+            this.updateById("items", itemId, fields);
             return this.readAgendaRecordFromDb(itemId);
         });
     }

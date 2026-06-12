@@ -634,8 +634,6 @@ export default {
     occurrence_chip_hint: 'Instances waiting for the user to confirm',
     occurrence_missed_chip_hint: 'Instances auto-marked missed because the next fire arrived before confirmation',
     occurrence_done_chip_hint: 'Instances the user has confirmed',
-    allow_late_complete: 'Late complete OK',
-    allow_late_complete_chip_hint: 'Missed instances can still be completed later. Used for weekly/monthly reports or task check-ins where late filing is meaningful. Off by default for instant reminders like drink water.',
   },
   users: {
     detail_title: 'User Details — {name}',

@@ -68,7 +68,6 @@ export class AgendaService implements IAgendaService {
             priority: args.priority ?? AgendaPriority.Normal,
             category,
             completionMode,
-            allowLateComplete: args.allowLateComplete ?? false,
             dueAt,
             source: args.source ?? AgendaSource.Tool,
             createdAt: now,
@@ -109,7 +108,6 @@ export class AgendaService implements IAgendaService {
         if (patch.category != null) fields.category = patch.category;
         if (patch.priority != null) fields.priority = patch.priority;
         if (patch.completionMode != null) fields.completionMode = patch.completionMode;
-        if (patch.allowLateComplete != null) fields.allowLateComplete = patch.allowLateComplete;
         if (patch.dueAt !== undefined) {
             fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
         } else if (patch.trigger !== undefined) {
@@ -155,19 +153,20 @@ export class AgendaService implements IAgendaService {
         const item = await this.loadItem(id);
         if (!item) return null;
         const now = Date.now();
-        // Occurrence 模式：只消费一条 occurrence，不影响 routine 主体。
-        // - 不传 at: 关最早的 pending（普通打卡）
-        // - 传 at: 在 pending（永远候选）+ missed（仅 allowLateComplete=true）中找 scheduledAt 最接近 at 的
-        // 没有匹配时视为 no-op；用户若要终止整条 routine，应使用 cancel。
+        // Occurrence 模式：只消费一条 pending occurrence，不影响 routine 主体。
+        // - 不传 at: 关最早的 pending（普通打卡语义）
+        // - 传 at: 在 pending 中找 scheduledAt 最接近 at 的（用于多条 pending 同存时精确指定）
+        // missed 状态不可达——occurrence 一旦错过就保留为历史，不允许补办；
+        // 用户若要终止整条 routine，应使用 cancel。
         if (item.completionMode === AgendaCompletionMode.Occurrence) {
-            const target = await this.pickOccurrenceForComplete(id, item, at);
+            const target = await this.pickPendingOccurrence(id, at);
             if (target) {
                 await this.agendaStore.updateOccurrence(target.id, {
                     status: AgendaOccurrenceStatus.Done,
                     doneAt: now,
                 });
             } else {
-                this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no matching occurrence`);
+                this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no pending occurrence`);
             }
             return this.agendaStore.findItem(id);
         }
@@ -180,31 +179,22 @@ export class AgendaService implements IAgendaService {
         return this.agendaStore.findItem(id);
     }
 
-    private async pickOccurrenceForComplete(
+    private async pickPendingOccurrence(
         itemId: number,
-        item: AgendaItem,
         at: string | undefined,
     ): Promise<AgendaOccurrence | null> {
         const record = await this.agendaStore.findItem(itemId);
         if (!record) return null;
-        const candidates = record.occurrences.filter(o => {
-            if (o.status === AgendaOccurrenceStatus.Pending) return true;
-            if (o.status === AgendaOccurrenceStatus.Missed && item.allowLateComplete) return true;
-            return false;
-        });
-        if (candidates.length === 0) return null;
+        const pendings = record.occurrences.filter(o => o.status === AgendaOccurrenceStatus.Pending);
+        if (pendings.length === 0) return null;
 
         if (at) {
             const target = TimeUtils.parseAt(at);
-            return candidates.reduce((best, cur) =>
+            return pendings.reduce((best, cur) =>
                 Math.abs(cur.scheduledAt - target) < Math.abs(best.scheduledAt - target) ? cur : best,
             );
         }
-        // 不传 at：仅在 pending 中挑最早的，与原有"打卡"语义一致；不补办 missed。
-        const pendings = candidates.filter(o => o.status === AgendaOccurrenceStatus.Pending);
-        return pendings.length > 0
-            ? pendings.reduce((earliest, cur) => cur.scheduledAt < earliest.scheduledAt ? cur : earliest)
-            : null;
+        return pendings.reduce((earliest, cur) => cur.scheduledAt < earliest.scheduledAt ? cur : earliest);
     }
 
     async cancel(id: number): Promise<AgendaRecord | null> {
@@ -245,8 +235,7 @@ export class AgendaService implements IAgendaService {
         const next = AgendaService.firstNextFire(record);
         const due = item.dueAt ? ` due=${AgendaService.fmtIso(item.dueAt)}` : '';
         const nextText = next ? ` next=${AgendaService.fmtIso(next)}` : '';
-        const lateFlag = item.allowLateComplete ? ' allowLateComplete=Y' : '';
-        const head = `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}]${due}${nextText}${lateFlag} ${item.content}`;
+        const head = `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}]${due}${nextText} ${item.content}`;
         if (item.completionMode !== AgendaCompletionMode.Occurrence || record.occurrences.length === 0) return head;
         return `${head}\n${AgendaService.formatOccurrences(record.occurrences)}`;
     }

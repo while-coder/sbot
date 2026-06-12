@@ -634,8 +634,6 @@ export default {
     occurrence_chip_hint: '已生成、等待用户确认完成的实例数',
     occurrence_missed_chip_hint: '触发后未在下次触发前确认完成、被自动标记错过的实例数',
     occurrence_done_chip_hint: '已确认完成的实例数',
-    allow_late_complete: '可补办',
-    allow_late_complete_chip_hint: '允许在错过后补办：周报/月报/任务汇报类，错过后仍可标记完成；普通打卡类（喝水/吃药）默认关闭',
   },
   users: {
     detail_title: '用户详情 — {name}',

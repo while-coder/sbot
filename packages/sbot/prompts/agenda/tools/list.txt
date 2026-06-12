@@ -10,9 +10,8 @@ For routines with completionMode=occurrence, the result expands occurrence histo
     done:    <ISO times the user has confirmed>
 Times are UTC ISO truncated to minute (YYYY-MM-DDTHH:mm). Each group lists at most 10 most recent times; older entries are summarized as "… N more earlier".
 
-The item header may also carry `allowLateComplete=Y`. Without that flag, missed instances are permanent — the user CANNOT mark a past missed instance done anymore. With the flag (typical for 周报/月报/任务汇报), missed can still be completed via `agenda_complete(at=...)`.
-
 When the user asks "哪几次没做 / 哪天没发 / 我今天漏了几次 / 还有什么待办 / what did I miss" for an occurrence routine,
 read the missed and pending lists and answer with the concrete times (e.g. "12:00 和 13:00 没喝水"), not just a count.
 Compare against <now> to decide whether a pending instance is "the current one waiting" vs "already overdue and should be confirmed/cancelled".
-If the user implies they want to backfill a missed instance ("我现在补交周一的周报"), check allowLateComplete first; only then call agenda_complete with at=that occurrence's scheduledAt.
+
+Missed instances are permanent — they cannot be retroactively completed. If the user wants to "make up" a missed time, acknowledge but do NOT call agenda_complete; just confirm with them that the routine works on a "use it or lose it" basis.

@@ -244,6 +244,52 @@ export class LarkService implements IChannelService {
     }], header);
   }
 
+  private collectInteractiveText(node: any, segments: string[]) {
+    if (node == null) return;
+    if (typeof node === 'string') {
+      const text = node.trim();
+      if (text) segments.push(text);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) this.collectInteractiveText(item, segments);
+      return;
+    }
+    if (typeof node !== 'object') return;
+
+    if (
+      (node.tag === 'markdown' || node.tag === 'plain_text' || node.tag === 'lark_md') &&
+      typeof node.content === 'string'
+    ) {
+      const text = node.content.trim();
+      if (text) segments.push(text);
+    } else if (node.tag === 'text' && typeof node.text === 'string') {
+      const text = node.text.trim();
+      if (text) segments.push(text);
+    }
+
+    if (node.tag === 'div' || node.tag === 'button' || node.tag === 'img') {
+      this.collectInteractiveText(node.text ?? node.alt, segments);
+    }
+
+    for (const key of [
+      'title',
+      'header',
+      'i18n_header',
+      'body',
+      'elements',
+      'i18n_elements',
+      'fields',
+      'columns',
+      'actions',
+      'options',
+      'extra',
+      'placeholder',
+    ]) {
+      this.collectInteractiveText(node[key], segments);
+    }
+  }
+
   async updateCardMessage(messageId: string, elements: any[], header?: any, replyFileOnFailure?: boolean) {
     if (elements.length === 0) return;
 
@@ -291,6 +337,10 @@ export class LarkService implements IChannelService {
       result = await this.extractPostContent(messageId, msg, mediaAsFilePath);
     } else if (messageType === 'text') {
       result = String(msg.text ?? '').trim();
+    } else if (messageType === 'interactive') {
+      const segments: string[] = [];
+      this.collectInteractiveText(msg, segments);
+      result = segments.join('\n');
     } else if (messageType === 'image' || messageType === 'audio' || messageType === 'file') {
       let filePath: string;
       let fileKey: string;

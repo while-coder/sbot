@@ -227,13 +227,6 @@ export interface AgendaCreateArgs {
     /** 显式完成模式。一般省略，由系统按 category 推断。 */
     completionMode?: AgendaCompletionMode;
     /**
-     * 是否允许补办错过的 occurrence（仅 completionMode=Occurrence 有意义）。
-     * 默认 false（多数打卡型 routine 过期就过期，例如喝水/吃药）。
-     * 设为 true 用于"周报/月报/任务汇报"这种 miss 后仍可补交的场景。
-     * 影响 service.complete(at) 的查找范围：true 时把 missed 也纳入候选。
-     */
-    allowLateComplete?: boolean;
-    /**
      * 显式截止时刻（ISO 字符串）。优先级最高，会覆盖系统从 trigger 推导的 dueAt。
      * 主要给纯 Todo 用——LLM 说"周五前写完周报" → dueAt = "2026-06-13T23:59:59"。
      * 副作用：当不传 trigger 时，系统会自动派生一条 Absolute trigger（at=dueAt）作为"截止前提醒"，
@@ -259,8 +252,6 @@ export interface AgendaUpdatePatch {
     category?: AgendaCategory;
     priority?: AgendaPriority;
     completionMode?: AgendaCompletionMode;
-    /** 切换"补办"开关。 */
-    allowLateComplete?: boolean;
     /**
      * 显式改 dueAt（ISO 字符串或 null 清空）。
      * 不传时若发生调度变更，dueAt 由新 trigger 推导。
@@ -327,11 +318,6 @@ export interface AgendaItem {
      */
     dueAt: number | null;
     source: AgendaSource;
-    /**
-     * 是否允许补办 missed occurrence。仅 completionMode=Occurrence 有意义。
-     * 默认 false。详见 AgendaCreateArgs.allowLateComplete。
-     */
-    allowLateComplete: boolean;
     /** 创建时间戳（毫秒）。 */
     createdAt: number;
     /** 最近一次更新时间戳。 */

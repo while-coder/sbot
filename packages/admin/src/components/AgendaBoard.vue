@@ -104,6 +104,9 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
     return b.createdAt - a.createdAt
   })
 }
+function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] {
+  return [...occurrences].sort((a, b) => b.scheduledAt - a.scheduledAt)
+}
 </script>
 
 <template>
@@ -194,9 +197,6 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
         <span v-if="showProfile" class="agenda-meta-chip mono">{{ t('agenda.profile_col') }}: {{ row.agendaId.slice(0, 8) }}</span>
         <span class="agenda-meta-chip">{{ t('agenda.source_col') }}: {{ sourceLabel(row.item.source) }}</span>
         <span class="agenda-meta-chip">{{ t('agenda.completion_col') }}: {{ completionModeLabel(row.item.completionMode) }}</span>
-        <span v-if="row.item.completionMode === 'occurrence' && row.item.allowLateComplete" class="agenda-meta-chip green" :title="t('agenda.allow_late_complete_chip_hint')">
-          {{ t('agenda.allow_late_complete') }}
-        </span>
         <span v-if="row.triggers.length" class="agenda-meta-chip blue">
           {{ t('agenda.triggers_col') }}: {{ activeTriggers(row) }}/{{ row.triggers.length }}
         </span>
@@ -290,7 +290,7 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
             <p class="agenda-sub-hint">{{ t('agenda.occurrence_hint') }}</p>
             <ul class="agenda-occurrence-list">
               <li
-                v-for="occ in row.occurrences"
+                v-for="occ in sortedOccurrences(row.occurrences)"
                 :key="occ.id"
                 class="agenda-occurrence-row"
                 :class="{
@@ -573,7 +573,16 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
 }
 .agenda-occurrence-row--missed {
   background: var(--sui-danger-soft);
+  border-left: 3px solid var(--sui-danger);
+  padding-left: calc(var(--sui-sp-2) - 3px);
+}
+.agenda-occurrence-row--missed,
+.agenda-occurrence-row--missed .agenda-occurrence-time {
   color: var(--sui-on-danger-soft);
+}
+.agenda-occurrence-row--missed .agenda-occurrence-time.muted {
+  color: var(--sui-on-danger-soft);
+  opacity: 0.7;
 }
 .agenda-sub-counts {
   display: inline-flex;
