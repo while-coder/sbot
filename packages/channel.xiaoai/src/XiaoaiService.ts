@@ -3,13 +3,16 @@ import {
   type ChannelMessageArgs, type ILogger, type MessageContent,
 } from 'channel.base';
 import { login } from './mi/account';
-import { getDeviceList, findDeviceByName } from './mi/mina';
+import { getDeviceList } from './mi/mina';
 import { MessagePoller, type PollingMessage } from './polling';
 import { speak } from './speaker';
 import type { AuthedAccount } from './mi/types';
 import { XiaoaiSessionHandler } from './XiaoaiSessionHandler';
 
-export type XiaoaiAuthMode = 'password' | 'passToken';
+export enum XiaoaiAuthMode {
+  Password = 'password',
+  PassToken = 'passToken',
+}
 
 export interface XiaoaiMessageArgs extends ChannelMessageArgs {
   accountUserId: string;
@@ -69,17 +72,14 @@ export class XiaoaiService implements IChannelService {
 
   async start(): Promise<void> {
     const { userId, mode, credential, loginDeviceId, deviceName } = this.options;
-    const password = mode === 'password' ? credential : '';
-    const passToken = mode === 'passToken' ? credential : undefined;
+    const password = mode === XiaoaiAuthMode.Password ? credential : '';
+    const passToken = mode === XiaoaiAuthMode.PassToken ? credential : undefined;
 
-    this.logger?.info(`XiaoAi logging in: ${userId}`);
     this.authed = await login({ userId, password, passToken, deviceId: loginDeviceId });
-    this.logger?.info(`XiaoAi logged in: ${userId}`);
 
     const allDevices = await getDeviceList(this.authed);
-    this.logger?.info(`XiaoAi found ${allDevices.length} devices`);
 
-    const matched = findDeviceByName(allDevices, deviceName);
+    const matched = allDevices.find((d) => d.name === deviceName || d.alias === deviceName);
     if (!matched) {
       const available = allDevices.map((d) => d.name).join(', ');
       throw new Error(`Device "${deviceName}" not found. Available: ${available}`);
@@ -93,6 +93,9 @@ export class XiaoaiService implements IChannelService {
     );
     this.speakerDeviceId = matched.deviceID;
     this.poller.startDevice(matched.deviceID, deviceName, matched.hardware);
+    this.logger?.info(
+      `XiaoAi started: userId=${userId}, deviceName=${deviceName}, deviceId=${matched.deviceID}, hardware=${matched.hardware}`,
+    );
   }
 
   private async handleMessage(msg: PollingMessage): Promise<void> {

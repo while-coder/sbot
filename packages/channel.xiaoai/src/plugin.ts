@@ -2,7 +2,7 @@ import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from 'channel.base';
-import { XiaoaiService, type XiaoaiAuthMode } from './XiaoaiService';
+import { XiaoaiService, XiaoaiAuthMode } from './XiaoaiService';
 import type { XiaoaiMessageArgs } from './XiaoaiService';
 
 function readString(value: unknown): string {
@@ -10,16 +10,13 @@ function readString(value: unknown): string {
 }
 
 function resolveAuthMode(config: Record<string, any>): XiaoaiAuthMode {
-  if (config.mode === 'password' || config.mode === 'passToken') return config.mode;
-  if (readString(config.passToken)) return 'passToken';
-  if (readString(config.password)) return 'password';
-  return 'passToken';
+  if (config.mode === XiaoaiAuthMode.Password) return XiaoaiAuthMode.Password;
+  if (config.mode === XiaoaiAuthMode.PassToken) return XiaoaiAuthMode.PassToken;
+  return XiaoaiAuthMode.PassToken;
 }
 
-function resolveCredential(config: Record<string, any>, mode: XiaoaiAuthMode): string {
-  const credential = readString(config.credential);
-  if (credential) return credential;
-  return mode === 'passToken' ? readString(config.passToken) : readString(config.password);
+function resolveCredential(config: Record<string, any>): string {
+  return readString(config.credential);
 }
 
 const HEARTBEAT_MIN_MS = 500;
@@ -93,9 +90,9 @@ export const xiaoaiPlugin: ChannelPlugin = {
 
     const userId = readString(config.userId);
     const mode = resolveAuthMode(config);
-    const credential = resolveCredential(config, mode);
-    const loginDeviceId = readString(config.loginDeviceId) || readString(config.deviceId);
-    const deviceName = readString(config.deviceName) || readString(config.device);
+    const credential = resolveCredential(config);
+    const loginDeviceId = readString(config.loginDeviceId);
+    const deviceName = readString(config.deviceName);
     if (!userId || !deviceName || !credential) return undefined;
 
     const service = new XiaoaiService({

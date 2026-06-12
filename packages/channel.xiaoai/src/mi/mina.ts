@@ -52,19 +52,16 @@ export async function getConversations(
       Cookie: cookie,
     },
   });
-  console.log(`[XiaoAi getConversations] hardware=${hardware}, speakerDeviceId=${speakerDeviceId}, raw response:`, JSON.stringify(resp.data));
 
   let payload: any = resp.data?.data;
   if (typeof payload === 'string') {
     try {
       payload = JSON.parse(payload);
-    } catch (e) {
-      console.error('[XiaoAi getConversations] failed to parse data string:', e);
+    } catch {
       return [];
     }
   }
   const records: MiConversation[] = payload?.records ?? [];
-  console.log(`[XiaoAi getConversations] parsed: bitSet=${JSON.stringify(payload?.bitSet)}, records.length=${records.length}`);
   return records;
 }
 
@@ -110,8 +107,4 @@ export async function setVolume(
       },
     },
   );
-}
-
-export function findDeviceByName(devices: MiNADevice[], name: string): MiNADevice | undefined {
-  return devices.find((d) => d.name === name || d.alias === name);
 }

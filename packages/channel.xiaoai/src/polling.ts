@@ -41,7 +41,6 @@ export class MessagePoller {
     });
 
     this.schedule(deviceId, this.heartbeat);
-    this.logger?.info(`XiaoAi polling started: ${deviceName} (deviceId=${deviceId}, hardware=${hardware})`);
   }
 
   stopDevice(deviceId: string) {
@@ -73,13 +72,7 @@ export class MessagePoller {
     let nextDelay = this.heartbeat;
     try {
       const records = await getConversations(this.account, state.hardware, state.deviceId, 2);
-      this.logger?.debug(
-        `XiaoAi poll (${state.deviceName}): fetched ${records.length} records, lastTimestamp=${state.lastTimestamp}`,
-      );
       const newMessages = this.extractNewMessages(state, records);
-      this.logger?.debug(
-        `XiaoAi poll (${state.deviceName}): extracted ${newMessages.length} new messages`,
-      );
 
       for (const msg of newMessages) {
         await this.onMessage(msg);
@@ -108,9 +101,6 @@ export class MessagePoller {
 
     if (state.lastTimestamp === 0) {
       state.lastTimestamp = records[0].time;
-      this.logger?.info(
-        `XiaoAi baseline established (${state.deviceName}): lastTimestamp=${records[0].time}, query="${records[0].query}" — first poll never reports messages`,
-      );
       return [];
     }
 
@@ -119,14 +109,8 @@ export class MessagePoller {
       if (record.time <= state.lastTimestamp) break;
       const answerType = record.answers?.[0]?.type;
       if (!answerType || !['TTS', 'LLM'].includes(answerType)) {
-        this.logger?.info(
-          `XiaoAi message FILTERED (${state.deviceName}): type="${answerType ?? 'none'}" not in [TTS, LLM], query="${record.query}", time=${record.time}`,
-        );
         continue;
       }
-      this.logger?.info(
-        `XiaoAi message ACCEPTED (${state.deviceName}): type="${answerType}", query="${record.query}", time=${record.time}`,
-      );
       newMsgs.push({
         text: record.query,
         timestamp: record.time,
