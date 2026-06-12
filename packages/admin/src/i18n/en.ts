@@ -46,6 +46,7 @@ export default {
     faq: 'FAQ',
   },
   common: {
+    default: 'Default',
     save: 'Save',
     saving: 'Saving…',
     cancel: 'Cancel',

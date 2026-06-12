@@ -46,6 +46,7 @@ export default {
     faq: '常见问题',
   },
   common: {
+    default: '默认',
     save: '保存',
     saving: '保存…',
     cancel: '取消',
