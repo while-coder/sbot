@@ -2,14 +2,14 @@ import {
   ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from 'channel.base';
-import { DingtalkService } from './DingtalkService';
+import { DingtalkConversationType, DingtalkService } from './DingtalkService';
 import type { DingtalkMessageArgs } from './DingtalkSessionHandler';
 
-function buildDingtalkExtraInfo(senderStaffId: string, senderNick: string, conversationType: '1' | '2'): string {
+function buildDingtalkExtraInfo(senderStaffId: string, senderNick: string, conversationType: DingtalkConversationType): string {
   return `<dingtalk-user>
   <staffid>${senderStaffId}</staffid>
   <nickname>${senderNick}</nickname>
-  <chat-type>${conversationType === '2' ? 'group' : 'p2p'}</chat-type>
+  <chat-type>${conversationType === DingtalkConversationType.Group ? 'group' : 'p2p'}</chat-type>
 </dingtalk-user>`;
 }
 
@@ -45,7 +45,7 @@ export const dingtalkPlugin: ChannelPlugin = {
           userName: args.senderNick,
           userInfo: JSON.stringify({ staffId: userId, nick: args.senderNick }),
           sessionId: args.sessionId,
-          sessionName: args.conversationType === '2' ? `group_${args.sessionId.slice(-8)}` : `p2p_${args.senderNick}`,
+          sessionName: args.conversationType === DingtalkConversationType.Group ? `group_${args.sessionId.slice(-8)}` : `p2p_${args.senderNick}`,
           sendUpdate: (msg: string) => service.sendMarkdown(args.sessionId, msg).then(() => {}),
         });
         await onReceiveMessage(session, query, {

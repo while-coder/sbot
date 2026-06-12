@@ -1,4 +1,4 @@
-export { DingtalkService, type DingtalkServiceOptions } from './DingtalkService';
+export { DingtalkConversationType, DingtalkService, type DingtalkServiceOptions } from './DingtalkService';
 export { DingtalkChatProvider } from './DingtalkChatProvider';
 export {
   DingtalkSessionHandler,

@@ -9,10 +9,15 @@ import { DingtalkOpenApi } from './DingtalkOpenApi';
 const TOPIC_ROBOT = '/v1.0/im/bot/messages/get';
 const TITLE_LEN = 12;
 
+export enum DingtalkConversationType {
+  Single = '1',
+  Group = '2',
+}
+
 /** 会话元数据（仅内存，进程重启后随入站消息自然重建）。OpenAPI 发送只需这些字段。 */
 interface SessionEntry {
   conversationId: string;
-  conversationType: '1' | '2';   // 1 = 单聊, 2 = 群聊
+  conversationType: DingtalkConversationType;
   senderStaffId: string;          // 群聊时记录最近一次 @机器人 的人
   lastMsgId: string;
   updatedAt: number;
@@ -24,7 +29,7 @@ interface RobotIncoming {
   msgId: string;
   text?: { content: string };
   conversationId: string;
-  conversationType: '1' | '2';
+  conversationType: DingtalkConversationType;
   senderStaffId: string;
   senderNick: string;
   senderId: string;
@@ -101,7 +106,7 @@ export class DingtalkService implements IChannelService {
     }
     const title = makeTitle(text);
     try {
-      if (entry.conversationType === '2') {
+      if (entry.conversationType === DingtalkConversationType.Group) {
         await this.openApi.sendMarkdownToGroup(entry.conversationId, title, text);
       } else {
         await this.openApi.sendMarkdownToUser([entry.senderStaffId], title, text);

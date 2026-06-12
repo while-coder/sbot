@@ -1,5 +1,5 @@
 import { DingtalkChatProvider } from './DingtalkChatProvider';
-import { DingtalkService } from './DingtalkService';
+import type { DingtalkConversationType, DingtalkService } from './DingtalkService';
 import {
   ChannelSessionHandler, SessionService,
   type ChannelMessageArgs, type MessageType, type MessageContent,
@@ -8,7 +8,7 @@ import {
 export interface DingtalkMessageArgs extends ChannelMessageArgs {
   msgId: string;
   conversationId: string;
-  conversationType: '1' | '2';
+  conversationType: DingtalkConversationType;
   senderStaffId: string;
   senderNick: string;
 }
