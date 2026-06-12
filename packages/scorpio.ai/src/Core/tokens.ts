@@ -16,6 +16,8 @@ export const T_SkillToolReadDesc         = Symbol("scorpio:T_SkillToolReadDesc")
 export const T_SkillToolListDesc         = Symbol("scorpio:T_SkillToolListDesc");
 export const T_SkillToolExecDesc         = Symbol("scorpio:T_SkillToolExecDesc");
 export const T_NoteSystemPromptTemplate = Symbol("scorpio:T_NoteSystemPromptTemplate");
+/** Note HybridSearcher 的 cachePath（每个 note 一份 searcher.sqlite）。 */
+export const T_NoteCachePath            = Symbol("scorpio:T_NoteCachePath");
 
 export const T_ModelCallTimeout           = Symbol("scorpio:T_ModelCallTimeout");
 export const T_ToolOverflowDir            = Symbol("scorpio:T_ToolOverflowDir");

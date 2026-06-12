@@ -551,6 +551,10 @@ class Config {
   getNoteDBPath(noteId: string) {
     return this.getConfigPath(`notes/${noteId}.db`)
   }
+  /** HybridSearcher 的 cachePath：与 `<noteId>.db` 同级的目录 `notes/<noteId>/`，互不冲突。 */
+  getNoteCachePath(noteId: string) {
+    return this.getConfigPath(`notes/${noteId}`, true)
+  }
 
   getWiki(id: string): WikiConfig | undefined {
     return this._settings.wikis?.[id.trim()];

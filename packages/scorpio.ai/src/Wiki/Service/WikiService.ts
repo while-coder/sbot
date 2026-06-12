@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { inject, init, T_WikiSystemPromptTemplate, T_WikiToolDescs, T_WikiCachePath } from "../../Core";
 import { HybridSearcher } from "../../Retrieval/HybridSearcher";
+import { IEmbeddingService } from "../../Embedding";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
 import { WikiPage } from "../Types";
 import { IWikiService } from "./IWikiService";
@@ -16,8 +17,9 @@ export class WikiService implements IWikiService {
     @inject(T_WikiSystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_WikiToolDescs) private toolDescs: WikiToolDescs,
     @inject(T_WikiCachePath) cachePath: string,
+    @inject(IEmbeddingService, { optional: true }) embeddings?: IEmbeddingService,
   ) {
-    this.searcher = new HybridSearcher({ cachePath });
+    this.searcher = new HybridSearcher({ cachePath, embeddingModel: embeddings });
   }
 
   @init()

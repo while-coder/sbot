@@ -9,14 +9,13 @@ const logger = LoggerService.getLogger('NoteDatabaseManager');
 class ManagedNoteDatabase implements INoteDatabase {
     constructor(private readonly inner: NoteSqliteDatabase) {}
 
-    getAllNotes()          { return this.inner.getAllNotes(); }
-    searchWithTimeDecay(...args: Parameters<INoteDatabase['searchWithTimeDecay']>) { return this.inner.searchWithTimeDecay(...args); }
-    findDuplicate(...args: Parameters<INoteDatabase['findDuplicate']>)             { return this.inner.findDuplicate(...args); }
+    getAllNotes()                                                                  { return this.inner.getAllNotes(); }
+    getNoteById(...args: Parameters<INoteDatabase['getNoteById']>)                 { return this.inner.getNoteById(...args); }
     insertNote(...args: Parameters<INoteDatabase['insertNote']>)                   { return this.inner.insertNote(...args); }
-    updateNote(...args: Parameters<INoteDatabase['updateNote']>)                   { return this.inner.updateNote(...args); }
+    updateNoteContent(...args: Parameters<INoteDatabase['updateNoteContent']>)     { return this.inner.updateNoteContent(...args); }
     updateAccess(...args: Parameters<INoteDatabase['updateAccess']>)               { return this.inner.updateAccess(...args); }
     deleteNote(...args: Parameters<INoteDatabase['deleteNote']>)                   { return this.inner.deleteNote(...args); }
-    clearNotes()           { return this.inner.clearNotes(); }
+    clearNotes()                                                                   { return this.inner.clearNotes(); }
 
     async dispose(): Promise<void> { /* no-op: 由 Manager 统一管理 */ }
 }

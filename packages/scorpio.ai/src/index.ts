@@ -59,6 +59,7 @@ export {
   T_SkillToolListDesc,
   T_SkillToolExecDesc,
   T_NoteSystemPromptTemplate,
+  T_NoteCachePath,
   T_MemoryDir,
   T_MemoryDbPath,
   T_MemoryReadTemplate,

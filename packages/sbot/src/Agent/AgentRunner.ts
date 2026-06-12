@@ -11,6 +11,7 @@ import {
     IAgentSaverService,
     T_NoteSystemPromptTemplate,
     T_NoteToolDescs,
+    T_NoteCachePath,
     IModelService,
     IWikiService, IWikiDatabase,
     WikiService,
@@ -181,21 +182,26 @@ export class AgentRunner {
 
     private static async buildNoteService(noteId: string, loggerService?: LoggerService): Promise<INoteService | null> {
         const noteConfig = config.getNote(noteId);
-        if (!noteConfig?.embedding) return null;
+        if (!noteConfig) return null;
 
-        const embedding = await config.getEmbeddingService(noteConfig.embedding, true);
+        // embedding 可选：没配则 NoteService 退化为 BM25 + time decay + access。
+        const embedding = noteConfig.embedding
+            ? await config.getEmbeddingService(noteConfig.embedding, true)
+            : undefined;
 
         const sub = new ServiceContainer();
         if (loggerService) sub.registerInstance(ILoggerService, loggerService);
         const dbPath = config.getNoteDBPath(noteId);
         sub.registerInstance(INoteDatabase, NoteDatabaseManager.getInstance().acquire(dbPath));
 
-        sub.registerWithArgs(INoteService, NoteService, {
-            [IEmbeddingService]: embedding,
+        const args: Record<string | symbol, any> = {
+            [T_NoteCachePath]: config.getNoteCachePath(noteId),
             [T_NoteSystemPromptTemplate]: loadPrompt('note/system.txt'),
             [T_NoteToolDescs]: { search: loadPrompt('tools/note/search.txt') },
-        });
+        };
+        if (embedding) args[IEmbeddingService] = embedding;
 
+        sub.registerWithArgs(INoteService, NoteService, args);
         return sub.resolve<INoteService>(INoteService);
     }
 
@@ -221,6 +227,11 @@ export class AgentRunner {
         const wikiConfig = config.getWiki(wikiId);
         if (!wikiConfig) return null;
 
+        // embedding 可选：没配则 HybridSearcher 退化为 BM25-only。
+        const embedding = wikiConfig.embedding
+            ? await config.getEmbeddingService(wikiConfig.embedding, true)
+            : undefined;
+
         const sub = new ServiceContainer();
         const wikiDir = config.getWikiDBPath(wikiId);
         sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
@@ -233,6 +244,7 @@ export class AgentRunner {
                 read: loadPrompt('tools/wiki/read.txt'),
             },
         };
+        if (embedding) args[IEmbeddingService] = embedding;
 
         sub.registerWithArgs(IWikiService, WikiService, args);
         return sub.resolve<IWikiService>(IWikiService);

@@ -4,7 +4,6 @@
 export interface Note {
   id: string;
   content: string;
-  embedding: number[];
   createdAt: number;
   accessCount: number;
   lastAccessed: number;

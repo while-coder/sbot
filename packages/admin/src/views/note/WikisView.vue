@@ -136,8 +136,11 @@ async function refresh() {
               <div class="embed-label">{{ embeddingOptions.find(e => e.id === row.embedding)!.label }}</div>
               <div class="embed-detail">{{ embeddingOptions.find(e => e.id === row.embedding)!.detail }}</div>
             </template>
+            <template v-else-if="row.embedding">
+              <div class="embed-label">{{ row.embedding }}</div>
+            </template>
             <template v-else>
-              <div class="embed-label">{{ row.embedding || t('wikis.embedding_none') }}</div>
+              <div class="embed-label embed-bm25">{{ t('wikis.embedding_bm25_only') }}</div>
             </template>
           </div>
         </template>
@@ -195,6 +198,10 @@ async function refresh() {
 .embed-detail {
   color: var(--sui-fg-disabled);
   font-size: var(--sui-fs-xs);
+}
+.embed-bm25 {
+  color: var(--sui-fg-disabled);
+  font-style: italic;
 }
 .ops-row {
   display: inline-flex;

@@ -130,8 +130,9 @@ export interface AgendaProfileConfig {
 export interface NoteConfig {
   /** 显示名称 */
   name: string
-  /** 笔记使用的 embedding UUID（对应 embeddings 中的 key） */
-  embedding: string
+  /** 笔记使用的 embedding UUID（对应 embeddings 中的 key）。
+   *  可选：不配则 NoteService 退化为 BM25 + time decay + access 关键词检索。 */
+  embedding?: string
 }
 
 export interface WikiConfig {

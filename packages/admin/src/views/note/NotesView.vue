@@ -31,7 +31,7 @@ const embeddingOptions = computed(() =>
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<NoteConfig>({
-  name: '', embedding: '',
+  name: '',
 })
 
 const noteViewModal = ref<InstanceType<typeof NoteViewModal>>()
@@ -56,7 +56,7 @@ watch(notes, () => loadCounts(), { deep: true })
 
 function openAdd() {
   editingName.value = null
-  form.value = { name: '', embedding: '' }
+  form.value = { name: '' }
   showModal.value = true
 }
 
@@ -72,13 +72,9 @@ function openEdit(id: string) {
 
 async function save() {
   if (!form.value.name.trim())  { show(t('common.name_required'),     'error'); return }
-  if (!form.value.embedding)    { show(t('notes.error_embedding'),    'error'); return }
   try {
-    const { name, ...config } = form.value
-    const body: NoteConfig = {
-      name,
-      embedding: config.embedding,
-    }
+    const { name, embedding } = form.value
+    const body: NoteConfig = embedding ? { name, embedding } : { name }
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/notes/${encodeURIComponent(id)}`, 'PUT', body)
@@ -137,8 +133,11 @@ async function refresh() {
               <div class="embed-label">{{ embeddingOptions.find(e => e.id === row.embedding)!.label }}</div>
               <div class="embed-detail">{{ embeddingOptions.find(e => e.id === row.embedding)!.detail }}</div>
             </template>
+            <template v-else-if="row.embedding">
+              <div class="embed-label">{{ row.embedding }}</div>
+            </template>
             <template v-else>
-              <div class="embed-label">{{ row.embedding || '-' }}</div>
+              <div class="embed-label embed-bm25">{{ t('notes.embedding_bm25_only') }}</div>
             </template>
           </div>
         </template>
@@ -161,9 +160,9 @@ async function refresh() {
       <SFormItem :label="t('common.name') + ' *'">
         <SInput v-model="form.name" :placeholder="t('notes.name_placeholder')" />
       </SFormItem>
-      <SFormItem :label="t('notes.embedding_model') + ' *'">
+      <SFormItem :label="t('notes.embedding_model')">
         <SSelect v-model="form.embedding">
-          <option value="" disabled>{{ t('notes.embedding_placeholder') }}</option>
+          <option value="">{{ t('notes.embedding_none') }}</option>
           <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }} ({{ e.detail }})</option>
         </SSelect>
       </SFormItem>
@@ -194,6 +193,10 @@ async function refresh() {
 .embed-detail {
   color: var(--sui-fg-disabled);
   font-size: var(--sui-fs-xs);
+}
+.embed-bm25 {
+  color: var(--sui-fg-disabled);
+  font-style: italic;
 }
 .ops-row {
   display: inline-flex;
