@@ -105,8 +105,13 @@ export enum AgendaOccurrenceStatus {
     Pending = 'pending',
     /** 已完成。 */
     Done = 'done',
-    /** 已取消。 */
+    /** 已取消（用户主动放弃这一次）。 */
     Cancelled = 'cancelled',
+    /**
+     * 已错过：本次触发后用户在下次触发到来前没 complete，由 TriggerEngine 在生成新一条 pending
+     * 时把上一条 pending 标记为 missed。doneAt 记录被标记的时刻（≈下次触发时刻）。
+     */
+    Missed = 'missed',
 }
 
 /**
@@ -229,6 +234,13 @@ export interface AgendaCreateArgs {
     message?: string;
     /** 显式完成模式。一般省略，由系统按 category 推断。 */
     completionMode?: AgendaCompletionMode;
+    /**
+     * 是否允许补办错过的 occurrence（仅 completionMode=Occurrence 有意义）。
+     * 默认 false（多数打卡型 routine 过期就过期，例如喝水/吃药）。
+     * 设为 true 用于"周报/月报/任务汇报"这种 miss 后仍可补交的场景。
+     * 影响 service.complete(at) 的查找范围：true 时把 missed 也纳入候选。
+     */
+    allowLateComplete?: boolean;
     /**
      * 显式截止时刻（ISO 字符串）。优先级最高，会覆盖系统从 trigger 推导的 dueAt。
      * 主要给纯 Todo 用——LLM 说"周五前写完周报" → dueAt = "2026-06-13T23:59:59"。

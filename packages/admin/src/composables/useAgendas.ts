@@ -10,7 +10,7 @@ export type AgendaCompletionMode = 'none' | 'item' | 'occurrence'
 export type AgendaSource = 'user' | 'tool' | 'sync' | 'rule'
 export type AgendaTriggerKind = 'absolute' | 'interval' | 'cron'
 export type AgendaTriggerAction = 'notify' | 'invoke'
-export type AgendaOccurrenceStatus = 'pending' | 'done' | 'cancelled'
+export type AgendaOccurrenceStatus = 'pending' | 'done' | 'cancelled' | 'missed'
 export type AgendaViewFilter = 'todo' | 'upcoming' | 'routine' | 'automation' | 'all'
 export type AgendaStatusFilter = AgendaStatus | 'all'
 

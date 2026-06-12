@@ -10,15 +10,25 @@ Extract only durable user agenda changes from the conversation:
 Return no action when the assistant already explicitly created or updated the agenda, or when the conversation is only casual discussion.
 
 Use create for new agenda items.
-Use complete when the user says an existing item is done.
-Use cancel when the user no longer wants an existing item.
+Use complete when the user says an existing item is done — see the per-occurrence rule below.
+Use cancel when the user no longer wants an existing item (terminates the whole item, not a single instance).
 Use update only when the user changes an existing item.
 
-Prefer these defaults:
+Per-occurrence items (look for `completionMode=occurrence` in <existing-agenda>):
+- These are routines where each fire produces a separate instance the user must check off (e.g. daily check-in, hourly status report, drink water).
+- When the user provides a check-in / status report / 汇报 / 打卡 / 完成了今天/这次 for such an item, emit Complete with that item's id. The backend will close the earliest pending instance; the routine itself stays Pending and keeps firing.
+- Do NOT emit Cancel for these — Cancel terminates the whole routine.
+- Do NOT skip emitting Complete just because the routine looks "in progress"; one Complete per check-in is correct.
+- Examples that should emit Complete on item #N:
+  * "10点的工作报告：完成了 X" against #N [pending/routine/.../occurrence] 每小时总结工作内容
+  * "今天的水喝完了" against #N [.../occurrence] 每天提醒喝水
+  * "本周周报：…" against #N [.../occurrence] 每周交周报
+
+Prefer these defaults when creating:
 - one-shot reminders: category=reminder, completionMode=none
 - unscheduled tasks: category=todo, completionMode=item
-- recurring habits such as drink water, take medicine, check in: category=routine, completionMode=none
-- recurring deliverables such as submit weekly report: category=routine, completionMode=occurrence
+- recurring habits such as drink water, take medicine: category=routine, completionMode=none
+- recurring deliverables / check-ins such as weekly report or hourly summary: category=routine, completionMode=occurrence
 - scheduled agent work or message sending: category=automation, action=invoke or send, completionMode=none
 
 Use at for concrete ISO datetimes, after for relative one-shot reminders, every for recurring intervals, and cron only when exact cron is necessary.

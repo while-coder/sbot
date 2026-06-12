@@ -72,9 +72,10 @@ function categoryVariant(c: AgendaCategory): 'success' | 'info' | 'warning' | 'n
   return 'neutral'
 }
 
-function occurrenceVariant(s: AgendaOccurrenceStatus): 'success' | 'warning' | 'neutral' {
+function occurrenceVariant(s: AgendaOccurrenceStatus): 'success' | 'warning' | 'danger' | 'neutral' {
   if (s === 'done') return 'success'
   if (s === 'pending') return 'warning'
+  if (s === 'missed') return 'danger'
   return 'neutral'
 }
 
@@ -93,8 +94,16 @@ function formatTime(ts: number | null | undefined): string {
 }
 
 function rowKeyFn(row: AgendaRow): number { return row.item.id }
-function pendingOccurrences(row: AgendaRow): number { return row.occurrences.filter(o => o.status === 'pending').length }
+function countOcc(row: AgendaRow, status: AgendaOccurrenceStatus): number {
+  return row.occurrences.filter(o => o.status === status).length
+}
 function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t => t.enabled).length }
+function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
+  return [...triggers].sort((a, b) => {
+    if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
+    return b.createdAt - a.createdAt
+  })
+}
 </script>
 
 <template>
@@ -188,8 +197,14 @@ function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t =
         <span v-if="row.triggers.length" class="agenda-meta-chip blue">
           {{ t('agenda.triggers_col') }}: {{ activeTriggers(row) }}/{{ row.triggers.length }}
         </span>
-        <span v-if="row.occurrences.length" class="agenda-meta-chip orange" :title="t('agenda.occurrence_chip_hint')">
-          {{ t('agenda.occurrence_section') }}: {{ pendingOccurrences(row) }}/{{ row.occurrences.length }}
+        <span v-if="countOcc(row, 'missed')" class="agenda-meta-chip overdue" :title="t('agenda.occurrence_missed_chip_hint')">
+          {{ t('agenda.occurrence_missed') }}: {{ countOcc(row, 'missed') }}
+        </span>
+        <span v-if="countOcc(row, 'pending')" class="agenda-meta-chip orange" :title="t('agenda.occurrence_chip_hint')">
+          {{ t('agenda.occurrence_pending') }}: {{ countOcc(row, 'pending') }}
+        </span>
+        <span v-if="countOcc(row, 'done')" class="agenda-meta-chip" :title="t('agenda.occurrence_done_chip_hint')">
+          {{ t('agenda.occurrence_done') }}: {{ countOcc(row, 'done') }}
         </span>
         <span v-if="row.item.dueAt" class="agenda-meta-chip" :class="{ overdue: isOverdue(row) }">
           {{ t('agenda.due_col') }}: {{ formatTime(row.item.dueAt) }}
@@ -220,19 +235,21 @@ function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t =
           <section class="agenda-sub-section">
             <div class="agenda-sub-title">
               <h4>{{ t('agenda.trigger_details') }}</h4>
-              <SBadge variant="neutral" size="xs">{{ row.triggers.length }}</SBadge>
+              <SBadge variant="success" size="xs">{{ activeTriggers(row) }} / {{ row.triggers.length }}</SBadge>
             </div>
+            <p v-if="row.triggers.length > activeTriggers(row)" class="agenda-sub-hint">{{ t('agenda.trigger_disabled_hint') }}</p>
             <div v-if="row.triggers.length === 0" class="agenda-sub-empty">{{ t('agenda.no_trigger') }}</div>
             <ul v-else class="agenda-trigger-list">
               <li
-                v-for="trigger in row.triggers"
+                v-for="trigger in sortedTriggers(row.triggers)"
                 :key="trigger.id"
                 class="agenda-trigger-row"
                 :class="{ 'agenda-trigger-row--disabled': !trigger.enabled }"
               >
                 <div class="agenda-trigger-main">
                   <SBadge :variant="trigger.enabled ? 'success' : 'neutral'" size="xs">{{ triggerKindLabel(trigger) }}</SBadge>
-                  <SBadge variant="info" size="xs">{{ triggerActionLabel(trigger) }}</SBadge>
+                  <SBadge v-if="trigger.enabled" variant="info" size="xs">{{ triggerActionLabel(trigger) }}</SBadge>
+                  <SBadge v-if="!trigger.enabled" variant="neutral" size="xs">{{ t('agenda.trigger_disabled') }}</SBadge>
                   <SBadge v-if="trigger.derived" variant="neutral" size="xs">{{ t('agenda.trigger_derived') }}</SBadge>
                   <code class="agenda-trigger-expr">{{ trigger.expr }}</code>
                 </div>
@@ -265,7 +282,12 @@ function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t =
           <section v-if="row.occurrences.length" class="agenda-sub-section">
             <div class="agenda-sub-title">
               <h4>{{ t('agenda.occurrence_section') }}</h4>
-              <SBadge variant="warning" size="xs">{{ pendingOccurrences(row) }} / {{ row.occurrences.length }}</SBadge>
+              <span class="agenda-sub-counts">
+                <SBadge v-if="countOcc(row, 'pending')" variant="warning" size="xs">{{ t('agenda.occurrence_pending') }} {{ countOcc(row, 'pending') }}</SBadge>
+                <SBadge v-if="countOcc(row, 'missed')" variant="danger" size="xs">{{ t('agenda.occurrence_missed') }} {{ countOcc(row, 'missed') }}</SBadge>
+                <SBadge v-if="countOcc(row, 'done')" variant="success" size="xs">{{ t('agenda.occurrence_done') }} {{ countOcc(row, 'done') }}</SBadge>
+                <SBadge v-if="countOcc(row, 'cancelled')" variant="neutral" size="xs">{{ t('agenda.occurrence_cancelled') }} {{ countOcc(row, 'cancelled') }}</SBadge>
+              </span>
             </div>
             <p class="agenda-sub-hint">{{ t('agenda.occurrence_hint') }}</p>
             <ul class="agenda-occurrence-list">
@@ -273,7 +295,11 @@ function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t =
                 v-for="occ in row.occurrences"
                 :key="occ.id"
                 class="agenda-occurrence-row"
-                :class="{ 'agenda-occurrence-row--done': occ.status === 'done', 'agenda-occurrence-row--cancelled': occ.status === 'cancelled' }"
+                :class="{
+                  'agenda-occurrence-row--done': occ.status === 'done',
+                  'agenda-occurrence-row--cancelled': occ.status === 'cancelled',
+                  'agenda-occurrence-row--missed': occ.status === 'missed',
+                }"
               >
                 <SBadge :variant="occurrenceVariant(occ.status)" size="xs">{{ occurrenceStatusLabel(occ) }}</SBadge>
                 <span class="agenda-occurrence-time mono">{{ formatTime(occ.scheduledAt) }}</span>
@@ -485,7 +511,16 @@ function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t =
   padding: var(--sui-sp-2) var(--sui-sp-3);
   background: var(--sui-bg-soft);
 }
-.agenda-trigger-row--disabled { opacity: 0.6; }
+.agenda-trigger-row--disabled {
+  opacity: 0.55;
+  background: var(--sui-bg-subtle);
+  border-style: dashed;
+}
+.agenda-trigger-row--disabled .agenda-trigger-expr,
+.agenda-trigger-row--disabled .agenda-trigger-grid dd {
+  text-decoration: line-through;
+  text-decoration-color: var(--sui-fg-muted);
+}
 .agenda-trigger-main {
   display: flex;
   align-items: center;
@@ -533,6 +568,15 @@ function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t =
   background: var(--sui-bg-soft);
   color: var(--sui-fg-muted);
   text-decoration: line-through;
+}
+.agenda-occurrence-row--missed {
+  background: var(--sui-danger-soft);
+  color: var(--sui-on-danger-soft);
+}
+.agenda-sub-counts {
+  display: inline-flex;
+  gap: var(--sui-sp-2);
+  flex-wrap: wrap;
 }
 .agenda-sub-hint {
   margin: 0 0 var(--sui-sp-2);

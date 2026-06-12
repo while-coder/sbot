@@ -228,16 +228,75 @@ export class AgendaService implements IAgendaService {
     async formatForLLM(filter?: AgendaListFilter): Promise<string> {
         const records = await this.list(filter);
         if (records.length === 0) return "No agenda items.";
-        const lines = records.map(record => {
-            const item = record.item;
-            const next = AgendaService.firstNextFire(record);
-            const due = item.dueAt ? ` due=${TimeUtils.formatWhen(item.dueAt)}` : '';
-            const nextText = next ? ` next=${TimeUtils.formatWhen(next)}` : '';
-            const occ = record.occurrences.filter(o => o.status === AgendaOccurrenceStatus.Pending).length;
-            const occText = occ > 0 ? ` pending_occurrences=${occ}` : '';
-            return `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}] ${item.content}${due}${nextText}${occText}`;
-        });
+        const lines = records.map(record => AgendaService.formatRecord(record));
         return `${records.length} agenda item(s):\n\n${lines.join('\n')}`;
+    }
+
+    /** 每个 occurrence 状态分组里最多列出多少条（取最近的 = scheduledAt 降序）。 */
+    private static readonly OCC_GROUP_LIMIT = 10;
+
+    /** YYYY-MM-DDTHH:mm，UTC。LLM 看到 ISO 能精确判断"哪天/哪小时"。 */
+    private static fmtIso(ts: number): string {
+        return new Date(ts).toISOString().slice(0, 16);
+    }
+
+    private static formatRecord(record: AgendaRecord): string {
+        const item = record.item;
+        const next = AgendaService.firstNextFire(record);
+        const due = item.dueAt ? ` due=${AgendaService.fmtIso(item.dueAt)}` : '';
+        const nextText = next ? ` next=${AgendaService.fmtIso(next)}` : '';
+        const head = `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}]${due}${nextText} ${item.content}`;
+        if (item.completionMode !== AgendaCompletionMode.Occurrence || record.occurrences.length === 0) return head;
+        return `${head}\n${AgendaService.formatOccurrences(record.occurrences)}`;
+    }
+
+    /**
+     * 按 status 分组列出 occurrence 时间，例：
+     *   occurrences: done=3 missed=2 pending=1
+     *     pending: 2026-06-12T14:00
+     *     missed:  2026-06-12T12:00, 2026-06-12T13:00
+     *     done:    2026-06-12T09:00, 2026-06-12T10:00, 2026-06-12T11:00
+     * 每组最多列 OCC_GROUP_LIMIT 条最近的（按 scheduledAt 升序输出便于阅读），
+     * 更早的报 "… N more earlier"。LLM 用这个回答"哪几个时刻没做"。
+     */
+    private static formatOccurrences(occurrences: AgendaOccurrence[]): string {
+        const groups: Record<AgendaOccurrenceStatus, AgendaOccurrence[]> = {
+            [AgendaOccurrenceStatus.Pending]:   [],
+            [AgendaOccurrenceStatus.Missed]:    [],
+            [AgendaOccurrenceStatus.Done]:      [],
+            [AgendaOccurrenceStatus.Cancelled]: [],
+        };
+        for (const occ of occurrences) {
+            const bucket = groups[occ.status];
+            if (bucket) bucket.push(occ);
+        }
+        const counts = Object.entries(groups)
+            .filter(([, arr]) => arr.length > 0)
+            .map(([k, arr]) => `${k}=${arr.length}`)
+            .join(' ');
+
+        const lines: string[] = [`  occurrences: ${counts}`];
+        const order: AgendaOccurrenceStatus[] = [
+            AgendaOccurrenceStatus.Pending,
+            AgendaOccurrenceStatus.Missed,
+            AgendaOccurrenceStatus.Done,
+            AgendaOccurrenceStatus.Cancelled,
+        ];
+        for (const status of order) {
+            const arr = groups[status];
+            if (arr.length === 0) continue;
+            const sortedDesc = [...arr].sort((a, b) => b.scheduledAt - a.scheduledAt);
+            const recent = sortedDesc.slice(0, AgendaService.OCC_GROUP_LIMIT);
+            const omitted = sortedDesc.length - recent.length;
+            const times = recent
+                .slice()
+                .reverse()
+                .map(o => AgendaService.fmtIso(o.scheduledAt))
+                .join(', ');
+            const tail = omitted > 0 ? `, … ${omitted} more earlier` : '';
+            lines.push(`    ${status}: ${times}${tail}`);
+        }
+        return lines.join('\n');
     }
 
     async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {

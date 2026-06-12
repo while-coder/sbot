@@ -166,7 +166,13 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
             }
 
             // 仅在投递成功时记录 occurrence，避免失败积累虚假 pending 条目。
+            // 新增 pending 前，把上一轮还挂着的 pending 标为 missed——
+            // 语义：下一次提醒来了 = 上一次错过了。doneAt = scheduledAt（本次触发时刻）。
             if (delivered && item.completionMode === AgendaCompletionMode.Occurrence) {
+                const missedIds = await this.store.markPendingOccurrencesMissed(item.id, scheduledAt);
+                if (missedIds.length > 0) {
+                    logger.info(`Agenda item [${item.id}] marked ${missedIds.length} pending occurrence(s) as missed`);
+                }
                 await this.store.appendOccurrence(item.id, {
                     itemId: item.id,
                     scheduledAt,

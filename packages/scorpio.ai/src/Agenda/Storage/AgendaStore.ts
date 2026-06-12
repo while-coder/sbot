@@ -239,6 +239,23 @@ export class AgendaStore implements IAgendaStore {
         });
     }
 
+    async markPendingOccurrencesMissed(itemId: number, missedAt: number): Promise<number[]> {
+        return this.withLock(async () => {
+            if (!existsSync(this.dbPath)) return [];
+            const rows = this.db.prepare(
+                "SELECT id FROM occurrences WHERE itemId = ? AND status = 'pending'"
+            ).all(itemId) as Array<{ id: number }>;
+            if (rows.length === 0) return [];
+            const update = this.db.prepare(
+                "UPDATE occurrences SET status = 'missed', doneAt = ? WHERE id = ?"
+            );
+            this.db.transaction(() => {
+                for (const row of rows) update.run(missedAt, row.id);
+            })();
+            return rows.map(r => r.id);
+        });
+    }
+
     async deleteItem(itemId: number): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return null;
