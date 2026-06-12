@@ -9,7 +9,7 @@ export type AgendaCategory = 'todo' | 'reminder' | 'routine'
 export type AgendaCompletionMode = 'none' | 'item' | 'occurrence'
 export type AgendaSource = 'user' | 'tool' | 'sync' | 'rule'
 export type AgendaTriggerKind = 'absolute' | 'interval' | 'cron'
-export type AgendaTriggerAction = 'notify' | 'invoke'
+export type AgendaTriggerAction = 'notify' | 'notify_and_record' | 'invoke'
 export type AgendaOccurrenceStatus = 'pending' | 'done' | 'cancelled' | 'missed'
 export type AgendaViewFilter = 'todo' | 'upcoming' | 'routine' | 'automation' | 'all'
 export type AgendaStatusFilter = AgendaStatus | 'all'
@@ -21,6 +21,8 @@ export interface AgendaItem {
   priority: AgendaPriority
   category: AgendaCategory
   completionMode: AgendaCompletionMode
+  /** 仅 occurrence 模式有意义：true = missed 实例可补办 */
+  allowLateComplete: boolean
   dueAt: number | null
   source: AgendaSource
   createdAt: number
@@ -42,7 +44,6 @@ export interface AgendaTrigger {
   maxFires: number
   lastFiredAt: number | null
   nextFireAt: number | null
-  derived: boolean
   createdAt: number
 }
 

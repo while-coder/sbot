@@ -194,6 +194,9 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
         <span v-if="showProfile" class="agenda-meta-chip mono">{{ t('agenda.profile_col') }}: {{ row.agendaId.slice(0, 8) }}</span>
         <span class="agenda-meta-chip">{{ t('agenda.source_col') }}: {{ sourceLabel(row.item.source) }}</span>
         <span class="agenda-meta-chip">{{ t('agenda.completion_col') }}: {{ completionModeLabel(row.item.completionMode) }}</span>
+        <span v-if="row.item.completionMode === 'occurrence' && row.item.allowLateComplete" class="agenda-meta-chip green" :title="t('agenda.allow_late_complete_chip_hint')">
+          {{ t('agenda.allow_late_complete') }}
+        </span>
         <span v-if="row.triggers.length" class="agenda-meta-chip blue">
           {{ t('agenda.triggers_col') }}: {{ activeTriggers(row) }}/{{ row.triggers.length }}
         </span>
@@ -250,7 +253,6 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
                   <SBadge :variant="trigger.enabled ? 'success' : 'neutral'" size="xs">{{ triggerKindLabel(trigger) }}</SBadge>
                   <SBadge v-if="trigger.enabled" variant="info" size="xs">{{ triggerActionLabel(trigger) }}</SBadge>
                   <SBadge v-if="!trigger.enabled" variant="neutral" size="xs">{{ t('agenda.trigger_disabled') }}</SBadge>
-                  <SBadge v-if="trigger.derived" variant="neutral" size="xs">{{ t('agenda.trigger_derived') }}</SBadge>
                   <code class="agenda-trigger-expr">{{ trigger.expr }}</code>
                 </div>
                 <dl class="agenda-trigger-grid">
@@ -439,6 +441,10 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
 .agenda-meta-chip.orange {
   background: var(--sui-warning-soft);
   color: var(--sui-on-warning-soft);
+}
+.agenda-meta-chip.green {
+  background: var(--sui-success-soft);
+  color: var(--sui-on-success-soft);
 }
 .agenda-meta-chip.overdue {
   background: var(--sui-danger-soft);

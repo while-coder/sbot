@@ -59,9 +59,10 @@ export class AgendaToolProvider {
                     trigger: TriggerSpecSchema.optional().describe('Schedule of when this fires. Omit for plain todo without a time.'),
                     dueAt: z.string().optional().describe('Optional ISO datetime deadline. Mainly for plain todos ("finish weekly report by Friday" → "2026-06-13T23:59:59"). When set without a `trigger`, the system auto-fires a one-shot reminder at this moment so the deadline does not pass silently. For Reminder/Routine the deadline is auto-derived from the trigger; only set this when you need to override.'),
                     timezone: z.string().optional().describe('IANA timezone. Default is local runtime timezone.'),
-                    action: z.enum(AgendaTriggerAction).optional().describe('notify=send the message text as-is to the user (default). invoke=feed the message to the AI agent for processing. Write any "提醒：..." prefix yourself in the message field if you want one.'),
+                    action: z.enum(AgendaTriggerAction).optional().describe('notify=send the message text as-is to the user; the fire is NOT recorded in the conversation history (default; for one-shot reminders / external pings where the user reply does not need fire context). notify_and_record=same as notify, but also append the message to the conversation history as an AI message so the main agent sees that the system pinged the user — use this for occurrence routines (打卡/汇报/喝水) so the agent can correctly read user replies like "已喝/已交". invoke=feed the message to the AI agent as user input so it actively responds. Write any "提醒：..." prefix yourself in the message field if you want one.'),
                     message: z.string().optional().describe('Optional override for the text delivered when the trigger fires. Leave empty to deliver `content` as-is — only fill this when the delivered text needs to differ from `content` (e.g. content="分析昨日日志" as a short title, message="请分析昨天的 nginx 日志，找出 5xx 异常..." as the full instruction the AI agent should process).'),
                     completionMode: z.enum(AgendaCompletionMode).optional(),
+                    allowLateComplete: z.boolean().optional().describe('Only meaningful for completionMode=occurrence. true = missed instances can still be completed later (用于"周报/月报/任务汇报"——周一忘了交，周三补交也算完成). false (default) = once a fire is missed it stays missed (用于"喝水/吃药/打卡"——过了那个小时就过了).'),
                 }),
                 func: async (args: AgendaCreateArgs) => {
                     try {
@@ -103,6 +104,7 @@ export class AgendaToolProvider {
                     category: z.enum(AgendaCategory).optional(),
                     priority: z.enum(AgendaPriority).optional(),
                     completionMode: z.enum(AgendaCompletionMode).optional(),
+                    allowLateComplete: z.boolean().optional().describe('Toggle whether missed occurrence instances can still be completed later. See agenda_create for semantics.'),
                     dueAt: z.string().nullable().optional(),
                     trigger: TriggerSpecSchema.optional().describe('Replace existing triggers with a new schedule. Omit to keep current triggers.'),
                     timezone: z.string().nullable().optional(),
@@ -121,10 +123,13 @@ export class AgendaToolProvider {
             new DynamicStructuredTool({
                 name: AGENDA_COMPLETE_TOOL_NAME,
                 description: descs.complete,
-                schema: z.object({ id: z.number() }),
-                func: async ({ id }: { id: number }) => {
+                schema: z.object({
+                    id: z.number(),
+                    at: z.string().optional().describe('Optional ISO datetime pointing at WHICH occurrence the user is completing — only meaningful for completionMode=occurrence routines. Use it when the user references a specific past time ("周一的周报我刚补交了" → at=that monday\'s ISO; "今天的我刚发了" → at=that scheduled hour). Omit when the user says "喝了 / 完成了" without specifying which one — the system closes the earliest pending instance. Cannot reach missed instances unless the routine has allowLateComplete=true.'),
+                }),
+                func: async ({ id, at }: { id: number; at?: string }) => {
                     try {
-                        const record = await agendaService.complete(id);
+                        const record = await agendaService.complete(id, at);
                         return record ? `Completed agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
                     } catch (e: any) {
                         return `Failed to complete agenda #${id}: ${e.message}`;

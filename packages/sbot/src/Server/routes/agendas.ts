@@ -135,7 +135,10 @@ export class AgendaRoutes {
         if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
         const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
         const service = await this.createService(agendaId, 0);
-        if (action === 'complete') return service.complete(id);
+        if (action === 'complete') {
+            const at = typeof req.body?.at === 'string' && req.body.at.trim() ? req.body.at.trim() : undefined;
+            return service.complete(id, at);
+        }
         return service.cancel(id);
     }
 

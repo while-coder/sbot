@@ -91,8 +91,18 @@ export enum AgendaTriggerKind {
  * 文本前缀/格式化由用户/LLM 在 message 字段里自己组织，系统不再自动套模板。
  */
 export enum AgendaTriggerAction {
-    /** 默认。把 message 原文投给用户（不让 AI 处理）。 */
+    /**
+     * 默认。把 message 原文投给用户（不进 saver，不让 AI 处理）。
+     * 适合一次性通知/外发提醒——用户响应不需要 AI 看到这次提醒上下文。
+     */
     Notify = 'notify',
+    /**
+     * 投递 message 给用户 + 同时把 message 以 AI 角色写入 saver（kind=Normal）。
+     * 用户后续回复时，主对话 agent 能看到"刚才系统提醒过 X"，避免上下文断裂。
+     * 适合 occurrence 打卡/汇报类 routine（喝水、周报）——用户响应"已喝/已交"时 AI 需要识别上下文。
+     * 注意：每次触发都会增加一条 saver 记录，高频 routine 会让对话历史膨胀。
+     */
+    NotifyAndRecord = 'notify_and_record',
     /** 把 message 当作用户输入投给 AI 处理。LLM 说"每天 8 点帮我总结日志" → Invoke。 */
     Invoke = 'invoke',
 }
@@ -267,6 +277,8 @@ export interface AgendaUpdatePatch {
     category?: AgendaCategory;
     priority?: AgendaPriority;
     completionMode?: AgendaCompletionMode;
+    /** 切换"补办"开关。 */
+    allowLateComplete?: boolean;
     /**
      * 显式改 dueAt（ISO 字符串或 null 清空）。
      * 不传时若发生调度变更，dueAt 由新 trigger 推导。
@@ -335,6 +347,11 @@ export interface AgendaItem {
      */
     dueAt: number | null;
     source: AgendaSource;
+    /**
+     * 是否允许补办 missed occurrence。仅 completionMode=Occurrence 有意义。
+     * 默认 false。详见 AgendaCreateArgs.allowLateComplete。
+     */
+    allowLateComplete: boolean;
     /** 创建时间戳（毫秒）。 */
     createdAt: number;
     /** 最近一次更新时间戳。 */
@@ -384,11 +401,6 @@ export interface AgendaTrigger {
      * 引擎按这个值调度 setTimeout。
      */
     nextFireAt: number | null;
-    /**
-     * 是否由系统从 dueAt 派生（true = 由 withDefaultDueAtTrigger 注入）。
-     * update 改 dueAt 时只动 derived=true 的 trigger，避免误伤用户显式建的调度。
-     */
-    derived: boolean;
     createdAt: number;
 }
 

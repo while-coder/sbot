@@ -49,6 +49,7 @@ const CreateArgsSchema = z.object({
     action: z.enum(AgendaTriggerAction).optional(),
     message: z.string().optional(),
     completionMode: z.enum(AgendaCompletionMode).optional(),
+    allowLateComplete: z.boolean().optional(),
 });
 
 const UpdatePatchSchema = z.object({
@@ -56,6 +57,7 @@ const UpdatePatchSchema = z.object({
     category: z.enum(AgendaCategory).optional(),
     priority: z.enum(AgendaPriority).optional(),
     completionMode: z.enum(AgendaCompletionMode).optional(),
+    allowLateComplete: z.boolean().optional(),
     dueAt: z.string().nullable().optional(),
 });
 
@@ -63,7 +65,11 @@ const AgendaExtractSchema = z.object({
     actions: z.array(z.discriminatedUnion("type", [
         z.object({ type: z.literal(AgendaActionType.Create), args: CreateArgsSchema }),
         z.object({ type: z.literal(AgendaActionType.Update), id: z.number(), patch: UpdatePatchSchema }),
-        z.object({ type: z.literal(AgendaActionType.Complete), id: z.number() }),
+        z.object({
+            type: z.literal(AgendaActionType.Complete),
+            id: z.number(),
+            at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Omit for "current/latest" check-ins.'),
+        }),
         z.object({ type: z.literal(AgendaActionType.Cancel), id: z.number() }),
     ])).describe("Agenda actions extracted from the conversation. Return [] if no agenda change is needed."),
 });

@@ -39,17 +39,18 @@ export class AgendaStore implements IAgendaStore {
             this._db.pragma("journal_mode = WAL");
             this._db.exec(`
                 CREATE TABLE IF NOT EXISTS items (
-                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-                    content           TEXT    NOT NULL,
-                    status            TEXT    NOT NULL,
-                    priority          TEXT    NOT NULL,
-                    category          TEXT    NOT NULL,
-                    completionMode    TEXT    NOT NULL,
-                    dueAt             INTEGER,
-                    source            TEXT    NOT NULL,
-                    createdAt         INTEGER NOT NULL,
-                    updatedAt         INTEGER NOT NULL,
-                    doneAt            INTEGER
+                    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                    content             TEXT    NOT NULL,
+                    status              TEXT    NOT NULL,
+                    priority            TEXT    NOT NULL,
+                    category            TEXT    NOT NULL,
+                    completionMode      TEXT    NOT NULL,
+                    allowLateComplete   INTEGER NOT NULL DEFAULT 0,
+                    dueAt               INTEGER,
+                    source              TEXT    NOT NULL,
+                    createdAt           INTEGER NOT NULL,
+                    updatedAt           INTEGER NOT NULL,
+                    doneAt              INTEGER
                 );
                 CREATE TABLE IF NOT EXISTS triggers (
                     id             INTEGER PRIMARY KEY,
@@ -65,7 +66,6 @@ export class AgendaStore implements IAgendaStore {
                     maxFires       INTEGER NOT NULL,
                     lastFiredAt    INTEGER,
                     nextFireAt     INTEGER,
-                    derived        INTEGER NOT NULL DEFAULT 0,
                     createdAt      INTEGER NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS occurrences (
@@ -80,17 +80,8 @@ export class AgendaStore implements IAgendaStore {
                 CREATE INDEX IF NOT EXISTS idx_triggers_enabled ON triggers (enabled, nextFireAt);
                 CREATE INDEX IF NOT EXISTS idx_occurrences_item_status ON occurrences (itemId, status, scheduledAt);
             `);
-            this.runMigrations();
         }
         return this._db;
-    }
-
-    /** 旧库兼容：补齐后加的列。SQLite 不支持 IF NOT EXISTS 在 ADD COLUMN 上，靠读 table_info 判断。 */
-    private runMigrations(): void {
-        const cols = (this._db!.prepare("PRAGMA table_info(triggers)").all() as Array<{ name: string }>).map(r => r.name);
-        if (!cols.includes("derived")) {
-            this._db!.exec("ALTER TABLE triggers ADD COLUMN derived INTEGER NOT NULL DEFAULT 0");
-        }
     }
 
     private inferItemIdFromChildId(childId: number): number {
@@ -116,25 +107,26 @@ export class AgendaStore implements IAgendaStore {
     }
 
     private buildAgendaRecord(item: AgendaItem): AgendaRecord {
+        // SQLite 用 INTEGER 0/1 存 boolean，读出来要还原。
+        const normalizedItem: AgendaItem = { ...item, allowLateComplete: Boolean(item.allowLateComplete) };
         const triggers = (this.db.prepare("SELECT * FROM triggers WHERE itemId = ? ORDER BY id").all(item.id) as any[]).map(row => ({
             ...row,
             enabled: Boolean(row.enabled),
-            derived: Boolean(row.derived),
         })) as AgendaTrigger[];
         const occurrences = this.db.prepare("SELECT * FROM occurrences WHERE itemId = ? ORDER BY scheduledAt, id").all(item.id) as AgendaOccurrence[];
-        return { item, triggers, occurrences };
+        return { item: normalizedItem, triggers, occurrences };
     }
 
     private insertItem(item: Omit<AgendaItem, "id">): number {
         const result = this.db.prepare(`
             INSERT INTO items (
-                content, status, priority, category, completionMode,
+                content, status, priority, category, completionMode, allowLateComplete,
                 dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
-                @content, @status, @priority, @category, @completionMode,
+                @content, @status, @priority, @category, @completionMode, @allowLateComplete,
                 @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
-        `).run(item);
+        `).run({ ...item, allowLateComplete: item.allowLateComplete ? 1 : 0 });
         return Number(result.lastInsertRowid);
     }
 
@@ -173,7 +165,7 @@ export class AgendaStore implements IAgendaStore {
     async updateItem(itemId: number, fields: Partial<AgendaItem>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return null;
-            this.updateById("items", itemId, fields);
+            this.updateById("items", itemId, fields, new Set(["allowLateComplete"]));
             return this.readAgendaRecordFromDb(itemId);
         });
     }
@@ -208,12 +200,12 @@ export class AgendaStore implements IAgendaStore {
             this.db.prepare(`
                 INSERT INTO triggers (
                     id, itemId, kind, expr, timezone, action, message, channelHint, enabled,
-                    fireCount, maxFires, lastFiredAt, nextFireAt, derived, createdAt
+                    fireCount, maxFires, lastFiredAt, nextFireAt, createdAt
                 ) VALUES (
                     @id, @itemId, @kind, @expr, @timezone, @action, @message, @channelHint, @enabled,
-                    @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @derived, @createdAt
+                    @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @createdAt
                 )
-            `).run({ ...row, enabled: row.enabled ? 1 : 0, derived: row.derived ? 1 : 0 });
+            `).run({ ...row, enabled: row.enabled ? 1 : 0 });
             return row;
         });
     }

@@ -4,3 +4,14 @@ Use this whenever the user asks you to remember something, remind them later, sc
 Prefer structured time fields: at, after, every, or cron. Do not invent a cron expression when after/every/at is enough.
 
 If you are not sure whether the item already exists, call agenda_list first. If this tool says an agenda item already exists, treat that as success and do not create another item.
+
+When creating a routine with completionMode=occurrence, set allowLateComplete based on the real-world semantics:
+- allowLateComplete=true for "may be filed late" items (周报/月报/任务汇报/复盘/打卡有补交意义的). Missed instances can still be marked done later.
+- allowLateComplete=false (default) for "use it or lose it" items (喝水/吃药/小时打卡/即时确认). Once a fire is missed it stays missed.
+Pick the value from the user's intent rather than the schedule itself: "每天交日报" (work deliverable) → true; "每天提醒喝水" (instant reminder) → false. When the user is ambiguous, default to false.
+
+When creating a routine with completionMode=occurrence, set action=notify_and_record (instead of the default notify):
+- The user is expected to reply ("已喝 / 已交 / 完成了") to each fire. Without a recorded fire in the saver, the main agent sees an orphan reply and gets confused.
+- notify_and_record writes the fire as an AI-role message into the conversation history so the agent can correctly read short check-in replies.
+For non-occurrence reminders (one-shot, simple notifications), keep action=notify (or omit) — recording every fire would inflate the conversation needlessly.
+Use action=invoke only when you want the AI to actively respond to the fire (e.g. "每天 8 点帮我总结日志").

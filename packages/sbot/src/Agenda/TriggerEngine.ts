@@ -2,7 +2,6 @@ import {
     AgendaCompletionMode,
     AgendaOccurrenceStatus,
     AgendaStatus,
-    AgendaTriggerAction,
     AgendaTriggerKind,
     computeNextAfterFire,
     DEFAULT_GRACE_MS,
@@ -127,7 +126,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 const result = await triggerSession({
                     targetId: delivery.id,
                     message,
-                    aiProcess: freshTrigger.action === AgendaTriggerAction.Invoke,
+                    mode: freshTrigger.action,
                     tag: `Agenda trigger [${freshTrigger.id}]`,
                 });
                 delivered = result.ok;

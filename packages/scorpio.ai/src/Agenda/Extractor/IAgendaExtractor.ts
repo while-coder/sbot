@@ -14,7 +14,7 @@ export enum AgendaActionType {
 export type AgendaAction =
     | { type: AgendaActionType.Create; args: AgendaCreateArgs }
     | { type: AgendaActionType.Update; id: number; patch: AgendaUpdatePatch }
-    | { type: AgendaActionType.Complete; id: number }
+    | { type: AgendaActionType.Complete; id: number; at?: string }
     | { type: AgendaActionType.Cancel; id: number };
 
 export interface IAgendaExtractor {

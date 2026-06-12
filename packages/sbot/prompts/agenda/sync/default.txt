@@ -19,10 +19,22 @@ Per-occurrence items (look for `completionMode=occurrence` in <existing-agenda>)
 - When the user provides a check-in / status report / 汇报 / 打卡 / 完成了今天/这次 for such an item, emit Complete with that item's id. The backend will close the earliest pending instance; the routine itself stays Pending and keeps firing.
 - Do NOT emit Cancel for these — Cancel terminates the whole routine.
 - Do NOT skip emitting Complete just because the routine looks "in progress"; one Complete per check-in is correct.
-- Examples that should emit Complete on item #N:
-  * "10点的工作报告：完成了 X" against #N [pending/routine/.../occurrence] 每小时总结工作内容
-  * "今天的水喝完了" against #N [.../occurrence] 每天提醒喝水
-  * "本周周报：…" against #N [.../occurrence] 每周交周报
+- The optional `at` field on Complete pinpoints a specific past instance by ISO datetime. Use it ONLY when the user references a particular past fire ("周一的周报我刚补交了" → at=that monday). Backfill only works when the item header shows `allowLateComplete=Y`; if it doesn't, do not emit Complete with `at` — the missed instance is permanently gone.
+- Without `at`, Complete closes the earliest pending instance (treats the user's message as the in-flight check-in).
+
+When CREATING an occurrence routine:
+- Set allowLateComplete based on whether late filing is meaningful in real life:
+  * 周报/月报/复盘/任务汇报 → allowLateComplete=true (周一忘了，周三补交也算)
+  * 喝水/吃药/小时打卡/即时确认 → allowLateComplete=false / omit (过了那个小时就过了)
+- Set action=notify_and_record (NOT the default notify). Occurrence routines expect the user to reply each fire ("已喝 / 已交"); plain notify does not record the fire in the saver, so the main agent later sees an orphan user reply with no context and may misroute it. notify_and_record writes the fire to history so the agent reads "[AI: 要喝水了] [user: 已喝]" as a coherent exchange.
+- Keep action=notify (default) only for non-occurrence routines (no expected reply per fire, e.g. cron broadcasts).
+- Use action=invoke only when the routine should make the AI actively process / respond.
+
+Examples:
+  * "10点的工作报告：完成了 X" against #N [.../occurrence] 每小时工作总结 → Complete{id:N, at:"<10:00 ISO>"} (or no at if the in-flight one is exactly 10:00)
+  * "今天的水喝完了" against #N [.../occurrence] 每天提醒喝水 → Complete{id:N} (no at)
+  * "周一忘了交周报，现在补一下" against #N [.../occurrence allowLateComplete=Y] 每周交周报 → Complete{id:N, at:"<that monday ISO>"}
+  * Same scenario but #N is missing allowLateComplete=Y → return [] (cannot backfill)
 
 Prefer these defaults when creating:
 - one-shot reminders: category=reminder, completionMode=none

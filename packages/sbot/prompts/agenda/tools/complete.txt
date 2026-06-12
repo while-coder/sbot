@@ -1,1 +1,8 @@
 Mark an agenda item as complete. Use this when the user says a todo/task is done, finished, completed, or no longer pending because they did it.
+
+For routines with completionMode=occurrence, this closes ONE instance, not the whole routine. The routine keeps firing.
+- Default (no `at`): closes the earliest still-pending instance — use this for plain check-ins like "我喝了 / 完成了今天的".
+- With `at`: pinpoint a specific occurrence by ISO datetime. Required when the user references a particular past time:
+  * "周一的周报我刚补交了" → at = that monday's scheduled fire ISO. Only works if the routine has allowLateComplete=true (see <existing-agenda> output for the flag).
+  * "10 点的工作报告：…" against an hourly routine → at = 10:00 ISO of today.
+  When you cannot reach a missed instance because allowLateComplete=false, do not call this tool — just acknowledge the user instead of silently failing.

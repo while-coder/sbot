@@ -68,6 +68,7 @@ export class AgendaService implements IAgendaService {
             priority: args.priority ?? AgendaPriority.Normal,
             category,
             completionMode,
+            allowLateComplete: args.allowLateComplete ?? false,
             dueAt,
             source: args.source ?? AgendaSource.Tool,
             createdAt: now,
@@ -77,9 +78,8 @@ export class AgendaService implements IAgendaService {
 
         // 显式 dueAt 但没传 trigger（典型场景：纯 Todo 加截止）→ 派生一个 Absolute trigger，
         // 让 dueAt 时刻自动发一次"已到截止"提醒；否则 dueAt 过期后系统不会有任何主动行为。
-        const isDerivedFromDueAt = !args.trigger && !!args.dueAt;
         const effectiveArgs = this.withDefaultDueAtTrigger(args);
-        const trigger = await this.createTriggerIfNeeded(record.item, effectiveArgs, action, now, isDerivedFromDueAt);
+        const trigger = await this.createTriggerIfNeeded(record.item, effectiveArgs, action, now);
         if (trigger) await this.triggerEngine.reload(trigger.id);
         const fresh = await this.agendaStore.findItem(record.item.id);
         return { item: fresh!, created: true, existed: false };
@@ -109,6 +109,7 @@ export class AgendaService implements IAgendaService {
         if (patch.category != null) fields.category = patch.category;
         if (patch.priority != null) fields.priority = patch.priority;
         if (patch.completionMode != null) fields.completionMode = patch.completionMode;
+        if (patch.allowLateComplete != null) fields.allowLateComplete = patch.allowLateComplete;
         if (patch.dueAt !== undefined) {
             fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
         } else if (patch.trigger !== undefined) {
@@ -138,9 +139,6 @@ export class AgendaService implements IAgendaService {
                 await this.disableItemTriggers(id, trigger.id);
                 await this.triggerEngine.reload(trigger.id);
             }
-        } else if (patch.dueAt !== undefined && fields.dueAt !== item.dueAt) {
-            // dueAt 变了但用户没传 trigger：同步派生 trigger（关掉旧的 derived，按新 dueAt 重建）
-            await this.syncDerivedTrigger(id, fields.dueAt ?? null, patch, now);
         } else if (this.hasTriggerFieldPatch(patch)) {
             const triggerFields: Partial<AgendaTrigger> = {};
             if (patch.timezone !== undefined) triggerFields.timezone = patch.timezone;
@@ -151,50 +149,27 @@ export class AgendaService implements IAgendaService {
             for (const trigger of activeTriggers) await this.agendaStore.updateTrigger(trigger.id, triggerFields);
             await this.triggerEngine.reloadItem(id);
         }
+        // 注意：仅改 dueAt 不会联动现有 trigger。如需调度同步，调用方应在同一次 update 里显式传 trigger。
         return this.agendaStore.findItem(id);
     }
 
-    /**
-     * dueAt 变化但用户没传 trigger 时调用：关掉所有 derived=true 的 trigger，
-     * 若新 dueAt 不为空，再派生一条新的 Absolute trigger。
-     * 用户显式建的 trigger（derived=false）不被触碰。
-     */
-    private async syncDerivedTrigger(itemId: number, newDueAt: number | null, patch: AgendaUpdatePatch, now: number): Promise<void> {
-        const record = await this.agendaStore.findItem(itemId);
-        if (!record) return;
-
-        for (const t of record.triggers) {
-            if (!t.derived || !t.enabled) continue;
-            await this.agendaStore.updateTrigger(t.id, { enabled: false, nextFireAt: null });
-            this.triggerEngine.cancel(t.id);
-        }
-
-        if (newDueAt != null) {
-            const action = patch.action ?? AgendaTriggerAction.Notify;
-            const trigger = await this.createTriggerIfNeeded(record.item, {
-                content: record.item.content,
-                trigger: { kind: AgendaTriggerKind.Absolute, at: new Date(newDueAt).toISOString() },
-                timezone: patch.timezone ?? undefined,
-                action,
-                message: patch.message ?? undefined,
-            }, action, now, true);
-            if (trigger) await this.triggerEngine.reload(trigger.id);
-        }
-    }
-
-    async complete(id: number): Promise<AgendaRecord | null> {
+    async complete(id: number, at?: string): Promise<AgendaRecord | null> {
         const item = await this.loadItem(id);
         if (!item) return null;
         const now = Date.now();
-        // Occurrence 模式：只消费一次 pending occurrence，不影响 routine 主体。
-        // 没有 pending occurrence 时视为 no-op；用户若要终止整条 routine，应使用 cancel。
+        // Occurrence 模式：只消费一条 occurrence，不影响 routine 主体。
+        // - 不传 at: 关最早的 pending（普通打卡）
+        // - 传 at: 在 pending（永远候选）+ missed（仅 allowLateComplete=true）中找 scheduledAt 最接近 at 的
+        // 没有匹配时视为 no-op；用户若要终止整条 routine，应使用 cancel。
         if (item.completionMode === AgendaCompletionMode.Occurrence) {
-            const occ = await this.firstPendingOccurrence(id);
-            if (occ) {
-                await this.agendaStore.updateOccurrence(occ.id, {
+            const target = await this.pickOccurrenceForComplete(id, item, at);
+            if (target) {
+                await this.agendaStore.updateOccurrence(target.id, {
                     status: AgendaOccurrenceStatus.Done,
                     doneAt: now,
                 });
+            } else {
+                this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no matching occurrence`);
             }
             return this.agendaStore.findItem(id);
         }
@@ -205,6 +180,33 @@ export class AgendaService implements IAgendaService {
         });
         await this.disableItemTriggers(id);
         return this.agendaStore.findItem(id);
+    }
+
+    private async pickOccurrenceForComplete(
+        itemId: number,
+        item: AgendaItem,
+        at: string | undefined,
+    ): Promise<AgendaOccurrence | null> {
+        const record = await this.agendaStore.findItem(itemId);
+        if (!record) return null;
+        const candidates = record.occurrences.filter(o => {
+            if (o.status === AgendaOccurrenceStatus.Pending) return true;
+            if (o.status === AgendaOccurrenceStatus.Missed && item.allowLateComplete) return true;
+            return false;
+        });
+        if (candidates.length === 0) return null;
+
+        if (at) {
+            const target = TimeUtils.parseAt(at);
+            return candidates.reduce((best, cur) =>
+                Math.abs(cur.scheduledAt - target) < Math.abs(best.scheduledAt - target) ? cur : best,
+            );
+        }
+        // 不传 at：仅在 pending 中挑最早的，与原有"打卡"语义一致；不补办 missed。
+        const pendings = candidates.filter(o => o.status === AgendaOccurrenceStatus.Pending);
+        return pendings.length > 0
+            ? pendings.reduce((earliest, cur) => cur.scheduledAt < earliest.scheduledAt ? cur : earliest)
+            : null;
     }
 
     async cancel(id: number): Promise<AgendaRecord | null> {
@@ -245,7 +247,8 @@ export class AgendaService implements IAgendaService {
         const next = AgendaService.firstNextFire(record);
         const due = item.dueAt ? ` due=${AgendaService.fmtIso(item.dueAt)}` : '';
         const nextText = next ? ` next=${AgendaService.fmtIso(next)}` : '';
-        const head = `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}]${due}${nextText} ${item.content}`;
+        const lateFlag = item.allowLateComplete ? ' allowLateComplete=Y' : '';
+        const head = `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}]${due}${nextText}${lateFlag} ${item.content}`;
         if (item.completionMode !== AgendaCompletionMode.Occurrence || record.occurrences.length === 0) return head;
         return `${head}\n${AgendaService.formatOccurrences(record.occurrences)}`;
     }
@@ -317,13 +320,13 @@ export class AgendaService implements IAgendaService {
         } else if (action.type === AgendaActionType.Update) {
             await this.update(action.id, action.patch);
         } else if (action.type === AgendaActionType.Complete) {
-            await this.complete(action.id);
+            await this.complete(action.id, action.at);
         } else if (action.type === AgendaActionType.Cancel) {
             await this.cancel(action.id);
         }
     }
 
-    private async createTriggerIfNeeded(item: AgendaItem, args: AgendaCreateArgs, action: AgendaTriggerAction, now: number, derived = false): Promise<AgendaTrigger | null> {
+    private async createTriggerIfNeeded(item: AgendaItem, args: AgendaCreateArgs, action: AgendaTriggerAction, now: number): Promise<AgendaTrigger | null> {
         const spec = args.trigger;
         if (!spec) return null;
 
@@ -365,7 +368,6 @@ export class AgendaService implements IAgendaService {
             maxFires,
             lastFiredAt: null,
             nextFireAt,
-            derived,
             createdAt: now,
         });
     }
@@ -475,13 +477,6 @@ export class AgendaService implements IAgendaService {
             .map(t => t.nextFireAt as number)
             .sort((a, b) => a - b);
         return values[0] ?? null;
-    }
-
-    private async firstPendingOccurrence(itemId: number): Promise<AgendaOccurrence | null> {
-        const record = await this.agendaStore.findItem(itemId);
-        return record?.occurrences
-            .filter(o => o.status === AgendaOccurrenceStatus.Pending)
-            .sort((a, b) => a.scheduledAt - b.scheduledAt)[0] ?? null;
     }
 
     private async disableItemTriggers(itemId: number, exceptTriggerId?: number): Promise<void> {
