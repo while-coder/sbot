@@ -1,4 +1,4 @@
-Update an existing agenda item. Use this when the user changes the content, priority, category, due time, trigger time, schedule, action, message, timezone, or completion behavior of an agenda item.
+Update an existing agenda item. Use this when the user changes the content, priority, category, due time, trigger time, schedule, action, message, or completion behavior of an agenda item.
 
 Use at, after, every, or cron to replace the item's active trigger while preserving the agenda item id and history.
 
