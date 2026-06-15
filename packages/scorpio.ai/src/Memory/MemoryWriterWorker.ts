@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { IModelService } from "../Model";
-import { type ChatMessage, type StoredMessage, MessageRole } from "../Saver";
+import { type ChatMessage, type StoredMessage, MessageKind, MessageRole } from "../Saver";
 import { ILogger, ILoggerService } from "../Logger";
-import { MemoryKind, type IMemoryStore, type ExtractJobRow, type MemoryBodyMode } from "./IMemoryStore";
+import { MemoryKind, type IMemoryStore, type MemoryBodyMode } from "./IMemoryStore";
 import { renderConversation } from "./ConversationRenderer";
 import { SecretRedactor } from "./SecretRedactor";
 
@@ -75,55 +75,31 @@ const MemoryUpdateMergeSchema = z.object({
 type MemoryUpdateMergeOutput = z.infer<typeof MemoryUpdateMergeSchema>;
 
 interface MemoryOpApplyContext {
-    sourceThreadId?: string;
-    sourceWindowStartCursor?: string;
-    sourceWindowEndCursor?: string;
     conversation?: string;
     mergeUpdateBodies?: boolean;
 }
 
-export interface MemoryWriterJobContext {
-    /** 来自 saver 的窗口内消息（未经 redact） */
-    messages: StoredMessage[];
-}
-
-export interface MemoryWriterRunOptions {
-    /** lease 持有时长，超时后未完成的 job 被下一轮重抢 */
-    leaseMs: number;
-    /** 同时跑几条 job */
-    concurrency: number;
-    /** 单 job 最大尝试次数；超过后 nextRetryAt=null 不再被 claim */
-    maxAttempts: number;
-    /** menu 注入给 LLM 时的最大条目数（控 token） */
-    menuMaxEntries: number;
-    /** 给定 job，从 saver 拉对应窗口的消息；返回 null 表示该窗口无效 */
-    fetchJobContext: (job: ExtractJobRow) => Promise<MemoryWriterJobContext | null>;
-}
-
-export interface MemoryWriterStats {
-    claimed: number;
-    succeeded: number;
+export interface MemoryWriterOpStats {
+    create: number;
+    update: number;
+    delete: number;
+    noop: number;
     failed: number;
-    /** 应用的 op 计数（按 action 分类，覆盖所有 succeeded 的 job） */
-    ops: { create: number; update: number; delete: number; noop: number; failed: number };
 }
+
+const DEFAULT_MENU_MAX_ENTRIES = 200;
 
 /**
- * MemoryLLM CRUD worker。一个 memoryProfile 一个实例。
+ * MemoryLLM CRUD 引擎。一个 memoryProfile 一个实例，由 MemoryService 持有并调用。
  *
- * 流程：
- *   1. claim 一批 pending job（含过期 lease 重抢、failed 重试）
- *   2. for each job：
- *      a. fetch transcript（saver）
- *      b. 渲染 input（菜单 + transcript）
- *      c. SecretRedactor 兜底
- *      d. 调 LLM，强制结构化输出（CRUD ops 数组）
- *      e. 应用每条 op（独立 try/catch；单条失败不影响其他）
- *      f. 标记 job succeeded
- *   3. 模型调用整体失败 → finishExtractFailure，按指数 backoff 等下一轮
+ * 流程（每次 extractFromMessages）：
+ *   1. 渲染 input（菜单 + transcript）
+ *   2. SecretRedactor 兜底
+ *   3. 调 LLM，强制结构化输出（CRUD ops 数组）
+ *   4. 应用每条 op（独立 try/catch；单条失败不影响其他）
  *
  * 直接产生 CRUD ops 应用到 store；没有整合层，每条 op 即时落盘；
- * 单 op 失败隔离（如 slug 冲突）不会让整个 job 标 failed。
+ * 单 op 失败隔离（如 slug 冲突）不会让整个调用抛错。
  */
 export class MemoryWriterWorker {
     private logger?: ILogger;
@@ -133,93 +109,36 @@ export class MemoryWriterWorker {
         private readonly store: IMemoryStore,
         private readonly systemPrompt: string,
         private readonly redactor: SecretRedactor,
+        private readonly menuMaxEntries: number = DEFAULT_MENU_MAX_ENTRIES,
         loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("MemoryWriterWorker");
     }
 
-    async runOnce(opts: MemoryWriterRunOptions): Promise<MemoryWriterStats> {
-        const stats: MemoryWriterStats = {
-            claimed: 0,
-            succeeded: 0,
-            failed: 0,
-            ops: { create: 0, update: 0, delete: 0, noop: 0, failed: 0 },
-        };
-        const claimed = await this.store.claimExtract(Date.now(), opts.leaseMs, opts.concurrency);
-        stats.claimed = claimed.length;
-        if (claimed.length === 0) return stats;
-
-        const results = await Promise.allSettled(claimed.map(job => this.processOne(job, opts)));
-        for (let i = 0; i < results.length; i++) {
-            const r = results[i];
-            if (r.status === 'fulfilled') {
-                if (r.value.kind === 'succeeded') {
-                    stats.succeeded++;
-                    stats.ops.create += r.value.ops.create;
-                    stats.ops.update += r.value.ops.update;
-                    stats.ops.delete += r.value.ops.delete;
-                    stats.ops.noop   += r.value.ops.noop;
-                    stats.ops.failed += r.value.ops.failed;
-                } else {
-                    stats.failed++;
-                }
-            } else {
-                stats.failed++;
-                this.logger?.error(`MemoryWriter job ${claimed[i].id} processing rejected: ${r.reason?.message ?? r.reason}`);
-            }
-        }
-        return stats;
-    }
-
-    private async processOne(
-        job: ExtractJobRow,
-        opts: MemoryWriterRunOptions,
-    ): Promise<{ kind: 'succeeded'; ops: MemoryWriterStats['ops'] } | { kind: 'failed' }> {
-        const ctx = await opts.fetchJobContext(job).catch(e => {
-            this.logger?.warn(`fetchJobContext failed for job ${job.id}: ${e?.message}`);
-            return null;
-        });
-
-        if (!ctx || ctx.messages.length === 0) {
-            // 窗口空（session 已删 / saver 失效）→ 无可处理内容，job 完结，不重试
-            await this.store.finishExtractSuccess(job.id, Date.now());
-            return { kind: 'succeeded', ops: { create: 0, update: 0, delete: 0, noop: 1, failed: 0 } };
+    /**
+     * 单轮抽取：把一组对话消息喂给 MemoryLLM，应用返回的 ops。
+     * 模型调用失败会抛出，由调用方决定是否标记 pending 行为 failed。
+     */
+    async extractFromMessages(messages: ChatMessage[]): Promise<MemoryWriterOpStats> {
+        if (messages.length === 0) {
+            return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
         }
 
-        const conversation = renderConversation(ctx.messages);
-        const menu = await this.store.listMenu(opts.menuMaxEntries);
+        const conversation = this.renderChatMessages(messages);
+        const menu = await this.store.listMenu(this.menuMaxEntries);
         const input = this.renderInput(menu, conversation);
         const redacted = this.redactor.redact(input);
 
-        const messages: ChatMessage[] = [
+        const llmMessages: ChatMessage[] = [
             { role: MessageRole.System, content: this.systemPrompt },
             { role: MessageRole.Human, content: redacted },
         ];
 
-        let result: MemoryWriteOutput;
-        try {
-            result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, messages);
-        } catch (e: any) {
-            const attemptsTried = job.attemptCount; // claim 时已 +1
-            const nextRetryAt = attemptsTried >= opts.maxAttempts ? null : Date.now() + this.backoffMs(attemptsTried);
-            const errMsg = (e?.message ?? String(e)).slice(0, 1000);
-            await this.store.finishExtractFailure(job.id, errMsg, nextRetryAt, Date.now());
-            this.logger?.warn(`MemoryWriter job ${job.id} model call failed (attempt ${attemptsTried}/${opts.maxAttempts}): ${errMsg}`);
-            return { kind: 'failed' };
-        }
-
-        const opStats = await this.applyOps(job.id, result.ops, {
-            sourceThreadId: job.threadId,
-            sourceWindowStartCursor: job.windowStartCursor,
-            sourceWindowEndCursor: job.windowEndCursor,
-            conversation,
-            mergeUpdateBodies: true,
-        });
-        await this.store.finishExtractSuccess(job.id, Date.now());
-        return { kind: 'succeeded', ops: opStats };
+        const result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, llmMessages);
+        return await this.applyOps(result.ops, { conversation, mergeUpdateBodies: true });
     }
 
-    async consolidateOnce(opts?: { entryLimit?: number; bodyMaxChars?: number }): Promise<MemoryWriterStats['ops']> {
+    async consolidateOnce(opts?: { entryLimit?: number; bodyMaxChars?: number }): Promise<MemoryWriterOpStats> {
         const rows = (await this.store.list()).slice(0, opts?.entryLimit ?? 100);
         if (rows.length === 0) return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
 
@@ -270,23 +189,16 @@ export class MemoryWriterWorker {
         }
 
         const filtered = result.ops.filter(op => op.action !== MemoryOpAction.Create);
-        return this.applyOps(-1, filtered, { mergeUpdateBodies: false });
+        return this.applyOps(filtered, { mergeUpdateBodies: false });
     }
 
     /**
      * 单 op 失败不破坏整体：每条独立 try/catch。
-     * 失败原因（slug 冲突 / 不存在等）记 warn 日志，整体 job 仍标 succeeded。
+     * 失败原因（slug 冲突 / 不存在等）记 warn 日志。
      */
-    private async applyOps(jobId: number, ops: MemoryOp[], context: MemoryOpApplyContext = {}): Promise<MemoryWriterStats['ops']> {
-        const out = { create: 0, update: 0, delete: 0, noop: 0, failed: 0 };
+    private async applyOps(ops: MemoryOp[], context: MemoryOpApplyContext = {}): Promise<MemoryWriterOpStats> {
+        const out: MemoryWriterOpStats = { create: 0, update: 0, delete: 0, noop: 0, failed: 0 };
         const now = Date.now();
-        const source = context.sourceThreadId
-            ? {
-                threadId: context.sourceThreadId,
-                windowStartCursor: context.sourceWindowStartCursor,
-                windowEndCursor: context.sourceWindowEndCursor,
-            }
-            : undefined;
         for (const op of ops) {
             try {
                 switch (op.action) {
@@ -297,15 +209,13 @@ export class MemoryWriterWorker {
                             title: op.title,
                             description: op.description,
                             body: op.body,
-                            source,
-                            evidenceCount: source ? 1 : undefined,
                         }, now);
                         out.create++;
-                        this.logger?.info(`[job ${jobId}] memory create: ${op.slug} — ${op.title}`);
+                        this.logger?.info(`memory create: ${op.slug} — ${op.title}`);
                         break;
                     case MemoryOpAction.Update:
                         const update = context.mergeUpdateBodies && op.body
-                            ? await this.mergeUpdateBody(jobId, op, context)
+                            ? await this.mergeUpdateBody(op, context)
                             : op;
                         await this.store.update({
                             slug: update.slug,
@@ -314,32 +224,30 @@ export class MemoryWriterWorker {
                             description: update.description,
                             body: update.body,
                             bodyMode: update.bodyMode as MemoryBodyMode | undefined,
-                            source,
-                            evidenceDelta: source ? 1 : 0,
+                            evidenceDelta: 1,
                         }, now);
                         out.update++;
-                        this.logger?.info(`[job ${jobId}] memory update: ${op.slug} — ${op.reason}`);
+                        this.logger?.info(`memory update: ${op.slug} — ${op.reason}`);
                         break;
                     case MemoryOpAction.Delete:
                         await this.store.softDelete(op.slug, now);
                         out.delete++;
-                        this.logger?.info(`[job ${jobId}] memory delete: ${op.slug} — ${op.reason}`);
+                        this.logger?.info(`memory delete: ${op.slug} — ${op.reason}`);
                         break;
                     case MemoryOpAction.Noop:
                         out.noop++;
-                        this.logger?.info(`[job ${jobId}] memory noop: ${op.reason}`);
+                        this.logger?.info(`memory noop: ${op.reason}`);
                         break;
                 }
             } catch (e: any) {
                 out.failed++;
-                this.logger?.warn(`[job ${jobId}] op ${op.action}(${('slug' in op) ? op.slug : ''}) failed: ${e?.message ?? e}`);
+                this.logger?.warn(`memory op ${op.action}(${('slug' in op) ? op.slug : ''}) failed: ${e?.message ?? e}`);
             }
         }
         return out;
     }
 
     private async mergeUpdateBody(
-        jobId: number,
         op: Extract<MemoryOp, { action: MemoryOpAction.Update }>,
         context: MemoryOpApplyContext,
     ): Promise<Extract<MemoryOp, { action: MemoryOpAction.Update }>> {
@@ -394,7 +302,7 @@ export class MemoryWriterWorker {
                 bodyMode: merged.bodyMode ?? op.bodyMode,
             };
         } catch (e: any) {
-            this.logger?.warn(`[job ${jobId}] memory update merge failed for ${op.slug}: ${e?.message ?? e}`);
+            this.logger?.warn(`memory update merge failed for ${op.slug}: ${e?.message ?? e}`);
             // 保护旧 body：merge 失败时只应用 title/description/kind，不直接替换正文。
             return {
                 ...op,
@@ -402,6 +310,18 @@ export class MemoryWriterWorker {
                 bodyMode: undefined,
             };
         }
+    }
+
+    /** 把 ChatMessage[] 包成 StoredMessage[] 喂给 renderConversation；timestamp 统一用 now。 */
+    private renderChatMessages(messages: ChatMessage[]): string {
+        const now = Date.now();
+        const stored: StoredMessage[] = messages.map((message, i) => ({
+            id: i,
+            message,
+            createdAt: now,
+            kind: MessageKind.Normal,
+        }));
+        return renderConversation(stored);
     }
 
     private renderInput(menu: Awaited<ReturnType<IMemoryStore['listMenu']>>, conversation: string): string {
@@ -423,13 +343,6 @@ export class MemoryWriterWorker {
             `Decide what — if anything — to record. Default to a single \`noop\` if`,
             `nothing in this transcript meets the high-signal bar.`,
         ].join('\n');
-    }
-
-    /** 指数退避：1min, 5min, 30min（attemptsTried 从 1 起）。 */
-    private backoffMs(attemptsTried: number): number {
-        const ladder = [60_000, 5 * 60_000, 30 * 60_000];
-        const idx = Math.max(0, Math.min(ladder.length - 1, attemptsTried - 1));
-        return ladder[idx];
     }
 
     private truncate(text: string, maxChars: number): string {

@@ -1,3 +1,5 @@
+import type { ChatMessage } from "../Saver";
+
 /**
  * Memory 存储层接口。单 memoryProfile 维度：每个 profile 对应一个 SQLite 文件
  * + 一个 memories 目录（FS 是真源，DB 是 FTS 索引）。
@@ -5,7 +7,7 @@
  * 三类操作：
  * - CRUD：MemoryWriter 写入路径用（create / update / delete / get / list）
  * - 检索：search_memory / read_memory 工具调用（search + getBySlug + recordRead）
- * - 调度：MemoryWriter 触发用的 transcript job 队列（enqueue / claim / finish）
+ * - 待处理消息队列：每轮对话结束入队，MemoryService.checkMessages 串行消费
  *
  * delete 是软删除：文件移到 `memories/.archive/<slug>.md`，DB 行删除。
  * archived 文件由后台 cron 30 天后清理（不在本接口范围内）。
@@ -18,12 +20,6 @@ export enum MemoryKind {
     Project = 'project',
     Decision = 'decision',
     Summary = 'summary',
-}
-
-export interface MemorySourceRef {
-    threadId: string | null;
-    windowStartCursor: string | null;
-    windowEndCursor: string | null;
 }
 
 export interface MemoryRow {
@@ -39,9 +35,7 @@ export interface MemoryRow {
     body: string;
     /** size-mtime，reconcile 用 */
     fingerprint: string;
-    /** 最近一次创建/更新此条 memory 的来源窗口。 */
-    source: MemorySourceRef;
-    /** 被多少个独立抽取窗口佐证/更新过，用于整理和置信度排序。 */
+    /** 被多少次独立抽取佐证/更新过，用于整理和置信度排序。 */
     evidenceCount: number;
     createdAt: number;
     updatedAt: number;
@@ -74,7 +68,6 @@ export interface CreateMemoryInput {
     title: string;
     description: string;
     body: string;
-    source?: Partial<MemorySourceRef>;
     evidenceCount?: number;
 }
 
@@ -87,37 +80,21 @@ export interface UpdateMemoryInput {
     description?: string;
     body?: string;
     bodyMode?: MemoryBodyMode;
-    source?: Partial<MemorySourceRef>;
     evidenceDelta?: number;
 }
 
-// ── transcript 抽取队列 ──
+// ── 待处理消息队列 ──
 
-export type ExtractJobStatus = 'pending' | 'claimed' | 'succeeded' | 'failed';
+export type PendingMessageStatus = 'pending' | 'failed';
 
-export interface ExtractJobRow {
+export interface PendingMessageRow {
     id: number;
-    threadId: string;
-    rolloutKey: string;
-    windowStartCursor: string;
-    windowEndCursor: string;
-    turnCount: number;
-    status: ExtractJobStatus;
+    messages: ChatMessage[];
+    status: PendingMessageStatus;
     attemptCount: number;
-    nextRetryAt: number | null;
-    leasedAt: number | null;
-    leaseExpiresAt: number | null;
-    finishedAt: number | null;
     errorMessage: string | null;
     createdAt: number;
-}
-
-export interface EnqueueExtractInput {
-    threadId: string;
-    rolloutKey: string;
-    windowStartCursor: string;
-    windowEndCursor: string;
-    turnCount: number;
+    updatedAt: number;
 }
 
 export interface IMemoryStore {
@@ -155,9 +132,6 @@ export interface IMemoryStore {
     /** 注入 system prompt 用：拉所有 entry 的 slug + title + description，按 lastReadAt DESC, updatedAt DESC 排，截断到 limit。 */
     listMenu(limit: number): Promise<MemoryMenuEntry[]>;
 
-    /** 管理/排障用：最近的抽取 job。 */
-    listExtractJobs(limit: number): Promise<ExtractJobRow[]>;
-
     // ── 检索 ──
 
     /**
@@ -184,25 +158,22 @@ export interface IMemoryStore {
      */
     reconcile(): Promise<{ indexed: number; pruned: number }>;
 
-    // ── transcript 抽取队列 ──
+    // ── 待处理消息队列（每轮对话结束入队，串行消费） ──
 
-    /** 入队。rolloutKey 已存在返回 null。 */
-    enqueueExtract(input: EnqueueExtractInput, now: number): Promise<ExtractJobRow | null>;
+    /** 入队一轮对话的消息快照，返回插入行 id。 */
+    pushPendingMessages(messages: ChatMessage[], now: number): Promise<number>;
 
-    findExtractJob(id: number): Promise<ExtractJobRow | null>;
+    /** 取最早一条 status='pending' 的行；没有返回 null。串行消费由 MemoryService 内部 isRunning 标志保证。 */
+    popOldestPending(): Promise<PendingMessageRow | null>;
 
-    /** 抢占可执行 job：pending、过期 claimed、failed 且 nextRetryAt<=now。事务内 SELECT+UPDATE。 */
-    claimExtract(now: number, leaseMs: number, limit: number): Promise<ExtractJobRow[]>;
+    /** 删除一行（成功消费后调用）。 */
+    deletePending(id: number): Promise<void>;
 
-    finishExtractSuccess(id: number, now: number): Promise<void>;
+    /** 标记失败（保留数据），attemptCount += 1。 */
+    markPendingFailed(id: number, errorMessage: string, now: number): Promise<void>;
 
-    finishExtractFailure(id: number, errorMessage: string, nextRetryAt: number | null, now: number): Promise<void>;
-
-    /**
-     * 给定 thread，找出已"完成处理"窗口（succeeded）中 windowEndCursor 最大的那个。
-     * 失败/重试中的 job 不算。返回 null 表示该 thread 还没处理过任何窗口。
-     */
-    findLatestCompletedWindowEnd(threadId: string): Promise<string | null>;
+    /** 管理/排障用：列最近的 pending+failed 行（按 id DESC）。 */
+    listPendingMessages(limit: number): Promise<PendingMessageRow[]>;
 
     dispose(): void;
 }

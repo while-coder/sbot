@@ -174,10 +174,12 @@ export class ChannelDataService {
         const sessionData: Record<string, any> = {};
         if (opts?.autoSessionName != null) sessionData.autoSessionName = opts.autoSessionName;
         if (opts?.sessionAvatar !== undefined) sessionData.avatar = opts.sessionAvatar;
+        const channelProfileId = parseId(config.getChannel(channelId)?.profileId);
+        const defaultProfileId = channelProfileId != null && channelProfileId > 0 ? channelProfileId : 0;
 
         const [session, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
             where: { channelId, sessionId },
-            defaults: { ...sessionData, sessionName: opts?.sessionName ?? "", profileId: 0, createdAt: now },
+            defaults: { ...sessionData, sessionName: opts?.sessionName ?? "", profileId: defaultProfileId, createdAt: now },
         });
 
         if (!sessionCreated) {
@@ -194,6 +196,9 @@ export class ChannelDataService {
 
         let profile = await this.getProfile(session.profileId);
         if (!profile) {
+            if (session.profileId > 0) {
+                logger.warn(`ensureSession: configured profileId=${session.profileId} not found for channelId=${channelId}, creating auto profile`);
+            }
             profile = await database.create<SessionProfileRow>(database.sessionProfile, {
                 name: "",
                 autoForSessionId: session.id,
@@ -256,36 +261,6 @@ export class ChannelDataService {
                 lastTotalTokens: p?.lastTotalTokens ?? 0,
             };
         });
-    }
-
-    /**
-     * 列出绑定到指定 memoryId 的 session（按 thread 维度去重）。
-     * 解析顺序与 getEffective 一致：profile.memory ?? channel.memory。
-     * 同一 thread（即同一 profileId）可能被多个 channelSession 引用（共享 visible profile），
-     * 此处只保留每个 thread 最早的 channelSessionId（用于 SaverPool 解析 saver）。
-     */
-    async listSessionsByMemory(memoryId: string): Promise<MemorySessionCandidate[]> {
-        if (!memoryId) return [];
-        const sessions = await this.listSessions();
-        const seenThreads = new Set<string>();
-        const out: MemorySessionCandidate[] = [];
-        for (const s of sessions) {
-            const channelMemory = config.getChannel(s.channelId)?.memory ?? null;
-            const effectiveMemory = s.memory ?? channelMemory;
-            if (effectiveMemory !== memoryId) continue;
-            const threadId = String(s.profileId);
-            if (seenThreads.has(threadId)) continue;
-            seenThreads.add(threadId);
-            const channelWorkPath = config.getChannel(s.channelId)?.workPath ?? null;
-            out.push({
-                channelSessionId: s.id,
-                threadId,
-                profileId: s.profileId,
-                workPath: s.workPath ?? channelWorkPath,
-                sessionLabel: s.sessionName || s.autoSessionName || `${s.channelId}/${s.sessionId}`,
-            });
-        }
-        return out;
     }
 
     /** 仅允许改 sessionName / avatar / profileId（其他配置写 profile，由 updateProfile 负责） */
@@ -822,21 +797,6 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     lastTotalTokens: number;
 }
 
-/**
- * MemoryExtractScheduler 关心的 session 元数据子集。
- * threadId = String(profileId)，对应 saver 维度；多个 channelSession 共享同一 profile 时只取一条。
- */
-export interface MemorySessionCandidate {
-    /** 用于 SaverPool.acquireByDBSessionId */
-    channelSessionId: number;
-    /** = String(profileId) */
-    threadId: string;
-    profileId: number;
-    /** 解析后的工作目录（profile 优先，回退 channel） */
-    workPath: string | null;
-    /** session 显示标签（admin 调试用） */
-    sessionLabel: string;
-}
 
 // ── cleanup / scan report ─────────────────────────────────────────────────────
 

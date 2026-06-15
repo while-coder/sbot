@@ -45,6 +45,15 @@ export const T_MemoryDbPath = Symbol("scorpio:T_MemoryDbPath");
  * 占位符 `{{ memory_menu }}` 在 MemoryService 渲染时替换为当前 menu（slug + description 列表）。
  */
 export const T_MemoryReadTemplate = Symbol("scorpio:T_MemoryReadTemplate");
+/** MemoryWriter LLM 的 system prompt（已加载文件内容）。 */
+export const T_MemoryWriterPrompt = Symbol("scorpio:T_MemoryWriterPrompt");
+/** MemoryWriter 判断 create/update 时可见的 menu 条目上限。 */
+export const T_MemoryMenuMaxEntries = Symbol("scorpio:T_MemoryMenuMaxEntries");
+/**
+ * 容器在调用 service.requestRelease() 后，待 pending 队列抽干时由 MemoryService 主动回调；
+ * Pool 在回调中 dispose store + 从缓存移除（含 refCount 二次校验）。
+ */
+export const T_MemoryOnRelease = Symbol("scorpio:T_MemoryOnRelease");
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");

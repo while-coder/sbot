@@ -7,17 +7,16 @@ import { T_MemoryDir, T_MemoryDbPath } from "../Core/tokens";
 import {
     IMemoryStore,
     MemoryKind,
-    type MemorySourceRef,
     type MemoryRow,
     type MemoryMenuEntry,
     type MemorySearchHit,
     type CreateMemoryInput,
     type UpdateMemoryInput,
-    type ExtractJobRow,
-    type ExtractJobStatus,
-    type EnqueueExtractInput,
+    type PendingMessageRow,
+    type PendingMessageStatus,
 } from "./IMemoryStore";
 import { HybridSearcher } from "../Retrieval";
+import type { ChatMessage } from "../Saver";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MEMORY_KINDS = new Set<string>(Object.values(MemoryKind));
@@ -56,7 +55,7 @@ export class MemoryStore implements IMemoryStore {
 
     /**
      * HybridSearcher 自管 SQLite（searcher.sqlite 在 rootDir 下）。
-     * 与 memory.db 是两个独立文件：memory.db 装元数据 + 抽取队列；
+     * 与 memory.db 是两个独立文件：memory.db 装元数据 + 待处理消息队列；
      * searcher.sqlite 装 FTS5 + embedding 缓存，可以独立重建。
      */
     private get searcher(): HybridSearcher {
@@ -81,9 +80,6 @@ export class MemoryStore implements IMemoryStore {
                     description  TEXT    NOT NULL,
                     body         TEXT    NOT NULL,
                     fingerprint  TEXT    NOT NULL,
-                    source_thread_id TEXT,
-                    source_window_start_cursor TEXT,
-                    source_window_end_cursor   TEXT,
                     evidence_count INTEGER NOT NULL DEFAULT 1,
                     created_at   INTEGER NOT NULL,
                     updated_at   INTEGER NOT NULL,
@@ -100,25 +96,22 @@ export class MemoryStore implements IMemoryStore {
                 DROP TRIGGER IF EXISTS memories_au;
                 DROP TABLE   IF EXISTS memories_fts;
 
-                -- transcript 抽取队列（取代 codex-port 的 phase1_jobs）
-                CREATE TABLE IF NOT EXISTS memory_extract_jobs (
-                    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-                    thread_id           TEXT    NOT NULL,
-                    rollout_key         TEXT    NOT NULL UNIQUE,
-                    window_start_cursor TEXT    NOT NULL,
-                    window_end_cursor   TEXT    NOT NULL,
-                    turn_count          INTEGER NOT NULL DEFAULT 0,
-                    status              TEXT    NOT NULL,
-                    attempt_count       INTEGER NOT NULL DEFAULT 0,
-                    next_retry_at       INTEGER,
-                    leased_at           INTEGER,
-                    lease_expires_at    INTEGER,
-                    finished_at         INTEGER,
-                    error_message       TEXT,
-                    created_at          INTEGER NOT NULL
+                -- 旧的抽取作业表（被 memory_pending_messages 取代）。保留 DROP 兼容老库。
+                DROP TABLE IF EXISTS memory_extract_jobs;
+
+                -- 待处理消息队列：每轮对话结束直接入队 ChatMessage[] 快照，
+                -- MemoryService 通过 isRunning 标志 + popOldestPending 串行消费；
+                -- 失败行保留 status='failed'，不再自动重试，由 admin 决定。
+                CREATE TABLE IF NOT EXISTS memory_pending_messages (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    messages_json TEXT    NOT NULL,
+                    status        TEXT    NOT NULL DEFAULT 'pending',
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    error_message TEXT,
+                    created_at    INTEGER NOT NULL,
+                    updated_at    INTEGER NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS idx_extract_status ON memory_extract_jobs(status, next_retry_at);
-                CREATE INDEX IF NOT EXISTS idx_extract_thread ON memory_extract_jobs(thread_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_pending_status_id ON memory_pending_messages(status, id);
             `);
             this.ensureMemoryColumns();
         }
@@ -131,7 +124,6 @@ export class MemoryStore implements IMemoryStore {
         this.assertValidSlug(input.slug);
         const filePath = this.slugToPath(input.slug);
         const content = this.assembleBody(input.title, input.body);
-        const source = this.normalizeSource(input.source);
         const evidenceCount = Math.max(1, input.evidenceCount ?? 1);
 
         await fs.writeFile(filePath, content, "utf8");
@@ -141,12 +133,10 @@ export class MemoryStore implements IMemoryStore {
             const result = this.db.prepare(`
                 INSERT INTO memories (
                     slug, kind, title, description, body, fingerprint,
-                    source_thread_id, source_window_start_cursor, source_window_end_cursor,
                     evidence_count, created_at, updated_at
                 )
                 VALUES (
                     @slug, @kind, @title, @description, @body, @fingerprint,
-                    @sourceThreadId, @sourceWindowStartCursor, @sourceWindowEndCursor,
                     @evidenceCount, @createdAt, @updatedAt
                 )
             `).run({
@@ -156,9 +146,6 @@ export class MemoryStore implements IMemoryStore {
                 description: input.description,
                 body: content,
                 fingerprint,
-                sourceThreadId: source.threadId,
-                sourceWindowStartCursor: source.windowStartCursor,
-                sourceWindowEndCursor: source.windowEndCursor,
                 evidenceCount,
                 createdAt: now,
                 updatedAt: now,
@@ -187,7 +174,6 @@ export class MemoryStore implements IMemoryStore {
             : this.stripTitleLine(existing.body);
         const newContent = this.assembleBody(newTitle, newBodyRaw);
         const filePath = this.slugToPath(input.slug);
-        const source = this.normalizeSource(input.source, existing.source);
         const evidenceDelta = Math.max(0, input.evidenceDelta ?? 0);
 
         await fs.writeFile(filePath, newContent, "utf8");
@@ -200,9 +186,6 @@ export class MemoryStore implements IMemoryStore {
                 description = @description,
                 body        = @body,
                 fingerprint = @fingerprint,
-                source_thread_id = @sourceThreadId,
-                source_window_start_cursor = @sourceWindowStartCursor,
-                source_window_end_cursor = @sourceWindowEndCursor,
                 evidence_count = evidence_count + @evidenceDelta,
                 updated_at  = @updatedAt
             WHERE slug = @slug
@@ -213,9 +196,6 @@ export class MemoryStore implements IMemoryStore {
             description: newDescription,
             body: newContent,
             fingerprint,
-            sourceThreadId: source.threadId,
-            sourceWindowStartCursor: source.windowStartCursor,
-            sourceWindowEndCursor: source.windowEndCursor,
             evidenceDelta,
             updatedAt: now,
         });
@@ -368,127 +348,54 @@ export class MemoryStore implements IMemoryStore {
         return { indexed: indexedCount, pruned };
     }
 
-    // ── transcript 抽取队列 ──
+    // ── 待处理消息队列 ──
 
-    async listExtractJobs(limit: number): Promise<ExtractJobRow[]> {
+    async pushPendingMessages(messages: ChatMessage[], now: number): Promise<number> {
+        const result = this.db.prepare(`
+            INSERT INTO memory_pending_messages (
+                messages_json, status, attempt_count, created_at, updated_at
+            ) VALUES (
+                @messagesJson, 'pending', 0, @now, @now
+            )
+        `).run({ messagesJson: JSON.stringify(messages), now });
+        return Number(result.lastInsertRowid);
+    }
+
+    async popOldestPending(): Promise<PendingMessageRow | null> {
+        const row = this.db.prepare(`
+            SELECT id, messages_json, status, attempt_count, error_message, created_at, updated_at
+            FROM memory_pending_messages
+            WHERE status = 'pending'
+            ORDER BY id ASC
+            LIMIT 1
+        `).get() as any;
+        if (!row) return null;
+        return this.mapPendingRow(row);
+    }
+
+    async deletePending(id: number): Promise<void> {
+        this.db.prepare(`DELETE FROM memory_pending_messages WHERE id = ?`).run(id);
+    }
+
+    async markPendingFailed(id: number, errorMessage: string, now: number): Promise<void> {
+        this.db.prepare(`
+            UPDATE memory_pending_messages
+            SET status        = 'failed',
+                error_message = @errorMessage,
+                attempt_count = attempt_count + 1,
+                updated_at    = @now
+            WHERE id = @id
+        `).run({ id, errorMessage: errorMessage.slice(0, 1000), now });
+    }
+
+    async listPendingMessages(limit: number): Promise<PendingMessageRow[]> {
         const rows = this.db.prepare(`
-            SELECT *
-            FROM memory_extract_jobs
+            SELECT id, messages_json, status, attempt_count, error_message, created_at, updated_at
+            FROM memory_pending_messages
             ORDER BY id DESC
             LIMIT @limit
         `).all({ limit: Math.max(1, Math.min(limit, 200)) }) as any[];
-        return rows.map(r => this.mapExtractRow(r));
-    }
-
-    async enqueueExtract(input: EnqueueExtractInput, now: number): Promise<ExtractJobRow | null> {
-        try {
-            const result = this.db.prepare(`
-                INSERT INTO memory_extract_jobs (
-                    thread_id, rollout_key, window_start_cursor, window_end_cursor,
-                    turn_count, status, attempt_count, created_at
-                ) VALUES (
-                    @threadId, @rolloutKey, @windowStartCursor, @windowEndCursor,
-                    @turnCount, 'pending', 0, @createdAt
-                )
-            `).run({ ...input, createdAt: now });
-            return this.findExtractByIdSync(Number(result.lastInsertRowid));
-        } catch (e: any) {
-            if (e?.code === 'SQLITE_CONSTRAINT_UNIQUE') return null;
-            throw e;
-        }
-    }
-
-    async findExtractJob(id: number): Promise<ExtractJobRow | null> {
-        return this.findExtractByIdSync(id);
-    }
-
-    async claimExtract(now: number, leaseMs: number, limit: number): Promise<ExtractJobRow[]> {
-        const tx = this.db.transaction((nowTs: number, leaseDur: number, lim: number) => {
-            const eligible = this.db.prepare(`
-                SELECT j.id FROM memory_extract_jobs j
-                WHERE (
-                    j.status = 'pending'
-                    OR (j.status = 'claimed' AND j.lease_expires_at IS NOT NULL AND j.lease_expires_at < @now)
-                    OR (j.status = 'failed' AND j.next_retry_at IS NOT NULL AND j.next_retry_at <= @now)
-                )
-                AND NOT EXISTS (
-                    SELECT 1 FROM memory_extract_jobs active
-                    WHERE active.thread_id = j.thread_id
-                      AND active.status = 'claimed'
-                      AND active.lease_expires_at IS NOT NULL
-                      AND active.lease_expires_at >= @now
-                )
-                AND NOT EXISTS (
-                    SELECT 1 FROM memory_extract_jobs older
-                    WHERE older.thread_id = j.thread_id
-                      AND older.id < j.id
-                      AND (
-                          older.status = 'pending'
-                          OR (older.status = 'claimed' AND older.lease_expires_at IS NOT NULL AND older.lease_expires_at < @now)
-                          OR (older.status = 'failed' AND older.next_retry_at IS NOT NULL AND older.next_retry_at <= @now)
-                      )
-                )
-                ORDER BY id ASC
-                LIMIT @limit
-            `).all({ now: nowTs, limit: lim }) as Array<{ id: number }>;
-
-            if (eligible.length === 0) return [] as ExtractJobRow[];
-
-            const update = this.db.prepare(`
-                UPDATE memory_extract_jobs
-                SET status           = 'claimed',
-                    leased_at        = @now,
-                    lease_expires_at = @leaseExpiresAt,
-                    attempt_count    = attempt_count + 1,
-                    next_retry_at    = NULL
-                WHERE id = @id
-            `);
-            const out: ExtractJobRow[] = [];
-            for (const { id } of eligible) {
-                update.run({ id, now: nowTs, leaseExpiresAt: nowTs + leaseDur });
-                const row = this.findExtractByIdSync(id);
-                if (row) out.push(row);
-            }
-            return out;
-        });
-        return tx(now, leaseMs, limit);
-    }
-
-    async finishExtractSuccess(id: number, now: number): Promise<void> {
-        this.db.prepare(`
-            UPDATE memory_extract_jobs
-            SET status           = 'succeeded',
-                finished_at      = @now,
-                error_message    = NULL,
-                leased_at        = NULL,
-                lease_expires_at = NULL,
-                next_retry_at    = NULL
-            WHERE id = @id
-        `).run({ id, now });
-    }
-
-    async finishExtractFailure(id: number, errorMessage: string, nextRetryAt: number | null, now: number): Promise<void> {
-        this.db.prepare(`
-            UPDATE memory_extract_jobs
-            SET status           = 'failed',
-                error_message    = @errorMessage,
-                next_retry_at    = @nextRetryAt,
-                finished_at      = @now,
-                leased_at        = NULL,
-                lease_expires_at = NULL
-            WHERE id = @id
-        `).run({ id, errorMessage: errorMessage.slice(0, 1000), nextRetryAt, now });
-    }
-
-    async findLatestCompletedWindowEnd(threadId: string): Promise<string | null> {
-        const row = this.db.prepare(`
-            SELECT window_end_cursor AS cursor
-            FROM memory_extract_jobs
-            WHERE thread_id = @threadId AND status = 'succeeded'
-            ORDER BY CAST(window_end_cursor AS INTEGER) DESC
-            LIMIT 1
-        `).get({ threadId }) as { cursor: string } | undefined;
-        return row?.cursor ?? null;
+        return rows.map(r => this.mapPendingRow(r));
     }
 
     dispose(): void {
@@ -588,9 +495,14 @@ export class MemoryStore implements IMemoryStore {
         add('evidence_count', `ALTER TABLE memories ADD COLUMN evidence_count INTEGER NOT NULL DEFAULT 1`);
     }
 
-    private findExtractByIdSync(id: number): ExtractJobRow | null {
-        const row = this.db.prepare(`SELECT * FROM memory_extract_jobs WHERE id = ?`).get(id);
-        return row ? this.mapExtractRow(row) : null;
+    private parsePendingMessages(json: string): ChatMessage[] {
+        try {
+            const parsed = JSON.parse(json);
+            if (!Array.isArray(parsed)) return [];
+            return parsed as ChatMessage[];
+        } catch {
+            return [];
+        }
     }
 
     private mapRow(r: any): MemoryRow {
@@ -615,22 +527,15 @@ export class MemoryStore implements IMemoryStore {
         };
     }
 
-    private mapExtractRow(r: any): ExtractJobRow {
+    private mapPendingRow(r: any): PendingMessageRow {
         return {
             id: r.id,
-            threadId: r.thread_id,
-            rolloutKey: r.rollout_key,
-            windowStartCursor: r.window_start_cursor,
-            windowEndCursor: r.window_end_cursor,
-            turnCount: r.turn_count,
-            status: r.status as ExtractJobStatus,
-            attemptCount: r.attempt_count,
-            nextRetryAt: r.next_retry_at,
-            leasedAt: r.leased_at,
-            leaseExpiresAt: r.lease_expires_at,
-            finishedAt: r.finished_at,
-            errorMessage: r.error_message,
+            messages: this.parsePendingMessages(r.messages_json),
+            status: (r.status as PendingMessageStatus) ?? 'pending',
+            attemptCount: r.attempt_count ?? 0,
+            errorMessage: r.error_message ?? null,
             createdAt: r.created_at,
+            updatedAt: r.updated_at,
         };
     }
 }

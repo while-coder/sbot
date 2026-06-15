@@ -11,10 +11,6 @@ interface MemoryProfileForm {
   writerModel: string
   writerPromptFile: string
   readPromptFile: string
-  idleMinutes: number
-  windowMaxMessages: number
-  writerConcurrency: number
-  jobMaxAttempts: number
   writerMemoryMenuMaxEntries: number
 }
 
@@ -37,19 +33,11 @@ interface MemorySummary {
 
 interface MemoryJob {
   id: number
-  threadId: string
-  rolloutKey: string
-  windowStartCursor: string
-  windowEndCursor: string
-  turnCount: number
   status: string
   attemptCount: number
-  nextRetryAt: number | null
-  leasedAt: number | null
-  leaseExpiresAt: number | null
-  finishedAt: number | null
   errorMessage: string | null
   createdAt: number
+  updatedAt: number
 }
 
 const { t } = useI18n()
@@ -97,10 +85,6 @@ function emptyForm(): MemoryProfileForm {
     writerModel: '',
     writerPromptFile: '',
     readPromptFile: '',
-    idleMinutes: 10,
-    windowMaxMessages: 50,
-    writerConcurrency: 3,
-    jobMaxAttempts: 3,
     writerMemoryMenuMaxEntries: 200,
   }
 }
@@ -141,10 +125,6 @@ function openEdit(id: string) {
     writerModel: p.writerModel || '',
     writerPromptFile: p.writerPromptFile || '',
     readPromptFile: p.readPromptFile || '',
-    idleMinutes: p.idleMinutes ?? 10,
-    windowMaxMessages: p.windowMaxMessages ?? 50,
-    writerConcurrency: p.writerConcurrency ?? 3,
-    jobMaxAttempts: p.jobMaxAttempts ?? 3,
     writerMemoryMenuMaxEntries: p.writerMemoryMenuMaxEntries ?? 200,
   }
   loadPrompts()
@@ -161,10 +141,6 @@ async function save() {
       name: form.value.name.trim(),
       enabled: form.value.enabled,
       writerModel: form.value.writerModel,
-      idleMinutes: form.value.idleMinutes,
-      windowMaxMessages: form.value.windowMaxMessages,
-      writerConcurrency: form.value.writerConcurrency,
-      jobMaxAttempts: form.value.jobMaxAttempts,
       writerMemoryMenuMaxEntries: form.value.writerMemoryMenuMaxEntries,
     }
     if (form.value.writerPromptFile) body.writerPromptFile = form.value.writerPromptFile
@@ -407,18 +383,6 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
           <option v-for="p in readPromptFiles" :key="p.path" :value="p.path">{{ p.path }}</option>
         </SSelect>
       </SFormItem>
-      <SFormItem :label="t('memory_profiles.idle_minutes')">
-        <SInput type="number" :model-value="form.idleMinutes" @update:model-value="(v: any) => (form.idleMinutes = Number(v) || 1)" />
-      </SFormItem>
-      <SFormItem :label="t('memory_profiles.window_max_messages')">
-        <SInput type="number" :model-value="form.windowMaxMessages" @update:model-value="(v: any) => (form.windowMaxMessages = Number(v) || 1)" />
-      </SFormItem>
-      <SFormItem :label="t('memory_profiles.writer_concurrency')">
-        <SInput type="number" :model-value="form.writerConcurrency" @update:model-value="(v: any) => (form.writerConcurrency = Number(v) || 1)" />
-      </SFormItem>
-      <SFormItem :label="t('memory_profiles.job_max_attempts')">
-        <SInput type="number" :model-value="form.jobMaxAttempts" @update:model-value="(v: any) => (form.jobMaxAttempts = Number(v) || 1)" />
-      </SFormItem>
       <SFormItem :label="t('memory_profiles.writer_memory_menu_max_entries')">
         <SInput type="number" :model-value="form.writerMemoryMenuMaxEntries" @update:model-value="(v: any) => (form.writerMemoryMenuMaxEntries = Number(v) || 100)" />
       </SFormItem>
@@ -502,12 +466,9 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
               <SBadge :variant="jobVariant(job.status)" size="sm">{{ job.status }}</SBadge>
             </div>
             <div class="memory-job-grid">
-              <span>{{ t('memory_profiles.thread_id') }}</span><code>{{ job.threadId }}</code>
-              <span>{{ t('memory_profiles.window') }}</span><code>{{ job.windowStartCursor || '0' }} - {{ job.windowEndCursor }}</code>
-              <span>{{ t('memory_profiles.turn_count') }}</span><code>{{ job.turnCount }}</code>
               <span>{{ t('memory_profiles.attempt_count') }}</span><code>{{ job.attemptCount }}</code>
               <span>{{ t('memory_profiles.created_at') }}</span><code>{{ fmtTime(job.createdAt) }}</code>
-              <span>{{ t('memory_profiles.finished_at') }}</span><code>{{ fmtTime(job.finishedAt) }}</code>
+              <span>{{ t('memory_profiles.finished_at') }}</span><code>{{ fmtTime(job.updatedAt) }}</code>
               <span>{{ t('memory_profiles.error_message') }}</span><code>{{ job.errorMessage || '-' }}</code>
             </div>
           </div>

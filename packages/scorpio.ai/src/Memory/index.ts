@@ -8,9 +8,8 @@ export {
     type MemorySearchHit,
     type CreateMemoryInput,
     type UpdateMemoryInput,
-    type ExtractJobRow,
-    type ExtractJobStatus,
-    type EnqueueExtractInput,
+    type PendingMessageRow,
+    type PendingMessageStatus,
 } from './IMemoryStore';
 
 export { MemoryStore } from './MemoryStore';
@@ -23,9 +22,7 @@ export {
     MemoryWriteOutputSchema,
     type MemoryWriteOutput,
     type MemoryOp,
-    type MemoryWriterJobContext,
-    type MemoryWriterRunOptions,
-    type MemoryWriterStats,
+    type MemoryWriterOpStats,
 } from './MemoryWriterWorker';
 
 export { IMemoryService, type MemoryToolDescs } from './IMemoryService';

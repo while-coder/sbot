@@ -452,11 +452,16 @@ export class SingleAgentService extends AgentServiceBase {
             throw err;
         }
         // 静默后台提取：
-        // - memory 由 MemoryExtractScheduler 在独立后台跑（session idle 后批量抽取），
-        //   不在 turn 末尾阻塞
-        // - agenda 仍是 per-turn 抽取（agenda 依赖即时识别用户意图）
+        // - memory / agenda 都在 turn 末尾触发，不阻塞主响应流
         const queryText = contentToString(query);
         const aiText = aiResponses.length > 0 ? aiResponses : undefined;
+        if (this.memoryService) {
+            try {
+                await this.memoryService.extractFromConversation(outputMessages);
+            } catch (e: any) {
+                this.logger?.warn(`Background memory extraction failed: ${e?.message}`);
+            }
+        }
         if (this.agendaService) {
             try {
                 await this.agendaService.extractFromConversation(queryText, aiText);

@@ -234,6 +234,7 @@ async function loadVisibleProfiles() {
     visibleProfiles.value = (res.data || []) as ProfileOption[]
   } catch { visibleProfiles.value = [] }
 }
+void loadVisibleProfiles()
 
 async function loadProfileFull(profileId: number): Promise<ProfileFull | null> {
   try {
@@ -396,7 +397,7 @@ function formatTokens(n: number): string {
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
-  name: '', type: '', config: {}, agent: '', saver: '', notes: [],
+  name: '', type: '', config: {}, profileId: undefined, agent: '', saver: '', notes: [],
   workPath: '', streamVerbose: false, autoApproveAllTools: false,
   disableWorkspaceContext: false, disableWorkspaceSkills: false,
   approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny,
@@ -457,6 +458,7 @@ const formTriggerToolsMode = ref<ToolMode>('default')
 
 const channelAdvancedBadge = computed(() => {
   let n = 0
+  if (form.value.profileId) n++
   if (form.value.mergeWindow && form.value.mergeWindow > 0) n++
   if (formToolsMode.value !== 'default') n++
   if (formTriggerToolsMode.value !== 'default') n++
@@ -608,8 +610,9 @@ async function waitForQRConfirm(key: string, channelId: string | null, type: str
 function openAdd() {
   editingId.value = null
   clearActionState()
+  void loadVisibleProfiles()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
-  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  form.value = { name: '', type: defaultType, config: {}, profileId: undefined, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formTriggerTools.value = []
   formToolsMode.value = 'default'
@@ -621,7 +624,8 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
+  void loadVisibleProfiles()
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, profileId: (c as any).profileId ? Number((c as any).profileId) : undefined, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
   formTools.value = [...(c.tools ?? [])]
   formTriggerTools.value = [...(c.triggerTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
@@ -653,6 +657,7 @@ async function save() {
     const payload: ChannelConfig = {
       name: form.value.name.trim(),
       type: form.value.type,
+      profileId: form.value.profileId ? Number(form.value.profileId) : undefined,
       agent: form.value.agent,
       saver: form.value.saver,
       notes: form.value.notes.filter(id => validNoteIds.has(id)),
@@ -763,6 +768,7 @@ async function refresh() {
           <span class="session-meta-chip" :class="Array.isArray(c.notes) && c.notes.length ? '' : 'muted'">{{ t('common.note') }}: {{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : t('common.not_configured') }}</span>
           <span class="session-meta-chip" :class="Array.isArray((c as any).wikis) && (c as any).wikis.length ? '' : 'muted'">{{ t('common.wiki') }}: {{ Array.isArray((c as any).wikis) && (c as any).wikis.length ? (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') : t('common.not_configured') }}</span>
           <span class="session-meta-chip" :class="c.workPath ? 'blue' : 'muted'">{{ t('directory.path_label') }}: {{ c.workPath || t('common.not_configured') }}</span>
+          <span v-if="c.profileId" class="session-meta-chip blue">{{ t('channels.channel_profile') }}: {{ visibleProfiles.find(p => p.id === c.profileId)?.name || c.profileId }}</span>
           <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
           <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
           <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
@@ -908,6 +914,17 @@ async function refresh() {
           />
 
           <SFormDetails :summary="t('channels.section_channel_advanced')" :badge="channelAdvancedBadge">
+            <SFormItem :label="t('channels.channel_profile')" :hint="t('channels.channel_profile_hint')">
+              <SSelect
+                :model-value="form.profileId ? String(form.profileId) : ''"
+                @update:model-value="v => form.profileId = v ? Number(v) : undefined"
+              >
+                <option value="">{{ t('channels.channel_profile_none') }}</option>
+                <option v-for="p in visibleProfiles" :key="p.id" :value="String(p.id)">
+                  {{ p.name }}{{ p.sessionCount && p.sessionCount > 0 ? ` (${p.sessionCount})` : '' }}
+                </option>
+              </SSelect>
+            </SFormItem>
             <SFormItem :label="t('channels.merge_window')" :hint="t('channels.merge_window_hint')">
               <SInput v-model.number="form.mergeWindow" type="number" placeholder="0" />
             </SFormItem>

@@ -50,11 +50,11 @@ export class MemoryRoutes {
             return { memoryId, memories: summary };
         }));
 
-        /** 最近的抽取 job，用于排查后台 MemoryWriter 是否正常推进。 */
+        /** 最近的待处理消息行（pending + failed），用于排查后台抽取是否正常推进。 */
         app.get('/api/memories/:id/extract/jobs', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
             const limit = Math.max(1, Math.min(Number(req.query.limit ?? 50) || 50, 200));
-            const jobs = await memoryServicePool.listExtractJobs(memoryId, limit);
+            const jobs = await memoryServicePool.listPendingMessages(memoryId, limit);
             return { memoryId, jobs };
         }));
 
