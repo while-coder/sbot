@@ -37,6 +37,12 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     ) {}
 
     async start(): Promise<void> {
+        // 幂等保护：重复调用会导致旧 setTimeout handle 被 executor.set 覆盖但未 clearTimeout，
+        // 旧 handle 还会 fire → 同 trigger 双触发 + 内存泄漏。
+        if (this.started) {
+            logger.info(`Agenda trigger engine [agenda=${this.agendaId}] start ignored (already started)`);
+            return;
+        }
         this.started = true;
         const triggers = await this.store.listEnabledTriggers();
         for (const trigger of triggers) {

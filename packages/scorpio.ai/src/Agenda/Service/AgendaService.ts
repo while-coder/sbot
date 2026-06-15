@@ -90,28 +90,36 @@ export class AgendaService implements IAgendaService {
         const action = args.action ?? AgendaTriggerAction.Notify;
         const dueAt = this.inferDueAt(args, now);
 
-        const existing = await this.findNearDuplicate(content, dueAt);
-        if (existing) return { item: existing, created: false, existed: true };
+        // findNearDuplicate + createItem + appendTrigger 必须原子，否则 tool 路径
+        // 与 sync drain 各自检查后双写。runExclusive 让这一段共享同一把可重入锁。
+        // triggerEngine.reload 放在锁外（它只读 store + 调度 timer，不属于"写入唯一性"问题）。
+        const result = await this.agendaStore.runExclusive(async () => {
+            const existing = await this.findNearDuplicate(content, dueAt);
+            if (existing) return { record: existing, created: false as const, trigger: null };
 
-        const record = await this.agendaStore.createItem({
-            content,
-            status: AgendaStatus.Pending,
-            priority: args.priority ?? AgendaPriority.Normal,
-            category,
-            completionMode,
-            dueAt,
-            source: args.source ?? AgendaSource.Tool,
-            createdAt: now,
-            updatedAt: now,
-            doneAt: null,
+            const inserted = await this.agendaStore.createItem({
+                content,
+                status: AgendaStatus.Pending,
+                priority: args.priority ?? AgendaPriority.Normal,
+                category,
+                completionMode,
+                dueAt,
+                source: args.source ?? AgendaSource.Tool,
+                createdAt: now,
+                updatedAt: now,
+                doneAt: null,
+            });
+
+            // 显式 dueAt 但没传 trigger（典型场景：纯 Todo 加截止）→ 派生一个 Absolute trigger，
+            // 让 dueAt 时刻自动发一次"已到截止"提醒；否则 dueAt 过期后系统不会有任何主动行为。
+            const effectiveArgs = this.withDefaultDueAtTrigger(args);
+            const trigger = await this.createTriggerIfNeeded(inserted.item, effectiveArgs, action, now);
+            return { record: inserted, created: true as const, trigger };
         });
 
-        // 显式 dueAt 但没传 trigger（典型场景：纯 Todo 加截止）→ 派生一个 Absolute trigger，
-        // 让 dueAt 时刻自动发一次"已到截止"提醒；否则 dueAt 过期后系统不会有任何主动行为。
-        const effectiveArgs = this.withDefaultDueAtTrigger(args);
-        const trigger = await this.createTriggerIfNeeded(record.item, effectiveArgs, action, now);
-        if (trigger) await this.triggerEngine.reload(trigger.id);
-        const fresh = await this.agendaStore.findItem(record.item.id);
+        if (!result.created) return { item: result.record, created: false, existed: true };
+        if (result.trigger) await this.triggerEngine.reload(result.trigger.id);
+        const fresh = await this.agendaStore.findItem(result.record.item.id);
         return { item: fresh!, created: true, existed: false };
     }
 
@@ -131,87 +139,99 @@ export class AgendaService implements IAgendaService {
     }
 
     async update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null> {
-        const item = await this.loadItem(id);
-        if (!item) return null;
-        const now = Date.now();
-        const fields: Partial<AgendaItem> = { updatedAt: now };
-        if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
-        if (patch.category != null) fields.category = patch.category;
-        if (patch.priority != null) fields.priority = patch.priority;
-        if (patch.completionMode != null) fields.completionMode = patch.completionMode;
-        if (patch.dueAt !== undefined) {
-            fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
-        } else if (patch.trigger !== undefined) {
-            // 调度变更但未显式指定 dueAt：依据新 trigger 推导，与 create 保持一致。
-            fields.dueAt = AgendaService.deriveDueAtFromSpec(patch.trigger, now);
-        }
-
-        const data = await this.agendaStore.updateItem(id, fields);
-        const updatedItem = data?.item;
-        if (!updatedItem) return null;
-
-        if (patch.trigger !== undefined) {
-            const category = updatedItem.category;
-            const action = patch.action ?? AgendaTriggerAction.Notify;
-            const trigger = await this.createTriggerIfNeeded(updatedItem, {
-                content: updatedItem.content,
-                category,
-                priority: updatedItem.priority,
-                completionMode: updatedItem.completionMode,
-                trigger: patch.trigger,
-                action,
-                message: patch.message ?? undefined,
-                channelSessionId: patch.channelSessionId,
-            }, action, now);
-            // 仅在新触发器创建成功时替换旧触发器；否则视为无效输入，不破坏现有调度
-            if (trigger) {
-                await this.disableItemTriggers(id, trigger.id);
-                await this.triggerEngine.reload(trigger.id);
+        // 整个 update（updateItem → appendTrigger → disableItemTriggers）必须原子，
+        // 否则两个 session 并发 update 同一 id 时会数据混乱（双 trigger / dueAt 与 trigger 不匹配等）。
+        // triggerEngine.reload / reloadItem 也放在锁内：可重入，且 reload 内部不会修改"哪个 trigger 当 active"
+        // 这件事——它只是把锁内已确定的状态同步到 timer，安全。
+        return this.agendaStore.runExclusive(async () => {
+            const item = await this.loadItem(id);
+            if (!item) return null;
+            const now = Date.now();
+            const fields: Partial<AgendaItem> = { updatedAt: now };
+            if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
+            if (patch.category != null) fields.category = patch.category;
+            if (patch.priority != null) fields.priority = patch.priority;
+            if (patch.completionMode != null) fields.completionMode = patch.completionMode;
+            if (patch.dueAt !== undefined) {
+                fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
+            } else if (patch.trigger !== undefined) {
+                // 调度变更但未显式指定 dueAt：依据新 trigger 推导，与 create 保持一致。
+                fields.dueAt = AgendaService.deriveDueAtFromSpec(patch.trigger, now);
             }
-        } else if (this.hasTriggerFieldPatch(patch)) {
-            const triggerFields: Partial<AgendaTrigger> = {};
-            if (patch.action !== undefined) triggerFields.action = patch.action;
-            if (patch.message !== undefined) triggerFields.message = patch.message?.trim() || null;
-            const record = await this.agendaStore.findItem(id);
-            const activeTriggers = record?.triggers.filter(t => t.enabled) ?? [];
-            for (const trigger of activeTriggers) await this.agendaStore.updateTrigger(trigger.id, triggerFields);
-            await this.triggerEngine.reloadItem(id);
-        }
-        // 注意：仅改 dueAt 不会联动现有 trigger。如需调度同步，调用方应在同一次 update 里显式传 trigger。
-        return this.agendaStore.findItem(id);
+
+            const data = await this.agendaStore.updateItem(id, fields);
+            const updatedItem = data?.item;
+            if (!updatedItem) return null;
+
+            if (patch.trigger !== undefined) {
+                const category = updatedItem.category;
+                const action = patch.action ?? AgendaTriggerAction.Notify;
+                const trigger = await this.createTriggerIfNeeded(updatedItem, {
+                    content: updatedItem.content,
+                    category,
+                    priority: updatedItem.priority,
+                    completionMode: updatedItem.completionMode,
+                    trigger: patch.trigger,
+                    action,
+                    message: patch.message ?? undefined,
+                    channelSessionId: patch.channelSessionId,
+                }, action, now);
+                // 仅在新触发器创建成功时替换旧触发器；否则视为无效输入，不破坏现有调度
+                if (trigger) {
+                    await this.disableItemTriggers(id, trigger.id);
+                    await this.triggerEngine.reload(trigger.id);
+                }
+            } else if (this.hasTriggerFieldPatch(patch)) {
+                const triggerFields: Partial<AgendaTrigger> = {};
+                if (patch.action !== undefined) triggerFields.action = patch.action;
+                if (patch.message !== undefined) triggerFields.message = patch.message?.trim() || null;
+                const record = await this.agendaStore.findItem(id);
+                const activeTriggers = record?.triggers.filter(t => t.enabled) ?? [];
+                for (const trigger of activeTriggers) await this.agendaStore.updateTrigger(trigger.id, triggerFields);
+                await this.triggerEngine.reloadItem(id);
+            }
+            // 注意：仅改 dueAt 不会联动现有 trigger。如需调度同步，调用方应在同一次 update 里显式传 trigger。
+            return this.agendaStore.findItem(id);
+        });
     }
 
     async complete(id: number, at?: string): Promise<AgendaCompleteResult | null> {
-        const item = await this.loadItem(id);
-        if (!item) return null;
-        const now = Date.now();
-        // Occurrence 模式：只消费一条 occurrence，不影响 routine 主体。
-        // - 不传 at: 关最早的 pending（普通打卡语义；补办场景必须显式传 at）
-        // - 传 at: 在 pending + missed 中找 scheduledAt 最接近 at 的（支持补办过去 missed）
-        // 用户若要终止整条 routine，应使用 cancel。
-        if (item.completionMode === AgendaCompletionMode.Occurrence) {
-            const target = await this.pickOccurrenceForComplete(id, at);
-            // 注意：target 是引用 record.occurrences 数组里的对象，未经 updateOccurrence 修改，
-            // 因此返回时它的 status/doneAt 仍是"关闭前"的快照——这是给调用方诊断用的。
-            if (target) {
-                await this.agendaStore.updateOccurrence(target.id, {
-                    status: AgendaOccurrenceStatus.Done,
-                    doneAt: now,
-                });
-            } else {
-                this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no matching occurrence`);
+        // Occurrence 模式有真实 race：两个并发 caller 各自 pickOccurrenceForComplete 拿到
+        // 同一条最早 pending occurrence，都标 Done，第二条 doneAt 覆盖第一条——返回值不准。
+        // 整段包进 runExclusive 让 pick + update 原子化。非 Occurrence 路径同样进锁
+        // （updateItem + disableItemTriggers 跨方法），并发也安全。
+        return this.agendaStore.runExclusive(async () => {
+            const item = await this.loadItem(id);
+            if (!item) return null;
+            const now = Date.now();
+            // Occurrence 模式：只消费一条 occurrence，不影响 routine 主体。
+            // - 不传 at: 关最早的 pending（普通打卡语义；补办场景必须显式传 at）
+            // - 传 at: 在 pending + missed 中找 scheduledAt 最接近 at 的（支持补办过去 missed）
+            // 用户若要终止整条 routine，应使用 cancel。
+            if (item.completionMode === AgendaCompletionMode.Occurrence) {
+                const target = await this.pickOccurrenceForComplete(id, at);
+                // 注意：target 是引用 record.occurrences 数组里的对象，未经 updateOccurrence 修改，
+                // 因此返回时它的 status/doneAt 仍是"关闭前"的快照——这是给调用方诊断用的。
+                if (target) {
+                    await this.agendaStore.updateOccurrence(target.id, {
+                        status: AgendaOccurrenceStatus.Done,
+                        doneAt: now,
+                    });
+                } else {
+                    this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no matching occurrence`);
+                }
+                const record = await this.agendaStore.findItem(id);
+                return record ? { record, closedOccurrence: target ?? null } : null;
             }
+            await this.agendaStore.updateItem(id, {
+                status: AgendaStatus.Done,
+                doneAt: now,
+                updatedAt: now,
+            });
+            await this.disableItemTriggers(id);
             const record = await this.agendaStore.findItem(id);
-            return record ? { record, closedOccurrence: target ?? null } : null;
-        }
-        await this.agendaStore.updateItem(id, {
-            status: AgendaStatus.Done,
-            doneAt: now,
-            updatedAt: now,
+            return record ? { record, closedOccurrence: null } : null;
         });
-        await this.disableItemTriggers(id);
-        const record = await this.agendaStore.findItem(id);
-        return record ? { record, closedOccurrence: null } : null;
     }
 
     private async pickOccurrenceForComplete(

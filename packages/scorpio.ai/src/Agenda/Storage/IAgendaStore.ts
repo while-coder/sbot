@@ -56,6 +56,14 @@ export interface IAgendaStore {
     deleteItem(itemId: number): Promise<AgendaRecord | null>;
     deleteAll(): Promise<number[]>;
 
+    /**
+     * 把多次 store 调用绑成一个原子块（共享同一把内部锁）。
+     * 用于 service 层 read-then-write 模式（如 findNearDuplicate + createItem），
+     * 避免 tool 路径与 sync drain 之间的双写 race。
+     * fn 内部直接调 store 方法即可；锁是可重入的。
+     */
+    runExclusive<T>(fn: () => Promise<T> | T): Promise<T>;
+
     // ── 待处理抽取 job 队列 ──
     // 全部同步：底层 better-sqlite3 是同步 API；AgendaService 依赖
     // "push 的 SQL 在 kick 前已落库" 这一点来避免漏单。

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "async_hooks";
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "fs";
 import { rm } from "fs/promises";
@@ -18,10 +19,6 @@ import type {
     AgendaTrigger,
 } from "../types";
 
-// triggerId / occurrenceId 编码：itemId * CHILD_ID_FACTOR + 自增 sub。
-// 沿用这个编码是为了 inferItemIdFromChildId 不查 DB 也能拿到 itemId。
-const CHILD_ID_FACTOR = 1_000;
-
 type AgendaTable = "items" | "triggers" | "occurrences";
 
 /**
@@ -32,6 +29,12 @@ type AgendaTable = "items" | "triggers" | "occurrences";
 export class AgendaStore implements IAgendaStore {
     private _db: Database.Database | undefined;
     private lock = Promise.resolve();
+    /**
+     * 跨方法原子块（如 service.create 的 findNearDuplicate + createItem）调用 runExclusive，
+     * 内部 store 方法仍 withLock 但因为同一 async 链已持锁，直接执行。
+     * 不同 async 链（不同 caller）各自拿不到 store，正常排队。
+     */
+    private lockHeld = new AsyncLocalStorage<true>();
 
     constructor(
         @inject(T_AgendaDbPath) private readonly dbPath: string,
@@ -105,24 +108,41 @@ export class AgendaStore implements IAgendaStore {
                 );
                 CREATE INDEX IF NOT EXISTS idx_agenda_pending_status_id ON agenda_pending_jobs (status, id);
             `);
+            // 启动 sweep：把上次进程崩溃留下的 'processing' 转回 'pending' 重新跑。
+            // popPendingJob 用单条 UPDATE…RETURNING 把 job 标 'processing'，
+            // 配合本 sweep 实现"崩溃恢复时不重复 LLM 调用 + 不丢 job"。
+            this._db.prepare(`UPDATE agenda_pending_jobs SET status = 'pending' WHERE status = 'processing'`).run();
         }
         return this._db;
     }
 
-    private inferItemIdFromChildId(childId: number): number {
-        return Math.floor(childId / CHILD_ID_FACTOR);
+    /** 反向查 child（trigger / occurrence）所属的 itemId。返回 null = 找不到这一行。 */
+    private lookupItemIdForChild(table: "triggers" | "occurrences", childId: number): number | null {
+        const row = this.db.prepare(`SELECT itemId FROM ${table} WHERE id = ?`).get(childId) as { itemId: number } | undefined;
+        return row?.itemId ?? null;
     }
 
     private async withLock<T>(fn: () => Promise<T>): Promise<T> {
+        // 同一 async 链已持锁 → 直接跑，不再排队（避免自死锁，让 runExclusive 内的子调用穿透）。
+        if (this.lockHeld.getStore()) return fn();
         const previous = this.lock;
         let release!: () => void;
         this.lock = new Promise<void>(resolve => { release = resolve; });
         await previous;
         try {
-            return await fn();
+            return await this.lockHeld.run(true, fn);
         } finally {
             release();
         }
+    }
+
+    /**
+     * 把多次 store 调用绑成一个原子块。fn 内部的 store 方法（如 findItem / createItem）
+     * 仍走 withLock，但都因 lockHeld 已持有而直接执行。
+     * 用于 service 跨方法的 read-then-write（如 findNearDuplicate + createItem）。
+     */
+    async runExclusive<T>(fn: () => Promise<T> | T): Promise<T> {
+        return this.withLock(async () => fn());
     }
 
     private readAgendaRecordFromDb(itemId: number): AgendaRecord | null {
@@ -165,7 +185,9 @@ export class AgendaStore implements IAgendaStore {
     }
 
     async findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTrigger } | null> {
-        const data = await this.findItem(this.inferItemIdFromChildId(triggerId));
+        const itemId = this.lookupItemIdForChild("triggers", triggerId);
+        if (itemId == null) return null;
+        const data = await this.findItem(itemId);
         const trigger = data?.triggers.find(t => t.id === triggerId);
         return data && trigger ? { data, trigger } : null;
     }
@@ -196,7 +218,8 @@ export class AgendaStore implements IAgendaStore {
     async updateTrigger(triggerId: number, fields: Partial<AgendaTrigger>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return null;
-            const itemId = this.inferItemIdFromChildId(triggerId);
+            const itemId = this.lookupItemIdForChild("triggers", triggerId);
+            if (itemId == null) return null;
             if (!this.updateById("triggers", triggerId, fields, new Set(["enabled"]))) return null;
             return this.readAgendaRecordFromDb(itemId);
         });
@@ -219,7 +242,7 @@ export class AgendaStore implements IAgendaStore {
     async appendTrigger(itemId: number, trigger: Omit<AgendaTrigger, "id">): Promise<AgendaTrigger | null> {
         return this.withLock(async () => {
             if (!this.hasItem(itemId)) return null;
-            const row = { ...trigger, id: this.nextChildIdInDb("triggers", itemId) };
+            const row = { ...trigger, id: this.nextChildIdInDb("triggers") };
             this.db.prepare(`
                 INSERT INTO triggers (
                     id, itemId, kind, expr, action, message, channelHint, enabled,
@@ -236,7 +259,7 @@ export class AgendaStore implements IAgendaStore {
     async appendOccurrence(itemId: number, occurrence: Omit<AgendaOccurrence, "id">): Promise<AgendaOccurrence | null> {
         return this.withLock(async () => {
             if (!this.hasItem(itemId)) return null;
-            const row = { ...occurrence, id: this.nextChildIdInDb("occurrences", itemId) };
+            const row = { ...occurrence, id: this.nextChildIdInDb("occurrences") };
             this.db.prepare(`
                 INSERT INTO occurrences (id, itemId, scheduledAt, status, doneAt)
                 VALUES (@id, @itemId, @scheduledAt, @status, @doneAt)
@@ -248,7 +271,8 @@ export class AgendaStore implements IAgendaStore {
     async updateOccurrence(occurrenceId: number, fields: Partial<AgendaOccurrence>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return null;
-            const itemId = this.inferItemIdFromChildId(occurrenceId);
+            const itemId = this.lookupItemIdForChild("occurrences", occurrenceId);
+            if (itemId == null) return null;
             const changed = this.updateById("occurrences", occurrenceId, fields);
             return changed ? this.readAgendaRecordFromDb(itemId) : null;
         });
@@ -319,13 +343,19 @@ export class AgendaStore implements IAgendaStore {
     }
 
     popPendingJob(): PendingAgendaJobRow | null {
+        // 单条 SQL 原子地把最早 pending 转为 processing 并返回。崩溃时 'processing' 行
+        // 由进程下次 init() 的 sweep 转回 'pending'——不会丢 job 也不会重复消费。
         const row = this.db.prepare(`
-            SELECT id, job_type, channel_session_id, payload_json, status, attempt_count, error_message, created_at, updated_at
-            FROM agenda_pending_jobs
-            WHERE status = 'pending'
-            ORDER BY id ASC
-            LIMIT 1
-        `).get() as any;
+            UPDATE agenda_pending_jobs
+            SET status = 'processing', updated_at = @now
+            WHERE id = (
+                SELECT id FROM agenda_pending_jobs
+                WHERE status = 'pending'
+                ORDER BY id ASC
+                LIMIT 1
+            )
+            RETURNING id, job_type, channel_session_id, payload_json, status, attempt_count, error_message, created_at, updated_at
+        `).get({ now: Date.now() }) as any;
         if (!row) return null;
         return this.mapPendingRow(row);
     }
@@ -355,10 +385,9 @@ export class AgendaStore implements IAgendaStore {
         return rows.map(r => this.mapPendingRow(r));
     }
 
-    private nextChildIdInDb(table: "triggers" | "occurrences", itemId: number): number {
-        const base = itemId * CHILD_ID_FACTOR;
-        const row = this.db.prepare(`SELECT MAX(id) AS id FROM ${table} WHERE itemId = ?`).get(itemId) as { id: number | null };
-        return Math.max(base, row.id ?? 0) + 1;
+    private nextChildIdInDb(table: "triggers" | "occurrences"): number {
+        const row = this.db.prepare(`SELECT MAX(id) AS id FROM ${table}`).get() as { id: number | null };
+        return (row.id ?? 0) + 1;
     }
 
     private updateById(table: AgendaTable, id: number, fields: Record<string, any>, booleanFields = new Set<string>()): boolean {

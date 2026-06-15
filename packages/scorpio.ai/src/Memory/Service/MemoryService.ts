@@ -221,7 +221,12 @@ export class MemoryService implements IMemoryService {
 
     extractFromConversation(messages: ChatMessage[]): void {
         if (messages.length === 0) return;
-        this.store.pushPendingMessages(messages, Date.now());
+        try {
+            this.store.pushPendingMessages(messages, Date.now());
+        } catch (e: any) {
+            this.logger?.warn(`Memory push pending failed: ${e?.message ?? e}`);
+            return;
+        }
         void this.checkJobs();
     }
 
@@ -379,8 +384,42 @@ export class MemoryService implements IMemoryService {
 
         const result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, messages);
 
+        // 安全闸门：单次整理最多 30 ops；其中 delete 不超过 max(10, 30% 总量)。
+        // 防止一次坏 LLM 输出（如全删）打爆记忆库。
         const filtered = result.ops.filter(op => op.action !== MemoryOpAction.Create);
-        return this.applyOps(filtered, { mergeUpdateBodies: false });
+        const capped = MemoryService.capConsolidateOps(filtered, rows.length);
+        if (capped.length < filtered.length) {
+            this.logger?.warn(`consolidate ops capped: ${filtered.length} -> ${capped.length} (corpus size ${rows.length})`);
+        }
+        return this.applyOps(capped, { mergeUpdateBodies: false });
+    }
+
+    private static readonly CONSOLIDATE_TOTAL_CAP = 30;
+
+    /**
+     * cap 只针对会改 store 的 op（update / delete）。noop 完整保留——它们不破坏数据，
+     * 让它们占用 cap 名额会把后面真实的 mutation 截掉（LLM prompt 鼓励 noop，常返回大量
+     * "no change" 占位）。
+     */
+    private static capConsolidateOps(ops: MemoryOp[], corpusSize: number): MemoryOp[] {
+        const deleteCap = Math.max(10, Math.floor(corpusSize * 0.3));
+        let deleteCount = 0;
+        let mutationCount = 0;
+        const out: MemoryOp[] = [];
+        for (const op of ops) {
+            if (op.action === MemoryOpAction.Noop) {
+                out.push(op);
+                continue;
+            }
+            if (mutationCount >= MemoryService.CONSOLIDATE_TOTAL_CAP) continue;
+            if (op.action === MemoryOpAction.Delete) {
+                if (deleteCount >= deleteCap) continue;
+                deleteCount++;
+            }
+            out.push(op);
+            mutationCount++;
+        }
+        return out;
     }
 
     /**

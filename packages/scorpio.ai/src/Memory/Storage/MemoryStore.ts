@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { createHash } from "crypto";
 import { existsSync, mkdirSync } from "fs";
 import * as fs from "fs/promises";
 import path from "path";
@@ -91,14 +92,6 @@ export class MemoryStore implements IMemoryStore {
                 CREATE INDEX IF NOT EXISTS idx_memories_lastread ON memories(last_read_at DESC, updated_at DESC);
 
                 -- FTS5 全文索引由 SqliteHybridIndex 持有（前缀 memory_，docs / docs_fts 表）。
-                -- 旧版 memories_fts 与触发器已迁移；如有残留通过 DROP IF EXISTS 兼容老库：
-                DROP TRIGGER IF EXISTS memories_ai;
-                DROP TRIGGER IF EXISTS memories_ad;
-                DROP TRIGGER IF EXISTS memories_au;
-                DROP TABLE   IF EXISTS memories_fts;
-
-                -- 旧的抽取作业表（被 memory_pending_messages 取代）。保留 DROP 兼容老库。
-                DROP TABLE IF EXISTS memory_extract_jobs;
 
                 -- 待处理 job 队列：抽取与整理都入队，MemoryService 通过 isRunning 标志串行消费；
                 -- 失败行保留 status='failed'，不再自动重试，由 admin 决定。
@@ -114,7 +107,10 @@ export class MemoryStore implements IMemoryStore {
                 );
                 CREATE INDEX IF NOT EXISTS idx_pending_status_id ON memory_pending_messages(status, id);
             `);
-            this.ensureMemoryColumns();
+            // 启动 sweep：把上次进程崩溃留下的 'processing' 转回 'pending' 重新跑。
+            // 'processing' 是 popPendingJob 拿走 job 时打上的临时状态——配合该 sweep
+            // 实现"崩溃恢复时不重复 LLM 调用"：只有走完 deletePendingJob 才会真正消失。
+            this._db.prepare(`UPDATE memory_pending_messages SET status = 'pending' WHERE status = 'processing'`).run();
         }
         return this._db;
     }
@@ -127,8 +123,10 @@ export class MemoryStore implements IMemoryStore {
         const content = this.assembleBody(input.title, input.body);
         const evidenceCount = Math.max(1, input.evidenceCount ?? 1);
 
+        // fingerprint 由 content 直接算（sha256），不依赖 mtime——
+        // 触摸文件不改内容时 reconcile 不会误判变化覆盖 description。
+        const fingerprint = this.computeContentFingerprint(content);
         await fs.writeFile(filePath, content, "utf8");
-        const fingerprint = await this.computeFingerprint(filePath);
 
         try {
             const result = this.db.prepare(`
@@ -177,8 +175,10 @@ export class MemoryStore implements IMemoryStore {
         const filePath = this.slugToPath(input.slug);
         const evidenceDelta = Math.max(0, input.evidenceDelta ?? 0);
 
+        // 先算 fingerprint（同步），再写 FS、再写 DB——把 fs.stat 那次 await 砍掉，
+        // FS-DB 不一致窗口只剩 fs.writeFile 到 db.prepare().run() 之间。
+        const fingerprint = this.computeContentFingerprint(newContent);
         await fs.writeFile(filePath, newContent, "utf8");
-        const fingerprint = await this.computeFingerprint(filePath);
 
         this.db.prepare(`
             UPDATE memories
@@ -319,30 +319,41 @@ export class MemoryStore implements IMemoryStore {
             }
         }
 
-        // Direction A：FS 有但 DB 没 / fingerprint 变了 → upsert
+        // Direction A：FS 有但 DB 没 / fingerprint 变了
+        // INSERT 走 fallback description；UPDATE 不动 description（保护 writer LLM 写的精心值）。
+        // 启动期 reconcile 与 drain 并发 create 时，UPSERT-with-description-overwrite 会用 deriveDescription
+        // 覆盖 writer 刚写的描述——拆成两步避免这个 race。
         let indexedCount = 0;
         const now = Date.now();
         for (const absPath of fsFiles) {
             const slug = this.pathToSlug(absPath);
-            const fingerprint = await this.computeFingerprint(absPath);
-            const oldFp = indexedMap.get(absPath);
-            if (oldFp === fingerprint) continue;
-
             const content = await fs.readFile(absPath, 'utf8');
-            const title = this.parseTitle(content) ?? slug;
-            // 外部编辑没有结构化 description，从 body 第二行起取首段非空作为 fallback
-            const description = this.deriveDescription(content);
+            const fingerprint = this.computeContentFingerprint(content);
 
-            this.db.prepare(`
-                INSERT INTO memories (slug, title, description, body, fingerprint, created_at, updated_at)
-                VALUES (@slug, @title, @description, @body, @fingerprint, @now, @now)
-                ON CONFLICT(slug) DO UPDATE SET
-                    title       = excluded.title,
-                    description = excluded.description,
-                    body        = excluded.body,
-                    fingerprint = excluded.fingerprint,
-                    updated_at  = excluded.updated_at
-            `).run({ slug, title, description, body: content, fingerprint, now });
+            // 重新读 fingerprint（不用启动期 snapshot），躲过 reconcile-期间-create 的 race。
+            const current = this.db.prepare(`SELECT fingerprint FROM memories WHERE slug = ?`).get(slug) as { fingerprint: string } | undefined;
+            if (current?.fingerprint === fingerprint) continue;
+
+            const title = this.parseTitle(content) ?? slug;
+
+            if (!current) {
+                // 新行：description 用 fallback（外部新增文件没有结构化 description）。
+                const description = this.deriveDescription(content);
+                this.db.prepare(`
+                    INSERT OR IGNORE INTO memories (slug, title, description, body, fingerprint, created_at, updated_at)
+                    VALUES (@slug, @title, @description, @body, @fingerprint, @now, @now)
+                `).run({ slug, title, description, body: content, fingerprint, now });
+            } else {
+                // 已存在：仅在 fingerprint 不一致时更新内容字段，**不动 description**。
+                this.db.prepare(`
+                    UPDATE memories
+                    SET title       = @title,
+                        body        = @body,
+                        fingerprint = @fingerprint,
+                        updated_at  = @now
+                    WHERE slug = @slug AND fingerprint != @fingerprint
+                `).run({ slug, title, body: content, fingerprint, now });
+            }
             indexedCount++;
         }
 
@@ -371,13 +382,19 @@ export class MemoryStore implements IMemoryStore {
     }
 
     popPendingJob(): PendingMemoryJobRow | null {
+        // 单条 SQL 原子地把最早 pending 转为 processing 并返回——崩溃时不会重复消费。
+        // 'processing' 行由进程下次 init() 的 sweep 转回 'pending'。
         const row = this.db.prepare(`
-            SELECT id, job_type, payload_json, status, attempt_count, error_message, created_at, updated_at
-            FROM memory_pending_messages
-            WHERE status = 'pending'
-            ORDER BY id ASC
-            LIMIT 1
-        `).get() as any;
+            UPDATE memory_pending_messages
+            SET status = 'processing', updated_at = @now
+            WHERE id = (
+                SELECT id FROM memory_pending_messages
+                WHERE status = 'pending'
+                ORDER BY id ASC
+                LIMIT 1
+            )
+            RETURNING id, job_type, payload_json, status, attempt_count, error_message, created_at, updated_at
+        `).get({ now: Date.now() }) as any;
         if (!row) return null;
         return this.mapPendingRow(row);
     }
@@ -478,25 +495,18 @@ export class MemoryStore implements IMemoryStore {
         return '';
     }
 
-    private async computeFingerprint(absPath: string): Promise<string> {
-        const stat = await fs.stat(absPath);
-        return `${stat.size}-${stat.mtimeMs}`;
+    /**
+     * Content-based fingerprint (sha256 of the bytes that get written to disk).
+     * 用 mtime 做 fingerprint 的旧实现会被 IDE 自动保存 / git checkout / rsync 触发误判，
+     * 让 reconcile 走 deriveDescription 兜底覆盖 writer LLM 写的 description。
+     */
+    private computeContentFingerprint(content: string): string {
+        return createHash('sha256').update(content, 'utf8').digest('hex');
     }
 
     private findByIdSync(id: number): MemoryRow | null {
         const row = this.db.prepare(`SELECT * FROM memories WHERE id = ?`).get(id);
         return row ? this.mapRow(row) : null;
-    }
-
-    private ensureMemoryColumns(): void {
-        const columns = new Set((this._db!.prepare(`PRAGMA table_info(memories)`).all() as Array<{ name: string }>).map(c => c.name));
-        const add = (name: string, sql: string) => {
-            if (!columns.has(name)) this._db!.exec(sql);
-        };
-        add('kind', `ALTER TABLE memories ADD COLUMN kind TEXT NOT NULL DEFAULT 'fact'`);
-        add('evidence_count', `ALTER TABLE memories ADD COLUMN evidence_count INTEGER NOT NULL DEFAULT 1`);
-        // 老版本残留的 source_* 列保留在表里不删——SQLite ALTER 不便降列，
-        // 实际使用上 mapRow 已不再读取，相当于 dead column。
     }
 
     private parsePendingPayload(json: string | null | undefined): { messages?: ChatMessage[] } {
