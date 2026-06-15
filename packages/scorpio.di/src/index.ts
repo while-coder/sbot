@@ -10,10 +10,10 @@
  * @singleton()
  * class DatabaseService {
  *   @init()
- *   async connect() { await db.connect(); }
+ *   connect() { db.connectSync(); }   // @init 必须同步；异步初始化在 resolve 后显式 await
  *
  *   @dispose()
- *   async disconnect() { await db.close(); }
+ *   async disconnect() { await db.close(); }   // dispose 仍允许 async
  * }
  *
  * @transient()
@@ -21,8 +21,8 @@
  *   constructor(private db: DatabaseService) {}
  * }
  *
- * // 解析（自动注入依赖）
- * const userService = await globalContainer.resolve(UserService);
+ * // 解析（同步）
+ * const userService = globalContainer.resolve(UserService);
  * ```
  */
 

@@ -222,8 +222,8 @@ export class MemoryServicePool {
         });
         sub.registerSingleton(IMemoryService, MemoryService);
 
-        const store = await sub.resolve<IMemoryStore>(IMemoryStore);
-        const service = await sub.resolve<IMemoryService>(IMemoryService);
+        const store = sub.resolve<IMemoryStore>(IMemoryStore);
+        const service = sub.resolve<IMemoryService>(IMemoryService);
 
         const entry: PoolEntry = { service, store, refCount: 0 };
 

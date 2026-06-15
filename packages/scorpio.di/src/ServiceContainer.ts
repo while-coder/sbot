@@ -42,14 +42,14 @@ function tokenToString(token: InjectionToken): string {
  * @singleton()
  * class DatabaseService {
  *   @init()
- *   async connect() { ... }
+ *   connect() { ... }   // 同步；异步初始化由调用方在 resolve 后显式 await
  * }
  *
  * // 2. 手动注册
  * container.register("API_KEY", { useValue: "xxx" });
  *
- * // 3. 解析
- * const db = await container.resolve(DatabaseService);
+ * // 3. 解析（同步）
+ * const db = container.resolve(DatabaseService);
  * ```
  */
 export class ServiceContainer {
@@ -235,27 +235,28 @@ export class ServiceContainer {
 
     // 使用工厂函数延迟创建，在 resolve 时才创建实例
     this.register(token, {
-      useFactory: async () => {
-        return await this.constructInstance(actualImpl, namedArgs);
-      }
+      useFactory: () => this.constructInstance(actualImpl, namedArgs),
     }, lifecycle);
 
     return this;
   }
 
   /**
-   * 解析服务
+   * 解析服务（同步）
+   *
+   * factory / @init() 必须返回 T（不能返回 Promise<T>）；
+   * 异步初始化由调用方在 resolve 之后显式 await（如 `store.init()`）。
    *
    * @param token 注入令牌
    * @returns 服务实例
    *
    * @example
    * ```ts
-   * const db = await container.resolve(DatabaseService);
-   * const key = await container.resolve<string>("API_KEY");
+   * const db = container.resolve(DatabaseService);
+   * const key = container.resolve<string>("API_KEY");
    * ```
    */
-  async resolve<T>(token: InjectionToken<T>): Promise<T> {
+  resolve<T>(token: InjectionToken<T>): T {
     // 1. 循环依赖检测
     if (this.resolutionStack.has(token)) {
       const chain = [...this.resolutionStack].map(tokenToString).join(" -> ");
@@ -298,7 +299,7 @@ export class ServiceContainer {
     // 5. 创建实例
     this.resolutionStack.add(token);
     try {
-      const instance = await this.createInstance<T>(registration);
+      const instance = this.createInstance<T>(registration);
 
       // 6. 单例缓存
       if (registration.lifecycle === Lifecycle.Singleton) {
@@ -314,9 +315,9 @@ export class ServiceContainer {
   /**
    * 尝试解析服务（不抛出异常）
    */
-  async tryResolve<T>(token: InjectionToken<T>): Promise<T | null> {
+  tryResolve<T>(token: InjectionToken<T>): T | null {
     try {
-      return await this.resolve<T>(token);
+      return this.resolve<T>(token);
     } catch {
       return null;
     }
@@ -367,9 +368,9 @@ export class ServiceContainer {
   }
 
   /**
-   * 创建实例
+   * 创建实例（同步）
    */
-  private async createInstance<T>(registration: Registration): Promise<T> {
+  private createInstance<T>(registration: Registration): T {
     const { provider } = registration;
 
     let instance: T;
@@ -378,17 +379,17 @@ export class ServiceContainer {
       // 值提供者：直接返回
       return provider.useValue as T;
     } else if (isFactoryProvider(provider)) {
-      // 工厂提供者：调用工厂函数
-      instance = await provider.useFactory(this) as T;
+      // 工厂提供者：调用工厂函数（必须返回 T，不能返回 Promise<T>）
+      instance = provider.useFactory(this) as T;
     } else if (isClassProvider(provider)) {
       // 类提供者：解析构造函数依赖并实例化
-      instance = await this.constructInstance<T>(provider.useClass);
+      instance = this.constructInstance<T>(provider.useClass);
     } else {
       throw new Error(`Unknown provider type`);
     }
 
-    // 调用 @init() 标记的初始化方法
-    await this.callInitMethod(instance);
+    // 调用 @init() 标记的初始化方法（必须同步）
+    this.callInitMethod(instance);
 
     // 记录 @dispose() 标记的销毁方法
     this.trackDisposable(instance);
@@ -397,12 +398,12 @@ export class ServiceContainer {
   }
 
   /**
-   * 通过构造函数创建实例，自动解析依赖
+   * 通过构造函数创建实例，自动解析依赖（同步）
    * @param target 目标类
    * @param providedArgs 可选的预提供命名参数对象，通过 @inject 的 token 匹配
    *                     支持字符串、Symbol、类作为 key
    */
-  private async constructInstance<T>(target: Constructor<T>, providedArgs?: Record<string | symbol, any>): Promise<T> {
+  private constructInstance<T>(target: Constructor<T>, providedArgs?: Record<string | symbol, any>): T {
     // 获取构造函数参数类型
     const paramTypes = getParamTypes(target);
     const injectTokens = getInjectTokens(target);
@@ -458,14 +459,14 @@ export class ServiceContainer {
           if (!this.isRegistered(token)) {
             args.push(undefined);
           } else {
-            args.push(await this.resolve(token));
+            args.push(this.resolve(token));
           }
         } catch {
           args.push(undefined);
         }
       } else {
         try {
-          args.push(await this.resolve(token));
+          args.push(this.resolve(token));
         } catch (error: any) {
           throw new Error(
             `Failed to resolve constructor parameter ${i + 1} (index ${i}, token: ${tokenToString(token)}) of ${target.name}: ${error.message}`
@@ -478,14 +479,14 @@ export class ServiceContainer {
   }
 
   /**
-   * 调用 @init() 标记的方法
+   * 调用 @init() 标记的方法（必须同步；如需异步初始化，调用方在 resolve 之后显式 await）
    */
-  private async callInitMethod(instance: any): Promise<void> {
+  private callInitMethod(instance: any): void {
     if (!instance || !instance.constructor) return;
 
     const initMethod = getInitMethod(instance.constructor);
     if (initMethod && typeof instance[initMethod] === "function") {
-      await instance[initMethod]();
+      instance[initMethod]();
     }
   }
 

@@ -23,7 +23,7 @@ export class WikiService implements IWikiService {
   }
 
   @init()
-  async initialize(): Promise<void> {}
+  initialize(): void {}
 
   getToolDescs(): WikiToolDescs {
     return this.toolDescs;

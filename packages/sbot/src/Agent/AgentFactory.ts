@@ -117,7 +117,7 @@ export class AgentFactory {
             [T_SkillToolListDesc]: loadPrompt('skills/tool_list_skill_files.txt'),
             [T_SkillToolExecDesc]: loadPrompt('skills/tool_execute_skill_script.txt'),
         });
-        const skillService = await container.resolve<SkillService>(ISkillService);
+        const skillService = container.resolve<SkillService>(ISkillService);
         if (skills === '*') {
             for (const dir of Object.values(getSkillsDirsMap())) {
                 skillService.registerSkillsDir(dir);
@@ -139,7 +139,7 @@ export class AgentFactory {
     private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<StructuredToolInterface[]>> = {
         [BuiltinProvider.SessionSearch]: async ({ container }) => {
             if (!container.isRegistered(IAgentSaverService)) return [];
-            const saver = await container.resolve<IAgentSaverService>(IAgentSaverService);
+            const saver = container.resolve<IAgentSaverService>(IAgentSaverService);
             if (typeof saver.searchArchive !== 'function') return [];
             return [createSessionSearchTool(saver as SearchableSaver)];
         },
@@ -161,7 +161,7 @@ export class AgentFactory {
         mcpExclude?: string[],
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
-        const toolService = await container.resolve<AgentToolService>(IAgentToolService);
+        const toolService = container.resolve<AgentToolService>(IAgentToolService);
 
         const sessionNames = new Set(Object.keys(this.SESSION_TOOL_CREATORS));
         const excludeSet = new Set(mcpExclude ?? []);
@@ -316,11 +316,11 @@ export class AgentFactory {
 
             const sub = new ServiceContainer();
             if (container.isRegistered(ILoggerService))
-                sub.registerInstance(ILoggerService, await container.resolve(ILoggerService));
+                sub.registerInstance(ILoggerService, container.resolve(ILoggerService));
             if (container.isRegistered(IAgentSaverService))
-                sub.registerInstance(IAgentSaverService, await container.resolve(IAgentSaverService));
+                sub.registerInstance(IAgentSaverService, container.resolve(IAgentSaverService));
             sub.registerWithArgs(PersistentACPAgentService, acpArgs);
-            const instance = await sub.resolve<PersistentACPAgentService>(PersistentACPAgentService);
+            const instance = sub.resolve<PersistentACPAgentService>(PersistentACPAgentService);
             pool.put(key, instance, { agentId: options.agentId, agentName, dbSessionId: options.dbSessionId, configHash });
             return instance;
         }

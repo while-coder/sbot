@@ -212,7 +212,7 @@ export class AgentRunner {
         container: ServiceContainer,
         notes: string[],
     ): Promise<void> {
-        const loggerService = container.isRegistered(ILoggerService) ? await container.resolve<LoggerService>(ILoggerService) : undefined
+        const loggerService = container.isRegistered(ILoggerService) ? container.resolve<LoggerService>(ILoggerService) : undefined
         const results = await Promise.all(notes.map(noteId => AgentRunner.buildNoteService(noteId, loggerService)));
         const services = results.filter((s): s is INoteService => s !== null);
         if (services.length > 0) {
@@ -298,12 +298,12 @@ export class AgentRunner {
             const extractorModel = await config.getModelService(syncModelId, true);
             const sub = new ServiceContainer();
             if (container.isRegistered(ILoggerService)) {
-                sub.registerInstance(ILoggerService, await container.resolve(ILoggerService));
+                sub.registerInstance(ILoggerService, container.resolve(ILoggerService));
             }
             sub.registerInstance(IModelService, extractorModel);
             sub.registerInstance(T_AgendaExtractorSystemPrompt, loadPrompt(profileConfig.syncPromptFile ?? 'agenda/sync/default.txt'));
             sub.registerSingleton(IAgendaExtractor, AgendaExtractor);
-            extractor = await sub.resolve<IAgendaExtractor>(IAgendaExtractor);
+            extractor = sub.resolve<IAgendaExtractor>(IAgendaExtractor);
         }
 
         const args: Record<string | symbol, any> = {

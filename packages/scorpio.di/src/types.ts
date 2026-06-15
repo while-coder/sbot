@@ -45,10 +45,10 @@ export interface ClassProvider<T = any> {
 }
 
 /**
- * 工厂提供者
+ * 工厂提供者（必须同步返回 T；如需异步初始化，由调用方在 resolve 之后显式调用）
  */
 export interface FactoryProvider<T = any> {
-  useFactory: (container: any) => T | Promise<T>;
+  useFactory: (container: any) => T;
 }
 
 /**
