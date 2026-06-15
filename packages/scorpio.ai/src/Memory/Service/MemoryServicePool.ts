@@ -36,46 +36,31 @@ export interface MemoryServiceConfig {
 }
 
 /**
- * 按 memoryId 解析配置。返回 null 表示 profile 不存在或被禁用，pool 据此返回 null handle。
- * 必须同步——caller 需要事先把 model 工厂、prompt 文件加载等都 resolve 好。
+ * 按 memoryId 解析配置。返回 null 表示 profile 不存在或被禁用。
+ * 必须同步——caller 在调用前需要把 model 工厂、prompt 文件加载等都 resolve 好。
  * 解析失败（如 model 拉不到）应抛错。
  */
 export type MemoryServiceConfigResolver =
     (memoryId: string) => MemoryServiceConfig | null;
 
-export interface MemoryServiceHandle {
-    service: IMemoryService;
-    release(): Promise<void>;
-}
-
 interface PoolEntry {
     service: IMemoryService;
     store: IMemoryStore;
-    refCount: number;
 }
 
 /**
  * 进程内 MemoryService 缓存：每个 memoryId 共享一个实例。**单例**——通过
  * `MemoryServicePool.getInstance()`（或 named export `memoryServicePool`）拿。
  *
- * 使用方式：
- *   import { memoryServicePool } from 'scorpio.ai';
- *   memoryServicePool.setResolver(async memoryId => { ... });
- *   memoryServicePool.setLoggerService(loggerProvider);   // 可选
- *
  * **必须使用 pool**——MemoryService 的"串行抽取 + 单实例 isRunning"语义只在
  * 同 memoryId 全局唯一实例下成立。直接 `new MemoryService(...)` 多次会让多个
  * 实例并发跑 LLM CRUD，破坏 store 数据。
  *
- * 释放生命周期：
- * 1. handle.release → pool.release：refCount-- ；若仍 >0 直接返回。
- * 2. refCount=0 → 调 service.requestRelease()，立即返回（不阻塞调用方）。
- * 3. service 内部 drain pending；drain 完成 + releaseRequested 时回调
- *    `pool.notifyServiceIdle(memoryId)` 触发 finalize。
- * 4. notifyServiceIdle 二次校验 refCount=0 + cache 命中后 store.dispose 并移出缓存。
- *
- * drain 期间若新的 acquire 抬高 refCount，notifyServiceIdle 检查到后放弃 dispose；
- * service 实例继续服务，下次 refCount 归零再走相同流程。
+ * 生命周期模型（无 refCount，无 handle）：
+ * - 第一次 `get(id)` / `acquire(id)` 时懒构造 + 缓存；之后稳定常驻
+ * - profile 配置变更走 `invalidate(id)`：从 cache 移到 disposing；service 抽干 pending
+ *   后回调 `notifyServiceIdle(id)`，pool 关 store
+ * - 进程退出走 `disposeAll()`：批量 invalidate
  */
 export class MemoryServicePool {
     private static _instance: MemoryServicePool | null = null;
@@ -87,6 +72,8 @@ export class MemoryServicePool {
     }
 
     private cache = new Map<string, PoolEntry>();
+    /** 已从 cache 摘掉、正在等 drain 完成的 entry；notifyServiceIdle 凭 memoryId 在这里找 store 关闭。 */
+    private disposing = new Map<string, PoolEntry>();
     private resolveConfig?: MemoryServiceConfigResolver;
     private loggerService?: ILoggerService;
     private logger?: ILogger;
@@ -104,41 +91,33 @@ export class MemoryServicePool {
         this.logger = svc.getLogger("MemoryServicePool");
     }
 
+    /** 拿 service 实例（懒构造 + 缓存）。无引用计数，caller 不需要释放。 */
     get(memoryId: string): IMemoryService | null {
-        const entry = this.getEntry(memoryId);
-        return entry?.service ?? null;
+        return this.getEntry(memoryId)?.service ?? null;
     }
 
-    acquire(memoryId: string): MemoryServiceHandle | null {
-        const entry = this.getEntry(memoryId);
-        if (!entry) return null;
-        entry.refCount++;
-        let released = false;
-        return {
-            service: entry.service,
-            release: async () => {
-                if (released) return;
-                released = true;
-                this.release(memoryId, entry);
-            },
-        };
+    /** alias for `get` —— 保留语义化命名。 */
+    acquire(memoryId: string): IMemoryService | null {
+        return this.get(memoryId);
     }
 
+    /**
+     * profile 失效（编辑 / 删除）：先把 entry 摘出 cache 防止后续 get 命中老实例，
+     * 再通知 service 抽干 pending；drain 完成后 service 回调 notifyServiceIdle 关 store。
+     */
     invalidate(memoryId: string): void {
         const entry = this.cache.get(memoryId);
         if (!entry) return;
-        // 设置标志，由 service 抽干 pending 后回调 notifyServiceIdle 关闭 store
-        entry.refCount = 0;
-        entry.service.requestRelease?.();
+        this.cache.delete(memoryId);
+        this.disposing.set(memoryId, entry);
+        entry.service.dispose?.();
         this.logger?.info(`MemoryService [${memoryId}] invalidate requested`);
     }
 
     disposeAll(): void {
         if (this.cache.size === 0) return;
-        for (const [memoryId, entry] of this.cache) {
-            entry.refCount = 0;
-            entry.service.requestRelease?.();
-            this.logger?.info(`MemoryService [${memoryId}] disposeAll requested`);
+        for (const memoryId of [...this.cache.keys()]) {
+            this.invalidate(memoryId);
         }
     }
 
@@ -163,16 +142,14 @@ export class MemoryServicePool {
     }
 
     /**
-     * 由 MemoryService 在"drain 完成 + releaseRequested"时主动回调。
-     * 二次校验后真正 dispose store + 移出缓存；否则放弃释放，service 继续服务。
+     * 由 MemoryService 在"drain 完成 + dispose 已请求"时主动回调。
+     * 在 disposing map 里查到 entry 才真正关 store；否则 no-op（service 已被替换或重建）。
      */
     notifyServiceIdle(memoryId: string): void {
-        const entry = this.cache.get(memoryId);
+        const entry = this.disposing.get(memoryId);
         if (!entry) return;
-        // drain 期间被新的 acquire 抬回去就放弃 dispose，service 继续服务
-        if (entry.refCount > 0) return;
+        this.disposing.delete(memoryId);
         entry.store.dispose();
-        this.cache.delete(memoryId);
         this.logger?.info(`MemoryService [${memoryId}] released`);
     }
 
@@ -183,14 +160,6 @@ export class MemoryServicePool {
         const entry = this.build(memoryId);
         if (entry) this.cache.set(memoryId, entry);
         return entry;
-    }
-
-    private release(memoryId: string, entry: PoolEntry): void {
-        if (this.cache.get(memoryId) !== entry) return;
-        entry.refCount = Math.max(0, entry.refCount - 1);
-        if (entry.refCount > 0) return;
-        // 由 service 在 pending 队列抽干后回调 notifyServiceIdle 触发 store.dispose
-        entry.service.requestRelease?.();
     }
 
     private build(memoryId: string): PoolEntry | null {
@@ -216,8 +185,6 @@ export class MemoryServicePool {
         const store = sub.resolve<IMemoryStore>(IMemoryStore);
         const service = sub.resolve<IMemoryService>(IMemoryService);
 
-        const entry: PoolEntry = { service, store, refCount: 0 };
-
         store.init();
 
         // 启动时跑一次 reconcile（异步，使用 fs/promises），不阻塞 build
@@ -233,7 +200,7 @@ export class MemoryServicePool {
         service.processPending();
         this.logger?.info(`MemoryService [${memoryId}] built`);
 
-        return entry;
+        return { service, store };
     }
 }
 

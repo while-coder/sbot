@@ -2,7 +2,6 @@ import path from "path";
 import {
     memoryServicePool,
     type MemoryServiceConfigResolver,
-    type MemoryServiceHandle,
 } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
@@ -44,4 +43,3 @@ memoryServicePool.setResolver(resolveConfig);
 memoryServicePool.setLoggerService({ getLogger: (name: string) => LoggerService.getLogger(name) });
 
 export { memoryServicePool };
-export type { MemoryServiceHandle };

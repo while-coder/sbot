@@ -132,7 +132,7 @@ export class MemoryService implements IMemoryService {
     private readonly writerPrompt: string;
     private readonly menuMaxEntries: number;
     private isRunning = false;
-    private releaseRequested = false;
+    private disposing = false;
 
     constructor(
         @inject(IMemoryStore) private readonly store: IMemoryStore,
@@ -203,12 +203,13 @@ export class MemoryService implements IMemoryService {
     }
 
     /**
-     * 上层（pool）通知：可以释放本 service。
-     * 设标记 + 触发一次 drain；drain 结束（或当下队列已空）时 checkMessages 回调 onRelease。
+     * 上层（pool）通知：销毁本 service。
+     * 设标记 + 触发一次 drain；drain 结束（或当下队列已空）时 checkMessages 回调
+     * MemoryServicePool.notifyServiceIdle，由 pool 关闭 store。
      */
-    requestRelease(): void {
-        if (this.releaseRequested) return;
-        this.releaseRequested = true;
+    dispose(): void {
+        if (this.disposing) return;
+        this.disposing = true;
         void this.checkMessages();
     }
 
@@ -251,9 +252,9 @@ export class MemoryService implements IMemoryService {
         } finally {
             this.isRunning = false;
         }
-        // 队列抽干 + 上层请求过 release → 主动通知 pool 单例完成 dispose；fire 一次后清标记
-        if (this.releaseRequested) {
-            this.releaseRequested = false;
+        // 队列抽干 + 上层请求过 dispose → 主动通知 pool 单例完成 dispose；fire 一次后清标记
+        if (this.disposing) {
+            this.disposing = false;
             if (this.memoryId) {
                 try {
                     MemoryServicePool.getInstance().notifyServiceIdle(this.memoryId);

@@ -250,7 +250,6 @@ export {
   type MemoryWriterOpStats,
   type MemoryServiceConfig,
   type MemoryServiceConfigResolver,
-  type MemoryServiceHandle,
   type MemoryToolDescs,
 } from "./Memory";
 

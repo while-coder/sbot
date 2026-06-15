@@ -32,7 +32,6 @@ export {
     memoryServicePool,
     type MemoryServiceConfig,
     type MemoryServiceConfigResolver,
-    type MemoryServiceHandle,
 } from './Service/MemoryServicePool';
 
 // ── Tools ──

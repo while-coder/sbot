@@ -41,7 +41,7 @@ import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
 import { agendaStorePool, agendaTriggerEnginePool } from "../Agenda";
-import { memoryServicePool, type MemoryServiceHandle } from "../Memory/MemoryServicePool";
+import { memoryServicePool } from "../Memory/MemoryServicePool";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -123,7 +123,7 @@ export class AgentRunner {
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
-        const memoryHandle = await AgentRunner.registerMemoryService(container, options.memoryId);
+        AgentRunner.registerMemoryService(container, options.memoryId);
         await AgentRunner.registerAgendaService(container, options.agendaId, dbSessionId);
 
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
@@ -148,7 +148,6 @@ export class AgentRunner {
             await agent.stream(query, callbacks, signal);
         } finally {
             await agent?.dispose();
-            await memoryHandle?.release();
             await saverHandle?.release();
         }
     }
@@ -267,17 +266,17 @@ export class AgentRunner {
 
     /**
      * Memory（skill 风格）系统注册。命中 memoryProfiles 才注册；否则不启用记忆。
+     * pool 单例缓存 service，无需 release —— profile 失效由 settings CRUD 触发 invalidate。
      */
-    private static async registerMemoryService(
+    private static registerMemoryService(
         container: ServiceContainer,
         memoryId: string | null | undefined,
-    ): Promise<MemoryServiceHandle | null> {
-        if (!memoryId) return null;
+    ): void {
+        if (!memoryId) return;
         const profileConfig = config.getMemoryProfile(memoryId);
-        if (!profileConfig?.enabled) return null;
-        const handle = memoryServicePool.acquire(memoryId);
-        if (handle) container.registerInstance(IMemoryService, handle.service);
-        return handle;
+        if (!profileConfig?.enabled) return;
+        const service = memoryServicePool.acquire(memoryId);
+        if (service) container.registerInstance(IMemoryService, service);
     }
 
     private static async registerAgendaService(
