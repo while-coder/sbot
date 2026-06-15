@@ -1,5 +1,8 @@
 export {
     IMemoryStore,
+    MemoryKind,
+    type MemorySourceRef,
+    type MemoryBodyMode,
     type MemoryRow,
     type MemoryMenuEntry,
     type MemorySearchHit,
@@ -15,6 +18,7 @@ export { SecretRedactor } from './SecretRedactor';
 export { renderConversation, countTurns } from './ConversationRenderer';
 export {
     MemoryWriterWorker,
+    MemoryOpAction,
     MemoryOpSchema,
     MemoryWriteOutputSchema,
     type MemoryWriteOutput,

@@ -94,9 +94,9 @@ export interface MemoryProfileConfig {
   writerModel: string
 
   // ── prompt 文件（不设置则使用默认） ──
-  /** MemoryWriter 系统提示路径，默认 'memory/memory_write.md' */
+  /** MemoryWriter 系统提示路径，默认 'memory/writer/default.md' */
   writerPromptFile?: string
-  /** 注入到主 agent 的 read 模板路径，默认 'memory/memory_read.md'（含 {{ memory_menu }} 占位符） */
+  /** 注入到主 agent 的 read 模板路径，默认 'memory/reader/default.md'（含 {{ memory_menu }} 占位符） */
   readPromptFile?: string
 
   // ── 调度（可选，省略走默认） ──

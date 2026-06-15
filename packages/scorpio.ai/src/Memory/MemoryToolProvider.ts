@@ -79,7 +79,7 @@ export class MemoryToolProvider {
                         ``,
                     ];
                     for (const h of hits) {
-                        lines.push(`### ${h.title}  (\`${h.slug}\`, score=${h.score.toFixed(3)})`);
+                        lines.push(`### ${h.title}  (\`${h.slug}\`, kind=${h.kind}, score=${h.score.toFixed(3)})`);
                         lines.push(h.snippet);
                         lines.push("");
                     }

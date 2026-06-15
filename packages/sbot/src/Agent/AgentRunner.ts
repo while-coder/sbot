@@ -41,7 +41,7 @@ import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
 import { agendaStorePool, agendaTriggerEnginePool } from "../Agenda";
-import { memoryServicePool } from "../Memory/MemoryServicePool";
+import { memoryServicePool, type MemoryServiceHandle } from "../Memory/MemoryServicePool";
 
 export interface AgentRunOptions {
     /** 用户输入的消息 */
@@ -123,30 +123,33 @@ export class AgentRunner {
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
-        await AgentRunner.registerMemoryService(container, options.memoryId);
+        const memoryHandle = await AgentRunner.registerMemoryService(container, options.memoryId);
         await AgentRunner.registerAgendaService(container, options.agendaId, dbSessionId);
 
-        const saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
-        container.registerInstance(IAgentSaverService, saverHandle.saver);
-
-        // Memory 系统由后台 MemoryWriter LLM 自主 CRUD，不需要显式记忆工具。
-        const finalAgentTools: StructuredToolInterface[] = [...(agentTools ?? [])];
-
-        const agent = await AgentFactory.create({
-            agentId,
-            container,
-            extraPrompts,
-            dynamicPrompts,
-            agentTools: finalAgentTools,
-            dbSessionId,
-            workPath,
-            disableWorkspaceSkills: options.disableWorkspaceSkills,
-        });
+        let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
+        let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
         try {
+            saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
+            container.registerInstance(IAgentSaverService, saverHandle.saver);
+
+            // Memory 系统由后台 MemoryWriter LLM 自主 CRUD，不需要显式记忆工具。
+            const finalAgentTools: StructuredToolInterface[] = [...(agentTools ?? [])];
+
+            agent = await AgentFactory.create({
+                agentId,
+                container,
+                extraPrompts,
+                dynamicPrompts,
+                agentTools: finalAgentTools,
+                dbSessionId,
+                workPath,
+                disableWorkspaceSkills: options.disableWorkspaceSkills,
+            });
             await agent.stream(query, callbacks, signal);
         } finally {
-            await agent.dispose();
-            await saverHandle.release();
+            await agent?.dispose();
+            await memoryHandle?.release();
+            await saverHandle?.release();
         }
     }
 
@@ -268,13 +271,13 @@ export class AgentRunner {
     private static async registerMemoryService(
         container: ServiceContainer,
         memoryId: string | null | undefined,
-    ): Promise<IMemoryService | null> {
+    ): Promise<MemoryServiceHandle | null> {
         if (!memoryId) return null;
         const profileConfig = config.getMemoryProfile(memoryId);
         if (!profileConfig?.enabled) return null;
-        const service = await memoryServicePool.get(memoryId);
-        if (service) container.registerInstance(IMemoryService, service);
-        return service;
+        const handle = await memoryServicePool.acquire(memoryId);
+        if (handle) container.registerInstance(IMemoryService, handle.service);
+        return handle;
     }
 
     private static async registerAgendaService(

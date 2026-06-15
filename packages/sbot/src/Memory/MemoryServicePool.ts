@@ -20,14 +20,21 @@ import { MemoryExtractScheduler } from "./MemoryExtractScheduler";
 
 const logger = LoggerService.getLogger("Memory/MemoryServicePool");
 
-const DEFAULT_WRITER_PROMPT = "memory/memory_write.md";
-const DEFAULT_READ_PROMPT   = "memory/memory_read.md";
+const DEFAULT_WRITER_PROMPT = "memory/writer/default.md";
+const DEFAULT_READ_PROMPT   = "memory/reader/default.md";
 
 interface PoolEntry {
     service: IMemoryService;
     store: IMemoryStore;
     worker: MemoryWriterWorker;
     scheduler: MemoryExtractScheduler;
+    refCount: number;
+    disposePromise?: Promise<void>;
+}
+
+export interface MemoryServiceHandle {
+    service: IMemoryService;
+    release(): Promise<void>;
 }
 
 /**
@@ -48,18 +55,36 @@ class MemoryServicePool {
     private pending = new Map<string, Promise<PoolEntry>>();
 
     async get(memoryId: string): Promise<IMemoryService | null> {
+        return (await this.getEntry(memoryId)).service;
+    }
+
+    async acquire(memoryId: string): Promise<MemoryServiceHandle | null> {
+        const entry = await this.getEntry(memoryId);
+        entry.refCount++;
+        let released = false;
+        return {
+            service: entry.service,
+            release: async () => {
+                if (released) return;
+                released = true;
+                await this.release(memoryId, entry);
+            },
+        };
+    }
+
+    private async getEntry(memoryId: string): Promise<PoolEntry> {
         const cached = this.cache.get(memoryId);
-        if (cached) return cached.service;
+        if (cached) return cached;
 
         const inflight = this.pending.get(memoryId);
-        if (inflight) return (await inflight).service;
+        if (inflight) return await inflight;
 
         const promise = this.build(memoryId);
         this.pending.set(memoryId, promise);
         try {
             const entry = await promise;
             this.cache.set(memoryId, entry);
-            return entry.service;
+            return entry;
         } finally {
             this.pending.delete(memoryId);
         }
@@ -86,11 +111,54 @@ class MemoryServicePool {
 
     /** admin 手动触发一次扫描 + 抽取（绕过 60s tick）。返回 true 表示真的跑了。 */
     async forceExtract(memoryId: string): Promise<boolean> {
-        await this.get(memoryId);  // 确保 entry 已构造
-        const entry = this.cache.get(memoryId);
-        if (!entry) return false;
+        const entry = await this.getEntry(memoryId);
         await entry.scheduler.runOnce();
         return true;
+    }
+
+    /** pool 释放前 / admin 手动触发：忽略 idleMs，尽快处理已完成窗口。 */
+    async forceFlush(memoryId: string): Promise<boolean> {
+        const entry = await this.getEntry(memoryId);
+        await entry.scheduler.runOnce({ forceReady: true });
+        return true;
+    }
+
+    async forceConsolidate(memoryId: string): Promise<{ create: number; update: number; delete: number; noop: number; failed: number }> {
+        const entry = await this.getEntry(memoryId);
+        return entry.worker.consolidateOnce();
+    }
+
+    async listExtractJobs(memoryId: string, limit = 50): Promise<Awaited<ReturnType<IMemoryStore['listExtractJobs']>>> {
+        const entry = await this.getEntry(memoryId);
+        return entry.store.listExtractJobs(limit);
+    }
+
+    private async release(memoryId: string, entry: PoolEntry): Promise<void> {
+        if (this.cache.get(memoryId) !== entry) return;
+        entry.refCount = Math.max(0, entry.refCount - 1);
+        if (entry.refCount > 0) return;
+        if (!entry.disposePromise) {
+            entry.disposePromise = this.flushAndDisposeIfIdle(memoryId, entry);
+        }
+        await entry.disposePromise;
+    }
+
+    private async flushAndDisposeIfIdle(memoryId: string, entry: PoolEntry): Promise<void> {
+        try {
+            await entry.scheduler.runOnce({ forceReady: true });
+        } catch (e: any) {
+            logger.warn(`[${memoryId}] release flush failed: ${e?.message ?? e}`);
+        }
+
+        if (this.cache.get(memoryId) !== entry || entry.refCount > 0) {
+            entry.disposePromise = undefined;
+            return;
+        }
+
+        entry.scheduler.stop();
+        entry.store.dispose();
+        this.cache.delete(memoryId);
+        logger.info(`MemoryService [${memoryId}] released`);
     }
 
     private async build(memoryId: string): Promise<PoolEntry> {
@@ -149,7 +217,7 @@ class MemoryServicePool {
         scheduler.start();
         logger.info(`MemoryService [${memoryId}] built; extract scheduler started`);
 
-        return { service, store, worker, scheduler };
+        return { service, store, worker, scheduler, refCount: 0 };
     }
 }
 

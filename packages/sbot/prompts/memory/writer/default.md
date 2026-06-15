@@ -9,7 +9,7 @@ directly. Your only output is the structured `ops` array via the tool call.
 
 You receive two things:
 
-1. **Existing memories** — a list of `{slug, title, description}`. NO bodies. This
+1. **Existing memories** — a list of `{slug, kind, evidence, description}`. NO bodies. This
    shows you what has already been recorded so you can decide whether new
    information should `create` a new entry or `update` an existing one.
 2. **Conversation transcript** — the full back-and-forth between user and
@@ -45,10 +45,12 @@ Every operation is one of:
 
 ## `create`
 A genuinely new fact, with no existing slug that overlaps. Required fields:
-`slug`, `title`, `description`, `body`.
+`slug`, `title`, `description`, `body`. Optional: `kind`.
 
 - **slug**: lowercase-kebab, ≤64 chars, descriptive (e.g. `user-prefers-chinese`,
   `project-build-order`, `merge-freeze-2026-03-05`). Pattern: `^[a-z0-9][a-z0-9-]{0,63}$`.
+- **kind**: one of `preference`, `fact`, `workflow`, `project`, `decision`, `summary`.
+  Use `preference` for stable user feedback and `workflow` for repeatable procedures.
 - **title**: 1–100 chars, human-readable, may be Chinese. Becomes the `# H1` of the file.
 - **description**: ONE line, ≤200 chars. Shown as a menu entry to the future
   reader (the user-facing assistant). Make it specific enough that the reader
@@ -64,8 +66,13 @@ A genuinely new fact, with no existing slug that overlaps. Required fields:
 ## `update`
 An existing memory needs revision because new information arrived. Required:
 `slug`, `reason`. Optional: `title`, `description`, `body` (any subset; omitted
-fields preserve their current value — but you don't see current bodies, so if
-you change `body` you replace it entirely; same for title/description).
+fields preserve their current value). Optional: `kind`, `bodyMode`.
+
+- You do not see current bodies in this first pass. If you include `body`, the
+  system will fetch the existing body and run a safe merge before writing.
+- Use `bodyMode: "replace"` when the final body should replace the old body.
+- Use `bodyMode: "append"` only for a short additive note that should be appended
+  if it is not already present.
 
 - Use update when: the fact changed (a deadline moved), more nuance is now known,
   or the existing description was misleading
@@ -99,5 +106,6 @@ array is also fine — equivalent to a single `noop`.
 - Do NOT recreate secrets even if you saw them
 - A memory's `body` should NOT include the `# title` line — the system prepends it
 - Slugs must match `^[a-z0-9][a-z0-9-]{0,63}$`
+- `kind` must be one of `preference`, `fact`, `workflow`, `project`, `decision`, `summary`
 - Description is ONE line, max 200 chars, designed for the menu reader
 - `update` and `delete` require `reason`

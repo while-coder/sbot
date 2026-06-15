@@ -54,7 +54,7 @@ export class MemoryService implements IMemoryService {
         const count = menu.length;
         const menuText = count === 0
             ? "_(empty — no memories recorded yet)_"
-            : menu.map(m => `- \`${m.slug}\` — ${m.description}`).join("\n");
+            : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] \`${m.slug}\` — ${m.description}`).join("\n");
         const block = `${count} ${count === 1 ? "entry" : "entries"} indexed.\n\n${menuText}`;
         return this.readTemplate.replace(/\{\{\s*memory_menu\s*\}\}/g, block);
     }

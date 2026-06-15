@@ -37,14 +37,32 @@ export class MemoryRoutes {
             // body 不返回（避免响应膨胀）；admin UI 单击行后再走 read_memory 取全文
             const summary = rows.map(r => ({
                 slug: r.slug,
+                kind: r.kind,
                 title: r.title,
                 description: r.description,
+                source: r.source,
+                evidenceCount: r.evidenceCount,
                 createdAt: r.createdAt,
                 updatedAt: r.updatedAt,
                 lastReadAt: r.lastReadAt,
                 readCount: r.readCount,
             }));
             return { memoryId, memories: summary };
+        }));
+
+        /** 最近的抽取 job，用于排查后台 MemoryWriter 是否正常推进。 */
+        app.get('/api/memories/:id/extract/jobs', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const limit = Math.max(1, Math.min(Number(req.query.limit ?? 50) || 50, 200));
+            const jobs = await memoryServicePool.listExtractJobs(memoryId, limit);
+            return { memoryId, jobs };
+        }));
+
+        /** 手动整理：合并重复、删除明显冗余、压缩过长 memory。 */
+        app.post('/api/memories/:id/consolidate/run', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const ops = await memoryServicePool.forceConsolidate(memoryId);
+            return { memoryId, ops };
         }));
 
         /** 单条 memory 全文。 */
@@ -54,7 +72,7 @@ export class MemoryRoutes {
             if (!slug) throwBad('Missing slug');
             const service = await memoryServicePool.get(memoryId);
             if (!service) throwBad(`MemoryProfile "${memoryId}" not initialized`);
-            const row = await service!.readMemory(slug);
+            const row = (await service.listAll()).find(r => r.slug === slug) ?? null;
             if (!row) throwBad(`Memory "${slug}" not found`);
             return { memoryId, slug, row };
         }));

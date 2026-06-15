@@ -61,15 +61,15 @@ export class MemoryExtractScheduler {
     }
 
     /** admin 手动触发一轮（绕过 timer，立刻扫 + 处理）。 */
-    async runOnce(): Promise<void> {
-        await this.tick();
+    async runOnce(options?: { forceReady?: boolean }): Promise<void> {
+        await this.tick(options);
     }
 
-    private async tick(): Promise<void> {
+    private async tick(options?: { forceReady?: boolean }): Promise<void> {
         if (this.running) return;
         this.running = true;
         try {
-            await this.enqueueIdleSessions();
+            await this.enqueueIdleSessions(options);
             const stats = await this.worker.runOnce({
                 leaseMs: EXTRACT_LEASE_MS,
                 concurrency: this.profile.concurrency ?? 3,
@@ -88,7 +88,7 @@ export class MemoryExtractScheduler {
         }
     }
 
-    private async enqueueIdleSessions(): Promise<void> {
+    private async enqueueIdleSessions(options?: { forceReady?: boolean }): Promise<void> {
         const candidates = await channelDataService.listSessionsByMemory(this.memoryId);
         if (candidates.length === 0) return;
 
@@ -99,7 +99,7 @@ export class MemoryExtractScheduler {
 
         for (const candidate of candidates) {
             try {
-                await this.tryEnqueueOne(candidate, now, idleMs, maxMessages, minTurns);
+                await this.tryEnqueueOne(candidate, now, idleMs, maxMessages, minTurns, !!options?.forceReady);
             } catch (e: any) {
                 logger.warn(`[${this.memoryId}] enqueue scan failed for thread=${candidate.threadId}: ${e?.message ?? e}`);
             }
@@ -112,6 +112,7 @@ export class MemoryExtractScheduler {
         idleMs: number,
         maxMessages: number,
         minTurns: number,
+        forceReady: boolean,
     ): Promise<void> {
         const lastCursor = await this.store.findLatestCompletedWindowEnd(candidate.threadId);
         const startCursor = lastCursor ?? "";
@@ -130,7 +131,7 @@ export class MemoryExtractScheduler {
             const newestUserTime = lastUserMessageTimestamp(window);
             const idle = newestUserTime !== null && (now - newestUserTime) >= idleMs;
             const sizeReached = window.length >= maxMessages;
-            if (!idle && !sizeReached) return;
+            if (!forceReady && !idle && !sizeReached) return;
 
             const endCursor = String(newest.id);
             const rolloutKey = `${candidate.threadId}:${startCursor || "0"}:${endCursor}`;

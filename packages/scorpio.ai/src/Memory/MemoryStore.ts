@@ -6,6 +6,8 @@ import { inject } from "scorpio.di";
 import { T_MemoryDir, T_MemoryDbPath } from "../Core/tokens";
 import {
     IMemoryStore,
+    MemoryKind,
+    type MemorySourceRef,
     type MemoryRow,
     type MemoryMenuEntry,
     type MemorySearchHit,
@@ -18,6 +20,8 @@ import {
 import { HybridSearcher } from "../Retrieval";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const MEMORY_KINDS = new Set<string>(Object.values(MemoryKind));
+const DEFAULT_KIND = MemoryKind.Fact;
 
 /**
  * Memory 存储层实现。
@@ -72,10 +76,15 @@ export class MemoryStore implements IMemoryStore {
                 CREATE TABLE IF NOT EXISTS memories (
                     id           INTEGER PRIMARY KEY AUTOINCREMENT,
                     slug         TEXT    NOT NULL UNIQUE,
+                    kind         TEXT    NOT NULL DEFAULT 'fact',
                     title        TEXT    NOT NULL,
                     description  TEXT    NOT NULL,
                     body         TEXT    NOT NULL,
                     fingerprint  TEXT    NOT NULL,
+                    source_thread_id TEXT,
+                    source_window_start_cursor TEXT,
+                    source_window_end_cursor   TEXT,
+                    evidence_count INTEGER NOT NULL DEFAULT 1,
                     created_at   INTEGER NOT NULL,
                     updated_at   INTEGER NOT NULL,
                     last_read_at INTEGER,
@@ -111,6 +120,7 @@ export class MemoryStore implements IMemoryStore {
                 CREATE INDEX IF NOT EXISTS idx_extract_status ON memory_extract_jobs(status, next_retry_at);
                 CREATE INDEX IF NOT EXISTS idx_extract_thread ON memory_extract_jobs(thread_id, created_at DESC);
             `);
+            this.ensureMemoryColumns();
         }
         return this._db;
     }
@@ -121,20 +131,35 @@ export class MemoryStore implements IMemoryStore {
         this.assertValidSlug(input.slug);
         const filePath = this.slugToPath(input.slug);
         const content = this.assembleBody(input.title, input.body);
+        const source = this.normalizeSource(input.source);
+        const evidenceCount = Math.max(1, input.evidenceCount ?? 1);
 
         await fs.writeFile(filePath, content, "utf8");
         const fingerprint = await this.computeFingerprint(filePath);
 
         try {
             const result = this.db.prepare(`
-                INSERT INTO memories (slug, title, description, body, fingerprint, created_at, updated_at)
-                VALUES (@slug, @title, @description, @body, @fingerprint, @createdAt, @updatedAt)
+                INSERT INTO memories (
+                    slug, kind, title, description, body, fingerprint,
+                    source_thread_id, source_window_start_cursor, source_window_end_cursor,
+                    evidence_count, created_at, updated_at
+                )
+                VALUES (
+                    @slug, @kind, @title, @description, @body, @fingerprint,
+                    @sourceThreadId, @sourceWindowStartCursor, @sourceWindowEndCursor,
+                    @evidenceCount, @createdAt, @updatedAt
+                )
             `).run({
                 slug: input.slug,
+                kind: this.normalizeKind(input.kind),
                 title: input.title,
                 description: input.description,
                 body: content,
                 fingerprint,
+                sourceThreadId: source.threadId,
+                sourceWindowStartCursor: source.windowStartCursor,
+                sourceWindowEndCursor: source.windowEndCursor,
+                evidenceCount,
                 createdAt: now,
                 updatedAt: now,
             });
@@ -157,27 +182,41 @@ export class MemoryStore implements IMemoryStore {
 
         const newTitle = input.title ?? existing.title;
         const newDescription = input.description ?? existing.description;
-        const newBodyRaw = input.body ?? this.stripTitleLine(existing.body);
+        const newBodyRaw = input.body
+            ? this.mergeBody(existing.body, input.body, input.bodyMode)
+            : this.stripTitleLine(existing.body);
         const newContent = this.assembleBody(newTitle, newBodyRaw);
         const filePath = this.slugToPath(input.slug);
+        const source = this.normalizeSource(input.source, existing.source);
+        const evidenceDelta = Math.max(0, input.evidenceDelta ?? 0);
 
         await fs.writeFile(filePath, newContent, "utf8");
         const fingerprint = await this.computeFingerprint(filePath);
 
         this.db.prepare(`
             UPDATE memories
-            SET title       = @title,
+            SET kind        = @kind,
+                title       = @title,
                 description = @description,
                 body        = @body,
                 fingerprint = @fingerprint,
+                source_thread_id = @sourceThreadId,
+                source_window_start_cursor = @sourceWindowStartCursor,
+                source_window_end_cursor = @sourceWindowEndCursor,
+                evidence_count = evidence_count + @evidenceDelta,
                 updated_at  = @updatedAt
             WHERE slug = @slug
         `).run({
             slug: input.slug,
+            kind: this.normalizeKind(input.kind ?? existing.kind),
             title: newTitle,
             description: newDescription,
             body: newContent,
             fingerprint,
+            sourceThreadId: source.threadId,
+            sourceWindowStartCursor: source.windowStartCursor,
+            sourceWindowEndCursor: source.windowEndCursor,
+            evidenceDelta,
             updatedAt: now,
         });
         const row = await this.getBySlug(input.slug);
@@ -216,12 +255,18 @@ export class MemoryStore implements IMemoryStore {
     async listMenu(limit: number): Promise<MemoryMenuEntry[]> {
         // 注入 system prompt 用：常被读 + 最近更新优先
         const rows = this.db.prepare(`
-            SELECT slug, title, description
+            SELECT slug, kind, title, description, evidence_count
             FROM memories
-            ORDER BY COALESCE(last_read_at, 0) DESC, updated_at DESC
+            ORDER BY COALESCE(last_read_at, 0) DESC, evidence_count DESC, updated_at DESC
             LIMIT @limit
-        `).all({ limit }) as Array<{ slug: string; title: string; description: string }>;
-        return rows;
+        `).all({ limit }) as Array<{ slug: string; kind: string; title: string; description: string; evidence_count: number }>;
+        return rows.map(r => ({
+            slug: r.slug,
+            kind: this.normalizeKind(r.kind),
+            title: r.title,
+            description: r.description,
+            evidenceCount: r.evidence_count ?? 1,
+        }));
     }
 
     // ── 检索 ──
@@ -248,6 +293,7 @@ export class MemoryStore implements IMemoryStore {
             .slice(0, limit)
             .map(h => ({
                 slug: h.item.slug,
+                kind: h.item.kind,
                 title: h.item.title,
                 snippet: h.snippet ?? '',
                 score: h.score,
@@ -323,6 +369,16 @@ export class MemoryStore implements IMemoryStore {
     }
 
     // ── transcript 抽取队列 ──
+
+    async listExtractJobs(limit: number): Promise<ExtractJobRow[]> {
+        const rows = this.db.prepare(`
+            SELECT *
+            FROM memory_extract_jobs
+            ORDER BY id DESC
+            LIMIT @limit
+        `).all({ limit: Math.max(1, Math.min(limit, 200)) }) as any[];
+        return rows.map(r => this.mapExtractRow(r));
+    }
 
     async enqueueExtract(input: EnqueueExtractInput, now: number): Promise<ExtractJobRow | null> {
         try {
@@ -439,6 +495,29 @@ export class MemoryStore implements IMemoryStore {
         }
     }
 
+    private normalizeKind(kind: string | undefined | null): MemoryKind {
+        return MEMORY_KINDS.has(kind as MemoryKind) ? (kind as MemoryKind) : DEFAULT_KIND;
+    }
+
+    private normalizeSource(
+        source?: Partial<MemorySourceRef>,
+        fallback?: MemorySourceRef,
+    ): MemorySourceRef {
+        return {
+            threadId: source?.threadId ?? fallback?.threadId ?? null,
+            windowStartCursor: source?.windowStartCursor ?? fallback?.windowStartCursor ?? null,
+            windowEndCursor: source?.windowEndCursor ?? fallback?.windowEndCursor ?? null,
+        };
+    }
+
+    private mergeBody(existingBody: string, nextBody: string, mode: 'replace' | 'append' | undefined): string {
+        const strippedExisting = this.stripTitleLine(existingBody).trim();
+        const strippedNext = this.stripTitleLine(nextBody).trim();
+        if (mode !== 'append' || !strippedExisting) return strippedNext;
+        if (!strippedNext || strippedExisting.includes(strippedNext)) return strippedExisting;
+        return `${strippedExisting}\n\n${strippedNext}`;
+    }
+
     private assembleBody(title: string, body: string): string {
         // 去掉 body 头部任何 H1（避免重复），重新拼 `# title\n\n<body>`
         const stripped = this.stripTitleLine(body).replace(/^\n+/, '');
@@ -478,6 +557,18 @@ export class MemoryStore implements IMemoryStore {
         return row ? this.mapRow(row) : null;
     }
 
+    private ensureMemoryColumns(): void {
+        const columns = new Set((this._db!.prepare(`PRAGMA table_info(memories)`).all() as Array<{ name: string }>).map(c => c.name));
+        const add = (name: string, sql: string) => {
+            if (!columns.has(name)) this._db!.exec(sql);
+        };
+        add('kind', `ALTER TABLE memories ADD COLUMN kind TEXT NOT NULL DEFAULT 'fact'`);
+        add('source_thread_id', `ALTER TABLE memories ADD COLUMN source_thread_id TEXT`);
+        add('source_window_start_cursor', `ALTER TABLE memories ADD COLUMN source_window_start_cursor TEXT`);
+        add('source_window_end_cursor', `ALTER TABLE memories ADD COLUMN source_window_end_cursor TEXT`);
+        add('evidence_count', `ALTER TABLE memories ADD COLUMN evidence_count INTEGER NOT NULL DEFAULT 1`);
+    }
+
     private findExtractByIdSync(id: number): ExtractJobRow | null {
         const row = this.db.prepare(`SELECT * FROM memory_extract_jobs WHERE id = ?`).get(id);
         return row ? this.mapExtractRow(row) : null;
@@ -487,10 +578,17 @@ export class MemoryStore implements IMemoryStore {
         return {
             id: r.id,
             slug: r.slug,
+            kind: this.normalizeKind(r.kind),
             title: r.title,
             description: r.description,
             body: r.body,
             fingerprint: r.fingerprint,
+            source: {
+                threadId: r.source_thread_id ?? null,
+                windowStartCursor: r.source_window_start_cursor ?? null,
+                windowEndCursor: r.source_window_end_cursor ?? null,
+            },
+            evidenceCount: r.evidence_count ?? 1,
             createdAt: r.created_at,
             updatedAt: r.updated_at,
             lastReadAt: r.last_read_at,

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
+import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 
 interface AgendaProfileForm {
   name: string
@@ -30,12 +31,17 @@ const columns = computed<STableColumn[]>(() => [
   { key: 'enabled',   label: t('common.enabled'),            width: '100px', align: 'center' },
   { key: 'syncModel', label: t('agenda_profiles.sync_model'), width: '200px' },
   { key: 'prompt',    label: t('agenda_profiles.prompt'),     width: '260px' },
-  { key: 'ops',       label: t('common.ops'),                ops: true, width: '180px', align: 'center' },
+  { key: 'ops',       label: t('common.ops'),                ops: true, width: '260px', align: 'center' },
 ])
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref<AgendaProfileForm>({ name: '', enabled: true, syncModel: '', syncPromptFile: '' })
+
+const agendaListModal = ref<InstanceType<typeof AgendaListModal> | null>(null)
+function viewAgendas(row: { id: string; name?: string }) {
+  agendaListModal.value?.openByAgendaId(row.id, row.name || row.id)
+}
 
 const promptFiles = ref<{ path: string }[]>([])
 async function loadPrompts() {
@@ -137,6 +143,7 @@ async function refresh() {
         </template>
         <template #ops="{ row }">
           <div class="ops-row">
+            <SButton type="primary" size="sm" @click="viewAgendas(row)">{{ t('common.view') }}</SButton>
             <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
@@ -171,6 +178,8 @@ async function refresh() {
         <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
       </template>
     </SModal>
+
+    <AgendaListModal ref="agendaListModal" />
   </div>
 </template>
 

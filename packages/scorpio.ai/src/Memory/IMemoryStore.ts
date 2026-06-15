@@ -11,9 +11,26 @@
  * archived 文件由后台 cron 30 天后清理（不在本接口范围内）。
  */
 
+export enum MemoryKind {
+    Preference = 'preference',
+    Fact = 'fact',
+    Workflow = 'workflow',
+    Project = 'project',
+    Decision = 'decision',
+    Summary = 'summary',
+}
+
+export interface MemorySourceRef {
+    threadId: string | null;
+    windowStartCursor: string | null;
+    windowEndCursor: string | null;
+}
+
 export interface MemoryRow {
     id: number;
     slug: string;
+    /** 轻量类型，用于 menu 分组、整理和后续筛选。 */
+    kind: MemoryKind;
     /** 文件首行 H1（不含 `# ` 前缀） */
     title: string;
     /** 一行摘要，用于注入 system prompt menu */
@@ -22,6 +39,10 @@ export interface MemoryRow {
     body: string;
     /** size-mtime，reconcile 用 */
     fingerprint: string;
+    /** 最近一次创建/更新此条 memory 的来源窗口。 */
+    source: MemorySourceRef;
+    /** 被多少个独立抽取窗口佐证/更新过，用于整理和置信度排序。 */
+    evidenceCount: number;
     createdAt: number;
     updatedAt: number;
     /** read_memory / search_memory 命中时刷新；用于 menu 注入排序 */
@@ -31,12 +52,15 @@ export interface MemoryRow {
 
 export interface MemoryMenuEntry {
     slug: string;
+    kind: MemoryKind;
     title: string;
     description: string;
+    evidenceCount: number;
 }
 
 export interface MemorySearchHit {
     slug: string;
+    kind: MemoryKind;
     title: string;
     /** FTS5 snippet，匹配片段 */
     snippet: string;
@@ -46,16 +70,25 @@ export interface MemorySearchHit {
 
 export interface CreateMemoryInput {
     slug: string;
+    kind?: MemoryKind;
     title: string;
     description: string;
     body: string;
+    source?: Partial<MemorySourceRef>;
+    evidenceCount?: number;
 }
+
+export type MemoryBodyMode = 'replace' | 'append';
 
 export interface UpdateMemoryInput {
     slug: string;
+    kind?: MemoryKind;
     title?: string;
     description?: string;
     body?: string;
+    bodyMode?: MemoryBodyMode;
+    source?: Partial<MemorySourceRef>;
+    evidenceDelta?: number;
 }
 
 // ── transcript 抽取队列 ──
@@ -121,6 +154,9 @@ export interface IMemoryStore {
 
     /** 注入 system prompt 用：拉所有 entry 的 slug + title + description，按 lastReadAt DESC, updatedAt DESC 排，截断到 limit。 */
     listMenu(limit: number): Promise<MemoryMenuEntry[]>;
+
+    /** 管理/排障用：最近的抽取 job。 */
+    listExtractJobs(limit: number): Promise<ExtractJobRow[]>;
 
     // ── 检索 ──
 

@@ -20,7 +20,7 @@ export interface IMemoryService {
     /**
      * 注入到主 agent system prompt 的整段记忆指引：
      *
-     *   - 渲染 `memory_read.md` 模板（替换 `{{ memory_menu }}`）
+     *   - 渲染 `memory/reader/default.md` 模板（替换 `{{ memory_menu }}`）
      *   - 含当前 menu 列表 + 工具调用规则
      *
      * 无 memory 时仍返回模板（让 agent 知道工具存在，只是当前空），由调用方决定是否注入。
