@@ -17,7 +17,7 @@ const DEFAULT_READ_PROMPT   = "memory/reader/default.md";
  * Pool 单例已在 scorpio.ai 内创建，这里只负责注入 sbot 特有的解析逻辑：
  *   memoryId → MemoryServiceConfig（profile / model / prompt 文件）
  */
-const resolveConfig: MemoryServiceConfigResolver = async (memoryId) => {
+const resolveConfig: MemoryServiceConfigResolver = (memoryId) => {
     const profile = config.getMemoryProfile(memoryId);
     if (!profile?.enabled) return null;
     if (!profile.writerModel) {

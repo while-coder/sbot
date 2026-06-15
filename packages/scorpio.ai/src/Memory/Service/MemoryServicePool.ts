@@ -183,7 +183,6 @@ export class MemoryServicePool {
         const entry = this.build(memoryId);
         if (entry) this.cache.set(memoryId, entry);
         return entry;
-        }
     }
 
     private release(memoryId: string, entry: PoolEntry): void {

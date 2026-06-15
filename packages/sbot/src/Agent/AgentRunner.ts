@@ -275,7 +275,7 @@ export class AgentRunner {
         if (!memoryId) return null;
         const profileConfig = config.getMemoryProfile(memoryId);
         if (!profileConfig?.enabled) return null;
-        const handle = await memoryServicePool.acquire(memoryId);
+        const handle = memoryServicePool.acquire(memoryId);
         if (handle) container.registerInstance(IMemoryService, handle.service);
         return handle;
     }

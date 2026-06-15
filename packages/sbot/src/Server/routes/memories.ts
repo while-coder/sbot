@@ -21,7 +21,7 @@ export class MemoryRoutes {
          */
         app.post('/api/memories/:id/extract/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const ran = await memoryServicePool.forceExtract(memoryId);
+            const ran = memoryServicePool.forceExtract(memoryId);
             return { memoryId, ran };
         }));
 
@@ -31,7 +31,7 @@ export class MemoryRoutes {
          */
         app.get('/api/memories/:id/list', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const service = await memoryServicePool.get(memoryId);
+            const service = memoryServicePool.get(memoryId);
             if (!service) return { memoryId, memories: [] };
             const rows = await service.listAll();
             // body 不返回（避免响应膨胀）；admin UI 单击行后再走 read_memory 取全文
@@ -53,7 +53,7 @@ export class MemoryRoutes {
         app.get('/api/memories/:id/extract/jobs', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
             const limit = Math.max(1, Math.min(Number(req.query.limit ?? 50) || 50, 200));
-            const jobs = await memoryServicePool.listPendingMessages(memoryId, limit);
+            const jobs = memoryServicePool.listPendingMessages(memoryId, limit);
             return { memoryId, jobs };
         }));
 
@@ -69,7 +69,7 @@ export class MemoryRoutes {
             const memoryId = requireMemoryId(req.params.id);
             const slug = String(req.params.slug ?? '').trim();
             if (!slug) throwBad('Missing slug');
-            const service = await memoryServicePool.get(memoryId);
+            const service = memoryServicePool.get(memoryId);
             if (!service) throwBad(`MemoryProfile "${memoryId}" not initialized`);
             const row = (await service.listAll()).find(r => r.slug === slug) ?? null;
             if (!row) throwBad(`Memory "${slug}" not found`);
