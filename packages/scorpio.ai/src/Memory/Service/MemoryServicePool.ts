@@ -87,7 +87,6 @@ export class MemoryServicePool {
     }
 
     private cache = new Map<string, PoolEntry>();
-    private pending = new Map<string, Promise<PoolEntry | null>>();
     private resolveConfig?: MemoryServiceConfigResolver;
     private loggerService?: ILoggerService;
     private logger?: ILogger;
@@ -105,13 +104,13 @@ export class MemoryServicePool {
         this.logger = svc.getLogger("MemoryServicePool");
     }
 
-    async get(memoryId: string): Promise<IMemoryService | null> {
-        const entry = await this.getEntry(memoryId);
+    get(memoryId: string): IMemoryService | null {
+        const entry = this.getEntry(memoryId);
         return entry?.service ?? null;
     }
 
-    async acquire(memoryId: string): Promise<MemoryServiceHandle | null> {
-        const entry = await this.getEntry(memoryId);
+    acquire(memoryId: string): MemoryServiceHandle | null {
+        const entry = this.getEntry(memoryId);
         if (!entry) return null;
         entry.refCount++;
         let released = false;
@@ -144,21 +143,21 @@ export class MemoryServicePool {
     }
 
     /** admin 触发：唤醒 pending 队列消费（不阻塞，UI 自行轮询 listPendingMessages 看进度）。 */
-    async forceExtract(memoryId: string): Promise<boolean> {
-        const entry = await this.getEntry(memoryId);
+    forceExtract(memoryId: string): boolean {
+        const entry = this.getEntry(memoryId);
         if (!entry) return false;
         entry.service.processPending();
         return true;
     }
 
-    async forceConsolidate(memoryId: string): Promise<MemoryWriterOpStats | null> {
-        const entry = await this.getEntry(memoryId);
+    forceConsolidate(memoryId: string): Promise<MemoryWriterOpStats> | null {
+        const entry = this.getEntry(memoryId);
         if (!entry) return null;
         return entry.service.consolidate();
     }
 
-    async listPendingMessages(memoryId: string, limit = 50): Promise<PendingMessageRow[]> {
-        const entry = await this.getEntry(memoryId);
+    listPendingMessages(memoryId: string, limit = 50): PendingMessageRow[] {
+        const entry = this.getEntry(memoryId);
         if (!entry) return [];
         return entry.service.listPending(limit);
     }
@@ -177,21 +176,13 @@ export class MemoryServicePool {
         this.logger?.info(`MemoryService [${memoryId}] released`);
     }
 
-    private async getEntry(memoryId: string): Promise<PoolEntry | null> {
+    private getEntry(memoryId: string): PoolEntry | null {
         const cached = this.cache.get(memoryId);
         if (cached) return cached;
 
-        const inflight = this.pending.get(memoryId);
-        if (inflight) return await inflight;
-
-        const promise = this.build(memoryId);
-        this.pending.set(memoryId, promise);
-        try {
-            const entry = await promise;
-            if (entry) this.cache.set(memoryId, entry);
-            return entry;
-        } finally {
-            this.pending.delete(memoryId);
+        const entry = this.build(memoryId);
+        if (entry) this.cache.set(memoryId, entry);
+        return entry;
         }
     }
 
@@ -203,11 +194,11 @@ export class MemoryServicePool {
         entry.service.requestRelease?.();
     }
 
-    private async build(memoryId: string): Promise<PoolEntry | null> {
+    private build(memoryId: string): PoolEntry | null {
         if (!this.resolveConfig) {
             throw new Error('MemoryServicePool: resolver not configured. Call setResolver() before use.');
         }
-        const cfg = await this.resolveConfig(memoryId);
+        const cfg = this.resolveConfig(memoryId);
         if (!cfg) return null;
 
         const sub = new ServiceContainer();
@@ -228,18 +219,18 @@ export class MemoryServicePool {
 
         const entry: PoolEntry = { service, store, refCount: 0 };
 
-        await store.init();
-        // 启动时跑一次 reconcile，吸收外部进程对 memories/*.md 的修改
-        try {
-            const stats = await store.reconcile();
+        store.init();
+
+        // 启动时跑一次 reconcile（异步，使用 fs/promises），不阻塞 build
+        store.reconcile().then(stats => {
             if (stats.indexed > 0 || stats.pruned > 0) {
                 this.logger?.info(`[${memoryId}] startup reconcile: indexed=${stats.indexed} pruned=${stats.pruned}`);
             }
-        } catch (e: any) {
+        }).catch(e => {
             this.logger?.warn(`[${memoryId}] startup reconcile failed: ${e?.message ?? e}`);
-        }
+        });
 
-        // 启动时尝试消费历史 pending（上次进程崩溃前未处理的快照），不阻塞 build
+        // 启动时尝试消费历史 pending（上次进程崩溃前未处理的快照）
         service.processPending();
         this.logger?.info(`MemoryService [${memoryId}] built`);
 
