@@ -61,9 +61,9 @@ export interface IMemoryService {
 
     /**
      * 每轮对话结束后同步触发：把消息快照入队 SQLite，触发后台串行抽取。
-     * 调用方不需要 await 抽取完成；本方法本身仅 await DB 写入即返回。
+     * 调用方不需要 await 抽取完成；本方法只负责同步入队并唤醒后台处理。
      */
-    extractFromConversation(messages: ChatMessage[]): Promise<void>;
+    extractFromConversation(messages: ChatMessage[]): void;
 
     /** admin 排障：列最近的 pending+failed 行（按 id DESC）。 */
     listPending(limit?: number): PendingMessageRow[];

@@ -27,6 +27,12 @@ export {
     type MemoryWriteOutput,
     type MemoryOp,
 } from './Service/MemoryService';
+export {
+    MemoryServicePool,
+    type MemoryServiceConfig,
+    type MemoryServiceConfigResolver,
+    type MemoryServiceHandle,
+} from './Service/MemoryServicePool';
 
 // ── Tools ──
 export {

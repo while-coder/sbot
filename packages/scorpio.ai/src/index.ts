@@ -231,6 +231,7 @@ export {
   MemoryWriteOutputSchema,
   IMemoryService,
   MemoryService,
+  MemoryServicePool,
   MemoryToolProvider,
   READ_MEMORY_TOOL_NAME,
   SEARCH_MEMORY_TOOL_NAME,
@@ -246,6 +247,9 @@ export {
   type MemoryWriteOutput,
   type MemoryOp,
   type MemoryWriterOpStats,
+  type MemoryServiceConfig,
+  type MemoryServiceConfigResolver,
+  type MemoryServiceHandle,
   type MemoryToolDescs,
 } from "./Memory";
 

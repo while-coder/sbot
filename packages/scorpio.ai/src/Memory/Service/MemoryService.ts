@@ -187,10 +187,10 @@ export class MemoryService implements IMemoryService {
 
     // ── 写路径：入队 + 串行消费 ──
 
-    async extractFromConversation(messages: ChatMessage[]): Promise<void> {
+    extractFromConversation(messages: ChatMessage[]): void {
         if (messages.length === 0) return;
         this.store.pushPendingMessages(messages, Date.now());
-        this.kick();
+        void this.checkMessages();
     }
 
     listPending(limit?: number): PendingMessageRow[] {
@@ -198,42 +198,41 @@ export class MemoryService implements IMemoryService {
     }
 
     processPending(): void {
-        this.kick();
+        void this.checkMessages();
     }
 
     /**
      * 上层（pool）通知：可以释放本 service。
-     * 设标记 + kick；drain 完成（或当下队列已空）时由 checkMessages 回调 onRelease。
+     * 设标记 + 触发一次 drain；drain 结束（或当下队列已空）时 checkMessages 回调 onRelease。
      */
     requestRelease(): void {
         if (this.releaseRequested) return;
         this.releaseRequested = true;
-        this.kick();
+        void this.checkMessages();
     }
 
     /**
-     * 触发一次 checkMessages：已在跑则短路，否则后台启动一轮 drain。
-     * 同步函数——`if (isRunning) return` 与 checkMessages 调用之间无 await 缝隙。
-     */
-    private kick(): void {
-        if (this.isRunning) return;
-        this.checkMessages().catch(() => undefined);
-    }
-
-    /**
-     * 串行消费 pending 队列：循环 popOldestPending → 处理 → 删行 / 标 failed。
+     * 串行消费 pending 队列：isRunning 单标志 + 循环 popPendingMessages → 处理 → 删行 / 标 failed。
      *
-     * 单标志 isRunning 足够，无需 pendingWakeup：
-     * - kick 是同步设置 isRunning=true 后才 await，外部并发的 kick 全部短路；
-     * - 在 drain 退出和 isRunning=false 之间没有 microtask 缝隙；
-     * - 任何 push 都是先同步 SQL INSERT 再 kick；如果当前在跑，下一轮循环必然 pop 到；
-     *   如果当前不在跑（已退出），kick 进入新一轮 drain。
+     * 互斥与漏单保证：
+     * - 顶部 `if (isRunning) return` 同步短路重入（与下一行 isRunning=true 无 await 缝隙）；
+     * - 任何 push 都是先同步 SQL INSERT 再 `void checkMessages()`：
+     *   若当前 drain 还在跑，循环里下一次 pop 必然命中（同步 SQL，已落库）；
+     *   若已退出，新调用直接进入新一轮 drain（finally 已置 isRunning=false）。
+     * - 异常自吞，不向调用方传播：调用方都是 fire-and-forget。
      */
     private async checkMessages(): Promise<void> {
+        if (this.isRunning) return;
         this.isRunning = true;
         try {
             while (true) {
-                const next = this.store.popOldestPending();
+                let next: PendingMessageRow | null;
+                try {
+                    next = this.store.popPendingMessages();
+                } catch (e: any) {
+                    this.logger?.error(`memory popPendingMessages failed: ${e?.message ?? e}`);
+                    break;
+                }
                 if (!next) break;
                 try {
                     const stats = await this.extractFromMessages(next.messages);
