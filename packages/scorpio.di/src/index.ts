@@ -10,11 +10,11 @@
  * @singleton()
  * class DatabaseService {
  *   @init()
- *   connect() { db.connectSync(); }   // @init 必须同步；异步初始化在 resolve 后显式 await
+ *   connect() { db.connectSync(); }     // @init 必须同步
  *
  *   @dispose()
- *   async disconnect() { await db.close(); }   // dispose 仍允许 async
- * }
+ *   cleanup() { db.closeSync(); }       // @dispose 必须同步（与 @init 对齐）
+ * }                                      // 异步资源清理由调用方在 dispose 之后显式 await
  *
  * @transient()
  * class UserService {
@@ -23,6 +23,9 @@
  *
  * // 解析（同步）
  * const userService = globalContainer.resolve(UserService);
+ *
+ * // 销毁（同步）：依次调用所有 @dispose 标记的方法
+ * globalContainer.dispose();
  * ```
  */
 

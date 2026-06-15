@@ -341,12 +341,15 @@ export class ServiceContainer {
   }
 
   /**
-   * 销毁容器，调用所有单例的 dispose 方法
+   * 销毁容器（同步）：依次调用所有 @dispose 方法，再清空单例缓存。
+   *
+   * @dispose 方法必须为同步函数（与 @init 对齐）；如需异步清理，调用方在
+   * dispose 之后显式 await。
    */
-  async dispose(): Promise<void> {
+  dispose(): void {
     for (const { instance, method } of this.disposables) {
       try {
-        await instance[method]();
+        instance[method]();
       } catch (error: any) {
         console.error(`Failed to dispose service: ${error.message}`);
       }
@@ -391,7 +394,7 @@ export class ServiceContainer {
     // 调用 @init() 标记的初始化方法（必须同步）
     this.callInitMethod(instance);
 
-    // 记录 @dispose() 标记的销毁方法
+    // 记录 @dispose() 标记的销毁方法（容器 dispose 时同步调用）
     this.trackDisposable(instance);
 
     return instance;
@@ -491,7 +494,7 @@ export class ServiceContainer {
   }
 
   /**
-   * 记录需要销毁的实例
+   * 记录需要销毁的实例（@dispose 标记的方法将在 container.dispose() 时同步调用）
    */
   private trackDisposable(instance: any): void {
     if (!instance || !instance.constructor) return;

@@ -113,15 +113,17 @@ export function init(): MethodDecorator {
 }
 
 /**
- * @dispose() - 标记方法为销毁方法，在容器销毁时自动调用
+ * @dispose() - 标记方法为销毁方法，由 container.dispose() 同步调用
+ *
+ * 必须为同步方法（与 @init 对齐）；如需异步清理，由调用方在 dispose 之后显式 await。
  *
  * @example
  * ```ts
  * @singleton()
  * class DatabaseService {
  *   @dispose()
- *   async cleanup() {
- *     await this.disconnect();
+ *   cleanup() {
+ *     this.disconnectSync();
  *   }
  * }
  * ```
