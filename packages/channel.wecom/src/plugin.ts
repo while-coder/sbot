@@ -11,9 +11,16 @@ function buildWecomExtraInfo(userId: string): string {
   <userid>${userId}</userid>
 </wecom-user>`;
 }
+const WECOM_CHANNEL_PROMPT = `<channel-info name="wecom">
+你的输出会以企业微信 markdown 渲染：
+- 仅支持子集：粗体、斜体、链接、引用、字体颜色、行内代码。**不支持表格、图片、代码块、嵌套列表**。
+- 标题用 \`#\`（企业微信支持 1-6 级）。
+</channel-info>`;
+
 export const wecomPlugin: ChannelPlugin = {
   type: "wecom",
   label: "企业微信",
+  channelPrompt: WECOM_CHANNEL_PROMPT,
 
   configSchema: {
     botId:  { label: 'Bot ID',  type: ConfigFieldType.String, required: true, description: 'WeCom bot ID' },

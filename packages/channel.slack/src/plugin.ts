@@ -13,9 +13,19 @@ function buildSlackExtraInfo(userInfo: any): string {
   <email>${userInfo.profile?.email ?? ""}</email>
 </slack-user>`;
 }
+const SLACK_CHANNEL_PROMPT = `<channel-info name="slack">
+你的输出会以 Slack mrkdwn 渲染（不是标准 markdown）：
+- 粗体用 \`*单星号*\`，不是 \`**双星号**\`。
+- 斜体用 \`_下划线_\`。
+- 不支持 \`#\` 标题语法，用粗体行代替。
+- 代码块用三反引号，行内代码用单反引号。
+- 链接用 \`<https://url|文字>\` 格式。
+</channel-info>`;
+
 export const slackPlugin: ChannelPlugin = {
   type: "slack",
   label: "Slack",
+  channelPrompt: SLACK_CHANNEL_PROMPT,
 
   configSchema: {
     botToken: { label: 'Bot Token', type: ConfigFieldType.Password, required: true, description: 'Slack bot token (xoxb-...)' },

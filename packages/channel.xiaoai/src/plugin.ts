@@ -10,9 +10,18 @@ function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+const XIAOAI_CHANNEL_PROMPT = `<channel-info name="xiaoai">
+你的输出会被 TTS 朗读出来，不是显示在屏幕上：
+- 用口语化的句子，避免任何 markdown 语法（*粗体*、\`代码\`、列表项符号、# 标题等会被字面读出）。
+- 不要给链接、文件路径、长串 ID，这些念出来没意义。
+- 不要使用代码块，长内容请用自然语言概括。
+- 控制长度，音箱朗读超过几句话用户会听不下去。
+</channel-info>`;
+
 export const xiaoaiPlugin: ChannelPlugin = {
   type: 'xiaoai',
   label: '小爱同学',
+  channelPrompt: XIAOAI_CHANNEL_PROMPT,
 
   configSchema: {
     userId: {

@@ -12,9 +12,18 @@ function buildQqExtraInfo(args: QqMessageArgs): string {
 </qq-user>`;
 }
 
+const QQ_CHANNEL_PROMPT = `<channel-info name="qq">
+你正运行在 QQ 开放平台机器人上，输出有以下硬约束：
+- 严禁在回复中包含任何 URL 或网址。平台会拦截/吞掉链接，代码层会自动把 https://... 替换为 "[链接已省略]"。
+  如需引用资料，只描述内容、不贴链接，或让用户主动索取。
+- 富文本能力极有限，优先使用纯文本。markdown 仅模板化支持，不要依赖。
+- 仅能"被动回复"近期收到的消息。
+</channel-info>`;
+
 export const qqPlugin: ChannelPlugin = {
   type: 'qq',
   label: 'QQ',
+  channelPrompt: QQ_CHANNEL_PROMPT,
 
   configSchema: {
     appId: {

@@ -6,6 +6,7 @@ import { buildExecuteTool } from "./buildExecuteTool";
 import { updateUsageStats, type UsageContext } from "./updateUsageStats";
 import { WebChatEventType, WEB_CHANNEL_ID, ApprovalTimeoutValue } from "sbot.commons";
 import { webService } from "../Channel/web/WebService";
+import { channelManager } from "../Channel/ChannelManager";
 import { AgentRunner } from "../Agent/AgentRunner";
 
 export function createProcessAIHandler(): ProcessAIHandler {
@@ -105,6 +106,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             threadId,
             dbSessionId: String(dbSessionId),
             extraInfo: args?.extraInfo ?? '',
+            channelPrompt: channelManager.getPlugin(channel.type)?.channelPrompt ?? '',
             notes,
             wikis,
             workPath,

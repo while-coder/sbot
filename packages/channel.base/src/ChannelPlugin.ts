@@ -94,6 +94,11 @@ export interface ChannelPlugin {
   configSchema: Record<string, ConfigField>;
   /** 该频道类型支持的工具列表（供 admin 配置白名单） */
   tools?: { name: string; label: string }[];
+  /**
+   * Channel 维度的静态 prompt（输出介质/格式硬约束）。
+   * 由 plugin 作为常量声明，每条消息相同，会被注入到 AgentRunner 的可缓存 extraPrompts。
+   */
+  channelPrompt?: string;
   /** Get a QR code for the given config key. Returns url and display type. */
   getQRCode?(key: string, params?: any): Promise<{ url: string; type: 'image' | 'link' }>;
   /** Long-poll until QR scan completes for the given config key. Returns credentials object, or null if expired. */

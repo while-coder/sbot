@@ -13,9 +13,16 @@ function buildDingtalkExtraInfo(senderStaffId: string, senderNick: string, conve
 </dingtalk-user>`;
 }
 
+const DINGTALK_CHANNEL_PROMPT = `<channel-info name="dingtalk">
+你的输出会以钉钉 markdown 渲染：
+- 普通 markdown 消息**不支持原地更新**，因此你的回答只在最后一次性发出，中间过程不会显示。请直接给最终答案，不要讲"我先 xxx，再 xxx"这种过程描述。
+- 支持标准 markdown（标题、列表、代码块、图片、链接、表格）。
+</channel-info>`;
+
 export const dingtalkPlugin: ChannelPlugin = {
   type: 'dingtalk',
   label: '钉钉 / DingTalk',
+  channelPrompt: DINGTALK_CHANNEL_PROMPT,
 
   configSchema: {
     clientId: {

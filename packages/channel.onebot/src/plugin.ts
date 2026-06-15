@@ -12,9 +12,16 @@ function buildOnebotExtraInfo(userId: number, nickname: string, groupId?: number
   return info;
 }
 
+const ONEBOT_CHANNEL_PROMPT = `<channel-info name="onebot">
+你的输出是纯文本，会经由 OneBot 协议端发往 QQ：
+- 不要用 markdown 语法，会被原样显示。
+- 用空行/序号表达层级。
+</channel-info>`;
+
 export const onebotPlugin: ChannelPlugin = {
   type: 'onebot',
   label: 'OneBot',
+  channelPrompt: ONEBOT_CHANNEL_PROMPT,
 
   configSchema: {
     wsHost: { label: 'WS Host', type: ConfigFieldType.String, description: 'WebSocket server bind host', default: '0.0.0.0' },

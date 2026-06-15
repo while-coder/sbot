@@ -49,6 +49,8 @@ export interface AgentRunOptions {
     threadId: string;
     /** 注入 environment 块的额外信息（用户信息等特定渠道独有字段） */
     extraInfo: string;
+    /** Channel 维度静态 prompt（输出介质/格式硬约束）；同一 channel type 每条消息一致，可走 system prompt 缓存 */
+    channelPrompt?: string;
     /** 笔记服务配置 ID 列表，不传则不启用笔记 */
     notes?: string[];
     /** Wiki 知识库配置 ID 列表 */
@@ -71,7 +73,7 @@ export interface AgentRunOptions {
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, dbSessionId, extraInfo, notes, wikis, agentTools } = options;
+        const { query, callbacks, agentId, saverId, threadId, dbSessionId, extraInfo, channelPrompt, notes, wikis, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -83,7 +85,7 @@ export class AgentRunner {
         const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
         if (!existsSync(workPath)) mkdirSync(workPath, { recursive: true });
 
-        /** 静态 system prompts（可缓存）：instruction → environment */
+        /** 静态 system prompts（可缓存）：instruction → environment → channel */
         const extraPrompts: string[] = [
             loadPrompt('system/instruction.txt'),
             loadPrompt('system/environment.txt', {
@@ -93,6 +95,7 @@ export class AgentRunner {
                 httpUrl,
                 workPath,
             }),
+            ...(channelPrompt?.trim() ? [channelPrompt] : []),
         ];
 
         /** 动态 system prompts（每次请求变化，不可缓存） */

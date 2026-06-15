@@ -15,9 +15,16 @@ function buildLarkExtraInfo(userInfo: LarkUserInfo | undefined, chatId?: string,
   <message-id>${messageId ?? ''}</message-id>
 </lark-info>`;
 }
+const LARK_CHANNEL_PROMPT = `<channel-info name="lark">
+你的输出会以飞书卡片 markdown 元素渲染，支持流式更新：
+- 支持飞书 markdown 子集（标题、加粗、列表、链接、行内代码、代码块）。
+- 表格请用列表代替，飞书 markdown 元素对表格支持有限。
+</channel-info>`;
+
 export const larkPlugin: ChannelPlugin = {
   type: "lark",
   label: "飞书 / Lark",
+  channelPrompt: LARK_CHANNEL_PROMPT,
 
   configSchema: {
     domain:    { label: '部署域',     type: ConfigFieldType.Select, required: true, default: 'feishu',

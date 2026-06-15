@@ -27,9 +27,16 @@ function toQRCodeResult(raw: string): { url: string; type: 'image' | 'link' } {
   return { url: `data:image/png;base64,${raw}`, type: "image" };
 }
 
+const WECHAT_CHANNEL_PROMPT = `<channel-info name="wechat">
+你的输出是纯文本消息：
+- 不支持 markdown 渲染，*粗体*/\`代码\`/# 标题等会被原样显示。
+- 用纯文本表达层级（空行分段、序号 1./2.）。
+</channel-info>`;
+
 export const wechatPlugin: ChannelPlugin = {
   type: "wechat",
   label: "微信",
+  channelPrompt: WECHAT_CHANNEL_PROMPT,
 
   configSchema: {
     qrLogin:  { label: "扫码登录", type: ConfigFieldType.QRCode, description: "扫码登录后自动填入凭证" },
