@@ -24,7 +24,6 @@ export default {
     heartbeats: '心跳管理',
     processes: 'ACP进程管理',
     group_tasks: '任务',
-    agenda: '事项管理',
     agenda_profiles: 'Agenda 模板',
     memory_profiles: 'Memory 模板',
     group_system: '系统',

@@ -74,7 +74,6 @@ const menuGroups = computed(() => [
     id: 'tasks',
     group: t('nav.group_tasks'),
     items: [
-      { label: t('nav.agenda'), key: '/agenda' },
       { label: t('nav.agenda_profiles'), key: '/agenda-profiles' },
       { label: t('nav.memory_profiles'), key: '/memory-profiles' },
     ],

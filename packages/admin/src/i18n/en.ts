@@ -24,7 +24,6 @@ export default {
     heartbeats: 'Heartbeats',
     processes: 'ACP Processes',
     group_tasks: 'Tasks',
-    agenda: 'Agenda',
     agenda_profiles: 'Agenda Profiles',
     memory_profiles: 'Memory Profiles',
     group_system: 'System',
