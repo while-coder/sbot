@@ -7,7 +7,6 @@ import { refreshGlobalSkillService } from '../../Agent/GlobalSkillService';
 import { refreshGlobalAgentToolService } from '../../Agent/GlobalAgentToolService';
 import { database, type UsageLogRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
-import { memoryServicePool } from '../../Memory/MemoryServicePool';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
 
@@ -23,8 +22,8 @@ export class SystemRoutes {
             config.reloadSettings();
             refreshGlobalSkillService();
             refreshGlobalAgentToolService();
-            // settings 重新加载后，缓存的 MemoryService 可能绑着旧 writerModel / prompt，全部丢掉
-            memoryServicePool.invalidateAll();
+            // 缓存里的 MemoryService 不强制丢弃 —— pool 不开放外部 invalidate（同 id 双实例会破坏 store）。
+            // 已 acquire 的实例继续吃旧配置，refCount 归零自然 evict，下次 acquire 才拿到 reload 后的配置。
             return { message: 'Config reloaded' };
         }));
 

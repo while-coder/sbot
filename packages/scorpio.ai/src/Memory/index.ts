@@ -8,8 +8,9 @@ export {
     type MemorySearchHit,
     type CreateMemoryInput,
     type UpdateMemoryInput,
-    type PendingMessageRow,
-    type PendingMessageStatus,
+    MemoryPendingJobType,
+    type PendingMemoryJobRow,
+    type MemoryPendingJobStatus,
 } from './Storage/IMemoryStore';
 export { MemoryStore } from './Storage/MemoryStore';
 

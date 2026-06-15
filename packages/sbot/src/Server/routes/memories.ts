@@ -15,9 +15,9 @@ function requireMemoryId(value: unknown): string {
 export class MemoryRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
         /**
-         * 强制触发该 memoryId 的一次抽取扫描（绕过 60s tick）。
-         * - 立刻扫描所有绑定的 idle session 并抽取
-         * - LLM 调用是同步等待——批量 job 可能跑很久
+         * 强制唤醒该 memoryId 的 pending job 队列。
+         * - 对话结束的抽取已经先入队；这里仅负责立即唤醒消费
+         * - LLM 调用在后台串行执行，接口立刻返回
          */
         app.post('/api/memories/:id/extract/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
@@ -53,19 +53,19 @@ export class MemoryRoutes {
             }
         }));
 
-        /** 最近的待处理消息行（pending + failed），用于排查后台抽取是否正常推进。 */
-        app.get('/api/memories/:id/extract/jobs', api(async (req) => {
+        /** 最近的待处理 job（pending + failed），用于排查后台抽取/整理是否正常推进。 */
+        app.get('/api/memories/:id/jobs', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
             const limit = Math.max(1, Math.min(Number(req.query.limit ?? 50) || 50, 200));
-            const jobs = memoryServicePool.listPendingMessages(memoryId, limit);
+            const jobs = memoryServicePool.listPendingJobs(memoryId, limit);
             return { memoryId, jobs };
         }));
 
-        /** 手动整理：合并重复、删除明显冗余、压缩过长 memory。 */
+        /** 手动整理：入队合并重复、删除明显冗余、压缩过长 memory 的后台 job。 */
         app.post('/api/memories/:id/consolidate/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const ops = await memoryServicePool.forceConsolidate(memoryId);
-            return { memoryId, ops };
+            const jobId = memoryServicePool.forceConsolidate(memoryId);
+            return { memoryId, jobId, queued: jobId != null };
         }));
 
         /** 单条 memory 全文。 */

@@ -10,9 +10,9 @@ import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { IMemoryStore } from "../Storage/IMemoryStore";
 import { MemoryStore } from "../Storage/MemoryStore";
-import { IMemoryService, type MemoryWriterOpStats } from "./IMemoryService";
+import { IMemoryService } from "./IMemoryService";
 import { MemoryService } from "./MemoryService";
-import type { PendingMessageRow } from "../Storage/IMemoryStore";
+import type { PendingMemoryJobRow } from "../Storage/IMemoryStore";
 
 /**
  * 由 caller resolver 提供的、构造一个 MemoryService 所需的全部"已 resolved 配置"。
@@ -22,7 +22,7 @@ import type { PendingMessageRow } from "../Storage/IMemoryStore";
 export interface MemoryServiceConfig {
     /** memory 根目录（含 `memories/<slug>.md` 与 `.archive/`） */
     memoryDir: string;
-    /** SQLite 文件绝对路径（含 memories 索引 + memory_pending_messages 队列） */
+    /** SQLite 文件绝对路径（含 memories 索引 + memory_pending_messages job 队列） */
     dbPath: string;
     /** MemoryWriter 用的 model 实例 */
     writerModel: IModelService;
@@ -51,12 +51,14 @@ export type MemoryServiceConfigResolver =
  * 实例并发跑 LLM CRUD，破坏 store 数据。
  *
  * 生命周期模型（纯 refCount，无强制销毁）：
- * - acquire(id)：cache miss → build 新实例 + 注册 onDispose 自驱逐；命中实例 incRef
- *   后返回；调用方用完后 service.release() 配对归还
- * - refCount 归零自动 teardown：关 SQLite store + 调 onDispose 把自己从 cache 删掉
- * - drain（checkMessages）自固定 refCount，drain 期间 caller release 不会触发 teardown
- * - invalidate(id) / invalidateAll()：仅 cache.delete，不动 refCount —— 已 acquire 的
- *   实例继续服务到 refCount 归零；下次 acquire 同 id 拿到全新实例（profile 配置变更场景）
+ * - acquire(id)：cache miss → build 新实例；命中实例 incRef 后返回；
+ *   调用方用完后 service.release() 配对归还
+ * - refCount 归零自动 teardown：关 SQLite store + evict 把自己从 cache 删掉
+ * - drain（checkJobs）自固定 refCount，drain 期间 caller release 不会触发 teardown
+ * - cache 中只可能有"还活着"的实例 —— 不开放外部 invalidate / cache.delete，
+ *   保证"同 memoryId 全局唯一 live 实例"不变量（多实例并发跑 LLM CRUD 会破坏 store 数据）
+ * - markForDeletion(id)：profile 删除路径专用，仅给 cache 里的活实例打标记，
+ *   teardown 时由 store.deleteAll() 物理清理。返回 false 表示不在 cache，caller 自处理。
  */
 export class MemoryServicePool {
     private static _instance: MemoryServicePool | null = null;
@@ -104,26 +106,17 @@ export class MemoryServicePool {
     }
 
     /**
-     * profile 失效（编辑 / 删除）：仅从 cache 摘除。已 acquire 的实例继续服务到
-     * refCount 归零；下次 acquire 同 id 会构建新实例（吃到新配置）。
+     * 标记 service 在 refCount 归零 teardown 时执行 store.deleteAll()。
+     * 返回 true = 已标记；false = 没有活实例且 resolver 也拉不起来（caller 自处理）。
      */
-    invalidate(memoryId: string): void {
-        if (this.cache.delete(memoryId)) {
-            this.logger?.info(`MemoryService [${memoryId}] invalidated`);
-        }
+    markForDeletion(memoryId: string): boolean {
+        const service = this.acquire(memoryId) as MemoryService | null;
+        if (!service) return false;
+        try { service.markForDeletion(); return true; }
+        finally { service.release(); }
     }
 
-    /** 配置整体 reload 时清空 cache。语义同逐个 invalidate。 */
-    invalidateAll(): void {
-        if (this.cache.size === 0) return;
-        for (const id of this.cache.keys()) {
-            this.logger?.info(`MemoryService [${id}] invalidated (all)`);
-        }
-        this.cache.clear();
-    }
-
-    /** Service 自驱逐：refCount 归零 teardown 完成后由 service.release() 调进来。
-     *  identity 检查避免误删被 invalidate 后重建的同 id 新实例。 */
+    /** Service 自驱逐：refCount 归零 teardown 完成后由 service.release() 调进来。 */
     evict(service: MemoryService): void {
         for (const [id, cached] of this.cache) {
             if (cached === service) {
@@ -134,7 +127,7 @@ export class MemoryServicePool {
         }
     }
 
-    /** admin 触发：唤醒 pending 队列消费（不阻塞，UI 自行轮询 listPendingMessages 看进度）。 */
+    /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 自行轮询 listPendingJobs 看进度）。 */
     forceExtract(memoryId: string): boolean {
         const service = this.acquire(memoryId);
         if (!service) return false;
@@ -142,14 +135,14 @@ export class MemoryServicePool {
         finally { service.release(); }
     }
 
-    async forceConsolidate(memoryId: string): Promise<MemoryWriterOpStats | null> {
+    forceConsolidate(memoryId: string): number | null {
         const service = this.acquire(memoryId);
         if (!service) return null;
-        try { return await service.consolidate(); }
+        try { return service.enqueueConsolidate(); }
         finally { service.release(); }
     }
 
-    listPendingMessages(memoryId: string, limit = 50): PendingMessageRow[] {
+    listPendingJobs(memoryId: string, limit = 50): PendingMemoryJobRow[] {
         const service = this.acquire(memoryId);
         if (!service) return [];
         try { return service.listPending(limit); }

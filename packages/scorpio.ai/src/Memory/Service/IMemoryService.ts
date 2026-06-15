@@ -1,4 +1,4 @@
-import type { MemorySearchHit, MemoryRow, PendingMessageRow } from "../Storage/IMemoryStore";
+import type { MemorySearchHit, MemoryRow, PendingMemoryJobRow } from "../Storage/IMemoryStore";
 import type { ChatMessage } from "../../Saver";
 
 /**
@@ -65,18 +65,18 @@ export interface IMemoryService {
      */
     extractFromConversation(messages: ChatMessage[]): void;
 
-    /** admin 排障：列最近的 pending+failed 行（按 id DESC）。 */
-    listPending(limit?: number): PendingMessageRow[];
+    /** admin 排障：列最近的 pending+failed job（按 id DESC）。 */
+    listPending(limit?: number): PendingMemoryJobRow[];
 
-    /** admin 触发：唤醒 pending 队列消费（不阻塞，UI 通过 listPending 轮询进度）。 */
+    /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 通过 listPending 轮询进度）。 */
     processPending(): void;
 
-    /** admin 触发：合并/压缩现有 memory 条目。 */
-    consolidate(): Promise<MemoryWriterOpStats>;
+    /** admin 触发：把合并/压缩现有 memory 条目的 job 入队。 */
+    enqueueConsolidate(): number;
 
     /**
      * caller 释放对 service 的引用：refCount--，归零时关 SQLite store 并通知 pool
-     * 把自己从 cache 摘掉。drain（checkMessages）自固定 refCount，所以 caller
+     * 把自己从 cache 摘掉。drain（checkJobs）自固定 refCount，所以 caller
      * release 不会中断在跑的抽取。
      *
      * 与 pool.acquire 配对调用：每次 acquire 必须对应一次 release。

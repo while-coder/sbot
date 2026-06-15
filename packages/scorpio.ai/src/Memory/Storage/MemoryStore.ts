@@ -12,8 +12,9 @@ import {
     type MemorySearchHit,
     type CreateMemoryInput,
     type UpdateMemoryInput,
-    type PendingMessageRow,
-    type PendingMessageStatus,
+    MemoryPendingJobType,
+    type PendingMemoryJobRow,
+    type MemoryPendingJobStatus,
 } from "./IMemoryStore";
 import { HybridSearcher } from "../../Retrieval";
 import type { ChatMessage } from "../../Saver";
@@ -55,7 +56,7 @@ export class MemoryStore implements IMemoryStore {
 
     /**
      * HybridSearcher 自管 SQLite（searcher.sqlite 在 rootDir 下）。
-     * 与 memory.db 是两个独立文件：memory.db 装元数据 + 待处理消息队列；
+     * 与 memory.db 是两个独立文件：memory.db 装元数据 + 待处理 job 队列；
      * searcher.sqlite 装 FTS5 + embedding 缓存，可以独立重建。
      */
     private get searcher(): HybridSearcher {
@@ -99,12 +100,12 @@ export class MemoryStore implements IMemoryStore {
                 -- 旧的抽取作业表（被 memory_pending_messages 取代）。保留 DROP 兼容老库。
                 DROP TABLE IF EXISTS memory_extract_jobs;
 
-                -- 待处理消息队列：每轮对话结束直接入队 ChatMessage[] 快照，
-                -- MemoryService 通过 isRunning 标志 + popOldestPending 串行消费；
+                -- 待处理 job 队列：抽取与整理都入队，MemoryService 通过 isRunning 标志串行消费；
                 -- 失败行保留 status='failed'，不再自动重试，由 admin 决定。
                 CREATE TABLE IF NOT EXISTS memory_pending_messages (
                     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                    messages_json TEXT    NOT NULL,
+                    job_type      TEXT    NOT NULL DEFAULT 'extract',
+                    payload_json  TEXT    NOT NULL DEFAULT '{}',
                     status        TEXT    NOT NULL DEFAULT 'pending',
                     attempt_count INTEGER NOT NULL DEFAULT 0,
                     error_message TEXT,
@@ -348,22 +349,30 @@ export class MemoryStore implements IMemoryStore {
         return { indexed: indexedCount, pruned };
     }
 
-    // ── 待处理消息队列 ──
+    // ── 待处理 job 队列 ──
 
     pushPendingMessages(messages: ChatMessage[], now: number): number {
+        return this.pushPendingJob(MemoryPendingJobType.Extract, { messages }, now);
+    }
+
+    pushPendingConsolidate(now: number): number {
+        return this.pushPendingJob(MemoryPendingJobType.Consolidate, {}, now);
+    }
+
+    private pushPendingJob(type: MemoryPendingJobType, payload: unknown, now: number): number {
         const result = this.db.prepare(`
             INSERT INTO memory_pending_messages (
-                messages_json, status, attempt_count, created_at, updated_at
+                job_type, payload_json, status, attempt_count, created_at, updated_at
             ) VALUES (
-                @messagesJson, 'pending', 0, @now, @now
+                @jobType, @payloadJson, 'pending', 0, @now, @now
             )
-        `).run({ messagesJson: JSON.stringify(messages), now });
+        `).run({ jobType: type, payloadJson: JSON.stringify(payload), now });
         return Number(result.lastInsertRowid);
     }
 
-    popPendingMessages(): PendingMessageRow | null {
+    popPendingJob(): PendingMemoryJobRow | null {
         const row = this.db.prepare(`
-            SELECT id, messages_json, status, attempt_count, error_message, created_at, updated_at
+            SELECT id, job_type, payload_json, status, attempt_count, error_message, created_at, updated_at
             FROM memory_pending_messages
             WHERE status = 'pending'
             ORDER BY id ASC
@@ -373,11 +382,11 @@ export class MemoryStore implements IMemoryStore {
         return this.mapPendingRow(row);
     }
 
-    deletePending(id: number): void {
+    deletePendingJob(id: number): void {
         this.db.prepare(`DELETE FROM memory_pending_messages WHERE id = ?`).run(id);
     }
 
-    markPendingFailed(id: number, errorMessage: string, now: number): void {
+    markPendingJobFailed(id: number, errorMessage: string, now: number): void {
         this.db.prepare(`
             UPDATE memory_pending_messages
             SET status        = 'failed',
@@ -388,9 +397,9 @@ export class MemoryStore implements IMemoryStore {
         `).run({ id, errorMessage: errorMessage.slice(0, 1000), now });
     }
 
-    listPendingMessages(limit: number): PendingMessageRow[] {
+    listPendingJobs(limit: number): PendingMemoryJobRow[] {
         const rows = this.db.prepare(`
-            SELECT id, messages_json, status, attempt_count, error_message, created_at, updated_at
+            SELECT id, job_type, payload_json, status, attempt_count, error_message, created_at, updated_at
             FROM memory_pending_messages
             ORDER BY id DESC
             LIMIT @limit
@@ -403,6 +412,13 @@ export class MemoryStore implements IMemoryStore {
         this._searcher = undefined;
         this._db?.close();
         this._db = undefined;
+    }
+
+    async deleteAll(): Promise<void> {
+        // 调用方必须先 dispose() 关掉 sqlite handle，否则 Windows 上文件锁会让 rm 失败。
+        await fs.rm(this.rootDir, { recursive: true, force: true });
+        // dbPath 通常在 rootDir 内，rm 是 no-op；万一外置（force 忽略 ENOENT），单独再 rm 一次。
+        await fs.rm(this.dbPath, { force: true });
     }
 
     // ── 内部辅助 ──
@@ -483,14 +499,25 @@ export class MemoryStore implements IMemoryStore {
         // 实际使用上 mapRow 已不再读取，相当于 dead column。
     }
 
-    private parsePendingMessages(json: string): ChatMessage[] {
+    private parsePendingPayload(json: string | null | undefined): { messages?: ChatMessage[] } {
         try {
-            const parsed = JSON.parse(json);
-            if (!Array.isArray(parsed)) return [];
-            return parsed as ChatMessage[];
+            const parsed = JSON.parse(json ?? '{}');
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+            const messages = Array.isArray((parsed as any).messages) ? ((parsed as any).messages as ChatMessage[]) : undefined;
+            return messages ? { messages } : {};
         } catch {
-            return [];
+            return {};
         }
+    }
+
+    private normalizePendingJobType(type: string | undefined | null): MemoryPendingJobType {
+        return type === MemoryPendingJobType.Consolidate
+            ? MemoryPendingJobType.Consolidate
+            : MemoryPendingJobType.Extract;
+    }
+
+    private normalizePendingStatus(status: string | undefined | null): MemoryPendingJobStatus {
+        return status === 'failed' ? 'failed' : 'pending';
     }
 
     private mapRow(r: any): MemoryRow {
@@ -510,11 +537,14 @@ export class MemoryStore implements IMemoryStore {
         };
     }
 
-    private mapPendingRow(r: any): PendingMessageRow {
+    private mapPendingRow(r: any): PendingMemoryJobRow {
+        const type = this.normalizePendingJobType(r.job_type);
+        const payload = this.parsePendingPayload(r.payload_json);
         return {
             id: r.id,
-            messages: this.parsePendingMessages(r.messages_json),
-            status: (r.status as PendingMessageStatus) ?? 'pending',
+            type,
+            messages: type === MemoryPendingJobType.Extract ? (payload.messages ?? []) : undefined,
+            status: this.normalizePendingStatus(r.status),
             attemptCount: r.attempt_count ?? 0,
             errorMessage: r.error_message ?? null,
             createdAt: r.created_at,

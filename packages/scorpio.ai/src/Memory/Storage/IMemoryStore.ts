@@ -7,7 +7,7 @@ import type { ChatMessage } from "../../Saver";
  * 三类操作：
  * - CRUD：MemoryWriter 写入路径用（create / update / delete / get / list）
  * - 检索：search_memory / read_memory 工具调用（search + getBySlug + recordRead）
- * - 待处理消息队列：每轮对话结束入队，MemoryService.checkMessages 串行消费
+ * - 待处理 job 队列：抽取/整理入队，MemoryService 串行消费
  *
  * delete 是软删除：文件移到 `memories/.archive/<slug>.md`，DB 行删除。
  * archived 文件由后台 cron 30 天后清理（不在本接口范围内）。
@@ -83,14 +83,20 @@ export interface UpdateMemoryInput {
     evidenceDelta?: number;
 }
 
-// ── 待处理消息队列 ──
+// ── 待处理 job 队列 ──
 
-export type PendingMessageStatus = 'pending' | 'failed';
+export enum MemoryPendingJobType {
+    Extract = 'extract',
+    Consolidate = 'consolidate',
+}
 
-export interface PendingMessageRow {
+export type MemoryPendingJobStatus = 'pending' | 'failed';
+
+export interface PendingMemoryJobRow {
     id: number;
-    messages: ChatMessage[];
-    status: PendingMessageStatus;
+    type: MemoryPendingJobType;
+    messages?: ChatMessage[];
+    status: MemoryPendingJobStatus;
     attemptCount: number;
     errorMessage: string | null;
     createdAt: number;
@@ -158,26 +164,36 @@ export interface IMemoryStore {
      */
     reconcile(): Promise<{ indexed: number; pruned: number }>;
 
-    // ── 待处理消息队列（每轮对话结束入队，串行消费） ──
+    // ── 待处理 job 队列（每轮对话结束抽取、手动整理等入队后串行消费） ──
     // 全部同步：底层 better-sqlite3 是同步 API；MemoryService 依赖
     // "push 的 SQL 在 kick 前已落库" 这一点来避免漏单。
 
     /** 入队一轮对话的消息快照，返回插入行 id。 */
     pushPendingMessages(messages: ChatMessage[], now: number): number;
 
-    /** 取最早一条 status='pending' 的行；没有返回 null。串行消费由 MemoryService 内部 isRunning 标志保证。 */
-    popPendingMessages(): PendingMessageRow | null;
+    /** 入队一次 memory 整理 job，返回插入行 id。 */
+    pushPendingConsolidate(now: number): number;
+
+    /** 取最早一条 status='pending' 的 job；没有返回 null。串行消费由 MemoryService 内部 isRunning 标志保证。 */
+    popPendingJob(): PendingMemoryJobRow | null;
 
     /** 删除一行（成功消费后调用）。 */
-    deletePending(id: number): void;
+    deletePendingJob(id: number): void;
 
     /** 标记失败（保留数据），attemptCount += 1。 */
-    markPendingFailed(id: number, errorMessage: string, now: number): void;
+    markPendingJobFailed(id: number, errorMessage: string, now: number): void;
 
-    /** 管理/排障用：列最近的 pending+failed 行（按 id DESC）。 */
-    listPendingMessages(limit: number): PendingMessageRow[];
+    /** 管理/排障用：列最近的 pending+failed job（按 id DESC）。 */
+    listPendingJobs(limit: number): PendingMemoryJobRow[];
 
     dispose(): void;
+
+    /**
+     * 物理删除：rm `rootDir`（含 memories/、.archive/、searcher.sqlite）+ dbPath。
+     * 调用前必须 dispose() —— 否则 sqlite handle 仍开着，Windows 上 rm 会因文件锁失败。
+     * 仅在 profile 删除路径调用，由 MemoryService.markForDeletion() 触发。
+     */
+    deleteAll(): Promise<void>;
 }
 
 export const IMemoryStore = Symbol("IMemoryStore");

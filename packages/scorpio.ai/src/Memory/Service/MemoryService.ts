@@ -19,7 +19,8 @@ import {
     type MemoryMenuEntry,
     type MemorySearchHit,
     type MemoryBodyMode,
-    type PendingMessageRow,
+    MemoryPendingJobType,
+    type PendingMemoryJobRow,
 } from "../Storage/IMemoryStore";
 import { type ChatMessage, MessageRole } from "../../Saver";
 import { contentToString } from "../../Utils/contentUtils";
@@ -120,7 +121,7 @@ type MemoryUpdateMergeOutput = z.infer<typeof MemoryUpdateMergeSchema>;
  *
  * 互斥模型（参考 HistoryManager.ExecuteCommand / CheckExecuteCommand）：
  * - 每个 memoryId 一个 MemoryService 实例（pool 维护）
- * - 多 session 同时 extractFromConversation：push 互不阻塞，kick 后 checkMessages 串行 drain
+ * - 多 session 同时 extractFromConversation：push 互不阻塞，kick 后 checkJobs 串行 drain
  * - 单标志 isRunning 即可：单线程 JS + 同步 better-sqlite3 + microtask FIFO 保证
  *   "push 在 drain 退出后必然能再次 kick 起一轮"，不需要 pendingWakeup 这种二级标志
  */
@@ -132,6 +133,7 @@ export class MemoryService implements IMemoryService {
     private isRunning = false;
     private refCount = 0;
     private disposed = false;
+    private deleteOnTeardown = false;
 
     constructor(
         @inject(IMemoryStore) private readonly store: IMemoryStore,
@@ -154,14 +156,30 @@ export class MemoryService implements IMemoryService {
         this.refCount++;
     }
 
+    /**
+     * Pool 在 deleteAfterRelease(id) 时调用：标记本实例 teardown 后物理清理 store 文件。
+     * 不立即 dispose —— 已 acquire 的 caller 继续用，drain 也会跑完，等 refCount 归零自然走到 release 里执行 deleteAll。
+     */
+    markForDeletion(): void {
+        this.deleteOnTeardown = true;
+    }
+
     /** Caller 调用（AgentRunner finally）：refCount--，归零关 store 并让 pool 驱逐自己。 */
     release(): void {
         if (--this.refCount !== 0 || this.disposed) return;
         this.disposed = true;
-        try { this.store.dispose(); } catch (e: any) {
+        try {
+            this.store.dispose();
+        } catch (e: any) {
             this.logger?.warn(`memory store dispose failed: ${e?.message ?? e}`);
         }
         memoryServicePool.evict(this);
+        if (this.deleteOnTeardown) {
+            // dispose 已关 sqlite handle，rm 安全。fire-and-forget：调用方不需要等物理删除完成。
+            this.store.deleteAll().catch(e => {
+                this.logger?.warn(`memory store deleteAll failed: ${e?.message ?? e}`);
+            });
+        }
     }
 
     // ── 读路径 ──
@@ -205,55 +223,61 @@ export class MemoryService implements IMemoryService {
     extractFromConversation(messages: ChatMessage[]): void {
         if (messages.length === 0) return;
         this.store.pushPendingMessages(messages, Date.now());
-        void this.checkMessages();
+        void this.checkJobs();
     }
 
-    listPending(limit?: number): PendingMessageRow[] {
-        return this.store.listPendingMessages(limit ?? 50);
+    listPending(limit?: number): PendingMemoryJobRow[] {
+        return this.store.listPendingJobs(limit ?? 50);
     }
 
     processPending(): void {
-        void this.checkMessages();
+        void this.checkJobs();
+    }
+
+    enqueueConsolidate(): number {
+        const id = this.store.pushPendingConsolidate(Date.now());
+        void this.checkJobs();
+        return id;
     }
 
     /**
-     * 串行消费 pending 队列：isRunning 单标志 + 循环 popPendingMessages → 处理 → 删行 / 标 failed。
+     * 串行消费 pending job 队列：isRunning 单标志 + 循环 popPendingJob → 处理 → 删行 / 标 failed。
      *
      * 互斥与漏单保证：
      * - 顶部 `if (isRunning) return` 同步短路重入（与下一行 isRunning=true 无 await 缝隙）；
-     * - 任何 push 都是先同步 SQL INSERT 再 `void checkMessages()`：
+     * - 任何 push 都是先同步 SQL INSERT 再 `void checkJobs()`：
      *   若当前 drain 还在跑，循环里下一次 pop 必然命中（同步 SQL，已落库）；
      *   若已退出，新调用直接进入新一轮 drain（finally 已置 isRunning=false）。
      * - 自固定 refCount：drain 自己持一份引用，期间 caller release 不会触发 teardown，
      *   drain 跑完 finally 里再 release —— 调用方（chat / admin）无需关心 release 时机。
      * - 异常自吞：DB 操作在 store 被关后会 throw（理论上 self-pin 后不该出现），
-     *   全部 catch；未删除的 pending 行留在 SQLite 文件中，下次启动 processPending()
+     *   全部 catch；未删除的 pending job 留在 SQLite 文件中，下次启动 processPending()
      *   重新拉起。
      */
-    private async checkMessages(): Promise<void> {
+    private async checkJobs(): Promise<void> {
         if (this.isRunning) return;
         this.isRunning = true;
         this.refCount++;
         try {
             while (true) {
-                let next: PendingMessageRow | null;
+                let next: PendingMemoryJobRow | null;
                 try {
-                    next = this.store.popPendingMessages();
+                    next = this.store.popPendingJob();
                 } catch {
                     break;  // forceDispose 关闭了 store → 优雅退出
                 }
                 if (!next) break;
                 try {
-                    const stats = await this.extractFromMessages(next.messages);
-                    this.store.deletePending(next.id);
+                    const stats = await this.runPendingJob(next);
+                    this.store.deletePendingJob(next.id);
                     this.logger?.info(
-                        `memory pending #${next.id} done: ` +
+                        `memory pending ${next.type} #${next.id} done: ` +
                         `create:${stats.create}/update:${stats.update}/delete:${stats.delete}/noop:${stats.noop}/failed:${stats.failed}`
                     );
                 } catch (e: any) {
                     const errMsg = (e?.message ?? String(e)).slice(0, 1000);
-                    try { this.store.markPendingFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
-                    this.logger?.warn(`memory pending #${next.id} extraction failed: ${errMsg}`);
+                    try { this.store.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
+                    this.logger?.warn(`memory pending ${next.type} #${next.id} failed: ${errMsg}`);
                 }
             }
         } finally {
@@ -262,11 +286,20 @@ export class MemoryService implements IMemoryService {
         }
     }
 
+    private async runPendingJob(job: PendingMemoryJobRow): Promise<MemoryWriterOpStats> {
+        switch (job.type) {
+            case MemoryPendingJobType.Extract:
+                return this.extractFromMessages(job.messages ?? []);
+            case MemoryPendingJobType.Consolidate:
+                return this.consolidateMemories();
+        }
+    }
+
     // ── MemoryLLM CRUD 抽取（原 MemoryWriterWorker） ──
 
     /**
      * 单轮抽取：把一组对话消息喂给 MemoryLLM，应用返回的 ops。
-     * 模型调用失败会抛出，由 checkMessages 决定是否标记 pending 行为 failed。
+     * 模型调用失败会抛出，由 checkJobs 决定是否标记 pending job 为 failed。
      */
     private async extractFromMessages(messages: ChatMessage[]): Promise<MemoryWriterOpStats> {
         if (messages.length === 0) {
@@ -286,7 +319,7 @@ export class MemoryService implements IMemoryService {
         return await this.applyOps(result.ops, { conversation, mergeUpdateBodies: true });
     }
 
-    async consolidate(): Promise<MemoryWriterOpStats> {
+    private async consolidateMemories(): Promise<MemoryWriterOpStats> {
         const rows = (await this.store.list()).slice(0, 100);
         if (rows.length === 0) return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
 
@@ -328,13 +361,7 @@ export class MemoryService implements IMemoryService {
             },
         ];
 
-        let result: MemoryWriteOutput;
-        try {
-            result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, messages);
-        } catch (e: any) {
-            this.logger?.warn(`Memory consolidation model call failed: ${e?.message ?? e}`);
-            return { create: 0, update: 0, delete: 0, noop: 0, failed: 1 };
-        }
+        const result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, messages);
 
         const filtered = result.ops.filter(op => op.action !== MemoryOpAction.Create);
         return this.applyOps(filtered, { mergeUpdateBodies: false });

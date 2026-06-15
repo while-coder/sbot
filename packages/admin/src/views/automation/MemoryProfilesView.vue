@@ -28,6 +28,7 @@ interface MemorySummary {
 
 interface MemoryJob {
   id: number
+  type: string
   status: string
   attemptCount: number
   errorMessage: string | null
@@ -192,13 +193,7 @@ async function runConsolidate(id: string) {
   consolidating.value[id] = true
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/consolidate/run`, 'POST', {})
-    const ops = res.data?.ops || {}
-    show(t('memory_profiles.consolidate_done', {
-      update: ops.update ?? 0,
-      delete: ops.delete ?? 0,
-      noop: ops.noop ?? 0,
-      failed: ops.failed ?? 0,
-    }))
+    show(t('memory_profiles.consolidate_queued', { id: res.data?.jobId ?? '-' }))
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -244,7 +239,7 @@ async function loadMemoryJobs(id = memoryViewerId.value) {
   if (!id) return
   memoryJobsLoading.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/extract/jobs?limit=50`)
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/jobs?limit=50`)
     memoryJobs.value = (res.data?.jobs || []) as MemoryJob[]
   } catch (e: any) {
     show(e.message, 'error')
@@ -459,6 +454,7 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
               <SBadge :variant="jobVariant(job.status)" size="sm">{{ job.status }}</SBadge>
             </div>
             <div class="memory-job-grid">
+              <span>{{ t('memory_profiles.job_type') }}</span><code>{{ job.type }}</code>
               <span>{{ t('memory_profiles.attempt_count') }}</span><code>{{ job.attemptCount }}</code>
               <span>{{ t('memory_profiles.created_at') }}</span><code>{{ fmtTime(job.createdAt) }}</code>
               <span>{{ t('memory_profiles.finished_at') }}</span><code>{{ fmtTime(job.updatedAt) }}</code>

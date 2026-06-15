@@ -115,17 +115,16 @@ export class SettingsRoutes {
             label: 'Memory profile',
             checkOnDelete: true,
             getSettings,
-            // 改了或删了配置，丢掉缓存的 MemoryService 实例（writerModel / prompt 可能已变）
-            afterSave: async (id) => {
-                const { memoryServicePool } = await import('../../Memory/MemoryServicePool');
-                memoryServicePool.invalidate(id);
-            },
+            // 配置变更（writerModel / prompt 等）不强制丢弃缓存实例 —— 那会让同 id 同时跑两个
+            // live MemoryService，破坏 store 数据。已 acquire 的实例继续吃旧配置，等 refCount
+            // 归零自然 evict，下次 acquire 才拿新配置。
             afterDelete: async (id) => {
                 const { memoryServicePool } = await import('../../Memory/MemoryServicePool');
-                memoryServicePool.invalidate(id);
+                // 有活实例 → 打标记，teardown 时由 store.deleteAll() 删
+                if (memoryServicePool.markForDeletion(id)) return;
+                // 无活实例 → 直接 rm（profile 删了，无人会再 acquire）
                 const fs = await import('fs');
-                const dir = config.getMemoryPath(id);
-                try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+                try { fs.rmSync(config.getMemoryPath(id), { recursive: true, force: true }); } catch {}
             },
         });
         settingsCrudHelper.register(app, 'agendaProfiles', {
