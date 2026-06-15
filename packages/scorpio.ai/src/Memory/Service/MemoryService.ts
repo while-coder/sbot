@@ -4,8 +4,9 @@ import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
     T_MemoryMenuMaxEntries,
-    T_MemoryOnRelease,
+    T_MemoryId,
 } from "../../Core/tokens";
+import { MemoryServicePool } from "./MemoryServicePool";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import {
@@ -126,10 +127,10 @@ type MemoryUpdateMergeOutput = z.infer<typeof MemoryUpdateMergeSchema>;
  */
 export class MemoryService implements IMemoryService {
     private logger?: ILogger;
+    private readonly memoryId: string;
     private readonly modelService: IModelService;
     private readonly writerPrompt: string;
     private readonly menuMaxEntries: number;
-    private readonly onRelease?: () => void;
     private isRunning = false;
     private releaseRequested = false;
 
@@ -138,15 +139,15 @@ export class MemoryService implements IMemoryService {
         @inject(T_MemoryReadTemplate) private readonly readTemplate: string,
         @inject(T_MemoryWriterPrompt) writerPrompt: string,
         @inject(IModelService) modelService: IModelService,
+        @inject(T_MemoryId, { optional: true }) memoryId?: string,
         @inject(T_MemoryMenuMaxEntries, { optional: true }) menuMaxEntries?: number,
-        @inject(T_MemoryOnRelease, { optional: true }) onRelease?: () => void,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("MemoryService");
+        this.memoryId = memoryId ?? '';
         this.modelService = modelService;
         this.writerPrompt = writerPrompt;
         this.menuMaxEntries = menuMaxEntries ?? DEFAULT_MENU_LIMIT;
-        this.onRelease = onRelease;
     }
 
     // ── 读路径 ──
@@ -250,13 +251,15 @@ export class MemoryService implements IMemoryService {
         } finally {
             this.isRunning = false;
         }
-        // 队列抽干 + 上层请求过 release → 主动通知 pool 完成 dispose；fire 一次后清标记
+        // 队列抽干 + 上层请求过 release → 主动通知 pool 单例完成 dispose；fire 一次后清标记
         if (this.releaseRequested) {
             this.releaseRequested = false;
-            try {
-                this.onRelease?.();
-            } catch (e: any) {
-                this.logger?.warn(`memory onRelease callback threw: ${e?.message ?? e}`);
+            if (this.memoryId) {
+                try {
+                    MemoryServicePool.getInstance().notifyServiceIdle(this.memoryId);
+                } catch (e: any) {
+                    this.logger?.warn(`memory notifyServiceIdle threw: ${e?.message ?? e}`);
+                }
             }
         }
     }

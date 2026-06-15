@@ -50,10 +50,10 @@ export const T_MemoryWriterPrompt = Symbol("scorpio:T_MemoryWriterPrompt");
 /** MemoryWriter 判断 create/update 时可见的 menu 条目上限。 */
 export const T_MemoryMenuMaxEntries = Symbol("scorpio:T_MemoryMenuMaxEntries");
 /**
- * 容器在调用 service.requestRelease() 后，待 pending 队列抽干时由 MemoryService 主动回调；
- * Pool 在回调中 dispose store + 从缓存移除（含 refCount 二次校验）。
+ * 当前 MemoryService 实例对应的 memoryId（pool 装配时注入）。
+ * service drain 完成 + 收到 release 请求后，凭这个 id 回调 MemoryServicePool.getInstance().notifyServiceIdle(id)。
  */
-export const T_MemoryOnRelease = Symbol("scorpio:T_MemoryOnRelease");
+export const T_MemoryId = Symbol("scorpio:T_MemoryId");
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");

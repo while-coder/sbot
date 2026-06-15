@@ -5,7 +5,7 @@ import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
     T_MemoryMenuMaxEntries,
-    T_MemoryOnRelease,
+    T_MemoryId,
 } from "../../Core/tokens";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
@@ -54,7 +54,13 @@ interface PoolEntry {
 }
 
 /**
- * 进程内 MemoryService 缓存：每个 memoryId 共享一个实例。
+ * 进程内 MemoryService 缓存：每个 memoryId 共享一个实例。**单例**——通过
+ * `MemoryServicePool.getInstance()`（或 named export `memoryServicePool`）拿。
+ *
+ * 使用方式：
+ *   import { memoryServicePool } from 'scorpio.ai';
+ *   memoryServicePool.setResolver(async memoryId => { ... });
+ *   memoryServicePool.setLoggerService(loggerProvider);   // 可选
  *
  * **必须使用 pool**——MemoryService 的"串行抽取 + 单实例 isRunning"语义只在
  * 同 memoryId 全局唯一实例下成立。直接 `new MemoryService(...)` 多次会让多个
@@ -63,22 +69,39 @@ interface PoolEntry {
  * 释放生命周期：
  * 1. handle.release → pool.release：refCount-- ；若仍 >0 直接返回。
  * 2. refCount=0 → 调 service.requestRelease()，立即返回（不阻塞调用方）。
- * 3. service 内部 drain pending；drain 完成后回调构造时注入的 onRelease。
- * 4. onRelease（即 finalizeRelease）二次校验 refCount=0 后 store.dispose 并移出缓存。
+ * 3. service 内部 drain pending；drain 完成 + releaseRequested 时回调
+ *    `pool.notifyServiceIdle(memoryId)` 触发 finalize。
+ * 4. notifyServiceIdle 二次校验 refCount=0 + cache 命中后 store.dispose 并移出缓存。
  *
- * drain 期间若新的 acquire 抬高 refCount，finalizeRelease 检查到后放弃 dispose；
+ * drain 期间若新的 acquire 抬高 refCount，notifyServiceIdle 检查到后放弃 dispose；
  * service 实例继续服务，下次 refCount 归零再走相同流程。
  */
 export class MemoryServicePool {
+    private static _instance: MemoryServicePool | null = null;
+
+    /** 拿单例（懒构造）。 */
+    static getInstance(): MemoryServicePool {
+        if (!this._instance) this._instance = new MemoryServicePool();
+        return this._instance;
+    }
+
     private cache = new Map<string, PoolEntry>();
     private pending = new Map<string, Promise<PoolEntry | null>>();
+    private resolveConfig?: MemoryServiceConfigResolver;
+    private loggerService?: ILoggerService;
     private logger?: ILogger;
 
-    constructor(
-        private readonly resolveConfig: MemoryServiceConfigResolver,
-        private readonly loggerService?: ILoggerService,
-    ) {
-        this.logger = loggerService?.getLogger("MemoryServicePool");
+    private constructor() {}
+
+    /** 配置 memoryId → MemoryServiceConfig 解析器；必须在第一次 acquire/get 之前调用。 */
+    setResolver(resolver: MemoryServiceConfigResolver): void {
+        this.resolveConfig = resolver;
+    }
+
+    /** 配置 logger service（可选）。 */
+    setLoggerService(svc: ILoggerService): void {
+        this.loggerService = svc;
+        this.logger = svc.getLogger("MemoryServicePool");
     }
 
     async get(memoryId: string): Promise<IMemoryService | null> {
@@ -104,7 +127,7 @@ export class MemoryServicePool {
     invalidate(memoryId: string): void {
         const entry = this.cache.get(memoryId);
         if (!entry) return;
-        // 设置标志，由 service 抽干 pending 后回调 finalizeRelease 关闭 store
+        // 设置标志，由 service 抽干 pending 后回调 notifyServiceIdle 关闭 store
         entry.refCount = 0;
         entry.service.requestRelease?.();
         this.logger?.info(`MemoryService [${memoryId}] invalidate requested`);
@@ -139,6 +162,20 @@ export class MemoryServicePool {
         return entry.service.listPending(limit);
     }
 
+    /**
+     * 由 MemoryService 在"drain 完成 + releaseRequested"时主动回调。
+     * 二次校验后真正 dispose store + 移出缓存；否则放弃释放，service 继续服务。
+     */
+    notifyServiceIdle(memoryId: string): void {
+        const entry = this.cache.get(memoryId);
+        if (!entry) return;
+        // drain 期间被新的 acquire 抬回去就放弃 dispose，service 继续服务
+        if (entry.refCount > 0) return;
+        entry.store.dispose();
+        this.cache.delete(memoryId);
+        this.logger?.info(`MemoryService [${memoryId}] released`);
+    }
+
     private async getEntry(memoryId: string): Promise<PoolEntry | null> {
         const cached = this.cache.get(memoryId);
         if (cached) return cached;
@@ -161,37 +198,23 @@ export class MemoryServicePool {
         if (this.cache.get(memoryId) !== entry) return;
         entry.refCount = Math.max(0, entry.refCount - 1);
         if (entry.refCount > 0) return;
-        // 由 service 在 pending 队列抽干后回调 finalizeRelease 触发 store.dispose
+        // 由 service 在 pending 队列抽干后回调 notifyServiceIdle 触发 store.dispose
         entry.service.requestRelease?.();
     }
 
-    private finalizeRelease(memoryId: string, entry: PoolEntry): void {
-        // drain 期间被新的 acquire 抬回去就放弃 dispose，service 继续服务
-        if (entry.refCount > 0) return;
-        if (this.cache.get(memoryId) !== entry) return;
-        entry.store.dispose();
-        this.cache.delete(memoryId);
-        this.logger?.info(`MemoryService [${memoryId}] released`);
-    }
-
     private async build(memoryId: string): Promise<PoolEntry | null> {
+        if (!this.resolveConfig) {
+            throw new Error('MemoryServicePool: resolver not configured. Call setResolver() before use.');
+        }
         const cfg = await this.resolveConfig(memoryId);
         if (!cfg) return null;
 
-        // entry 引用先占位，等 service 注入 onRelease 闭包后再赋值；闭包通过引用穿透
-        const entry: PoolEntry = {
-            service: null as unknown as IMemoryService,
-            store:   null as unknown as IMemoryStore,
-            refCount: 0,
-        };
-        const onRelease = () => this.finalizeRelease(memoryId, entry);
-
         const sub = new ServiceContainer();
         if (this.loggerService) sub.registerInstance(ILoggerService, this.loggerService);
+        sub.registerInstance(T_MemoryId, memoryId);
         sub.registerInstance(T_MemoryReadTemplate, cfg.readTemplate);
         sub.registerInstance(T_MemoryWriterPrompt, cfg.writerPrompt);
         sub.registerInstance(T_MemoryMenuMaxEntries, cfg.menuMaxEntries ?? 200);
-        sub.registerInstance(T_MemoryOnRelease, onRelease);
         sub.registerInstance(IModelService, cfg.writerModel);
         sub.registerWithArgs(IMemoryStore, MemoryStore, {
             [T_MemoryDir]:    cfg.memoryDir,
@@ -201,8 +224,8 @@ export class MemoryServicePool {
 
         const store = await sub.resolve<IMemoryStore>(IMemoryStore);
         const service = await sub.resolve<IMemoryService>(IMemoryService);
-        entry.store = store;
-        entry.service = service;
+
+        const entry: PoolEntry = { service, store, refCount: 0 };
 
         await store.init();
         // 启动时跑一次 reconcile，吸收外部进程对 memories/*.md 的修改
@@ -222,3 +245,6 @@ export class MemoryServicePool {
         return entry;
     }
 }
+
+/** 包级单例，等同于 `MemoryServicePool.getInstance()`。 */
+export const memoryServicePool = MemoryServicePool.getInstance();

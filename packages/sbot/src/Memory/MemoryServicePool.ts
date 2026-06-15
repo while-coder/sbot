@@ -1,9 +1,8 @@
 import path from "path";
 import {
-    MemoryServicePool,
+    memoryServicePool,
     type MemoryServiceConfigResolver,
     type MemoryServiceHandle,
-    type ILoggerService,
 } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
@@ -15,8 +14,8 @@ const DEFAULT_READ_PROMPT   = "memory/reader/default.md";
 /**
  * sbot 侧 MemoryServicePool 适配层。
  *
- * Pool 实现已上提到 scorpio.ai/Memory/Service/MemoryServicePool；这里只提供
- *   memoryId → MemoryServiceConfig 解析（profile / model / prompt 文件）。
+ * Pool 单例已在 scorpio.ai 内创建，这里只负责注入 sbot 特有的解析逻辑：
+ *   memoryId → MemoryServiceConfig（profile / model / prompt 文件）
  */
 const resolveConfig: MemoryServiceConfigResolver = async (memoryId) => {
     const profile = config.getMemoryProfile(memoryId);
@@ -41,7 +40,8 @@ const resolveConfig: MemoryServiceConfigResolver = async (memoryId) => {
     };
 };
 
-const loggerService: ILoggerService = { getLogger: (name: string) => LoggerService.getLogger(name) };
+memoryServicePool.setResolver(resolveConfig);
+memoryServicePool.setLoggerService({ getLogger: (name: string) => LoggerService.getLogger(name) });
 
-export const memoryServicePool = new MemoryServicePool(resolveConfig, loggerService);
+export { memoryServicePool };
 export type { MemoryServiceHandle };

@@ -29,6 +29,7 @@ export {
 } from './Service/MemoryService';
 export {
     MemoryServicePool,
+    memoryServicePool,
     type MemoryServiceConfig,
     type MemoryServiceConfigResolver,
     type MemoryServiceHandle,
