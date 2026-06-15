@@ -15,7 +15,7 @@ export class OllamaModelService implements IModelService {
 
   constructor(public readonly config: ModelConfig) {}
 
-  async initialize(): Promise<void> {
+  initialize(): void {
     this.model = new ChatOllama({
       baseUrl: this.config.baseURL,
       model: this.config.model,

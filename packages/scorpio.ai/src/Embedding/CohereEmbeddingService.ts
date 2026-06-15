@@ -7,7 +7,7 @@ export class CohereEmbeddingService implements IEmbeddingService {
 
   constructor(private config: EmbeddingConfig) {}
 
-  async initialize(): Promise<void> {
+  initialize(): void {
     if (!this.config.apiKey) {
       throw new Error("Embedding config missing apiKey");
     }

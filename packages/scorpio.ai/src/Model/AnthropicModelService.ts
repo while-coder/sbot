@@ -25,7 +25,7 @@ export class AnthropicModelService implements IModelService {
     }
   }
 
-  async initialize(): Promise<void> {
+  initialize(): void {
     this.model = new ChatAnthropic({
       anthropicApiKey: this.config.apiKey,
       anthropicApiUrl: this.config.baseURL,

@@ -16,46 +16,46 @@ import { ModelConfig, ModelProvider } from "./types";
  *
  * @example
  * ```ts
- * const service = await ModelServiceFactory.getModelService({ provider: "openai", model: "gpt-4", apiKey: "sk-..." });
+ * const service = ModelServiceFactory.getModelService({ provider: "openai", model: "gpt-4", apiKey: "sk-..." });
  * ```
  */
 export class ModelServiceFactory {
   /**
-   * 创建指定模型的服务实例
+   * 创建指定模型的服务实例（同步；底层 ChatXxx 构造均为同步）
    * @param config 模型配置
    * @returns 模型服务实例
    */
-  static async getModelService(config: ModelConfig): Promise<IModelService> {
+  static getModelService(config: ModelConfig): IModelService {
     switch (config.provider) {
       case ModelProvider.Anthropic: {
         const service = new AnthropicModelService(config);
-        await service.initialize();
+        service.initialize();
         return new RetryModelServiceProxy(service);
       }
       case ModelProvider.Ollama: {
         const service = new OllamaModelService(config);
-        await service.initialize();
+        service.initialize();
         return new RetryModelServiceProxy(service);
       }
       case ModelProvider.OpenAIResponse: {
         const service = new OpenAIResponseModelService(config);
-        await service.initialize();
+        service.initialize();
         return new RetryModelServiceProxy(service);
       }
       case ModelProvider.GeminiImage: {
         const service = new GeminiImageModelService(config);
-        await service.initialize();
+        service.initialize();
         return new RetryModelServiceProxy(service);
       }
       case ModelProvider.Gemini: {
         const service = new GeminiModelService(config);
-        await service.initialize();
+        service.initialize();
         return new RetryModelServiceProxy(service);
       }
       // OpenAI, Azure, Groq, Mistral, DeepSeek, and any OpenAI-compatible provider
       default: {
         const service = new OpenAIModelService(config);
-        await service.initialize();
+        service.initialize();
         return new RetryModelServiceProxy(service);
       }
     }

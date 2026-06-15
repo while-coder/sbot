@@ -14,7 +14,7 @@ export class GeminiModelService implements IModelService {
 
   constructor(public readonly config: ModelConfig) {}
 
-  async initialize(): Promise<void> {
+  initialize(): void {
     const opts: Record<string, any> = {
       apiKey: this.config.apiKey,
       baseUrl: this.config.baseURL,

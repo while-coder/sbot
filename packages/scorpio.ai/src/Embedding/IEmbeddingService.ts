@@ -18,9 +18,9 @@ export interface IEmbeddingService {
   embedDocuments(documents: string[]): Promise<number[][]>;
 
   /**
-   * 初始化服务
+   * 初始化服务（必须同步）
    */
-  initialize(): Promise<void>;
+  initialize(): void;
 
   /**
    * 清理资源 — 释放实例占用的资源

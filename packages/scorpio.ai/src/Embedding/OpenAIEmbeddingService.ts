@@ -13,7 +13,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
     // interface 不需要 super() 调用
   }
 
-  async initialize(): Promise<void> {
+  initialize(): void {
     if (!this.config.apiKey) {
       throw new Error("Embedding config missing apiKey");
     }

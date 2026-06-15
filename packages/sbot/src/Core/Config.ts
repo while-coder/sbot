@@ -2,7 +2,7 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
-import { ModelProvider, EmbeddingProvider } from "scorpio.ai";
+import { ModelProvider, EmbeddingProvider, ModelServiceFactory, EmbeddingServiceFactory } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
 import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "sbot.commons";
@@ -302,7 +302,7 @@ class Config {
     return this._settings.channels[id.trim()];
   }
 
-  async getModelService(id: string | undefined, throwError = false): Promise<IModelService | undefined> {
+  getModelService(id: string | undefined, throwError = false): IModelService | undefined {
     if (!id) {
       if (throwError) throw new Error(`Model config "${id}" not found`);
       return undefined;
@@ -312,17 +312,15 @@ class Config {
       if (throwError) throw new Error(`Model config "${id}" not found`);
       return undefined;
     }
-    const { ModelServiceFactory } = await import("scorpio.ai");
     return ModelServiceFactory.getModelService(modelConfig);
   }
 
-  async getEmbeddingService(name: string, throwError = false): Promise<IEmbeddingService | undefined> {
+  getEmbeddingService(name: string, throwError = false): IEmbeddingService | undefined {
     const embeddingConfig = this.getEmbedding(name);
     if (!embeddingConfig) {
       if (throwError) throw new Error(`Embedding config "${name}" not found`);
       return undefined;
     }
-    const { EmbeddingServiceFactory } = await import("scorpio.ai");
     return EmbeddingServiceFactory.getEmbeddingService(embeddingConfig);
   }
 

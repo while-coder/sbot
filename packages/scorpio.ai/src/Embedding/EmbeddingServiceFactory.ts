@@ -7,7 +7,7 @@ import { VoyageAIEmbeddingService } from "./VoyageAIEmbeddingService";
 import { EmbeddingConfig, EmbeddingProvider } from "./types";
 
 export class EmbeddingServiceFactory {
-  static async getEmbeddingService(config: EmbeddingConfig): Promise<IEmbeddingService> {
+  static getEmbeddingService(config: EmbeddingConfig): IEmbeddingService {
     let service: IEmbeddingService;
 
     switch (config.provider) {
@@ -28,7 +28,7 @@ export class EmbeddingServiceFactory {
         break;
     }
 
-    await service.initialize();
+    service.initialize();
     return service;
   }
 }

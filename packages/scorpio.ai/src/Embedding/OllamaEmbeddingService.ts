@@ -11,7 +11,7 @@ export class OllamaEmbeddingService implements IEmbeddingService {
 
   constructor(private config: EmbeddingConfig) {}
 
-  async initialize(): Promise<void> {
+  initialize(): void {
     this.embeddings = new OllamaEmbeddings({
       baseUrl: this.config.baseURL ?? "http://localhost:11434",
       model: this.config.model,

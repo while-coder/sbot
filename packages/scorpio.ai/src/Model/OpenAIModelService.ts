@@ -29,7 +29,7 @@ export class OpenAIModelService implements IModelService {
     };
   }
 
-  async initialize(): Promise<void> {
+  initialize(): void {
     this.model = new ChatOpenAI(this.buildChatOpenAIOptions());
   }
 
