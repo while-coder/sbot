@@ -60,7 +60,7 @@ export class SmartHeartbeat extends HeartbeatBase<SmartHeartbeatRow> {
             return { shouldSend: false, reason: "decisionModelId not configured" };
         }
 
-        const modelService = await config.getModelService(row.decisionModelId);
+        const modelService = config.getModelService(row.decisionModelId);
         if (!modelService) {
             logger.warn(`${tag} model service "${row.decisionModelId}" not found`);
             return { shouldSend: false, reason: `model service ${row.decisionModelId} not found` };

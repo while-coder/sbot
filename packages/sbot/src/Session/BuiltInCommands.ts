@@ -113,7 +113,7 @@ export class CompactCommand implements ICommand {
         if (agentEntry.type !== AgentMode.Single && agentEntry.type !== AgentMode.ReAct) return '当前 Agent 类型不支持压缩';
         const toolEntry = agentEntry as ToolAgentEntry;
         const compactModelId = toolEntry.compactModel || toolEntry.model;
-        const summaryModel = await config.getModelService(compactModelId);
+        const summaryModel = config.getModelService(compactModelId);
         if (!summaryModel) return `模型 "${compactModelId}" 不可用`;
 
         let handle;

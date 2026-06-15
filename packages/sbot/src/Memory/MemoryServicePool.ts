@@ -24,7 +24,7 @@ const resolveConfig: MemoryServiceConfigResolver = async (memoryId) => {
         throw new Error(`MemoryProfile "${memoryId}" missing writerModel`);
     }
 
-    const writerModel = await config.getModelService(profile.writerModel, true);
+    const writerModel = config.getModelService(profile.writerModel, true);
     if (!writerModel) {
         throw new Error(`MemoryProfile "${memoryId}" writerModel "${profile.writerModel}" cannot be resolved`);
     }

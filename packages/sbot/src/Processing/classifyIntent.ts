@@ -26,7 +26,7 @@ export async function classifyIntent(
   intentThreshold: number,
   sessionName?: string,
 ): Promise<boolean> {
-  const modelService = await config.getModelService(intentModelId);
+  const modelService = config.getModelService(intentModelId);
   if (!modelService) return true;
   let text = truncate(contentToString(query), 100);
   try {

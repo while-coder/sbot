@@ -213,14 +213,14 @@ export class AgentFactory {
     ): Promise<AgentServiceBase> {
 
         container.registerWithArgs(IConversationCompactor, ConversationCompactor, {
-            [T_SummaryModelService]: await config.getModelService(entry.compactModel || entry.model, true),
+            [T_SummaryModelService]: config.getModelService(entry.compactModel || entry.model, true),
             [T_CompactPromptTemplate]: loadPrompt('compact/instruction.txt'),
             [T_PostCompactMessageTemplate]: loadPrompt('compact/post_message.txt'),
             [T_PostCompactContinuation]: loadPrompt('compact/post_continuation.txt'),
         });
 
         container.registerWithArgs(SingleAgentService, {
-            [IModelService]: await config.getModelService(entry.model, true),
+            [IModelService]: config.getModelService(entry.model, true),
             [T_StaticSystemPrompts]: systemPrompts,
             [T_ToolOverflowDir]: config.getConfigPath("tool-overflow", true),
             ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout * 1000 }),
@@ -237,7 +237,7 @@ export class AgentFactory {
         systemPrompts: string[],
     ): Promise<AgentServiceBase> {
         const args: Record<symbol, any> = {
-            [IModelService]: await config.getModelService(entry.model, true),
+            [IModelService]: config.getModelService(entry.model, true),
             [T_StaticSystemPrompts]: systemPrompts,
         };
         if (entry.maxHistoryRounds != null) {
@@ -276,7 +276,7 @@ export class AgentFactory {
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: enrichedSubNodes,
             [T_CreateAgent]: createAgentFn,
-            [T_ThinkModelService]: await config.getModelService(entry.model, true),
+            [T_ThinkModelService]: config.getModelService(entry.model, true),
             [T_StaticSystemPrompts]: systemPrompts,
             [T_ToolOverflowDir]: config.getConfigPath("tool-overflow", true),
             [T_ReactSystemPromptTemplate]: loadPrompt('agent/react_system.txt'),

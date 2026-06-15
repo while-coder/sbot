@@ -189,7 +189,7 @@ export class AgentRunner {
 
         // embedding 可选：没配则 NoteService 退化为 BM25 + time decay + access。
         const embedding = noteConfig.embedding
-            ? await config.getEmbeddingService(noteConfig.embedding, true)
+            ? config.getEmbeddingService(noteConfig.embedding, true)
             : undefined;
 
         const sub = new ServiceContainer();
@@ -232,7 +232,7 @@ export class AgentRunner {
 
         // embedding 可选：没配则 HybridSearcher 退化为 BM25-only。
         const embedding = wikiConfig.embedding
-            ? await config.getEmbeddingService(wikiConfig.embedding, true)
+            ? config.getEmbeddingService(wikiConfig.embedding, true)
             : undefined;
 
         const sub = new ServiceContainer();
@@ -295,7 +295,7 @@ export class AgentRunner {
         const syncModelId = profileConfig.syncModel;
         let extractor: IAgendaExtractor | undefined;
         if (syncModelId) {
-            const extractorModel = await config.getModelService(syncModelId, true);
+            const extractorModel = config.getModelService(syncModelId, true);
             const sub = new ServiceContainer();
             if (container.isRegistered(ILoggerService)) {
                 sub.registerInstance(ILoggerService, container.resolve(ILoggerService));
