@@ -11,12 +11,11 @@ interface MemoryProfileForm {
   writerModel: string
   writerPromptFile: string
   readPromptFile: string
-  idleMs: number
-  maxMessages: number
-  minTurns: number
-  concurrency: number
-  maxAttempts: number
-  menuMaxEntries: number
+  idleMinutes: number
+  windowMaxMessages: number
+  writerConcurrency: number
+  jobMaxAttempts: number
+  writerMemoryMenuMaxEntries: number
 }
 
 interface MemorySummary {
@@ -98,12 +97,11 @@ function emptyForm(): MemoryProfileForm {
     writerModel: '',
     writerPromptFile: '',
     readPromptFile: '',
-    idleMs: 600_000,
-    maxMessages: 50,
-    minTurns: 2,
-    concurrency: 3,
-    maxAttempts: 3,
-    menuMaxEntries: 200,
+    idleMinutes: 10,
+    windowMaxMessages: 50,
+    writerConcurrency: 3,
+    jobMaxAttempts: 3,
+    writerMemoryMenuMaxEntries: 200,
   }
 }
 
@@ -143,12 +141,11 @@ function openEdit(id: string) {
     writerModel: p.writerModel || '',
     writerPromptFile: p.writerPromptFile || '',
     readPromptFile: p.readPromptFile || '',
-    idleMs: p.idleMs ?? 600_000,
-    maxMessages: p.maxMessages ?? 50,
-    minTurns: p.minTurns ?? 2,
-    concurrency: p.concurrency ?? 3,
-    maxAttempts: p.maxAttempts ?? 3,
-    menuMaxEntries: p.menuMaxEntries ?? 200,
+    idleMinutes: p.idleMinutes ?? 10,
+    windowMaxMessages: p.windowMaxMessages ?? 50,
+    writerConcurrency: p.writerConcurrency ?? 3,
+    jobMaxAttempts: p.jobMaxAttempts ?? 3,
+    writerMemoryMenuMaxEntries: p.writerMemoryMenuMaxEntries ?? 200,
   }
   loadPrompts()
   showModal.value = true
@@ -164,12 +161,11 @@ async function save() {
       name: form.value.name.trim(),
       enabled: form.value.enabled,
       writerModel: form.value.writerModel,
-      idleMs: form.value.idleMs,
-      maxMessages: form.value.maxMessages,
-      minTurns: form.value.minTurns,
-      concurrency: form.value.concurrency,
-      maxAttempts: form.value.maxAttempts,
-      menuMaxEntries: form.value.menuMaxEntries,
+      idleMinutes: form.value.idleMinutes,
+      windowMaxMessages: form.value.windowMaxMessages,
+      writerConcurrency: form.value.writerConcurrency,
+      jobMaxAttempts: form.value.jobMaxAttempts,
+      writerMemoryMenuMaxEntries: form.value.writerMemoryMenuMaxEntries,
     }
     if (form.value.writerPromptFile) body.writerPromptFile = form.value.writerPromptFile
     if (form.value.readPromptFile)   body.readPromptFile   = form.value.readPromptFile
@@ -411,23 +407,20 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
           <option v-for="p in readPromptFiles" :key="p.path" :value="p.path">{{ p.path }}</option>
         </SSelect>
       </SFormItem>
-      <SFormItem :label="t('memory_profiles.idle_ms')">
-        <SInput type="number" :model-value="form.idleMs" @update:model-value="(v: any) => (form.idleMs = Number(v) || 0)" />
+      <SFormItem :label="t('memory_profiles.idle_minutes')">
+        <SInput type="number" :model-value="form.idleMinutes" @update:model-value="(v: any) => (form.idleMinutes = Number(v) || 1)" />
       </SFormItem>
-      <SFormItem :label="t('memory_profiles.max_messages')">
-        <SInput type="number" :model-value="form.maxMessages" @update:model-value="(v: any) => (form.maxMessages = Number(v) || 0)" />
+      <SFormItem :label="t('memory_profiles.window_max_messages')">
+        <SInput type="number" :model-value="form.windowMaxMessages" @update:model-value="(v: any) => (form.windowMaxMessages = Number(v) || 1)" />
       </SFormItem>
-      <SFormItem :label="t('memory_profiles.min_turns')">
-        <SInput type="number" :model-value="form.minTurns" @update:model-value="(v: any) => (form.minTurns = Number(v) || 0)" />
+      <SFormItem :label="t('memory_profiles.writer_concurrency')">
+        <SInput type="number" :model-value="form.writerConcurrency" @update:model-value="(v: any) => (form.writerConcurrency = Number(v) || 1)" />
       </SFormItem>
-      <SFormItem :label="t('memory_profiles.concurrency')">
-        <SInput type="number" :model-value="form.concurrency" @update:model-value="(v: any) => (form.concurrency = Number(v) || 1)" />
+      <SFormItem :label="t('memory_profiles.job_max_attempts')">
+        <SInput type="number" :model-value="form.jobMaxAttempts" @update:model-value="(v: any) => (form.jobMaxAttempts = Number(v) || 1)" />
       </SFormItem>
-      <SFormItem :label="t('memory_profiles.max_attempts')">
-        <SInput type="number" :model-value="form.maxAttempts" @update:model-value="(v: any) => (form.maxAttempts = Number(v) || 1)" />
-      </SFormItem>
-      <SFormItem :label="t('memory_profiles.menu_max_entries')">
-        <SInput type="number" :model-value="form.menuMaxEntries" @update:model-value="(v: any) => (form.menuMaxEntries = Number(v) || 100)" />
+      <SFormItem :label="t('memory_profiles.writer_memory_menu_max_entries')">
+        <SInput type="number" :model-value="form.writerMemoryMenuMaxEntries" @update:model-value="(v: any) => (form.writerMemoryMenuMaxEntries = Number(v) || 100)" />
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>

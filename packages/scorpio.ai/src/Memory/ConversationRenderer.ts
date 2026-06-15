@@ -62,7 +62,7 @@ function safeJson(value: unknown): string {
     }
 }
 
-/** 统计 user → assistant 的来回轮数（用于 minTurns 门槛）。 */
+/** 统计 user → assistant 的来回轮数（用于抽取 job 元数据）。 */
 export function countTurns(messages: StoredMessage[]): number {
     let turns = 0;
     let lastWasHuman = false;

@@ -100,20 +100,18 @@ export interface MemoryProfileConfig {
   readPromptFile?: string
 
   // ── 调度（可选，省略走默认） ──
-  /** session 距最后一条用户消息多久后触发抽取（毫秒），默认 600_000 (10 min) */
-  idleMs?: number
-  /** 自上次抽取后累计消息数上限触发，默认 50 */
-  maxMessages?: number
-  /** 来回轮数下限，低于此跳过排队（省 token），默认 2 */
-  minTurns?: number
-  /** worker 并发上限，默认 3 */
-  concurrency?: number
+  /** session 距最后一条用户消息多久后触发抽取（分钟），默认 10 */
+  idleMinutes?: number
+  /** 每个抽取窗口最多包含的消息数；达到该数量会触发切片抽取，默认 50 */
+  windowMaxMessages?: number
+  /** MemoryWriter 并发处理 extract job 的数量上限，默认 3 */
+  writerConcurrency?: number
   /** 单 job 最大重试次数，默认 3 */
-  maxAttempts?: number
+  jobMaxAttempts?: number
 
-  // ── 注入 ──
-  /** 注入 menu 时的最大条目数（控 token），默认 200 */
-  menuMaxEntries?: number
+  // ── Writer 上下文 ──
+  /** MemoryWriter 判断 create/update 时可见的已有记忆菜单条目上限，默认 200 */
+  writerMemoryMenuMaxEntries?: number
 }
 
 export interface AgendaProfileConfig {

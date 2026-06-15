@@ -116,7 +116,7 @@ class MemoryServicePool {
         return true;
     }
 
-    /** pool 释放前 / admin 手动触发：忽略 idleMs，尽快处理已完成窗口。 */
+    /** pool 释放前 / admin 手动触发：忽略 idleMinutes，尽快处理已完成窗口。 */
     async forceFlush(memoryId: string): Promise<boolean> {
         const entry = await this.getEntry(memoryId);
         await entry.scheduler.runOnce({ forceReady: true });

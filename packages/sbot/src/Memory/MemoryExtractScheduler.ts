@@ -25,11 +25,11 @@ const EXTRACT_TICK_MS = 60 * 1000;
  *
  * 每 EXTRACT_TICK_MS：
  *   1. 扫描所有绑定该 memoryId 的 sessions
- *   2. 对满足 idle / maxMessages 阈值且过 minTurns 门槛的 session enqueue 一条抽取 job
+ *   2. 对满足 idle / windowMaxMessages 阈值的 session enqueue 下一段抽取 job
  *   3. 调 worker.runOnce 处理积压 + 新入队的 job
  *
- * 触发逻辑：每 60s 扫绑定该 memoryId 的 sessions，对满足 idle / maxMessages
- * 阈值且过 minTurns 门槛的 session enqueue 一条抽取 job；调 worker.runOnce
+ * 触发逻辑：每 60s 扫绑定该 memoryId 的 sessions，对满足 idle / windowMaxMessages
+ * 阈值的 session enqueue 下一段抽取 job；切片优先落在 turn 边界，调 worker.runOnce
  * 处理积压 + 新入队的 job。
  */
 export class MemoryExtractScheduler {
@@ -72,9 +72,9 @@ export class MemoryExtractScheduler {
             await this.enqueueIdleSessions(options);
             const stats = await this.worker.runOnce({
                 leaseMs: EXTRACT_LEASE_MS,
-                concurrency: this.profile.concurrency ?? 3,
-                maxAttempts: this.profile.maxAttempts ?? 3,
-                menuMaxEntries: this.profile.menuMaxEntries ?? 200,
+                concurrency: this.profile.writerConcurrency ?? 3,
+                maxAttempts: this.profile.jobMaxAttempts ?? 3,
+                menuMaxEntries: this.profile.writerMemoryMenuMaxEntries ?? 200,
                 fetchJobContext: (job) => this.fetchJobContext(job),
             });
             if (stats.claimed > 0) {
@@ -93,13 +93,12 @@ export class MemoryExtractScheduler {
         if (candidates.length === 0) return;
 
         const now = Date.now();
-        const idleMs = this.profile.idleMs ?? 600_000;
-        const maxMessages = this.profile.maxMessages ?? 50;
-        const minTurns = this.profile.minTurns ?? 2;
+        const idleMs = Math.max(1, this.profile.idleMinutes ?? 10) * 60_000;
+        const windowMaxMessages = Math.max(1, this.profile.windowMaxMessages ?? 50);
 
         for (const candidate of candidates) {
             try {
-                await this.tryEnqueueOne(candidate, now, idleMs, maxMessages, minTurns, !!options?.forceReady);
+                await this.tryEnqueueOne(candidate, now, idleMs, windowMaxMessages, !!options?.forceReady);
             } catch (e: any) {
                 logger.warn(`[${this.memoryId}] enqueue scan failed for thread=${candidate.threadId}: ${e?.message ?? e}`);
             }
@@ -110,8 +109,7 @@ export class MemoryExtractScheduler {
         candidate: MemorySessionCandidate,
         now: number,
         idleMs: number,
-        maxMessages: number,
-        minTurns: number,
+        windowMaxMessages: number,
         forceReady: boolean,
     ): Promise<void> {
         const lastCursor = await this.store.findLatestCompletedWindowEnd(candidate.threadId);
@@ -124,16 +122,16 @@ export class MemoryExtractScheduler {
             const window = allMessages.filter(m => m.id > startId);
             if (window.length === 0) return;
 
-            const turnCount = countTurns(window);
-            if (turnCount < minTurns) return;
-
             const newest = window[window.length - 1];
             const newestUserTime = lastUserMessageTimestamp(window);
             const idle = newestUserTime !== null && (now - newestUserTime) >= idleMs;
-            const sizeReached = window.length >= maxMessages;
+            const sizeReached = window.length >= windowMaxMessages;
             if (!forceReady && !idle && !sizeReached) return;
 
-            const endCursor = String(newest.id);
+            const slice = sliceAtTurnBoundary(window, windowMaxMessages, idle || forceReady);
+            if (slice.length === 0) return;
+            const endCursor = String(slice[slice.length - 1].id);
+            const turnCount = countTurns(slice);
             const rolloutKey = `${candidate.threadId}:${startCursor || "0"}:${endCursor}`;
 
             await this.store.enqueueExtract({
@@ -181,4 +179,30 @@ function lastUserMessageTimestamp(messages: StoredMessage[]): number | null {
         if (messages[i].message.role === MessageRole.Human) return messages[i].createdAt;
     }
     return null;
+}
+
+function sliceAtTurnBoundary(messages: StoredMessage[], windowMaxMessages: number, allowOpenTail: boolean): StoredMessage[] {
+    const limit = Math.min(windowMaxMessages, messages.length);
+    const boundaryBeforeLimit = findLastTurnBoundaryBefore(messages, limit);
+    if (boundaryBeforeLimit > 0) return messages.slice(0, boundaryBeforeLimit);
+
+    const boundaryAfterLimit = findNextTurnBoundaryAtOrAfter(messages, limit);
+    if (boundaryAfterLimit > 0) return messages.slice(0, boundaryAfterLimit);
+
+    return allowOpenTail ? messages : [];
+}
+
+function findLastTurnBoundaryBefore(messages: StoredMessage[], limitExclusive: number): number {
+    let boundary = 0;
+    for (let i = 1; i < limitExclusive && i < messages.length; i++) {
+        if (messages[i].message.role === MessageRole.Human) boundary = i;
+    }
+    return boundary;
+}
+
+function findNextTurnBoundaryAtOrAfter(messages: StoredMessage[], startIndex: number): number {
+    for (let i = Math.max(1, startIndex); i < messages.length; i++) {
+        if (messages[i].message.role === MessageRole.Human) return i;
+    }
+    return 0;
 }

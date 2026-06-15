@@ -405,10 +405,29 @@ export class MemoryStore implements IMemoryStore {
     async claimExtract(now: number, leaseMs: number, limit: number): Promise<ExtractJobRow[]> {
         const tx = this.db.transaction((nowTs: number, leaseDur: number, lim: number) => {
             const eligible = this.db.prepare(`
-                SELECT id FROM memory_extract_jobs
-                WHERE status = 'pending'
-                   OR (status = 'claimed' AND lease_expires_at IS NOT NULL AND lease_expires_at < @now)
-                   OR (status = 'failed' AND next_retry_at IS NOT NULL AND next_retry_at <= @now)
+                SELECT j.id FROM memory_extract_jobs j
+                WHERE (
+                    j.status = 'pending'
+                    OR (j.status = 'claimed' AND j.lease_expires_at IS NOT NULL AND j.lease_expires_at < @now)
+                    OR (j.status = 'failed' AND j.next_retry_at IS NOT NULL AND j.next_retry_at <= @now)
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM memory_extract_jobs active
+                    WHERE active.thread_id = j.thread_id
+                      AND active.status = 'claimed'
+                      AND active.lease_expires_at IS NOT NULL
+                      AND active.lease_expires_at >= @now
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM memory_extract_jobs older
+                    WHERE older.thread_id = j.thread_id
+                      AND older.id < j.id
+                      AND (
+                          older.status = 'pending'
+                          OR (older.status = 'claimed' AND older.lease_expires_at IS NOT NULL AND older.lease_expires_at < @now)
+                          OR (older.status = 'failed' AND older.next_retry_at IS NOT NULL AND older.next_retry_at <= @now)
+                      )
+                )
                 ORDER BY id ASC
                 LIMIT @limit
             `).all({ now: nowTs, limit: lim }) as Array<{ id: number }>;
