@@ -24,7 +24,7 @@ export class SystemRoutes {
             refreshGlobalSkillService();
             refreshGlobalAgentToolService();
             // settings 重新加载后，缓存的 MemoryService 可能绑着旧 writerModel / prompt，全部丢掉
-            memoryServicePool.disposeAll();
+            memoryServicePool.invalidateAll();
             return { message: 'Config reloaded' };
         }));
 

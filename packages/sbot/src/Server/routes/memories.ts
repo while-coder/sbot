@@ -31,22 +31,26 @@ export class MemoryRoutes {
          */
         app.get('/api/memories/:id/list', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const service = memoryServicePool.get(memoryId);
+            const service = memoryServicePool.acquire(memoryId);
             if (!service) return { memoryId, memories: [] };
-            const rows = await service.listAll();
-            // body 不返回（避免响应膨胀）；admin UI 单击行后再走 read_memory 取全文
-            const summary = rows.map(r => ({
-                slug: r.slug,
-                kind: r.kind,
-                title: r.title,
-                description: r.description,
-                evidenceCount: r.evidenceCount,
-                createdAt: r.createdAt,
-                updatedAt: r.updatedAt,
-                lastReadAt: r.lastReadAt,
-                readCount: r.readCount,
-            }));
-            return { memoryId, memories: summary };
+            try {
+                const rows = await service.listAll();
+                // body 不返回（避免响应膨胀）；admin UI 单击行后再走 read_memory 取全文
+                const summary = rows.map(r => ({
+                    slug: r.slug,
+                    kind: r.kind,
+                    title: r.title,
+                    description: r.description,
+                    evidenceCount: r.evidenceCount,
+                    createdAt: r.createdAt,
+                    updatedAt: r.updatedAt,
+                    lastReadAt: r.lastReadAt,
+                    readCount: r.readCount,
+                }));
+                return { memoryId, memories: summary };
+            } finally {
+                service.release();
+            }
         }));
 
         /** 最近的待处理消息行（pending + failed），用于排查后台抽取是否正常推进。 */
@@ -69,11 +73,15 @@ export class MemoryRoutes {
             const memoryId = requireMemoryId(req.params.id);
             const slug = String(req.params.slug ?? '').trim();
             if (!slug) throwBad('Missing slug');
-            const service = memoryServicePool.get(memoryId);
+            const service = memoryServicePool.acquire(memoryId);
             if (!service) throwBad(`MemoryProfile "${memoryId}" not initialized`);
-            const row = (await service.listAll()).find(r => r.slug === slug) ?? null;
-            if (!row) throwBad(`Memory "${slug}" not found`);
-            return { memoryId, slug, row };
+            try {
+                const row = (await service.listAll()).find(r => r.slug === slug) ?? null;
+                if (!row) throwBad(`Memory "${slug}" not found`);
+                return { memoryId, slug, row };
+            } finally {
+                service.release();
+            }
         }));
     }
 }

@@ -4,9 +4,7 @@ import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
     T_MemoryMenuMaxEntries,
-    T_MemoryId,
 } from "../../Core/tokens";
-import { MemoryServicePool } from "./MemoryServicePool";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import {
@@ -25,6 +23,7 @@ import {
 } from "../Storage/IMemoryStore";
 import { type ChatMessage, MessageRole } from "../../Saver";
 import { contentToString } from "../../Utils/contentUtils";
+import { memoryServicePool } from "./MemoryServicePool";
 
 const DEFAULT_MENU_LIMIT = 200;
 const DEFAULT_SEARCH_LIMIT = 10;
@@ -127,27 +126,42 @@ type MemoryUpdateMergeOutput = z.infer<typeof MemoryUpdateMergeSchema>;
  */
 export class MemoryService implements IMemoryService {
     private logger?: ILogger;
-    private readonly memoryId: string;
     private readonly modelService: IModelService;
     private readonly writerPrompt: string;
     private readonly menuMaxEntries: number;
     private isRunning = false;
-    private disposing = false;
+    private refCount = 0;
+    private disposed = false;
 
     constructor(
         @inject(IMemoryStore) private readonly store: IMemoryStore,
         @inject(T_MemoryReadTemplate) private readonly readTemplate: string,
         @inject(T_MemoryWriterPrompt) writerPrompt: string,
         @inject(IModelService) modelService: IModelService,
-        @inject(T_MemoryId, { optional: true }) memoryId?: string,
         @inject(T_MemoryMenuMaxEntries, { optional: true }) menuMaxEntries?: number,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("MemoryService");
-        this.memoryId = memoryId ?? '';
         this.modelService = modelService;
         this.writerPrompt = writerPrompt;
         this.menuMaxEntries = menuMaxEntries ?? DEFAULT_MENU_LIMIT;
+    }
+
+    // ── 生命周期：refCount 配对，归零一次性 teardown ──
+
+    /** Pool 在 acquire 时调用：refCount++。仅 pool 用，不在 IMemoryService 接口暴露。 */
+    incRef(): void {
+        this.refCount++;
+    }
+
+    /** Caller 调用（AgentRunner finally）：refCount--，归零关 store 并让 pool 驱逐自己。 */
+    release(): void {
+        if (--this.refCount !== 0 || this.disposed) return;
+        this.disposed = true;
+        try { this.store.dispose(); } catch (e: any) {
+            this.logger?.warn(`memory store dispose failed: ${e?.message ?? e}`);
+        }
+        memoryServicePool.evict(this);
     }
 
     // ── 读路径 ──
@@ -203,17 +217,6 @@ export class MemoryService implements IMemoryService {
     }
 
     /**
-     * 上层（pool）通知：销毁本 service。
-     * 设标记 + 触发一次 drain；drain 结束（或当下队列已空）时 checkMessages 回调
-     * MemoryServicePool.notifyServiceIdle，由 pool 关闭 store。
-     */
-    dispose(): void {
-        if (this.disposing) return;
-        this.disposing = true;
-        void this.checkMessages();
-    }
-
-    /**
      * 串行消费 pending 队列：isRunning 单标志 + 循环 popPendingMessages → 处理 → 删行 / 标 failed。
      *
      * 互斥与漏单保证：
@@ -221,19 +224,23 @@ export class MemoryService implements IMemoryService {
      * - 任何 push 都是先同步 SQL INSERT 再 `void checkMessages()`：
      *   若当前 drain 还在跑，循环里下一次 pop 必然命中（同步 SQL，已落库）；
      *   若已退出，新调用直接进入新一轮 drain（finally 已置 isRunning=false）。
-     * - 异常自吞，不向调用方传播：调用方都是 fire-and-forget。
+     * - 自固定 refCount：drain 自己持一份引用，期间 caller release 不会触发 teardown，
+     *   drain 跑完 finally 里再 release —— 调用方（chat / admin）无需关心 release 时机。
+     * - 异常自吞：DB 操作在 store 被关后会 throw（理论上 self-pin 后不该出现），
+     *   全部 catch；未删除的 pending 行留在 SQLite 文件中，下次启动 processPending()
+     *   重新拉起。
      */
     private async checkMessages(): Promise<void> {
         if (this.isRunning) return;
         this.isRunning = true;
+        this.refCount++;
         try {
             while (true) {
                 let next: PendingMessageRow | null;
                 try {
                     next = this.store.popPendingMessages();
-                } catch (e: any) {
-                    this.logger?.error(`memory popPendingMessages failed: ${e?.message ?? e}`);
-                    break;
+                } catch {
+                    break;  // forceDispose 关闭了 store → 优雅退出
                 }
                 if (!next) break;
                 try {
@@ -245,23 +252,13 @@ export class MemoryService implements IMemoryService {
                     );
                 } catch (e: any) {
                     const errMsg = (e?.message ?? String(e)).slice(0, 1000);
-                    try { this.store.markPendingFailed(next.id, errMsg, Date.now()); } catch { /* swallow */ }
+                    try { this.store.markPendingFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
                     this.logger?.warn(`memory pending #${next.id} extraction failed: ${errMsg}`);
                 }
             }
         } finally {
             this.isRunning = false;
-        }
-        // 队列抽干 + 上层请求过 dispose → 主动通知 pool 单例完成 dispose；fire 一次后清标记
-        if (this.disposing) {
-            this.disposing = false;
-            if (this.memoryId) {
-                try {
-                    MemoryServicePool.getInstance().notifyServiceIdle(this.memoryId);
-                } catch (e: any) {
-                    this.logger?.warn(`memory notifyServiceIdle threw: ${e?.message ?? e}`);
-                }
-            }
+            this.release();  // 配对开头 refCount++；归零自动 teardown
         }
     }
 

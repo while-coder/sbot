@@ -49,11 +49,6 @@ export const T_MemoryReadTemplate = Symbol("scorpio:T_MemoryReadTemplate");
 export const T_MemoryWriterPrompt = Symbol("scorpio:T_MemoryWriterPrompt");
 /** MemoryWriter 判断 create/update 时可见的 menu 条目上限。 */
 export const T_MemoryMenuMaxEntries = Symbol("scorpio:T_MemoryMenuMaxEntries");
-/**
- * 当前 MemoryService 实例对应的 memoryId（pool 装配时注入）。
- * service drain 完成 + 收到 release 请求后，凭这个 id 回调 MemoryServicePool.getInstance().notifyServiceIdle(id)。
- */
-export const T_MemoryId = Symbol("scorpio:T_MemoryId");
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");

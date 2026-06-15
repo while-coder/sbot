@@ -5,7 +5,6 @@ import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
     T_MemoryMenuMaxEntries,
-    T_MemoryId,
 } from "../../Core/tokens";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
@@ -43,11 +42,6 @@ export interface MemoryServiceConfig {
 export type MemoryServiceConfigResolver =
     (memoryId: string) => MemoryServiceConfig | null;
 
-interface PoolEntry {
-    service: IMemoryService;
-    store: IMemoryStore;
-}
-
 /**
  * 进程内 MemoryService 缓存：每个 memoryId 共享一个实例。**单例**——通过
  * `MemoryServicePool.getInstance()`（或 named export `memoryServicePool`）拿。
@@ -56,11 +50,13 @@ interface PoolEntry {
  * 同 memoryId 全局唯一实例下成立。直接 `new MemoryService(...)` 多次会让多个
  * 实例并发跑 LLM CRUD，破坏 store 数据。
  *
- * 生命周期模型（无 refCount，无 handle）：
- * - 第一次 `get(id)` / `acquire(id)` 时懒构造 + 缓存；之后稳定常驻
- * - profile 配置变更走 `invalidate(id)`：从 cache 移到 disposing；service 抽干 pending
- *   后回调 `notifyServiceIdle(id)`，pool 关 store
- * - 进程退出走 `disposeAll()`：批量 invalidate
+ * 生命周期模型（纯 refCount，无强制销毁）：
+ * - acquire(id)：cache miss → build 新实例 + 注册 onDispose 自驱逐；命中实例 incRef
+ *   后返回；调用方用完后 service.release() 配对归还
+ * - refCount 归零自动 teardown：关 SQLite store + 调 onDispose 把自己从 cache 删掉
+ * - drain（checkMessages）自固定 refCount，drain 期间 caller release 不会触发 teardown
+ * - invalidate(id) / invalidateAll()：仅 cache.delete，不动 refCount —— 已 acquire 的
+ *   实例继续服务到 refCount 归零；下次 acquire 同 id 拿到全新实例（profile 配置变更场景）
  */
 export class MemoryServicePool {
     private static _instance: MemoryServicePool | null = null;
@@ -71,9 +67,7 @@ export class MemoryServicePool {
         return this._instance;
     }
 
-    private cache = new Map<string, PoolEntry>();
-    /** 已从 cache 摘掉、正在等 drain 完成的 entry；notifyServiceIdle 凭 memoryId 在这里找 store 关闭。 */
-    private disposing = new Map<string, PoolEntry>();
+    private cache = new Map<string, MemoryService>();
     private resolveConfig?: MemoryServiceConfigResolver;
     private loggerService?: ILoggerService;
     private logger?: ILogger;
@@ -91,78 +85,78 @@ export class MemoryServicePool {
         this.logger = svc.getLogger("MemoryServicePool");
     }
 
-    /** 拿 service 实例（懒构造 + 缓存）。无引用计数，caller 不需要释放。 */
-    get(memoryId: string): IMemoryService | null {
-        return this.getEntry(memoryId)?.service ?? null;
-    }
-
-    /** alias for `get` —— 保留语义化命名。 */
+    /**
+     * 拿一个 service 引用并 incRef。caller 用完务必调 `service.release()`。
+     * cache 中只可能有"还活着"的 service —— refCount 归零的 service 会通过 onDispose
+     * 自我从 cache 移除，所以这里直接 get 就行。
+     */
     acquire(memoryId: string): IMemoryService | null {
-        return this.get(memoryId);
+        let service = this.cache.get(memoryId);
+        if (!service) {
+            service = this.build(memoryId) ?? undefined;
+            if (!service) return null;
+        }
+        service.incRef();
+        // incRef 之后再 kick drain：drain 自固定的引用是叠加在 caller 的 1 之上，
+        // 即便队列空导致 drain 立刻 release，refCount 也不会落到 0。
+        service.processPending();
+        return service;
     }
 
     /**
-     * profile 失效（编辑 / 删除）：先把 entry 摘出 cache 防止后续 get 命中老实例，
-     * 再通知 service 抽干 pending；drain 完成后 service 回调 notifyServiceIdle 关 store。
+     * profile 失效（编辑 / 删除）：仅从 cache 摘除。已 acquire 的实例继续服务到
+     * refCount 归零；下次 acquire 同 id 会构建新实例（吃到新配置）。
      */
     invalidate(memoryId: string): void {
-        const entry = this.cache.get(memoryId);
-        if (!entry) return;
-        this.cache.delete(memoryId);
-        this.disposing.set(memoryId, entry);
-        entry.service.dispose?.();
-        this.logger?.info(`MemoryService [${memoryId}] invalidate requested`);
+        if (this.cache.delete(memoryId)) {
+            this.logger?.info(`MemoryService [${memoryId}] invalidated`);
+        }
     }
 
-    disposeAll(): void {
+    /** 配置整体 reload 时清空 cache。语义同逐个 invalidate。 */
+    invalidateAll(): void {
         if (this.cache.size === 0) return;
-        for (const memoryId of [...this.cache.keys()]) {
-            this.invalidate(memoryId);
+        for (const id of this.cache.keys()) {
+            this.logger?.info(`MemoryService [${id}] invalidated (all)`);
+        }
+        this.cache.clear();
+    }
+
+    /** Service 自驱逐：refCount 归零 teardown 完成后由 service.release() 调进来。
+     *  identity 检查避免误删被 invalidate 后重建的同 id 新实例。 */
+    evict(service: MemoryService): void {
+        for (const [id, cached] of this.cache) {
+            if (cached === service) {
+                this.cache.delete(id);
+                this.logger?.info(`MemoryService [${id}] disposed`);
+                return;
+            }
         }
     }
 
     /** admin 触发：唤醒 pending 队列消费（不阻塞，UI 自行轮询 listPendingMessages 看进度）。 */
     forceExtract(memoryId: string): boolean {
-        const entry = this.getEntry(memoryId);
-        if (!entry) return false;
-        entry.service.processPending();
-        return true;
+        const service = this.acquire(memoryId);
+        if (!service) return false;
+        try { service.processPending(); return true; }
+        finally { service.release(); }
     }
 
-    forceConsolidate(memoryId: string): Promise<MemoryWriterOpStats> | null {
-        const entry = this.getEntry(memoryId);
-        if (!entry) return null;
-        return entry.service.consolidate();
+    async forceConsolidate(memoryId: string): Promise<MemoryWriterOpStats | null> {
+        const service = this.acquire(memoryId);
+        if (!service) return null;
+        try { return await service.consolidate(); }
+        finally { service.release(); }
     }
 
     listPendingMessages(memoryId: string, limit = 50): PendingMessageRow[] {
-        const entry = this.getEntry(memoryId);
-        if (!entry) return [];
-        return entry.service.listPending(limit);
+        const service = this.acquire(memoryId);
+        if (!service) return [];
+        try { return service.listPending(limit); }
+        finally { service.release(); }
     }
 
-    /**
-     * 由 MemoryService 在"drain 完成 + dispose 已请求"时主动回调。
-     * 在 disposing map 里查到 entry 才真正关 store；否则 no-op（service 已被替换或重建）。
-     */
-    notifyServiceIdle(memoryId: string): void {
-        const entry = this.disposing.get(memoryId);
-        if (!entry) return;
-        this.disposing.delete(memoryId);
-        entry.store.dispose();
-        this.logger?.info(`MemoryService [${memoryId}] released`);
-    }
-
-    private getEntry(memoryId: string): PoolEntry | null {
-        const cached = this.cache.get(memoryId);
-        if (cached) return cached;
-
-        const entry = this.build(memoryId);
-        if (entry) this.cache.set(memoryId, entry);
-        return entry;
-    }
-
-    private build(memoryId: string): PoolEntry | null {
+    private build(memoryId: string): MemoryService | null {
         if (!this.resolveConfig) {
             throw new Error('MemoryServicePool: resolver not configured. Call setResolver() before use.');
         }
@@ -171,7 +165,6 @@ export class MemoryServicePool {
 
         const sub = new ServiceContainer();
         if (this.loggerService) sub.registerInstance(ILoggerService, this.loggerService);
-        sub.registerInstance(T_MemoryId, memoryId);
         sub.registerInstance(T_MemoryReadTemplate, cfg.readTemplate);
         sub.registerInstance(T_MemoryWriterPrompt, cfg.writerPrompt);
         sub.registerInstance(T_MemoryMenuMaxEntries, cfg.menuMaxEntries ?? 200);
@@ -183,7 +176,9 @@ export class MemoryServicePool {
         sub.registerSingleton(IMemoryService, MemoryService);
 
         const store = sub.resolve<IMemoryStore>(IMemoryStore);
-        const service = sub.resolve<IMemoryService>(IMemoryService);
+        const service = sub.resolve<MemoryService>(IMemoryService) as MemoryService;
+
+        this.cache.set(memoryId, service);
 
         store.init();
 
@@ -196,11 +191,11 @@ export class MemoryServicePool {
             this.logger?.warn(`[${memoryId}] startup reconcile failed: ${e?.message ?? e}`);
         });
 
-        // 启动时尝试消费历史 pending（上次进程崩溃前未处理的快照）
-        service.processPending();
+        // 历史 pending 由 acquire 在 incRef 之后 kick；这里不再 processPending，
+        // 否则 drain 自固定结束时会自我 teardown（caller 还没 incRef）。
         this.logger?.info(`MemoryService [${memoryId}] built`);
 
-        return { service, store };
+        return service;
     }
 }
 

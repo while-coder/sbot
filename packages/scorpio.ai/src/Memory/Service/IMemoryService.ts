@@ -75,13 +75,13 @@ export interface IMemoryService {
     consolidate(): Promise<MemoryWriterOpStats>;
 
     /**
-     * 上层（pool）通知：本 service 准备销毁。
-     * - 仅设置标记 + 唤醒抽取循环；不阻塞调用方；
-     * - 待 pending 队列抽干后由实现主动回调 pool 单例的 notifyServiceIdle，
-     *   pool 据此关闭 store 并移出缓存。
-     * - 通常由 pool.invalidate / disposeAll 触发；caller 一般不直接调。
+     * caller 释放对 service 的引用：refCount--，归零时关 SQLite store 并通知 pool
+     * 把自己从 cache 摘掉。drain（checkMessages）自固定 refCount，所以 caller
+     * release 不会中断在跑的抽取。
+     *
+     * 与 pool.acquire 配对调用：每次 acquire 必须对应一次 release。
      */
-    dispose?(): void;
+    release(): void;
 }
 
 export const IMemoryService = Symbol("IMemoryService");
