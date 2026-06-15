@@ -304,9 +304,19 @@ function kindVariant(kind: string): 'success' | 'info' | 'warning' | 'danger' | 
   return 'neutral'
 }
 
+function jobTypeLabel(type: string): string {
+  if (type === 'extract') return t('memory_profiles.job_type_extract')
+  if (type === 'consolidate') return t('memory_profiles.job_type_consolidate')
+  return type
+}
+
+function jobStatusLabel(status: string): string {
+  if (status === 'pending') return t('memory_profiles.job_status_pending')
+  if (status === 'failed') return t('memory_profiles.job_status_failed')
+  return status
+}
+
 function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' | 'neutral' {
-  if (status === 'succeeded') return 'success'
-  if (status === 'claimed') return 'info'
   if (status === 'failed') return 'danger'
   if (status === 'pending') return 'warning'
   return 'neutral'
@@ -451,13 +461,13 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
           <div v-for="job in memoryJobs" v-else :key="job.id" class="memory-job">
             <div class="memory-job-head">
               <div class="memory-job-id">#{{ job.id }}</div>
-              <SBadge :variant="jobVariant(job.status)" size="sm">{{ job.status }}</SBadge>
+              <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
             </div>
             <div class="memory-job-grid">
-              <span>{{ t('memory_profiles.job_type') }}</span><code>{{ job.type }}</code>
+              <span>{{ t('memory_profiles.job_type') }}</span><code>{{ jobTypeLabel(job.type) }}</code>
               <span>{{ t('memory_profiles.attempt_count') }}</span><code>{{ job.attemptCount }}</code>
               <span>{{ t('memory_profiles.created_at') }}</span><code>{{ fmtTime(job.createdAt) }}</code>
-              <span>{{ t('memory_profiles.finished_at') }}</span><code>{{ fmtTime(job.updatedAt) }}</code>
+              <span>{{ t('memory_profiles.updated_at') }}</span><code>{{ fmtTime(job.updatedAt) }}</code>
               <span>{{ t('memory_profiles.error_message') }}</span><code>{{ job.errorMessage || '-' }}</code>
             </div>
           </div>
