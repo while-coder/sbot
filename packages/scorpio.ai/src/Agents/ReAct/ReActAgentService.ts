@@ -1,5 +1,5 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout, T_ToolOverflowDir } from "../../Core";
+import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId } from "../../Core";
 import { INoteService } from "../../Note";
 import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, TaskBackedSaver, ConversationCompactor, IConversationCompactor, ContentPartType, type MessageContent } from "../../Saver";
@@ -41,6 +41,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ReactTaskToolDesc) private taskToolDesc: string,
     @inject(ISkillService) skillService: ISkillService,
     @inject(T_ToolOverflowDir) toolOverflowDir: string,
+    @inject(T_ChannelSessionId) channelSessionId: number,
     @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
     @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
@@ -53,7 +54,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
     @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
   ) {
-    super(thinkModelService, skillService, toolOverflowDir, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor);
+    super(thinkModelService, skillService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
   }
@@ -95,6 +96,8 @@ export class ReActAgentService extends SingleAgentService {
         const taskSaver = new TaskBackedSaver(resolvedTaskId, thinkId, parentSaver);
         const subContainer = new ServiceContainer();
         subContainer.registerInstance(IAgentSaverService, taskSaver);
+        // 子任务 SingleAgentService 同样要 T_ChannelSessionId（必传），从父继承一份。
+        subContainer.registerInstance(T_ChannelSessionId, this.channelSessionId);
         if (this.noteServices.length > 0) subContainer.registerInstance(INoteService, this.noteServices);
         if (this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);

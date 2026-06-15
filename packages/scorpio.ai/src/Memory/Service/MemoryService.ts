@@ -5,6 +5,7 @@ import {
     T_MemoryWriterPrompt,
     T_MemoryMenuMaxEntries,
 } from "../../Core/tokens";
+import { truncate } from "../../Core/utils";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import {
@@ -23,7 +24,7 @@ import {
     type PendingMemoryJobRow,
 } from "../Storage/IMemoryStore";
 import { type ChatMessage, MessageRole } from "../../Saver";
-import { contentToString } from "../../Utils/contentUtils";
+import { renderConversation } from "../../Utils/conversationUtils";
 import { memoryServicePool } from "./MemoryServicePool";
 
 const DEFAULT_MENU_LIMIT = 200;
@@ -332,7 +333,7 @@ export class MemoryService implements IMemoryService {
             `evidence_count: ${r.evidenceCount}`,
             `updated_at: ${new Date(r.updatedAt).toISOString()}`,
             ``,
-            truncate(r.body, bodyMaxChars),
+            truncate(r.body, bodyMaxChars, '\n...<truncated>'),
         ].join('\n')).join('\n\n---\n\n');
 
         const messages: ChatMessage[] = [
@@ -488,63 +489,6 @@ export class MemoryService implements IMemoryService {
     }
 }
 
-// ── transcript 渲染（原 ConversationRenderer） ──
-
-/**
- * 把一组 ChatMessage 渲染成可喂给 MemoryLLM 的纯文本 transcript。
- * system 角色的消息会被忽略。
- */
-function renderConversation(messages: ChatMessage[]): string {
-    const lines: string[] = [];
-    for (const msg of messages) {
-        const line = renderMessage(msg);
-        if (line) lines.push(line);
-    }
-    return lines.join("\n\n");
-}
-
-function renderMessage(msg: ChatMessage): string | null {
-    const role = roleLabel(msg.role);
-    if (!role) return null;
-    const text = contentToString(msg.content) || "";
-
-    if (msg.role === MessageRole.AI && msg.tool_calls && msg.tool_calls.length > 0) {
-        const calls = msg.tool_calls.map(c => `${c.name}(${safeJson(c.args)})`).join(", ");
-        if (text) {
-            return `ai: ${text}\n  tool_calls: ${calls}`;
-        }
-        return `ai (tool_calls): ${calls}`;
-    }
-
-    if (msg.role === MessageRole.Tool) {
-        const name = msg.name ?? "tool";
-        const status = msg.status ? ` [${msg.status}]` : "";
-        return `tool[${name}]${status}: ${text}`;
-    }
-
-    return `${role}: ${text}`;
-}
-
-function roleLabel(role: MessageRole): string | null {
-    switch (role) {
-        case MessageRole.Human:  return "human";
-        case MessageRole.AI:     return "ai";
-        case MessageRole.Tool:   return "tool";
-        case MessageRole.System: return null;  // system 不进 transcript
-        default:                 return null;
-    }
-}
-
-function safeJson(value: unknown): string {
-    try {
-        const s = JSON.stringify(value);
-        if (s == null) return "";
-        return s.length > 2048 ? s.slice(0, 2048) + "...<truncated>" : s;
-    } catch {
-        return "<unserializable>";
-    }
-}
-
 function renderWriterInput(menu: MemoryMenuEntry[], conversation: string): string {
     const menuLines = menu.length === 0
         ? '_(no existing memories)_'
@@ -566,7 +510,3 @@ function renderWriterInput(menu: MemoryMenuEntry[], conversation: string): strin
     ].join('\n');
 }
 
-function truncate(text: string, maxChars: number): string {
-    if (text.length <= maxChars) return text;
-    return text.slice(0, maxChars) + `\n...<truncated>`;
-}

@@ -4,7 +4,13 @@ import { rm } from "fs/promises";
 import path from "path";
 import { inject } from "scorpio.di";
 import { T_AgendaDbPath } from "../../Core";
-import { IAgendaStore } from "./IAgendaStore";
+import type { ChatMessage } from "../../Saver";
+import {
+    AgendaPendingJobType,
+    type AgendaPendingJobStatus,
+    type PendingAgendaJobRow,
+    IAgendaStore,
+} from "./IAgendaStore";
 import type {
     AgendaItem,
     AgendaOccurrence,
@@ -30,6 +36,12 @@ export class AgendaStore implements IAgendaStore {
     constructor(
         @inject(T_AgendaDbPath) private readonly dbPath: string,
     ) {}
+
+    /** 显式触发 schema 创建。幂等。pool build 之后调用一次，确保表存在。 */
+    init(): void {
+        // 触发 lazy db 初始化，schema 在 get db() 里建好
+        void this.db;
+    }
 
     private get db(): Database.Database {
         if (!this._db) {
@@ -77,6 +89,21 @@ export class AgendaStore implements IAgendaStore {
                 CREATE INDEX IF NOT EXISTS idx_triggers_item ON triggers (itemId, id);
                 CREATE INDEX IF NOT EXISTS idx_triggers_enabled ON triggers (enabled, nextFireAt);
                 CREATE INDEX IF NOT EXISTS idx_occurrences_item_status ON occurrences (itemId, status, scheduledAt);
+
+                -- 待处理抽取 job 队列：每轮对话末尾入队，AgendaService 通过 isRunning 标志串行消费；
+                -- 失败行保留 status='failed'，不再自动重试，由 admin 决定。
+                CREATE TABLE IF NOT EXISTS agenda_pending_jobs (
+                    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_type            TEXT    NOT NULL DEFAULT 'extract',
+                    channel_session_id  INTEGER NOT NULL,
+                    payload_json        TEXT    NOT NULL DEFAULT '{}',
+                    status              TEXT    NOT NULL DEFAULT 'pending',
+                    attempt_count       INTEGER NOT NULL DEFAULT 0,
+                    error_message       TEXT,
+                    created_at          INTEGER NOT NULL,
+                    updated_at          INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_agenda_pending_status_id ON agenda_pending_jobs (status, id);
             `);
         }
         return this._db;
@@ -273,6 +300,61 @@ export class AgendaStore implements IAgendaStore {
         this._db = undefined;
     }
 
+    // ── 待处理 job 队列 ──
+
+    pushPendingMessages(channelSessionId: number, messages: ChatMessage[], now: number): number {
+        const result = this.db.prepare(`
+            INSERT INTO agenda_pending_jobs (
+                job_type, channel_session_id, payload_json, status, attempt_count, created_at, updated_at
+            ) VALUES (
+                @jobType, @channelSessionId, @payloadJson, 'pending', 0, @now, @now
+            )
+        `).run({
+            jobType: AgendaPendingJobType.Extract,
+            channelSessionId,
+            payloadJson: JSON.stringify({ messages }),
+            now,
+        });
+        return Number(result.lastInsertRowid);
+    }
+
+    popPendingJob(): PendingAgendaJobRow | null {
+        const row = this.db.prepare(`
+            SELECT id, job_type, channel_session_id, payload_json, status, attempt_count, error_message, created_at, updated_at
+            FROM agenda_pending_jobs
+            WHERE status = 'pending'
+            ORDER BY id ASC
+            LIMIT 1
+        `).get() as any;
+        if (!row) return null;
+        return this.mapPendingRow(row);
+    }
+
+    deletePendingJob(id: number): void {
+        this.db.prepare(`DELETE FROM agenda_pending_jobs WHERE id = ?`).run(id);
+    }
+
+    markPendingJobFailed(id: number, errorMessage: string, now: number): void {
+        this.db.prepare(`
+            UPDATE agenda_pending_jobs
+            SET status        = 'failed',
+                error_message = @errorMessage,
+                attempt_count = attempt_count + 1,
+                updated_at    = @now
+            WHERE id = @id
+        `).run({ id, errorMessage: errorMessage.slice(0, 1000), now });
+    }
+
+    listPendingJobs(limit: number): PendingAgendaJobRow[] {
+        const rows = this.db.prepare(`
+            SELECT id, job_type, channel_session_id, payload_json, status, attempt_count, error_message, created_at, updated_at
+            FROM agenda_pending_jobs
+            ORDER BY id DESC
+            LIMIT @limit
+        `).all({ limit: Math.max(1, Math.min(limit, 200)) }) as any[];
+        return rows.map(r => this.mapPendingRow(r));
+    }
+
     private nextChildIdInDb(table: "triggers" | "occurrences", itemId: number): number {
         const base = itemId * CHILD_ID_FACTOR;
         const row = this.db.prepare(`SELECT MAX(id) AS id FROM ${table} WHERE itemId = ?`).get(itemId) as { id: number | null };
@@ -290,5 +372,40 @@ export class AgendaStore implements IAgendaStore {
 
     private hasItem(itemId: number): boolean {
         return Boolean(this.db.prepare("SELECT 1 FROM items WHERE id = ?").get(itemId));
+    }
+
+    private mapPendingRow(r: any): PendingAgendaJobRow {
+        const type = this.normalizePendingJobType(r.job_type);
+        const payload = this.parsePendingPayload(r.payload_json);
+        return {
+            id: r.id,
+            type,
+            channelSessionId: Number(r.channel_session_id) || 0,
+            messages: type === AgendaPendingJobType.Extract ? (payload.messages ?? []) : undefined,
+            status: this.normalizePendingStatus(r.status),
+            attemptCount: r.attempt_count ?? 0,
+            errorMessage: r.error_message ?? null,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+        };
+    }
+
+    private parsePendingPayload(json: string | null | undefined): { messages?: ChatMessage[] } {
+        try {
+            const parsed = JSON.parse(json ?? '{}');
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+            const messages = Array.isArray((parsed as any).messages) ? ((parsed as any).messages as ChatMessage[]) : undefined;
+            return messages ? { messages } : {};
+        } catch {
+            return {};
+        }
+    }
+
+    private normalizePendingJobType(type: string | undefined | null): AgendaPendingJobType {
+        return type === AgendaPendingJobType.Extract ? AgendaPendingJobType.Extract : AgendaPendingJobType.Extract;
+    }
+
+    private normalizePendingStatus(status: string | undefined | null): AgendaPendingJobStatus {
+        return status === 'failed' ? 'failed' : 'pending';
     }
 }

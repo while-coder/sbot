@@ -1,6 +1,7 @@
 import { inject } from "scorpio.di";
-import { T_AgendaChannelSessionId, T_AgendaToolDescs } from "../../Core";
+import { T_AgendaToolDescs } from "../../Core";
 import { ILoggerService, type ILogger } from "../../Logger";
+import type { ChatMessage } from "../../Saver";
 import {
     AgendaCategory,
     AgendaCompletionMode,
@@ -27,16 +28,32 @@ import {
     IAgendaExtractor,
 } from "../Extractor/IAgendaExtractor";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
-import { IAgendaStore } from "../Storage/IAgendaStore";
+import { IAgendaStore, type PendingAgendaJobRow, AgendaPendingJobType } from "../Storage/IAgendaStore";
 import { TimeUtils } from "../../Utils/TimeUtils";
 import { computeInitialNextFire, relativeToMs } from "../time";
 import { type AgendaCompleteResult, type AgendaToolDescs, IAgendaService } from "./IAgendaService";
+import { agendaServicePool } from "./AgendaServicePool";
 
+/**
+ * Agenda 系统的运行时 facade。每个 agendaProfile 一个实例（由 sbot 侧 AgendaServicePool 管理）。
+ *
+ * 互斥模型（参考 MemoryService）：
+ * - 每个 agendaId 一个 AgendaService 实例（pool 维护）
+ * - 多 session 同时 extractFromConversation：push 互不阻塞，kick 后 checkJobs 串行 drain
+ * - 单标志 isRunning 即可：单线程 JS + 同步 better-sqlite3 + microtask FIFO 保证
+ *   "push 在 drain 退出后必然能再次 kick 起一轮"
+ *
+ * 与 MemoryService 的不同点：
+ * - AgendaStore 由 sbot 侧 agendaStorePool 拥有并跨方共享（TriggerEngine / routes），
+ *   release 归零时**不**关 store；只 evict 自己。
+ */
 export class AgendaService implements IAgendaService {
     private readonly logger?: ILogger;
+    private isRunning = false;
+    private refCount = 0;
+    private disposed = false;
 
     constructor(
-        @inject(T_AgendaChannelSessionId) private channelSessionId: number,
         @inject(T_AgendaToolDescs) private toolDescs: AgendaToolDescs,
         @inject(IAgendaStore) private agendaStore: IAgendaStore,
         @inject(IAgendaTriggerEngine) private triggerEngine: IAgendaTriggerEngine,
@@ -44,6 +61,20 @@ export class AgendaService implements IAgendaService {
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("AgendaService.ts");
+    }
+
+    // ── 生命周期：refCount 配对，归零一次性 evict ──
+
+    /** Pool 在 acquire 时调用：refCount++。仅 pool 用，不在 IAgendaService 接口语义上向外暴露。 */
+    incRef(): void {
+        this.refCount++;
+    }
+
+    /** Caller 调用（AgentRunner finally）：refCount--，归零让 pool 驱逐自己。store 不在此关闭。 */
+    release(): void {
+        if (--this.refCount !== 0 || this.disposed) return;
+        this.disposed = true;
+        agendaServicePool.evict(this);
     }
 
     getToolDescs(): AgendaToolDescs {
@@ -130,6 +161,7 @@ export class AgendaService implements IAgendaService {
                 trigger: patch.trigger,
                 action,
                 message: patch.message ?? undefined,
+                channelSessionId: patch.channelSessionId,
             }, action, now);
             // 仅在新触发器创建成功时替换旧触发器；否则视为无效输入，不破坏现有调度
             if (trigger) {
@@ -298,23 +330,85 @@ export class AgendaService implements IAgendaService {
         return lines.join('\n');
     }
 
-    async extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void> {
-        if (!this.extractor) return;
+    // ── 写路径：入队 + 串行消费 ──
+
+    extractFromConversation(messages: ChatMessage[], channelSessionId: number): void {
+        if (!this.extractor || messages.length === 0) return;
         try {
-            const existing = await this.list({ status: 'all', view: AgendaListView.All, limit: 80 });
-            const actions = await this.extractor.extract(userMessage, assistantMessages ?? [], existing);
-            if (actions.length === 0) return;
-            for (const action of actions) await this.applyAction(action);
+            this.agendaStore.pushPendingMessages(channelSessionId, messages, Date.now());
         } catch (e: any) {
-            this.logger?.warn(`Agenda sync failed: ${e.message}`);
+            this.logger?.warn(`Agenda push pending failed: ${e?.message ?? e}`);
+            return;
+        }
+        void this.checkJobs();
+    }
+
+    listPending(limit?: number): PendingAgendaJobRow[] {
+        return this.agendaStore.listPendingJobs(limit ?? 50);
+    }
+
+    processPending(): void {
+        void this.checkJobs();
+    }
+
+    /**
+     * 串行消费 pending job 队列：isRunning 单标志 + 循环 popPendingJob → 处理 → 删行 / 标 failed。
+     *
+     * 互斥与漏单保证（参考 MemoryService.checkJobs）：
+     * - 顶部 `if (isRunning) return` 同步短路重入（与下一行 isRunning=true 无 await 缝隙）；
+     * - 任何 push 都是先同步 SQL INSERT 再 `void checkJobs()`；
+     * - 自固定 refCount：drain 自己持一份引用，期间 caller release 不会触发 evict。
+     */
+    private async checkJobs(): Promise<void> {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        this.refCount++;
+        try {
+            while (true) {
+                let next: PendingAgendaJobRow | null;
+                try {
+                    next = this.agendaStore.popPendingJob();
+                } catch {
+                    break;  // store 被关 → 退出 drain
+                }
+                if (!next) break;
+                try {
+                    const applied = await this.runPendingJob(next);
+                    this.agendaStore.deletePendingJob(next.id);
+                    this.logger?.info(`agenda pending ${next.type} #${next.id} done: ${applied} action(s) applied`);
+                } catch (e: any) {
+                    const errMsg = (e?.message ?? String(e)).slice(0, 1000);
+                    try { this.agendaStore.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
+                    this.logger?.warn(`agenda pending ${next.type} #${next.id} failed: ${errMsg}`);
+                }
+            }
+        } finally {
+            this.isRunning = false;
+            this.release();  // 配对开头 refCount++；归零自动 evict
         }
     }
 
-    private async applyAction(action: AgendaAction): Promise<void> {
+    private async runPendingJob(job: PendingAgendaJobRow): Promise<number> {
+        switch (job.type) {
+            case AgendaPendingJobType.Extract:
+                return this.runExtractJob(job.messages ?? [], job.channelSessionId);
+        }
+    }
+
+    private async runExtractJob(messages: ChatMessage[], channelSessionId: number): Promise<number> {
+        if (!this.extractor || messages.length === 0) return 0;
+        const existing = await this.list({ status: 'all', view: AgendaListView.All, limit: 80 });
+        const actions = await this.extractor.extract(messages, existing);
+        if (actions.length === 0) return 0;
+        for (const action of actions) await this.applyAction(action, channelSessionId);
+        return actions.length;
+    }
+
+    private async applyAction(action: AgendaAction, channelSessionId: number): Promise<void> {
         if (action.type === AgendaActionType.Create) {
-            await this.create({ ...action.args, source: AgendaSource.Sync });
+            await this.create({ ...action.args, source: AgendaSource.Sync, channelSessionId });
         } else if (action.type === AgendaActionType.Update) {
-            await this.update(action.id, action.patch);
+            await this.update(action.id, { ...action.patch, channelSessionId });
         } else if (action.type === AgendaActionType.Complete) {
             await this.complete(action.id, action.at);
         } else if (action.type === AgendaActionType.Cancel) {
@@ -357,7 +451,7 @@ export class AgendaService implements IAgendaService {
             expr,
             action,
             message: args.message?.trim() || null,
-            channelHint: this.channelSessionId,
+            channelHint: args.channelSessionId ?? 0,
             enabled: true,
             fireCount: 0,
             maxFires,

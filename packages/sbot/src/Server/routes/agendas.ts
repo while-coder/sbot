@@ -5,28 +5,15 @@ import {
     AgendaPriority,
     AgendaService,
     AgendaStatus,
-    IAgendaTriggerEngine,
-    IAgendaStore,
-    ILoggerService,
-    ServiceContainer,
-    T_AgendaChannelSessionId,
-    T_AgendaToolDescs,
+    type IAgendaService,
     type AgendaListFilter,
-    type AgendaToolDescs,
+    type AgendaCompleteResult,
+    type AgendaRecord,
 } from 'scorpio.ai';
-import { agendaStorePool, agendaTriggerEnginePool } from '../../Agenda';
-import { LoggerService } from '../../Core/LoggerService';
+import { agendaServicePool, agendaStorePool, agendaTriggerEnginePool } from '../../Agenda';
 import { config } from '../../Core/Config';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
-
-const ADMIN_DESCS: AgendaToolDescs = {
-    create: 'Create agenda item from admin API',
-    list: 'List agenda items from admin API',
-    update: 'Update agenda item from admin API',
-    complete: 'Complete agenda item from admin API',
-    cancel: 'Cancel agenda item from admin API',
-};
 
 function num(v: unknown): number | undefined {
     if (v == null || v === '') return undefined;
@@ -42,6 +29,20 @@ function requireAgendaId(value: unknown): string {
     return s;
 }
 
+/**
+ * 包一层 acquire / release，管理员路径每次调用单独配对，避免 service 长生命周期持有。
+ * 与 AgentRunner 共享同一 pool 单例 —— 同 agendaId 下两个调用方拿到的是同一个 service。
+ */
+async function withAgendaService<T>(agendaId: string, fn: (service: IAgendaService) => Promise<T> | T): Promise<T> {
+    const service = agendaServicePool.acquire(agendaId);
+    if (!service) throwBad(`Agenda profile "${agendaId}" not enabled`);
+    try {
+        return await fn(service);
+    } finally {
+        service.release();
+    }
+}
+
 export class AgendaRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
         // 列出某个 agenda 模板下的所有 items；不传 agendaId 则跨所有模板聚合
@@ -51,9 +52,10 @@ export class AgendaRoutes {
             const agendaIdRaw = req.query.agendaId;
             if (agendaIdRaw != null && String(agendaIdRaw).trim()) {
                 const agendaId = requireAgendaId(agendaIdRaw);
-                const service = await this.createService(agendaId, 0);
-                const items = await service.list(filter);
-                return items.map(item => ({ ...item, agendaId }));
+                return withAgendaService(agendaId, async service => {
+                    const items = await service.list(filter);
+                    return items.map(item => ({ ...item, agendaId }));
+                });
             }
             const all = await agendaStorePool.listItemsAcross(agendaStorePool.listAllAgendaIds());
             const grouped = new Map<string, typeof all[number]['record'][]>();
@@ -74,8 +76,7 @@ export class AgendaRoutes {
             const body = req.body || {};
             const agendaId = requireAgendaId(body.agendaId);
             const channelSessionId = num(body.channelSessionId) ?? 0;
-            const service = await this.createService(agendaId, channelSessionId);
-            return service.create({
+            return withAgendaService(agendaId, service => service.create({
                 content: String(body.content ?? ''),
                 category: body.category,
                 priority: body.priority,
@@ -84,17 +85,20 @@ export class AgendaRoutes {
                 action: body.action,
                 message: body.message,
                 completionMode: body.completionMode,
-            });
+                channelSessionId,
+            }));
         }));
 
         app.patch('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
             const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
-            const service = await this.createService(agendaId, 0);
-            const updated = await service.update(id, req.body || {});
-            if (!updated) throwBad('Agenda item not found');
-            return updated;
+            const channelSessionId = num(req.body?.channelSessionId) ?? 0;
+            return withAgendaService(agendaId, async service => {
+                const updated = await service.update(id, { ...(req.body || {}), channelSessionId });
+                if (!updated) throwBad('Agenda item not found');
+                return updated;
+            });
         }));
 
         app.post('/api/agendas/:id/complete', api(req => this.applyItemAction(req, 'complete')));
@@ -133,24 +137,13 @@ export class AgendaRoutes {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
         const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
-        const service = await this.createService(agendaId, 0);
-        if (action === 'complete') {
-            const at = typeof req.body?.at === 'string' && req.body.at.trim() ? req.body.at.trim() : undefined;
-            return service.complete(id, at);
-        }
-        return service.cancel(id);
-    }
-
-    private async createService(agendaId: string, channelSessionId: number): Promise<AgendaService> {
-        const container = new ServiceContainer();
-        container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-        container.registerWithArgs(AgendaService, {
-            [T_AgendaChannelSessionId]: channelSessionId,
-            [T_AgendaToolDescs]: ADMIN_DESCS,
-            [IAgendaStore]: agendaStorePool.get(agendaId),
-            [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(agendaId),
+        return withAgendaService<AgendaCompleteResult | AgendaRecord | null>(agendaId, service => {
+            if (action === 'complete') {
+                const at = typeof req.body?.at === 'string' && req.body.at.trim() ? req.body.at.trim() : undefined;
+                return service.complete(id, at);
+            }
+            return service.cancel(id);
         });
-        return container.resolve(AgendaService);
     }
 }
 

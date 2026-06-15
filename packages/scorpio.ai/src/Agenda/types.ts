@@ -237,6 +237,12 @@ export interface AgendaCreateArgs {
     dueAt?: string;
     /** 来源标记。LLM 调用时一般不传，由 service 根据上下文写入（Tool / Sync）。 */
     source?: AgendaSource;
+    /**
+     * 新建 trigger 写到 trigger.channelHint 的频道会话 id。
+     * 调用方（tool / extractor / route）按上下文注入；缺省 = 0。
+     * 不在 LLM 工具 schema 暴露。
+     */
+    channelSessionId?: number;
 }
 
 /**
@@ -263,6 +269,11 @@ export interface AgendaUpdatePatch {
     action?: SessionDeliveryMode;
     /** 改触发消息；传 null 清空回退到 content。单独传时不重建 trigger。 */
     message?: string | null;
+    /**
+     * 调度变更（重建 trigger）时新 trigger.channelHint 用的频道会话 id。
+     * 缺省 = 0。仅在传 trigger 时有意义；不在 LLM 工具 schema 暴露。
+     */
+    channelSessionId?: number;
 }
 
 /**

@@ -3,6 +3,7 @@ import { inject } from "scorpio.di";
 import { IModelService } from "../../Model";
 import { ILoggerService, ILogger } from "../../Logger";
 import { MessageRole, type ChatMessage } from "../../Saver";
+import { renderConversation } from "../../Utils/conversationUtils";
 import { T_AgendaExtractorSystemPrompt } from "../../Core";
 import {
     AgendaCategory,
@@ -82,12 +83,9 @@ export class AgendaExtractor implements IAgendaExtractor {
         this.logger = loggerService?.getLogger("AgendaExtractor");
     }
 
-    async extract(userMessage: string, assistantMessages: string[], existingItems: AgendaRecord[]): Promise<AgendaAction[]> {
+    async extract(messages: ChatMessage[], existingItems: AgendaRecord[]): Promise<AgendaAction[]> {
         try {
-            const assistant = assistantMessages?.filter(Boolean) ?? [];
-            let human = assistant.length
-                ? `<user>${userMessage}</user>\n${assistant.map(m => `<assistant>${m}</assistant>`).join("\n")}`
-                : `<user>${userMessage}</user>`;
+            let human = renderConversation(messages);
 
             if (existingItems.length > 0) {
                 const lines = existingItems.slice(0, 80).map(record => {
@@ -102,13 +100,13 @@ export class AgendaExtractor implements IAgendaExtractor {
             }
             human += `\n<now>${new Date().toISOString()}</now>`;
 
-            const messages: ChatMessage[] = [
+            const llmMessages: ChatMessage[] = [
                 { role: MessageRole.System, content: this.systemPrompt },
                 { role: MessageRole.Human, content: human },
             ];
             const { actions } = await this.modelService.invokeStructured<{ actions: AgendaAction[] }>(
                 AgendaExtractSchema,
-                messages,
+                llmMessages,
             );
             return actions;
         } catch (error: any) {
@@ -118,3 +116,4 @@ export class AgendaExtractor implements IAgendaExtractor {
         }
     }
 }
+

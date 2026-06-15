@@ -12,7 +12,6 @@ import {
     T_NoteSystemPromptTemplate,
     T_NoteToolDescs,
     T_NoteCachePath,
-    IModelService,
     IWikiService, IWikiDatabase,
     WikiService,
     T_WikiSystemPromptTemplate,
@@ -20,14 +19,7 @@ import {
     T_WikiCachePath,
     IMemoryService,
     IAgendaService,
-    AgendaService,
-    IAgendaStore,
-    IAgendaTriggerEngine,
-    IAgendaExtractor,
-    AgendaExtractor,
-    T_AgendaExtractorSystemPrompt,
-    T_AgendaChannelSessionId,
-    T_AgendaToolDescs,
+    T_ChannelSessionId,
     TimeUtils,
     type MessageContent,
 } from "scorpio.ai";
@@ -41,7 +33,7 @@ import { sessionManager } from "../Session/SessionManager";
 import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
-import { agendaStorePool, agendaTriggerEnginePool } from "../Agenda";
+import { agendaServicePool } from "../Agenda";
 import { memoryServicePool } from "../Memory/MemoryServicePool";
 
 export interface AgentRunOptions {
@@ -122,10 +114,14 @@ export class AgentRunner {
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
+        // SingleAgentService 把它传给 AgendaToolProvider 作为新 trigger 的 channelHint，
+        // 也作为 extractFromConversation push pending job 时的 channelSessionId。
+        const channelSessionId = parseInt(dbSessionId, 10) || 0;
+        container.registerInstance(T_ChannelSessionId, channelSessionId);
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
         const memoryService = AgentRunner.registerMemoryService(container, options.memoryId);
-        await AgentRunner.registerAgendaService(container, options.agendaId, dbSessionId);
+        const agendaService = AgentRunner.registerAgendaService(container, options.agendaId);
 
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
         let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
@@ -150,6 +146,7 @@ export class AgentRunner {
         } finally {
             await agent?.dispose();
             memoryService?.release();
+            agendaService?.release();
             await saverHandle?.release();
         }
     }
@@ -267,46 +264,22 @@ export class AgentRunner {
         return service;
     }
 
-    private static async registerAgendaService(
+    /**
+     * Agenda 系统注册（pool 单例 + refCount）。命中 agendaProfile 才注册；否则不启用 agenda。
+     * 返回 acquire 到的 service 引用；caller（run finally）负责调 service.release()
+     * 来减 refCount。channelSessionId 不进 service 构造器，由 SingleAgentService 通过
+     * T_ChannelSessionId 注入到 agenda tool / extractFromConversation 调用点。
+     */
+    private static registerAgendaService(
         container: ServiceContainer,
         agendaId: string | null | undefined,
-        dbSessionId: string,
-    ): Promise<void> {
-        if (!agendaId) return;
+    ): IAgendaService | null {
+        if (!agendaId) return null;
         const profileConfig = config.getAgendaProfile(agendaId);
-        if (!profileConfig?.enabled) return;
-
-        const channelSessionId = parseInt(dbSessionId, 10);
-        if (!channelSessionId) return;
-
-        const syncModelId = profileConfig.syncModel;
-        let extractor: IAgendaExtractor | undefined;
-        if (syncModelId) {
-            const extractorModel = config.getModelService(syncModelId, true);
-            const sub = new ServiceContainer();
-            if (container.isRegistered(ILoggerService)) {
-                sub.registerInstance(ILoggerService, container.resolve(ILoggerService));
-            }
-            sub.registerInstance(IModelService, extractorModel);
-            sub.registerInstance(T_AgendaExtractorSystemPrompt, loadPrompt(profileConfig.syncPromptFile ?? 'agenda/sync/default.txt'));
-            sub.registerSingleton(IAgendaExtractor, AgendaExtractor);
-            extractor = sub.resolve<IAgendaExtractor>(IAgendaExtractor);
-        }
-
-        const args: Record<string | symbol, any> = {
-            [T_AgendaChannelSessionId]: channelSessionId,
-            [T_AgendaToolDescs]: {
-                create: loadPrompt('agenda/tools/create.txt'),
-                list: loadPrompt('agenda/tools/list.txt'),
-                update: loadPrompt('agenda/tools/update.txt'),
-                complete: loadPrompt('agenda/tools/complete.txt'),
-                cancel: loadPrompt('agenda/tools/cancel.txt'),
-            },
-            [IAgendaStore]: agendaStorePool.get(agendaId),
-            [IAgendaTriggerEngine]: agendaTriggerEnginePool.get(agendaId),
-        };
-        if (extractor) args[IAgendaExtractor] = extractor;
-        container.registerWithArgs(IAgendaService, AgendaService, args);
+        if (!profileConfig?.enabled) return null;
+        const service = agendaServicePool.acquire(agendaId);
+        if (service) container.registerInstance(IAgendaService, service);
+        return service;
     }
 }
 1

@@ -78,8 +78,8 @@ export {
   T_MCPUtilityToolDescs,
   T_AgendaExtractorSystemPrompt,
   T_AgendaDbPath,
-  T_AgendaChannelSessionId,
   T_AgendaToolDescs,
+  T_ChannelSessionId,
   parseJson,
   truncate,
   listThreadIds,
@@ -261,6 +261,8 @@ export {
   IAgendaStore,
   IAgendaTriggerEngine,
   AgendaService,
+  AgendaServicePool,
+  agendaServicePool,
   AgendaStore,
   AgendaExtractor,
   IAgendaExtractor,
@@ -280,6 +282,7 @@ export {
   AgendaOccurrenceStatus,
   AgendaListView,
   AgendaTimeUnit,
+  AgendaPendingJobType,
   type AgendaCreateArgs,
   type AgendaCreateResult,
   type AgendaRelativeTime,
@@ -289,8 +292,13 @@ export {
   type AgendaTrigger,
   type AgendaOccurrence,
   type AgendaToolDescs,
+  type AgendaCompleteResult,
   type AgendaAction,
   type AgendaRecord,
+  type AgendaServiceConfig,
+  type AgendaServiceConfigResolver,
+  type PendingAgendaJobRow,
+  type AgendaPendingJobStatus,
   AgendaActionType,
   computeInitialNextFire,
   computeNextAfterFire,
@@ -456,3 +464,4 @@ export type { MediaCategory } from "./Utils/contentUtils";
 export { withRetry } from "./Utils/withRetry";
 export { UsageTracker, type UsageData } from "./Utils/UsageTracker";
 export { TimeUtils } from "./Utils/TimeUtils";
+export { renderConversation } from "./Utils/conversationUtils";

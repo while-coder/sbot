@@ -46,7 +46,11 @@ const TriggerSpecSchema = z.discriminatedUnion('kind', [
 ]);
 
 export class AgendaToolProvider {
-    static getTools(agendaService: IAgendaService): DynamicStructuredTool[] {
+    /**
+     * channelSessionId 由调用方注入，会写到新建 trigger 的 channelHint。
+     * admin 路径调用（背景任务、route handler）传 0。
+     */
+    static getTools(agendaService: IAgendaService, channelSessionId: number): DynamicStructuredTool[] {
         const descs = agendaService.getToolDescs();
         return [
             new DynamicStructuredTool({
@@ -64,7 +68,7 @@ export class AgendaToolProvider {
                 }),
                 func: async (args: AgendaCreateArgs) => {
                     try {
-                        const result = await agendaService.create(args);
+                        const result = await agendaService.create({ ...args, channelSessionId });
                         const item = result.item.item;
                         if (result.existed) {
                             return `Agenda #${item.id} already exists: ${item.content}\nNo new agenda item was created.`;
@@ -109,7 +113,7 @@ export class AgendaToolProvider {
                 }),
                 func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {
                     try {
-                        const record = await agendaService.update(id, patch);
+                        const record = await agendaService.update(id, { ...patch, channelSessionId });
                         return record ? `Updated agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
                     } catch (e: any) {
                         return `Failed to update agenda #${id}: ${e.message}`;

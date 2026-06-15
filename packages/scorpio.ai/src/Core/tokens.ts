@@ -34,8 +34,10 @@ export const T_WikiToolDescs              = Symbol("scorpio:T_WikiToolDescs");
 export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
 export const T_AgendaExtractorSystemPrompt = Symbol("scorpio:T_AgendaExtractorSystemPrompt");
 export const T_AgendaDbPath               = Symbol("scorpio:T_AgendaDbPath");
-export const T_AgendaChannelSessionId     = Symbol("scorpio:T_AgendaChannelSessionId");
 export const T_AgendaToolDescs            = Symbol("scorpio:T_AgendaToolDescs");
+
+/** 当前 channel session 的 DB 主键。注入给 SingleAgentService，传给 agenda tool / extract。 */
+export const T_ChannelSessionId           = Symbol("scorpio:T_ChannelSessionId");
 
 // Memory tokens（skill-style 记忆系统）
 export const T_MemoryDir    = Symbol("scorpio:T_MemoryDir");

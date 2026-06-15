@@ -1,3 +1,5 @@
+import type { ChatMessage } from "../../Saver";
+import type { PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import type {
     AgendaCreateArgs,
     AgendaCreateResult,
@@ -41,7 +43,29 @@ export interface IAgendaService {
     complete(id: number, at?: string): Promise<AgendaCompleteResult | null>;
     cancel(id: number): Promise<AgendaRecord | null>;
     formatForLLM(filter?: AgendaListFilter): Promise<string>;
-    extractFromConversation(userMessage: string, assistantMessages?: string[]): Promise<void>;
+
+    /**
+     * 每轮对话结束后同步触发：把消息快照入队 SQLite，触发后台串行抽取。
+     * 调用方不需要 await 抽取完成；本方法只负责同步入队并唤醒后台处理。
+     * channelSessionId 写到 pending job 行，drain 时回填到新 trigger 的 channelHint。
+     */
+    extractFromConversation(messages: ChatMessage[], channelSessionId: number): void;
+
+    /** Pool 在 acquire 时调用：refCount++。仅 pool 用。 */
+    incRef(): void;
+
+    /**
+     * caller 释放对 service 的引用：refCount--，归零时通知 pool 把自己从 cache 摘掉。
+     * drain（checkJobs）自固定 refCount，所以 caller release 不会中断在跑的抽取。
+     * 与 pool.acquire 配对调用：每次 acquire 必须对应一次 release。
+     */
+    release(): void;
+
+    /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 通过 listPending 轮询进度）。 */
+    processPending(): void;
+
+    /** admin 排障：列最近的 pending+failed job（按 id DESC）。 */
+    listPending(limit?: number): PendingAgendaJobRow[];
 }
 
 export const IAgendaService = Symbol("IAgendaService");

@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, truncate } from "../../Core";
+import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
@@ -64,11 +64,16 @@ export class SingleAgentService extends AgentServiceBase {
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
     protected toolOverflowDir: string;
+    /** 当前请求归属的 channel session db id；agenda tool 写新 trigger 的 channelHint
+     *  与 extractFromConversation 入队 pending job 的 channelSessionId 都用它。
+     *  必传——caller（AgentRunner / ReActAgentService 子任务路径）务必把 T_ChannelSessionId 注册进容器。 */
+    protected channelSessionId: number;
 
     constructor(
         @inject(IModelService) modelService: IModelService,
         @inject(ISkillService) skillService: ISkillService,
         @inject(T_ToolOverflowDir) toolOverflowDir: string,
+        @inject(T_ChannelSessionId) channelSessionId: number,
         @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
         @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
@@ -92,6 +97,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.modelCallTimeout = modelCallTimeout;
         this.compactor = compactor;
         this.toolOverflowDir = toolOverflowDir;
+        this.channelSessionId = channelSessionId;
     }
 
     override addStaticSystemPrompts(prompts: string[]): void {
@@ -154,7 +160,7 @@ export class SingleAgentService extends AgentServiceBase {
             tools.push(...WikiToolProvider.getTools(this.wikiServices));
         }
         if (this.agendaService) {
-            tools.push(...AgendaToolProvider.getTools(this.agendaService));
+            tools.push(...AgendaToolProvider.getTools(this.agendaService, this.channelSessionId));
         }
         if (this.memoryService) {
             tools.push(...MemoryToolProvider.getTools(this.memoryService));
@@ -390,7 +396,6 @@ export class SingleAgentService extends AgentServiceBase {
         query = await this.resizeImagesInContent(query);
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
-        const aiResponses: string[] = [];
         const outputMessages: ChatMessage[] = [];
 
         try {
@@ -425,11 +430,6 @@ export class SingleAgentService extends AgentServiceBase {
                         const pushOptions = thinkId || taskId ? { thinkId, taskId } : undefined;
                         await this.saverService.pushMessage(message, pushOptions);
 
-                        if (message.role === MessageRole.AI) {
-                            const text = contentToString(message.content);
-                            if (text) aiResponses.push(text);
-                        }
-
                         if (callback.onMessage) {
                             if (thinkId || taskId) {
                                 message.additional_kwargs = { ...message.additional_kwargs };
@@ -451,23 +451,17 @@ export class SingleAgentService extends AgentServiceBase {
             await this.recordException(err);
             throw err;
         }
-        // 静默后台提取：
-        // - memory / agenda 都在 turn 末尾触发，不阻塞主响应流
-        // - memory 内部已经"入队 + 串行 LLM 抽取"，调用方不需要 await
-        const queryText = contentToString(query);
-        const aiText = aiResponses.length > 0 ? aiResponses : undefined;
+        // 静默后台提取：memory / agenda 都在 turn 末尾以 fire-and-forget 入队，
+        // 内部走"pending job + 串行 LLM 抽取"，不阻塞主响应流。
+        const conversation: ChatMessage[] = [
+            { role: MessageRole.Human, content: query },
+            ...outputMessages,
+        ];
         if (this.memoryService) {
-            this.memoryService.extractFromConversation([
-                { role: MessageRole.Human, content: query },
-                ...outputMessages,
-            ]);
+            this.memoryService.extractFromConversation(conversation);
         }
         if (this.agendaService) {
-            try {
-                await this.agendaService.extractFromConversation(queryText, aiText);
-            } catch (e: any) {
-                this.logger?.warn(`Background agenda extraction failed: ${e?.message}`);
-            }
+            this.agendaService.extractFromConversation(conversation, this.channelSessionId);
         }
 
         // Memory 反馈走 read_memory 工具调用累加 read_count，不再需要 citation 钩子。
