@@ -5,7 +5,6 @@ import {
     T_MemoryWriterPrompt,
     T_MemoryMenuMaxEntries,
 } from "../../Core/tokens";
-import { truncate } from "../../Core/utils";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import {
@@ -17,7 +16,6 @@ import {
     IMemoryStore,
     MemoryKind,
     type MemoryRow,
-    type MemoryMenuEntry,
     type MemorySearchHit,
     type MemoryBodyMode,
     MemoryPendingJobType,
@@ -309,7 +307,23 @@ export class MemoryService implements IMemoryService {
 
         const conversation = renderConversation(messages);
         const menu = await this.store.listMenu(this.menuMaxEntries);
-        const input = renderWriterInput(menu, conversation);
+        const menuLines = menu.length === 0
+            ? '_(no existing memories)_'
+            : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.description}`).join('\n');
+        const input = [
+            `# Existing memories (${menu.length} ${menu.length === 1 ? 'entry' : 'entries'})`,
+            ``,
+            menuLines,
+            ``,
+            `# Conversation transcript`,
+            ``,
+            conversation,
+            ``,
+            `---`,
+            ``,
+            `Decide what — if anything — to record. Default to a single \`noop\` if`,
+            `nothing in this transcript meets the high-signal bar.`,
+        ].join('\n');
 
         const llmMessages: ChatMessage[] = [
             { role: MessageRole.System, content: this.writerPrompt },
@@ -324,7 +338,8 @@ export class MemoryService implements IMemoryService {
         const rows = (await this.store.list()).slice(0, 100);
         if (rows.length === 0) return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
 
-        const bodyMaxChars = 1500;
+        // 不截断 body：consolidate 关注 "duplicated / stale / overly verbose"，verbose 检测就需要看完整内容；
+        // prompt 预算靠上面的 slice(0, 100) 兜底，单条体积不在这层处理。
         const entries = rows.map(r => [
             `## ${r.slug}`,
             `kind: ${r.kind}`,
@@ -333,7 +348,7 @@ export class MemoryService implements IMemoryService {
             `evidence_count: ${r.evidenceCount}`,
             `updated_at: ${new Date(r.updatedAt).toISOString()}`,
             ``,
-            truncate(r.body, bodyMaxChars, '\n...<truncated>'),
+            r.body,
         ].join('\n')).join('\n\n---\n\n');
 
         const messages: ChatMessage[] = [
@@ -487,26 +502,5 @@ export class MemoryService implements IMemoryService {
             };
         }
     }
-}
-
-function renderWriterInput(menu: MemoryMenuEntry[], conversation: string): string {
-    const menuLines = menu.length === 0
-        ? '_(no existing memories)_'
-        : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.description}`).join('\n');
-
-    return [
-        `# Existing memories (${menu.length} ${menu.length === 1 ? 'entry' : 'entries'})`,
-        ``,
-        menuLines,
-        ``,
-        `# Conversation transcript`,
-        ``,
-        conversation,
-        ``,
-        `---`,
-        ``,
-        `Decide what — if anything — to record. Default to a single \`noop\` if`,
-        `nothing in this transcript meets the high-signal bar.`,
-    ].join('\n');
 }
 
