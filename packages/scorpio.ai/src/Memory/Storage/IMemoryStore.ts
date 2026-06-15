@@ -102,8 +102,8 @@ export interface IMemoryStore {
     readonly memoriesDir: string;
     readonly archiveDir: string;
 
-    /** 创建目录 + 初始化 DB schema。幂等。 */
-    init(): Promise<void>;
+    /** 创建目录 + 初始化 DB schema。幂等。同步：仅 mkdirSync + better-sqlite3 schema exec。 */
+    init(): void;
 
     // ── CRUD ──
 

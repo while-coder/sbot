@@ -45,7 +45,7 @@ export class MemoryStore implements IMemoryStore {
         this.archiveDir = path.join(this.memoriesDir, ".archive");
     }
 
-    async init(): Promise<void> {
+    init(): void {
         if (!existsSync(this.memoriesDir)) mkdirSync(this.memoriesDir, { recursive: true });
         if (!existsSync(this.archiveDir)) mkdirSync(this.archiveDir, { recursive: true });
         // 触发 lazy init（DB schema + HybridSearcher 自管 searcher.sqlite）

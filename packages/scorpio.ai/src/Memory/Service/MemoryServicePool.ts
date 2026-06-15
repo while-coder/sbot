@@ -37,10 +37,11 @@ export interface MemoryServiceConfig {
 
 /**
  * 按 memoryId 解析配置。返回 null 表示 profile 不存在或被禁用，pool 据此返回 null handle。
+ * 必须同步——caller 需要事先把 model 工厂、prompt 文件加载等都 resolve 好。
  * 解析失败（如 model 拉不到）应抛错。
  */
 export type MemoryServiceConfigResolver =
-    (memoryId: string) => Promise<MemoryServiceConfig | null>;
+    (memoryId: string) => MemoryServiceConfig | null;
 
 export interface MemoryServiceHandle {
     service: IMemoryService;
