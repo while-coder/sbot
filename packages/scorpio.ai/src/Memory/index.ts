@@ -1,7 +1,7 @@
+// ── Storage ──
 export {
     IMemoryStore,
     MemoryKind,
-    type MemorySourceRef,
     type MemoryBodyMode,
     type MemoryRow,
     type MemoryMenuEntry,
@@ -10,25 +10,27 @@ export {
     type UpdateMemoryInput,
     type PendingMessageRow,
     type PendingMessageStatus,
-} from './IMemoryStore';
+} from './Storage/IMemoryStore';
+export { MemoryStore } from './Storage/MemoryStore';
 
-export { MemoryStore } from './MemoryStore';
-export { SecretRedactor } from './SecretRedactor';
-export { renderConversation, countTurns } from './ConversationRenderer';
+// ── Service（含 LLM 抽取与 transcript 渲染） ──
 export {
-    MemoryWriterWorker,
+    IMemoryService,
+    type MemoryToolDescs,
+    type MemoryWriterOpStats,
+} from './Service/IMemoryService';
+export {
+    MemoryService,
     MemoryOpAction,
     MemoryOpSchema,
     MemoryWriteOutputSchema,
     type MemoryWriteOutput,
     type MemoryOp,
-    type MemoryWriterOpStats,
-} from './MemoryWriterWorker';
+} from './Service/MemoryService';
 
-export { IMemoryService, type MemoryToolDescs } from './IMemoryService';
-export { MemoryService } from './MemoryService';
+// ── Tools ──
 export {
     MemoryToolProvider,
     READ_MEMORY_TOOL_NAME,
     SEARCH_MEMORY_TOOL_NAME,
-} from './MemoryToolProvider';
+} from './Tools/MemoryToolProvider';

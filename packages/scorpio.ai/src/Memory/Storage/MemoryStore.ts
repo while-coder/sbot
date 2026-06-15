@@ -3,7 +3,7 @@ import { existsSync, mkdirSync } from "fs";
 import * as fs from "fs/promises";
 import path from "path";
 import { inject } from "scorpio.di";
-import { T_MemoryDir, T_MemoryDbPath } from "../Core/tokens";
+import { T_MemoryDir, T_MemoryDbPath } from "../../Core/tokens";
 import {
     IMemoryStore,
     MemoryKind,
@@ -15,8 +15,8 @@ import {
     type PendingMessageRow,
     type PendingMessageStatus,
 } from "./IMemoryStore";
-import { HybridSearcher } from "../Retrieval";
-import type { ChatMessage } from "../Saver";
+import { HybridSearcher } from "../../Retrieval";
+import type { ChatMessage } from "../../Saver";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MEMORY_KINDS = new Set<string>(Object.values(MemoryKind));
@@ -425,17 +425,6 @@ export class MemoryStore implements IMemoryStore {
         return MEMORY_KINDS.has(kind as MemoryKind) ? (kind as MemoryKind) : DEFAULT_KIND;
     }
 
-    private normalizeSource(
-        source?: Partial<MemorySourceRef>,
-        fallback?: MemorySourceRef,
-    ): MemorySourceRef {
-        return {
-            threadId: source?.threadId ?? fallback?.threadId ?? null,
-            windowStartCursor: source?.windowStartCursor ?? fallback?.windowStartCursor ?? null,
-            windowEndCursor: source?.windowEndCursor ?? fallback?.windowEndCursor ?? null,
-        };
-    }
-
     private mergeBody(existingBody: string, nextBody: string, mode: 'replace' | 'append' | undefined): string {
         const strippedExisting = this.stripTitleLine(existingBody).trim();
         const strippedNext = this.stripTitleLine(nextBody).trim();
@@ -489,10 +478,9 @@ export class MemoryStore implements IMemoryStore {
             if (!columns.has(name)) this._db!.exec(sql);
         };
         add('kind', `ALTER TABLE memories ADD COLUMN kind TEXT NOT NULL DEFAULT 'fact'`);
-        add('source_thread_id', `ALTER TABLE memories ADD COLUMN source_thread_id TEXT`);
-        add('source_window_start_cursor', `ALTER TABLE memories ADD COLUMN source_window_start_cursor TEXT`);
-        add('source_window_end_cursor', `ALTER TABLE memories ADD COLUMN source_window_end_cursor TEXT`);
         add('evidence_count', `ALTER TABLE memories ADD COLUMN evidence_count INTEGER NOT NULL DEFAULT 1`);
+        // 老版本残留的 source_* 列保留在表里不删——SQLite ALTER 不便降列，
+        // 实际使用上 mapRow 已不再读取，相当于 dead column。
     }
 
     private parsePendingMessages(json: string): ChatMessage[] {
@@ -514,11 +502,6 @@ export class MemoryStore implements IMemoryStore {
             description: r.description,
             body: r.body,
             fingerprint: r.fingerprint,
-            source: {
-                threadId: r.source_thread_id ?? null,
-                windowStartCursor: r.source_window_start_cursor ?? null,
-                windowEndCursor: r.source_window_end_cursor ?? null,
-            },
             evidenceCount: r.evidence_count ?? 1,
             createdAt: r.created_at,
             updatedAt: r.updated_at,

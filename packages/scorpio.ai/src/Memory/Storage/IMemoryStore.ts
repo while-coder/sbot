@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../Saver";
+import type { ChatMessage } from "../../Saver";
 
 /**
  * Memory 存储层接口。单 memoryProfile 维度：每个 profile 对应一个 SQLite 文件

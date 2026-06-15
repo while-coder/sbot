@@ -553,8 +553,6 @@ export default {
     created_at: 'Created',
     updated_at: 'Updated',
     finished_at: 'Finished',
-    source_thread: 'Source thread',
-    source_window: 'Source window',
     attempt_count: 'Attempts',
     error_message: 'Error',
     error_writer_model: 'A writer model is required when enabled',

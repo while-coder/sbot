@@ -40,7 +40,6 @@ export class MemoryRoutes {
                 kind: r.kind,
                 title: r.title,
                 description: r.description,
-                source: r.source,
                 evidenceCount: r.evidenceCount,
                 createdAt: r.createdAt,
                 updatedAt: r.updatedAt,

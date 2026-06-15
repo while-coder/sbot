@@ -226,10 +226,6 @@ export {
 export {
   IMemoryStore,
   MemoryStore,
-  SecretRedactor,
-  renderConversation,
-  countTurns,
-  MemoryWriterWorker,
   MemoryOpAction,
   MemoryOpSchema,
   MemoryWriteOutputSchema,
@@ -240,7 +236,6 @@ export {
   SEARCH_MEMORY_TOOL_NAME,
   MemoryKind,
   type MemoryRow,
-  type MemorySourceRef,
   type MemoryBodyMode,
   type MemoryMenuEntry,
   type MemorySearchHit,

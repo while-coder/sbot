@@ -553,8 +553,6 @@ export default {
     created_at: '创建',
     updated_at: '更新',
     finished_at: '完成',
-    source_thread: '来源会话',
-    source_window: '来源窗口',
     attempt_count: '尝试',
     error_message: '错误',
     error_writer_model: '启用时必须选择 Writer 模型',

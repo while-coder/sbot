@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
-import type { IMemoryService } from "./IMemoryService";
+import type { IMemoryService } from "../Service/IMemoryService";
 
 export const READ_MEMORY_TOOL_NAME = 'read_memory' as const;
 export const SEARCH_MEMORY_TOOL_NAME = 'search_memory' as const;

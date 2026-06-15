@@ -24,11 +24,6 @@ interface MemorySummary {
   updatedAt: number
   lastReadAt: number | null
   readCount: number
-  source?: {
-    threadId?: string | null
-    windowStartCursor?: string | null
-    windowEndCursor?: string | null
-  }
 }
 
 interface MemoryJob {
@@ -450,8 +445,6 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
             <div v-if="selectedMemory" class="memory-detail-meta">
               <span>{{ t('memory_profiles.updated_at') }}: {{ fmtTime(selectedMemory.updatedAt) }}</span>
               <span>{{ t('memory_profiles.created_at') }}: {{ fmtTime(selectedMemory.createdAt) }}</span>
-              <span>{{ t('memory_profiles.source_thread') }}: {{ selectedMemory.source?.threadId || '-' }}</span>
-              <span>{{ t('memory_profiles.source_window') }}: {{ selectedMemory.source?.windowStartCursor || '0' }} - {{ selectedMemory.source?.windowEndCursor || '-' }}</span>
             </div>
             <pre class="memory-body">{{ memoryBodyLoading ? t('memory_profiles.loading') : (selectedMemoryBody || t('memory_profiles.no_body')) }}</pre>
           </section>

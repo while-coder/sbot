@@ -1,6 +1,5 @@
-import type { MemorySearchHit, MemoryRow, PendingMessageRow } from "./IMemoryStore";
-import type { MemoryWriterOpStats } from "./MemoryWriterWorker";
-import type { ChatMessage } from "../Saver";
+import type { MemorySearchHit, MemoryRow, PendingMessageRow } from "../Storage/IMemoryStore";
+import type { ChatMessage } from "../../Saver";
 
 /**
  * Memory 系统对外接口。运行时由 SingleAgentService 持有：
@@ -16,6 +15,14 @@ export interface MemoryToolDescs {
     read: string;
     /** search_memory 工具描述 */
     search: string;
+}
+
+export interface MemoryWriterOpStats {
+    create: number;
+    update: number;
+    delete: number;
+    noop: number;
+    failed: number;
 }
 
 export interface IMemoryService {
