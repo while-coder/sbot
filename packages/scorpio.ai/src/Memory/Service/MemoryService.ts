@@ -118,10 +118,11 @@ type MemoryUpdateMergeOutput = z.infer<typeof MemoryUpdateMergeSchema>;
  * - 透传 readMemory / search 给 store
  * - 串行抽取：每轮对话结束 push 进 SQLite 队列，内部 isRunning 标志保证同 profile 只一个 LLM 调用在跑
  *
- * 互斥模型：
+ * 互斥模型（参考 HistoryManager.ExecuteCommand / CheckExecuteCommand）：
  * - 每个 memoryId 一个 MemoryService 实例（pool 维护）
- * - 多 session 同时调 extractFromConversation：push 互不阻塞，checkMessages 串行消费
- * - isRunning 用进程内 flag；进程崩溃后未处理的 pending 行下次启动还能看到（pop 顺序消费）
+ * - 多 session 同时 extractFromConversation：push 互不阻塞，kick 后 checkMessages 串行 drain
+ * - 单标志 isRunning 即可：单线程 JS + 同步 better-sqlite3 + microtask FIFO 保证
+ *   "push 在 drain 退出后必然能再次 kick 起一轮"，不需要 pendingWakeup 这种二级标志
  */
 export class MemoryService implements IMemoryService {
     private logger?: ILogger;
@@ -130,8 +131,6 @@ export class MemoryService implements IMemoryService {
     private readonly menuMaxEntries: number;
     private readonly onRelease?: () => void;
     private isRunning = false;
-    private pendingWakeup = false;
-    private runningPromise?: Promise<void>;
     private releaseRequested = false;
 
     constructor(
@@ -152,7 +151,7 @@ export class MemoryService implements IMemoryService {
 
     // ── 读路径 ──
 
-    async getMemoryMenuPrompt(): Promise<string> {
+    async getSystemMessage(): Promise<string | null> {
         const menu = await this.store.listMenu(DEFAULT_MENU_LIMIT);
         const count = menu.length;
         const menuText = count === 0
@@ -190,72 +189,63 @@ export class MemoryService implements IMemoryService {
 
     async extractFromConversation(messages: ChatMessage[]): Promise<void> {
         if (messages.length === 0) return;
-        await this.store.pushPendingMessages(messages, Date.now());
-        this.pendingWakeup = true;
-        if (!this.isRunning) {
-            this.runningPromise = this.checkMessages();
-            // 后台跑，不阻塞调用方；错误已在 checkMessages 内 catch
-            this.runningPromise.catch(() => undefined);
-        }
+        this.store.pushPendingMessages(messages, Date.now());
+        this.kick();
     }
 
-    async listPending(limit?: number): Promise<PendingMessageRow[]> {
+    listPending(limit?: number): PendingMessageRow[] {
         return this.store.listPendingMessages(limit ?? 50);
     }
 
-    async processPending(): Promise<void> {
-        this.pendingWakeup = true;
-        if (!this.isRunning) {
-            this.runningPromise = this.checkMessages();
-        }
-        await this.runningPromise;
+    processPending(): void {
+        this.kick();
     }
 
     /**
      * 上层（pool）通知：可以释放本 service。
-     * - 即便队列已空，也至少触发一次 checkMessages 让 onRelease fire；
-     * - drain 期间被入队的新消息会一起处理，drain 完成后再回调；
-     * - dedup：重复 requestRelease 在同一个未触发 fire 的窗口里只生效一次。
+     * 设标记 + kick；drain 完成（或当下队列已空）时由 checkMessages 回调 onRelease。
      */
     requestRelease(): void {
         if (this.releaseRequested) return;
         this.releaseRequested = true;
-        this.pendingWakeup = true;
-        if (!this.isRunning) {
-            this.runningPromise = this.checkMessages();
-            this.runningPromise.catch(() => undefined);
-        }
+        this.kick();
     }
 
     /**
-     * 串行消费 pending 队列。
-     * - 用 isRunning + pendingWakeup 双标志避免漏单：
-     *   pop 看不到新行但同时新 push 已写库，
-     *   只要 push 能在 isRunning 翻回 false 之前观察到 isRunning=true，
-     *   它就会设置 pendingWakeup，本轮外层 while 会再扫一次。
-     * - 失败行标 'failed' 保留数据，不再自动重试，由 admin 决定。
+     * 触发一次 checkMessages：已在跑则短路，否则后台启动一轮 drain。
+     * 同步函数——`if (isRunning) return` 与 checkMessages 调用之间无 await 缝隙。
+     */
+    private kick(): void {
+        if (this.isRunning) return;
+        this.checkMessages().catch(() => undefined);
+    }
+
+    /**
+     * 串行消费 pending 队列：循环 popOldestPending → 处理 → 删行 / 标 failed。
+     *
+     * 单标志 isRunning 足够，无需 pendingWakeup：
+     * - kick 是同步设置 isRunning=true 后才 await，外部并发的 kick 全部短路；
+     * - 在 drain 退出和 isRunning=false 之间没有 microtask 缝隙；
+     * - 任何 push 都是先同步 SQL INSERT 再 kick；如果当前在跑，下一轮循环必然 pop 到；
+     *   如果当前不在跑（已退出），kick 进入新一轮 drain。
      */
     private async checkMessages(): Promise<void> {
-        if (this.isRunning) return;
         this.isRunning = true;
         try {
-            while (this.pendingWakeup) {
-                this.pendingWakeup = false;
-                while (true) {
-                    const next = await this.store.popOldestPending();
-                    if (!next) break;
-                    try {
-                        const stats = await this.extractFromMessages(next.messages);
-                        await this.store.deletePending(next.id);
-                        this.logger?.info(
-                            `memory pending #${next.id} done: ` +
-                            `create:${stats.create}/update:${stats.update}/delete:${stats.delete}/noop:${stats.noop}/failed:${stats.failed}`
-                        );
-                    } catch (e: any) {
-                        const errMsg = (e?.message ?? String(e)).slice(0, 1000);
-                        await this.store.markPendingFailed(next.id, errMsg, Date.now()).catch(() => undefined);
-                        this.logger?.warn(`memory pending #${next.id} extraction failed: ${errMsg}`);
-                    }
+            while (true) {
+                const next = this.store.popOldestPending();
+                if (!next) break;
+                try {
+                    const stats = await this.extractFromMessages(next.messages);
+                    this.store.deletePending(next.id);
+                    this.logger?.info(
+                        `memory pending #${next.id} done: ` +
+                        `create:${stats.create}/update:${stats.update}/delete:${stats.delete}/noop:${stats.noop}/failed:${stats.failed}`
+                    );
+                } catch (e: any) {
+                    const errMsg = (e?.message ?? String(e)).slice(0, 1000);
+                    try { this.store.markPendingFailed(next.id, errMsg, Date.now()); } catch { /* swallow */ }
+                    this.logger?.warn(`memory pending #${next.id} extraction failed: ${errMsg}`);
                 }
             }
         } finally {

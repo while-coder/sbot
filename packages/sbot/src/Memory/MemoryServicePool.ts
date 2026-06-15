@@ -106,10 +106,10 @@ class MemoryServicePool {
         }
     }
 
-    /** admin 触发：阻塞等待 pending 队列消费完成。 */
+    /** admin 触发：唤醒 pending 队列消费（不阻塞，UI 自行轮询 listPendingMessages 看进度）。 */
     async forceExtract(memoryId: string): Promise<boolean> {
         const entry = await this.getEntry(memoryId);
-        await entry.service.processPending();
+        entry.service.processPending();
         return true;
     }
 
@@ -193,9 +193,7 @@ class MemoryServicePool {
         }
 
         // 启动时尝试消费历史 pending（上次进程崩溃前未处理的快照），不阻塞 build
-        service.processPending().catch(e => {
-            logger.warn(`[${memoryId}] startup pending drain failed: ${e?.message ?? e}`);
-        });
+        service.processPending();
         logger.info(`MemoryService [${memoryId}] built`);
 
         return entry;

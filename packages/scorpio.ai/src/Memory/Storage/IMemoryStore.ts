@@ -159,21 +159,23 @@ export interface IMemoryStore {
     reconcile(): Promise<{ indexed: number; pruned: number }>;
 
     // ── 待处理消息队列（每轮对话结束入队，串行消费） ──
+    // 全部同步：底层 better-sqlite3 是同步 API；MemoryService 依赖
+    // "push 的 SQL 在 kick 前已落库" 这一点来避免漏单。
 
     /** 入队一轮对话的消息快照，返回插入行 id。 */
-    pushPendingMessages(messages: ChatMessage[], now: number): Promise<number>;
+    pushPendingMessages(messages: ChatMessage[], now: number): number;
 
     /** 取最早一条 status='pending' 的行；没有返回 null。串行消费由 MemoryService 内部 isRunning 标志保证。 */
-    popOldestPending(): Promise<PendingMessageRow | null>;
+    popPendingMessages(): PendingMessageRow | null;
 
     /** 删除一行（成功消费后调用）。 */
-    deletePending(id: number): Promise<void>;
+    deletePending(id: number): void;
 
     /** 标记失败（保留数据），attemptCount += 1。 */
-    markPendingFailed(id: number, errorMessage: string, now: number): Promise<void>;
+    markPendingFailed(id: number, errorMessage: string, now: number): void;
 
     /** 管理/排障用：列最近的 pending+failed 行（按 id DESC）。 */
-    listPendingMessages(limit: number): Promise<PendingMessageRow[]>;
+    listPendingMessages(limit: number): PendingMessageRow[];
 
     dispose(): void;
 }

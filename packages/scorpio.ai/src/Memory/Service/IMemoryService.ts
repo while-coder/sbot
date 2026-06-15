@@ -4,7 +4,7 @@ import type { ChatMessage } from "../../Saver";
 /**
  * Memory 系统对外接口。运行时由 SingleAgentService 持有：
  *
- * - **读注入**：`getMemoryMenuPrompt()` 渲染好的 markdown 块注入 system prompt
+ * - **读注入**：`getSystemMessage()` 渲染好的 markdown 块注入 system prompt
  * - **工具调用**：`readMemory(slug)` / `search(query)` 由 `read_memory` / `search_memory` 工具执行
  * - **写路径**：`extractFromConversation(messages)` 每轮对话结束触发；
  *   实现内部把消息推入 SQLite 队列并串行调度 LLM 抽取。
@@ -33,8 +33,9 @@ export interface IMemoryService {
      *   - 含当前 menu 列表 + 工具调用规则
      *
      * 无 memory 时仍返回模板（让 agent 知道工具存在，只是当前空），由调用方决定是否注入。
+     * 返回 null 留给将来扩展（与 Note/Wiki/Skill 的 getSystemMessage 签名对齐）。
      */
-    getMemoryMenuPrompt(): Promise<string>;
+    getSystemMessage(): Promise<string | null>;
 
     /**
      * 按 slug 取 memory 全文。
@@ -65,10 +66,10 @@ export interface IMemoryService {
     extractFromConversation(messages: ChatMessage[]): Promise<void>;
 
     /** admin 排障：列最近的 pending+failed 行（按 id DESC）。 */
-    listPending(limit?: number): Promise<PendingMessageRow[]>;
+    listPending(limit?: number): PendingMessageRow[];
 
-    /** admin 触发：强制扫描 pending 队列并阻塞等待消费完成。 */
-    processPending(): Promise<void>;
+    /** admin 触发：唤醒 pending 队列消费（不阻塞，UI 通过 listPending 轮询进度）。 */
+    processPending(): void;
 
     /** admin 触发：合并/压缩现有 memory 条目。 */
     consolidate(): Promise<MemoryWriterOpStats>;

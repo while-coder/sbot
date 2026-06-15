@@ -116,7 +116,7 @@ export class SingleAgentService extends AgentServiceBase {
             // 注入 Memory（skill 风格）menu prompt：
             // 渲染好的 read 模板 + slug/description 列表；agent 通过
             // read_memory / search_memory 两个工具按需深读。
-            const memoryMenu = await this.memoryService.getMemoryMenuPrompt();
+            const memoryMenu = await this.memoryService.getSystemMessage();
             if (memoryMenu) dynamicParts.push(memoryMenu);
         }
 
@@ -453,14 +453,14 @@ export class SingleAgentService extends AgentServiceBase {
         }
         // 静默后台提取：
         // - memory / agenda 都在 turn 末尾触发，不阻塞主响应流
+        // - memory 内部已经"入队 + 串行 LLM 抽取"，调用方不需要 await（push 是同步 SQL，
+        //   错误用 .catch 兜底避免 unhandled rejection）
         const queryText = contentToString(query);
         const aiText = aiResponses.length > 0 ? aiResponses : undefined;
         if (this.memoryService) {
-            try {
-                await this.memoryService.extractFromConversation(outputMessages);
-            } catch (e: any) {
-                this.logger?.warn(`Background memory extraction failed: ${e?.message}`);
-            }
+            this.memoryService.extractFromConversation(outputMessages).catch(e => {
+                this.logger?.warn(`Background memory extraction failed: ${e?.message ?? e}`);
+            });
         }
         if (this.agendaService) {
             try {

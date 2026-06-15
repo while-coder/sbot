@@ -350,7 +350,7 @@ export class MemoryStore implements IMemoryStore {
 
     // ── 待处理消息队列 ──
 
-    async pushPendingMessages(messages: ChatMessage[], now: number): Promise<number> {
+    pushPendingMessages(messages: ChatMessage[], now: number): number {
         const result = this.db.prepare(`
             INSERT INTO memory_pending_messages (
                 messages_json, status, attempt_count, created_at, updated_at
@@ -361,7 +361,7 @@ export class MemoryStore implements IMemoryStore {
         return Number(result.lastInsertRowid);
     }
 
-    async popOldestPending(): Promise<PendingMessageRow | null> {
+    popPendingMessages(): PendingMessageRow | null {
         const row = this.db.prepare(`
             SELECT id, messages_json, status, attempt_count, error_message, created_at, updated_at
             FROM memory_pending_messages
@@ -373,11 +373,11 @@ export class MemoryStore implements IMemoryStore {
         return this.mapPendingRow(row);
     }
 
-    async deletePending(id: number): Promise<void> {
+    deletePending(id: number): void {
         this.db.prepare(`DELETE FROM memory_pending_messages WHERE id = ?`).run(id);
     }
 
-    async markPendingFailed(id: number, errorMessage: string, now: number): Promise<void> {
+    markPendingFailed(id: number, errorMessage: string, now: number): void {
         this.db.prepare(`
             UPDATE memory_pending_messages
             SET status        = 'failed',
@@ -388,7 +388,7 @@ export class MemoryStore implements IMemoryStore {
         `).run({ id, errorMessage: errorMessage.slice(0, 1000), now });
     }
 
-    async listPendingMessages(limit: number): Promise<PendingMessageRow[]> {
+    listPendingMessages(limit: number): PendingMessageRow[] {
         const rows = this.db.prepare(`
             SELECT id, messages_json, status, attempt_count, error_message, created_at, updated_at
             FROM memory_pending_messages
