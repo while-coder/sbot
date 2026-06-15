@@ -10,7 +10,7 @@ import {
     type AgendaCompleteResult,
     type AgendaRecord,
 } from 'scorpio.ai';
-import { agendaServicePool, agendaStorePool, agendaTriggerEnginePool } from '../../Agenda';
+import { agendaServicePool, agendaStorePool } from '../../Agenda';
 import { config } from '../../Core/Config';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
@@ -108,12 +108,11 @@ export class AgendaRoutes {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
             const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
-            const store = agendaStorePool.get(agendaId);
-            const deleted = await store.deleteItem(id);
-            if (!deleted) throwBad('Agenda item not found');
-            const engine = agendaTriggerEnginePool.get(agendaId);
-            for (const trigger of deleted.triggers) engine.cancel(trigger.id);
-            return { id };
+            return withAgendaService(agendaId, async service => {
+                const deleted = await service.delete(id);
+                if (!deleted) throwBad('Agenda item not found');
+                return { id };
+            });
         }));
     }
 

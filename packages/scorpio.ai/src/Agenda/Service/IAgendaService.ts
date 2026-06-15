@@ -42,6 +42,12 @@ export interface IAgendaService {
      */
     complete(id: number, at?: string): Promise<AgendaCompleteResult | null>;
     cancel(id: number): Promise<AgendaRecord | null>;
+    /**
+     * 物理删除一条 agenda（连带 triggers / occurrences）。
+     * 返回删除前的完整快照；找不到返回 null。
+     * 仅 admin 路径用——LLM 工具走 cancel 不走 delete。
+     */
+    delete(id: number): Promise<AgendaRecord | null>;
     formatForLLM(filter?: AgendaListFilter): Promise<string>;
 
     /**
