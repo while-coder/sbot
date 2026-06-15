@@ -48,6 +48,14 @@ export class TimeUtils {
         return new Date(timestamp).toLocaleString("en-US", options);
     }
 
+    static formatLocalDateTime(timezone: string, timestamp = Date.now()): string {
+        const date = new Date(timestamp);
+        // sv-SE 本身就是 "YYYY-MM-DD HH:mm:ss" 格式
+        const localTime = date.toLocaleString('sv-SE', { timeZone: timezone, hourCycle: 'h23' });
+        const weekday = date.toLocaleString('en-US', { timeZone: timezone, weekday: 'short' });
+        return `${localTime} (${weekday}, ${timezone})`;
+    }
+
     static formatDateKey(timestamp: number, timezone?: string | null): string {
         const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "2-digit", day: "2-digit" };
         if (timezone) options.timeZone = timezone;

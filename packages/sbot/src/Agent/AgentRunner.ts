@@ -28,6 +28,7 @@ import {
     T_AgendaExtractorSystemPrompt,
     T_AgendaChannelSessionId,
     T_AgendaToolDescs,
+    TimeUtils,
     type MessageContent,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -123,7 +124,7 @@ export class AgentRunner {
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
-        AgentRunner.registerMemoryService(container, options.memoryId);
+        const memoryService = AgentRunner.registerMemoryService(container, options.memoryId);
         await AgentRunner.registerAgendaService(container, options.agendaId, dbSessionId);
 
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
@@ -148,30 +149,15 @@ export class AgentRunner {
             await agent.stream(query, callbacks, signal);
         } finally {
             await agent?.dispose();
+            memoryService?.release();
             await saverHandle?.release();
         }
     }
 
     private static createCurrentTimePrompt(timezone: string): string {
-        const now = new Date();
-        const parts = new Intl.DateTimeFormat('en-US', {
-            timeZone: timezone,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            weekday: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hourCycle: 'h23',
-        }).formatToParts(now);
-        const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? '';
-        const localTime = `${value('year')}-${value('month')}-${value('day')} ${value('hour')}:${value('minute')}:${value('second')} (${value('weekday')}, ${timezone})`;
-
         return [
             '<current-time>',
-            `Current local time: ${localTime}`,
-            `Current UTC time: ${now.toISOString()}`,
+            `Current local time: ${TimeUtils.formatLocalDateTime(timezone)}`,
             '</current-time>',
         ].join('\n');
     }
@@ -266,17 +252,19 @@ export class AgentRunner {
 
     /**
      * Memory（skill 风格）系统注册。命中 memoryProfiles 才注册；否则不启用记忆。
-     * pool 单例缓存 service，无需 release —— profile 失效由 settings CRUD 触发 invalidate。
+     * 返回 acquire 到的 service 引用；caller（run finally）负责调 service.release()
+     * 来减 refCount。
      */
     private static registerMemoryService(
         container: ServiceContainer,
         memoryId: string | null | undefined,
-    ): void {
-        if (!memoryId) return;
+    ): IMemoryService | null {
+        if (!memoryId) return null;
         const profileConfig = config.getMemoryProfile(memoryId);
-        if (!profileConfig?.enabled) return;
+        if (!profileConfig?.enabled) return null;
         const service = memoryServicePool.acquire(memoryId);
         if (service) container.registerInstance(IMemoryService, service);
+        return service;
     }
 
     private static async registerAgendaService(
