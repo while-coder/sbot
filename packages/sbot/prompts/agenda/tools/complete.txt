@@ -1,15 +1,13 @@
 Mark an agenda item (or one occurrence of a routine) as complete.
 
-NON-OCCURRENCE ITEMS (todo / reminder / routine without per-fire check-in)
-Use this when the user says it's done: "已经做完了", "搞定了", "已交". The whole item is closed and remaining triggers are disabled.
+NON-OCCURRENCE ITEMS
+Use when the user says it's done: "already finished", "submitted", "done with that". The whole item closes; remaining triggers are disabled.
 
 OCCURRENCE ROUTINES (completionMode=occurrence)
-Closes ONE instance, NOT the whole routine. The routine keeps firing.
-- Without `at`: closes the EARLIEST still-pending instance — for plain check-ins like "我喝了 / 完成了今天的 / 已交".
-- With `at`: pinpoint a specific occurrence by ISO datetime. BOTH pending AND missed instances are reachable through `at`. Use it for:
-  * "16:38 喝了水忘了说" → at = 16:38 ISO of today (likely closes the missed 16:38 instance)
-  * "周一的周报我刚补交了" → at = that monday's scheduled fire ISO
-  * "10 点的工作报告：…" against an hourly routine → at = 10:00 ISO of today
-- Do NOT use `at` for ambiguous "现在 / just now / 刚刚" replies — let the default earliest-pending logic handle them.
-
-To stop the whole routine entirely, use agenda_cancel instead.
+Closes ONE instance, NOT the whole routine. The routine keeps firing — to stop it entirely, use agenda_cancel.
+- Without `at`: closes the EARLIEST still-pending instance — for plain check-ins like "I drank it", "finished today's".
+- With `at`: pinpoint a specific occurrence by ISO. BOTH pending AND missed instances are reachable. Use it whenever the user references a specific past time:
+  * "I drank water at 16:38, forgot to log" → at=16:38 ISO of today.
+  * "I just submitted Monday's report" → at=that monday's scheduled fire ISO.
+  * "Here is the 10am hourly report …" → at=10:00 ISO of today.
+- Do NOT use `at` for ambiguous "now" / "just now" replies — let the default earliest-pending logic handle them.

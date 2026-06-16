@@ -1,41 +1,13 @@
-Create a user agenda item — todo, reminder, schedule, routine, deadline, or scheduled automation.
+Create an agenda item — todo, reminder, schedule, routine, deadline, or future automation.
 
 WHEN TO USE
-Whenever the user asks you to remember something, remind them later, schedule a future notification, create a routine, or run an agent action at a future time.
+The user wants you to remember, remind later, schedule, or run something at a future time. Trust dedup: an "already exists" result counts as success. Do NOT pre-call agenda_list.
 
-Trust the system's near-duplicate detection: if the result says "already exists", treat that as success. Do NOT pre-call agenda_list just to dedupe.
+SCHEDULES
+Pass `triggers` as an array. Multiple elements = multiple active schedules on one item ("9:00 AND 18:00", "1 day before AND at deadline"). Each TriggerSpec carries its own action/message; kind/options live in the field schema.
 
-TIME — `triggers` (an array)
-- Plain todo without a time → omit `triggers`.
-- One schedule → `triggers: [<one>]`.
-- Multiple active schedules on the same item → `triggers: [<a>, <b>, ...]`. Examples: "remind me one day before AND at the deadline", "9:00 and 18:00".
+OCCURRENCE ROUTINES (per-fire check-in: drinking water, daily standup, weekly report, etc.)
+Set completionMode=occurrence so each fire is a separate instance the user checks off. EVERY trigger must use action=notify_and_record. Missed instances stay missed; users backfill via agenda_complete.
 
-Pick `kind` to match what the user said:
-- one-shot at a specific moment → kind=absolute, `at`=ISO. For "1 hour from now" / "100 days later", compute the ISO yourself.
-- fixed-cadence recurrence ("每天", "每 90 分钟") → kind=interval, `every`={amount,unit}.
-- calendar-aligned recurrence ("工作日 9 点", "每月 1 号") → kind=cron, `expr`=6-field cron.
-Do NOT use cron when interval suffices.
-
-PER-TRIGGER `action` AND `message`
-Each trigger element carries its OWN `action` and `message`. There are no top-level action/message fields on this tool.
-
-action options (per trigger):
-- notify (default) — pure text ping; fire NOT recorded in conversation history. For one-shot reminders / external pings.
-- notify_and_record — text ping + recorded in history. Required for occurrence routines (打卡/汇报/喝水/周报) so the agent later reads "[AI: 要喝水了][user: 已喝]" coherently.
-- invoke — feed the text to the AI agent as user input so it actively responds. Use when the user wants AI work at fire time, e.g. "每天 8 点帮我总结日志".
-
-message (per trigger):
-Override the fire-time text. Defaults to `content`. Set only when fire-time text needs to differ — friendlier reminder tone for notify, fuller instruction for invoke.
-
-This per-trigger granularity means: same item can have one trigger fire as "notify" and another as "invoke" — e.g. content="周报"; triggers=[{kind:absolute, at:"...09:00", action:"invoke", message:"分析本周状态并起草"}, {kind:absolute, at:"...18:00", action:"notify"}].
-
-OCCURRENCE ROUTINES (打卡 / 汇报 / 喝水 / 周报)
-Use completionMode=occurrence when each fire is a separate instance the user must check off.
-EVERY trigger on an occurrence routine should have action=notify_and_record (otherwise the user reply is orphaned in history).
-A missed occurrence stays missed forever once the next fire arrives — intended product behavior. Backfill via `at` on agenda_complete still works.
-
-DEFAULTS YOU CAN OMIT
-- category / completionMode / priority — system infers from triggers and content.
-- trigger.action — defaults to notify.
-- trigger.message — defaults to content.
-- dueAt — auto-derived from triggers for reminder/routine. For a plain todo with a deadline, set dueAt explicitly. dueAt is METADATA only (used for dedup, overdue badge, display); it does NOT create a reminder by itself. If you want the user to be notified at the deadline, ALSO include a trigger: e.g. dueAt="2026-06-13T17:00:00", triggers:[{kind:"absolute", at:"2026-06-13T17:00:00"}].
+DEFAULTS
+Omit category / completionMode / priority — inferred. dueAt is metadata only (dedup / overdue badge); for a deadline ping, also add a matching trigger.

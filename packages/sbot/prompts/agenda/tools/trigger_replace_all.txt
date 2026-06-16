@@ -2,7 +2,7 @@ Replace the FULL active trigger list of an agenda item in one shot.
 
 USE WHEN
 - Schedule cleanup, deduplication, or normalizing several active triggers.
-- The user describes the final complete reminder list ("以后就只在 9:00 和 18:00 提醒，去掉中午那个").
+- The user describes the final complete reminder list ("from now on only ping at 9:00 and 18:00, drop the noon one").
 
 Pass exactly the triggers that should remain active. Each spec carries its own `action` (default notify) and `message` (default = item.content). Existing active triggers not in the list are disabled.
 

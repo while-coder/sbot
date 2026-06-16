@@ -1,7 +1,7 @@
 Add ONE active trigger to an existing agenda item, leaving its current triggers in place.
 
 USE WHEN
-The user wants an additional reminder ON TOP OF existing schedules: "再提前一天提醒我", "也加一个 18:00 的提醒".
+The user wants an additional reminder ON TOP OF existing schedules: "remind me a day earlier too", "also add an 18:00 reminder".
 
 INPUT SHAPE
 The new trigger spec is FLAT — no `trigger:` wrapper. Pass `itemId` plus the spec fields directly:

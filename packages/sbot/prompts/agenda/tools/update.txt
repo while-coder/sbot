@@ -1,13 +1,10 @@
-Update an existing agenda item's BODY fields: content, category, priority, completionMode, dueAt.
+Update an agenda item's BODY fields: content, category, priority, completionMode, dueAt.
 
 DO NOT USE FOR
-- Trigger schedule / action / message changes → use agenda_trigger_add / agenda_trigger_update / agenda_trigger_remove / agenda_trigger_replace_all.
+Trigger schedule / action / message changes → use agenda_trigger_add / agenda_trigger_update / agenda_trigger_remove / agenda_trigger_replace_all.
 
 CADENCE CONSISTENCY
-When the user changes the schedule (e.g. "每小时" → "每两小时"), inspect the existing item's `content` and trigger `message`:
-- If `content` embeds the old cadence ("每小时总结一下工作内容"), update content in the same call ("每两小时总结一下工作内容"). Otherwise the displayed name stays stale and contradicts the schedule.
-- If a trigger `message` references the old cadence, update it via agenda_trigger_update / agenda_trigger_replace_all in the same turn.
-- Skip these only when content/message is already cadence-agnostic.
+When the user changes cadence ("every hour" → "every two hours"), inspect whether `content` or any trigger `message` embeds the old cadence — if so, update them in the same turn (content here, message via agenda_trigger_update / agenda_trigger_replace_all). Otherwise the displayed name stays stale and contradicts the schedule. Skip only when text is already cadence-agnostic.
 
 dueAt INTERACTION
-Changing `dueAt` does NOT auto-adjust existing triggers. If the user moves the deadline AND the existing trigger should move with it (e.g. a plain todo whose only trigger was the deadline reminder), also call agenda_trigger_replace_all with the new active trigger list. Otherwise the trigger keeps firing at its old time.
+Changing `dueAt` does NOT auto-retime existing triggers. If the user moves a deadline AND the existing trigger was the deadline reminder, also call agenda_trigger_replace_all with the new active trigger list. Otherwise the trigger keeps firing at its old time.

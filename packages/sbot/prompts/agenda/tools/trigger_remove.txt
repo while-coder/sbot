@@ -1,7 +1,7 @@
 Remove ONE existing trigger by triggerId from an agenda item; the item itself stays.
 
 USE WHEN
-The user drops one reminder/schedule but wants to keep the agenda item: "不要 18:00 那个提醒了，但事项还要".
+The user drops one reminder/schedule but wants to keep the agenda item: "drop the 18:00 reminder but keep the item".
 
 DO NOT USE WHEN
 - Cancelling the whole item → agenda_cancel.
