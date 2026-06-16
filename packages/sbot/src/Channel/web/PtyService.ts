@@ -2,26 +2,14 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { fork, type ChildProcess } from 'child_process';
 import { WebSocketServer, WebSocket } from 'ws';
-import type * as PtyTypes from '@lydell/node-pty';
 import { LoggerService } from '../../Core/LoggerService';
 
 const logger = LoggerService.getLogger('PtyService.ts');
-
-let ptyMod: typeof PtyTypes | null = null;
-let ptyLoadError: string | null = null;
-
-function loadPty(): typeof PtyTypes | null {
-    if (ptyMod) return ptyMod;
-    if (ptyLoadError) return null;
-    try {
-        ptyMod = require('@lydell/node-pty') as typeof PtyTypes;
-    } catch (e: any) {
-        ptyLoadError = e?.message ?? String(e);
-        logger.warn(`@lydell/node-pty unavailable, terminal feature disabled: ${ptyLoadError}`);
-    }
-    return ptyMod;
-}
+const OPEN_TIMEOUT_MS = 10_000;
+const WORKER_READY_TIMEOUT_MS = 10_000;
+const OUTPUT_BACKPRESSURE_LIMIT = 2 * 1024 * 1024;
 
 export interface ShellOption {
     /** Stable id, used by client when requesting `open`. */
@@ -30,6 +18,8 @@ export interface ShellOption {
     label: string;
     /** Absolute executable path. */
     path: string;
+    /** Server-side default arguments for safer interactive startup. */
+    args?: string[];
 }
 
 interface OpenMessage {
@@ -45,6 +35,12 @@ interface InputMessage { type: 'input'; data: string; }
 interface ResizeMessage { type: 'resize'; cols: number; rows: number; }
 type ClientMessage = OpenMessage | InputMessage | ResizeMessage;
 
+type WorkerMessage =
+    | { type: 'ready'; shell: string; cwd: string; pid: number }
+    | { type: 'data'; data: string }
+    | { type: 'exit'; code?: number; signal?: number }
+    | { type: 'error'; message: string };
+
 let cachedShells: ShellOption[] | null = null;
 
 function fileExists(p: string): boolean {
@@ -59,20 +55,19 @@ function detectWindowsShells(): ShellOption[] {
     const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
     const localAppData = process.env.LOCALAPPDATA ?? '';
 
-    const candidates: Array<[string, string]> = [
-        [path.join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), 'PowerShell'],
+    const candidates: Array<[string, string, string[]?]> = [
         [path.join(sysRoot, 'System32', 'cmd.exe'), 'Command Prompt'],
-        [path.join(programFiles, 'PowerShell', '7', 'pwsh.exe'), 'PowerShell 7'],
-        [path.join(programFilesX86, 'PowerShell', '7', 'pwsh.exe'), 'PowerShell 7 (x86)'],
+        [path.join(programFiles, 'PowerShell', '7', 'pwsh.exe'), 'PowerShell 7', ['-NoLogo', '-NoProfile']],
+        [path.join(programFilesX86, 'PowerShell', '7', 'pwsh.exe'), 'PowerShell 7 (x86)', ['-NoLogo', '-NoProfile']],
         [path.join(programFiles, 'Git', 'bin', 'bash.exe'), 'Git Bash'],
         [path.join(programFilesX86, 'Git', 'bin', 'bash.exe'), 'Git Bash (x86)'],
         [path.join(localAppData, 'Microsoft', 'WindowsApps', 'wsl.exe'), 'WSL'],
     ];
     const seen = new Set<string>();
-    for (const [p, label] of candidates) {
+    for (const [p, label, args] of candidates) {
         if (!p || seen.has(p.toLowerCase()) || !fileExists(p)) continue;
         seen.add(p.toLowerCase());
-        out.push({ id: p, label, path: p });
+        out.push({ id: p, label, path: p, args });
     }
     return out;
 }
@@ -117,6 +112,23 @@ function defaultShell(shells: ShellOption[]): string {
     return process.env.SHELL ?? shells[0]?.path ?? '/bin/sh';
 }
 
+function resolveShell(requested: string | undefined, shells: ShellOption[]): { path: string; args: string[] } {
+    if (requested) {
+        const known = shells.find(s => s.path.toLowerCase() === requested.toLowerCase());
+        if (known) return { path: known.path, args: known.args ?? [] };
+        if (fileExists(requested)) return { path: requested, args: [] };
+    }
+    const fallbackPath = defaultShell(shells);
+    const fallback = shells.find(s => s.path.toLowerCase() === fallbackPath.toLowerCase());
+    return { path: fallbackPath, args: fallback?.args ?? [] };
+}
+
+function isBlockedShell(shellPath: string): boolean {
+    if (process.platform !== 'win32') return false;
+    const normalized = shellPath.toLowerCase();
+    return normalized.endsWith('\\windowspowershell\\v1.0\\powershell.exe');
+}
+
 function sanitizeCwd(cwd?: string): string | undefined {
     if (!cwd) return undefined;
     try {
@@ -124,6 +136,10 @@ function sanitizeCwd(cwd?: string): string | undefined {
         if (stat.isDirectory()) return cwd;
     } catch { /* fall through */ }
     return undefined;
+}
+
+function workerScriptPath(): string {
+    return path.join(__dirname, 'PtyWorker.js');
 }
 
 /**
@@ -142,37 +158,85 @@ export class PtyService {
         // own — corrupting the already-101'd response of whichever WSS handled the
         // request. Routing here keeps each WSS to its own path.
         const wss = this.wss = new WebSocketServer({ noServer: true });
-        wss.on('connection', (ws) => this.handleConnection(ws));
+        wss.on('connection', (ws, req) => this.handleConnection(ws, req));
+        wss.on('error', e => logger.warn(`pty websocket server error: ${e?.message ?? e}`));
         server.on('upgrade', (req, socket, head) => {
             const url = req.url ?? '';
             const pathname = url.split('?')[0];
             if (pathname !== '/ws/pty') return;
-            wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+            try {
+                wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+            } catch (e: any) {
+                logger.error(`pty upgrade failed: ${e?.message ?? e}`);
+                try { socket.destroy(); } catch { /* ignore */ }
+            }
         });
         logger.info('PtyService attached to /ws/pty');
     }
 
-    private handleConnection(ws: WebSocket): void {
-        let term: PtyTypes.IPty | null = null;
+    private handleConnection(ws: WebSocket, req: http.IncomingMessage): void {
+        let worker: ChildProcess | null = null;
         let opened = false;
+        let ready = false;
         let exited = false;
+        let readyTimer: ReturnType<typeof setTimeout> | null = null;
+        const peer = `${req.socket.remoteAddress}:${req.socket.remotePort}`;
 
         const sendControl = (obj: object) => {
-            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+            if (ws.readyState !== WebSocket.OPEN) return;
+            try {
+                ws.send(JSON.stringify(obj), err => {
+                    if (err) logger.warn(`pty control send failed: peer=${peer} err=${err.message}`);
+                });
+            } catch (e: any) {
+                logger.warn(`pty control send failed: peer=${peer} err=${e?.message ?? e}`);
+            }
+        };
+
+        const clearReadyTimer = () => {
+            if (readyTimer) {
+                clearTimeout(readyTimer);
+                readyTimer = null;
+            }
+        };
+
+        const sendWorker = (obj: object) => {
+            if (!worker?.connected) return;
+            try {
+                worker.send(obj, err => {
+                    if (err) logger.warn(`pty worker send failed: peer=${peer} err=${err.message}`);
+                });
+            } catch (e: any) {
+                logger.warn(`pty worker send failed: peer=${peer} err=${e?.message ?? e}`);
+            }
         };
 
         const cleanup = () => {
-            if (term && !exited) {
-                try { term.kill(); } catch { /* pty already dead */ }
+            clearTimeout(openTimer);
+            clearReadyTimer();
+            if (worker && !exited) {
+                try {
+                    if (worker.connected) worker.send({ type: 'kill' });
+                } catch { /* worker may already be wedged */ }
+                try { worker.kill(); } catch { /* already gone */ }
             }
-            term = null;
+            worker = null;
         };
+
+        const openTimer = setTimeout(() => {
+            if (opened || ws.readyState !== WebSocket.OPEN) return;
+            logger.warn(`pty open timeout: peer=${peer}`);
+            sendControl({ type: 'error', message: 'Terminal open timeout' });
+            try { ws.close(1008, 'open timeout'); } catch { /* ignore */ }
+        }, OPEN_TIMEOUT_MS);
+
+        logger.info(`pty connected: peer=${peer}`);
 
         ws.on('message', (raw, isBinary) => {
             // Bytes only make sense once the pty is open, and they are user input.
             if (isBinary) {
-                if (!term) return;
-                try { term.write(raw.toString('utf8')); } catch (e: any) { logger.warn(`pty.write: ${e?.message ?? e}`); }
+                if (!ready) return;
+                sendWorker({ type: 'input', data: raw.toString('utf8') });
                 return;
             }
             let msg: ClientMessage;
@@ -181,58 +245,139 @@ export class PtyService {
             if (msg.type === 'open') {
                 if (opened) return;
                 opened = true;
-                const mod = loadPty();
-                if (!mod) {
-                    sendControl({ type: 'error', message: `Terminal feature unavailable on this server: ${ptyLoadError}` });
+                clearTimeout(openTimer);
+                const shells = listShells();
+                const requested = msg.shell?.trim();
+                const shell = resolveShell(requested, shells);
+                if (isBlockedShell(shell.path)) {
+                    logger.warn(`pty blocked shell: peer=${peer} shell=${shell.path}`);
+                    sendControl({ type: 'error', message: 'Windows PowerShell 5.1 is disabled for the built-in terminal because it can block node-pty startup on this server. Use Command Prompt, PowerShell 7, Git Bash, or WSL instead.' });
                     ws.close();
                     return;
                 }
-                const shells = listShells();
-                const requested = msg.shell?.trim();
-                const shellPath = requested && fileExists(requested) ? requested : defaultShell(shells);
                 const cwd = sanitizeCwd(msg.cwd) ?? os.homedir();
                 const cols = Math.max(2, Math.min(500, msg.cols ?? 80));
                 const rows = Math.max(2, Math.min(200, msg.rows ?? 24));
                 const env: NodeJS.ProcessEnv = { ...process.env, ...msg.env, TERM: 'xterm-256color' };
-                try {
-                    term = mod.spawn(shellPath, [], {
-                        name: 'xterm-256color',
-                        cols, rows, cwd, env,
-                    });
-                } catch (e: any) {
-                    logger.error(`pty.spawn failed (shell=${shellPath}): ${e?.message ?? e}`);
-                    sendControl({ type: 'error', message: `Failed to spawn shell: ${e?.message ?? e}` });
+                logger.info(`pty opening: peer=${peer} shell=${shell.path} cwd=${cwd} size=${cols}x${rows}`);
+
+                const workerPath = workerScriptPath();
+                if (!fs.existsSync(workerPath)) {
+                    logger.error(`pty worker script missing: ${workerPath}`);
+                    sendControl({ type: 'error', message: 'Terminal worker script is missing. Please rebuild sbot.' });
                     ws.close();
                     return;
                 }
-                term.onData(data => {
-                    if (ws.readyState === WebSocket.OPEN) ws.send(data);
+                try {
+                    worker = fork(workerPath, [], {
+                        stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+                        execArgv: [],
+                        env: { ...process.env, NODE_OPTIONS: '' },
+                    });
+                } catch (e: any) {
+                    logger.error(`pty worker fork failed: ${e?.message ?? e}`);
+                    sendControl({ type: 'error', message: `Failed to start terminal worker: ${e?.message ?? e}` });
+                    ws.close();
+                    return;
+                }
+
+                readyTimer = setTimeout(() => {
+                    if (ready || exited) return;
+                    logger.error(`pty worker ready timeout: peer=${peer} shell=${shell.path}`);
+                    sendControl({ type: 'error', message: 'Terminal startup timed out; the pty worker was stopped.' });
+                    try { ws.close(1011, 'pty startup timeout'); } catch { /* ignore */ }
+                    cleanup();
+                }, WORKER_READY_TIMEOUT_MS);
+
+                worker.on('message', (raw: WorkerMessage) => {
+                    if (!raw || typeof raw !== 'object') return;
+
+                    if (raw.type === 'ready') {
+                        ready = true;
+                        clearReadyTimer();
+                        logger.info(`pty ready: peer=${peer} pid=${raw.pid}`);
+                        sendControl({ type: 'ready', shell: raw.shell, cwd: raw.cwd, pid: raw.pid });
+                        return;
+                    }
+
+                    if (raw.type === 'data') {
+                        if (ws.readyState !== WebSocket.OPEN) return;
+                        if (ws.bufferedAmount > OUTPUT_BACKPRESSURE_LIMIT) {
+                            logger.warn(`pty output backpressure, closing: peer=${peer} buffered=${ws.bufferedAmount}`);
+                            sendControl({ type: 'error', message: 'Terminal output is too large or the client is too slow; closing terminal.' });
+                            try { ws.close(1011, 'pty output backpressure'); } catch { /* ignore */ }
+                            cleanup();
+                            return;
+                        }
+                        try {
+                            ws.send(raw.data, err => {
+                                if (err) logger.warn(`pty output send failed: peer=${peer} err=${err.message}`);
+                            });
+                        } catch (e: any) {
+                            logger.warn(`pty output send failed: peer=${peer} err=${e?.message ?? e}`);
+                        }
+                        return;
+                    }
+
+                    if (raw.type === 'error') {
+                        logger.error(`pty worker error: peer=${peer} message=${raw.message}`);
+                        sendControl({ type: 'error', message: raw.message });
+                        try { ws.close(); } catch { /* ignore */ }
+                        cleanup();
+                        return;
+                    }
+
+                    if (raw.type === 'exit') {
+                        exited = true;
+                        clearReadyTimer();
+                        logger.info(`pty exited: peer=${peer} code=${raw.code} signal=${raw.signal ?? ''}`);
+                        sendControl({ type: 'exit', code: raw.code, signal: raw.signal });
+                        try { ws.close(); } catch { /* ignore */ }
+                    }
                 });
-                term.onExit(({ exitCode, signal }) => {
+                worker.on('exit', (code, signal) => {
+                    clearReadyTimer();
+                    if (exited) return;
                     exited = true;
-                    sendControl({ type: 'exit', code: exitCode, signal });
+                    logger.info(`pty worker exited: peer=${peer} code=${code} signal=${signal ?? ''}`);
+                    if (ws.readyState === WebSocket.OPEN) {
+                        sendControl({ type: 'exit', code, signal });
+                    }
                     try { ws.close(); } catch { /* ignore */ }
                 });
-                sendControl({ type: 'ready', shell: shellPath, cwd, pid: term.pid });
+                worker.on('error', e => {
+                    clearReadyTimer();
+                    logger.error(`pty worker process error: peer=${peer} err=${e?.message ?? e}`);
+                    sendControl({ type: 'error', message: `Terminal worker error: ${e?.message ?? e}` });
+                    try { ws.close(); } catch { /* ignore */ }
+                    cleanup();
+                });
+                sendWorker({ type: 'open', shell: shell.path, args: shell.args, cwd, cols, rows, env });
                 return;
             }
 
-            if (!term) return;
+            if (!ready) return;
 
             if (msg.type === 'input') {
-                try { term.write(msg.data); } catch (e: any) { logger.warn(`pty.write: ${e?.message ?? e}`); }
+                sendWorker({ type: 'input', data: msg.data });
                 return;
             }
 
             if (msg.type === 'resize') {
                 const cols = Math.max(2, Math.min(500, msg.cols));
                 const rows = Math.max(2, Math.min(200, msg.rows));
-                try { term.resize(cols, rows); } catch (e: any) { logger.warn(`pty.resize: ${e?.message ?? e}`); }
+                sendWorker({ type: 'resize', cols, rows });
             }
         });
 
-        ws.on('close', cleanup);
-        ws.on('error', () => cleanup());
+        ws.on('close', (code, reason) => {
+            logger.info(`pty closed: peer=${peer} code=${code} reason=${reason?.toString() || ''}`);
+            cleanup();
+        });
+        ws.on('error', e => {
+            logger.warn(`pty websocket error: peer=${peer} err=${e?.message ?? e}`);
+            cleanup();
+        });
     }
 
     dispose(): void {
