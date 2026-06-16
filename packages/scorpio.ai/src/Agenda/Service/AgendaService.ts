@@ -112,10 +112,9 @@ export class AgendaService implements IAgendaService {
                 doneAt: null,
             });
 
-            // 显式 dueAt 但没传 trigger（典型场景：纯 Todo 加截止）→ 派生一个 Absolute trigger，
-            // 让 dueAt 时刻自动发一次"已到截止"提醒；否则 dueAt 过期后系统不会有任何主动行为。
-            const effectiveArgs = this.withDefaultDueAtTrigger(args);
-            const triggers = await this.createTriggersIfNeeded(inserted.item, effectiveArgs, now);
+            // dueAt 仅作为「截止时刻」语义存储，不再派生默认 trigger。
+            // 如果希望截止前/截止时被提醒，调用方需显式传 triggers。
+            const triggers = await this.createTriggersIfNeeded(inserted.item, args, now);
             return { record: inserted, created: true as const, triggers };
         });
 
@@ -528,20 +527,6 @@ export class AgendaService implements IAgendaService {
 
     private inferCompletionMode(category: AgendaCategory): AgendaCompletionMode {
         return category === AgendaCategory.Todo ? AgendaCompletionMode.Item : AgendaCompletionMode.None;
-    }
-
-    /**
-     * 用户显式传 dueAt 但没传 triggers 时，派生一条默认 Absolute trigger（at=dueAt）。
-     * 让 dueAt 时刻自动发一次"已到截止"提醒。trigger.message 留空，由 buildMessage 回退到 content。
-     * 不影响 inferCategory（仍是 Todo）和 completionMode（Item，由用户 complete）。
-     * 过去时刻的 dueAt 由引擎按 markMissed 处理，不会立刻误触发。
-     */
-    private withDefaultDueAtTrigger(args: AgendaCreateArgs): AgendaCreateArgs {
-        if (args.triggers !== undefined || !args.dueAt) return args;
-        return {
-            ...args,
-            triggers: [{ kind: AgendaTriggerKind.Absolute, at: args.dueAt }],
-        };
     }
 
     private inferDueAt(args: AgendaCreateArgs, now: number): number | null {

@@ -226,12 +226,13 @@ export interface AgendaCreateArgs {
     /** 显式完成模式。一般省略，由系统按 category 推断。 */
     completionMode?: AgendaCompletionMode;
     /**
-     * 显式截止时刻（ISO 字符串）。优先级最高，会覆盖系统从 trigger 推导的 dueAt。
+     * 截止时刻（ISO 字符串）。仅作为「目标完成时刻」的语义字段：
+     * - 用作 findNearDuplicate 去重 key（content + dueAt 一致视为重复）
+     * - UI/LLM 展示「已过期」标记
+     * - 列表排序兜底
+     * 不会派生任何 trigger——若要在截止时被提醒，调用方需显式传 triggers。
      * 主要给纯 Todo 用——LLM 说"周五前写完周报" → dueAt = "2026-06-13T23:59:59"。
-     * 副作用：当不传 triggers（或 triggers=[]）时，系统会自动派生一条 Absolute trigger（at=dueAt）作为"截止前提醒"，
-     * 避免 dueAt 过期后无人通知；同时传 triggers 则用户调度优先，不派生。
-     * Reminder（Absolute trigger）默认 dueAt = trigger.at，无需显式传；
-     * 周期任务（Interval+count）默认 dueAt = 最后一次触发时刻。
+     * 显式传入优先；不传则由 triggers 推导：Reminder=trigger.at，Routine+count=最后一次触发时刻。
      */
     dueAt?: string;
     /** 来源标记。LLM 调用时一般不传，由 service 根据上下文写入（Tool / Sync）。 */

@@ -38,4 +38,4 @@ DEFAULTS YOU CAN OMIT
 - category / completionMode / priority — system infers from triggers and content.
 - trigger.action — defaults to notify.
 - trigger.message — defaults to content.
-- dueAt — auto-derived from triggers for reminder/routine. Set explicitly only to add a deadline to a plain todo (in which case the system auto-fires a one-shot reminder at that moment so the deadline cannot pass silently).
+- dueAt — auto-derived from triggers for reminder/routine. For a plain todo with a deadline, set dueAt explicitly. dueAt is METADATA only (used for dedup, overdue badge, display); it does NOT create a reminder by itself. If you want the user to be notified at the deadline, ALSO include a trigger: e.g. dueAt="2026-06-13T17:00:00", triggers:[{kind:"absolute", at:"2026-06-13T17:00:00"}].
