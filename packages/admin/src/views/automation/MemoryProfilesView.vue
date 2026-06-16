@@ -53,7 +53,7 @@ const columns = computed<STableColumn[]>(() => [
   { key: 'name',         label: t('common.name'),                primary: true },
   { key: 'enabled',      label: t('common.enabled'),             width: '100px', align: 'center' },
   { key: 'writerModel',  label: t('memory_profiles.writer_model'), width: '200px' },
-  { key: 'ops',          label: t('common.ops'),                 ops: true, width: '390px', align: 'center' },
+  { key: 'ops',          label: t('common.ops'),                 ops: true, width: '320px', align: 'center' },
 ])
 
 const showModal = ref(false)
@@ -346,7 +346,6 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
         <template #ops="{ row }">
           <div class="ops-row">
             <SButton type="outline" size="sm" @click="openMemoryViewer(row.id)">{{ t('memory_profiles.view_memories') }}</SButton>
-            <SButton type="outline" size="sm" :loading="running[row.id]" @click="runExtract(row.id)">{{ t('memory_profiles.run_extract') }}</SButton>
             <SButton type="outline" size="sm" :loading="consolidating[row.id]" @click="runConsolidate(row.id)">{{ t('memory_profiles.run_consolidate') }}</SButton>
             <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>

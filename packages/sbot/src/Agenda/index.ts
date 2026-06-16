@@ -1,3 +1,3 @@
 export { agendaStorePool } from "./AgendaStorePool";
 export { agendaTriggerEnginePool } from "./AgendaTriggerEnginePool";
-export { agendaServicePool } from "./AgendaServicePool";
+export { agendaServicePool, startupExtractAll as agendaStartupExtractAll } from "./AgendaServicePool";
