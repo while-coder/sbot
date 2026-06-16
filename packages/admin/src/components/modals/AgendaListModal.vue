@@ -23,6 +23,7 @@ const {
   complete,
   cancel,
   remove,
+  update,
 } = useAgendas({
   buildQuery: () => agendaIdRef.value ? `agendaId=${encodeURIComponent(agendaIdRef.value)}` : null,
   limit: 300,
@@ -60,6 +61,7 @@ defineExpose({ openByAgendaId })
       @complete="complete"
       @cancel="cancel"
       @remove="remove"
+      @update="update"
     />
   </SModal>
 </template>

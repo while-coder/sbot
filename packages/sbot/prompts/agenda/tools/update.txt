@@ -1,10 +1,10 @@
 Update an existing agenda item. Use this when the user changes the content, priority, category, due time, trigger time, schedule, action, message, or completion behavior of an agenda item.
 
-Use at, after, every, or cron to replace the item's active trigger while preserving the agenda item id and history.
+Use `triggers` to replace the item's active trigger schedule while preserving the agenda item id and history. `triggers` is replace-all: pass the final active trigger list to keep, or [] to clear all active triggers.
 
 When the user changes the schedule (e.g. "每小时" → "每两小时"), look at the existing item's `content` and `message`:
 - If the existing content embeds the old cadence as text (e.g. "每小时总结一下工作内容"), pass the new content reflecting the new cadence ("每两小时总结一下工作内容") in the same call. Otherwise the displayed name will stay stale and contradict the new schedule.
 - Same for the new trigger's `message` if it referenced the old cadence.
 Skip these only when the existing content/message is already cadence-agnostic.
 
-Changing `dueAt` does NOT auto-adjust existing triggers. If the user changes the deadline AND the existing trigger should move with it (e.g. a plain todo whose only trigger was the deadline-reminder), pass `trigger` in the same call to replace the schedule. Otherwise the trigger keeps firing on its old time.
+Changing `dueAt` does NOT auto-adjust existing triggers. If the user changes the deadline AND the existing trigger should move with it (e.g. a plain todo whose only trigger was the deadline-reminder), pass `triggers` in the same call to replace the schedule. Otherwise the trigger keeps firing on its old time.

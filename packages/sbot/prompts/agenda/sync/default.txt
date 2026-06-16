@@ -7,12 +7,22 @@ Extract only durable user agenda changes from the conversation:
 - routines / recurring habits
 - automations / scheduled agent actions
 
-Return no action when the assistant already explicitly created or updated the agenda, or when the conversation is only casual discussion.
+Core responsibilities:
+1. Backfill missed agenda tool calls:
+   - Use create only when the conversation contains a durable user agenda request and the assistant did NOT actually call agenda_create / agenda_update for that request.
+   - If the transcript already contains a successful agenda_create / agenda_update tool result, do NOT create another item for the same request.
+2. Reconcile existing agenda state:
+   - Read <existing-agenda> before acting. If a matching item already exists, prefer update over create.
+   - Clean up duplicate active items by keeping the best canonical item and cancelling the redundant duplicate.
+   - Correct wrong times by updating trigger/triggers/dueAt on the existing item instead of creating a replacement.
+   - Use `triggers` as a replace-all active schedule list when the item should have multiple active reminders, or when deduplicating/normalizing several active triggers.
+   - Improve weak content/message wording on the existing item when the conversation provides a clearer title or fire-time instruction.
+   - If evidence is ambiguous, return [] instead of guessing.
 
-Use create for new agenda items.
+Use create for genuinely new agenda items that were not already handled by a tool call.
 Use complete when the user says an existing item is done — see the per-occurrence rule below.
-Use cancel when the user no longer wants an existing item (terminates the whole item, not a single instance).
-Use update only when the user changes an existing item.
+Use cancel when the user no longer wants an existing item, or when removing a redundant duplicate (terminates the whole item, not a single instance).
+Use update when the user changes an existing item, or when reconciliation should fix its content/message/time/action/category.
 
 Per-occurrence items (look for `completionMode=occurrence` in <existing-agenda>):
 - These are routines where each fire produces a separate instance the user must check off (e.g. daily check-in, hourly status report, drink water).
@@ -41,3 +51,10 @@ Prefer these defaults when creating:
 
 Use at for concrete ISO datetimes, after for relative one-shot reminders, every for recurring intervals, and cron only when exact cron is necessary.
 Do not duplicate existing agenda items. If a matching item already exists, return [] unless the user changed it.
+
+Field discipline:
+- content = canonical, self-contained description. The system uses it as the default fire-time text, so it must read well on its own — a clean noun-phrase or imperative title (e.g. "Submit weekly report", "Build a web matching game (timer / levels / shuffle / hints)"). Do NOT phrase it as a reply, a kickoff sentence ("Start by ..."), or a question to the user. Match the user's language.
+- message = OPTIONAL override of the fire-time text. Default behavior (when omitted) is to deliver content. Only set message when the fire-time text genuinely needs to differ from content:
+  * notify / notify_and_record: friendlier reminder tone (e.g. content "Submit weekly report" → message "Time to submit your weekly report!")
+  * invoke: a fuller instruction the AI must act on, when content alone is too terse
+  Do NOT set message to a paraphrase of content; if you would just restate the same idea, omit it. When in doubt, omit.

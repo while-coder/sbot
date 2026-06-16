@@ -41,13 +41,14 @@ const TriggerSpecSchema = z.discriminatedUnion('kind', [
 ]);
 
 const CreateArgsSchema = z.object({
-    content: z.string(),
+    content: z.string().describe('Canonical, self-contained description of the agenda — used as the default fire-time text. Write this so it stands alone without context (a clean noun-phrase or imperative title, e.g. "Submit weekly report", "Build a web matching game (timer / levels / shuffle / hints)"), not as a reply or a kickoff phrase like "Start by ...".'),
     category: z.enum(AgendaCategory).optional(),
     priority: z.enum(AgendaPriority).optional(),
     trigger: TriggerSpecSchema.optional(),
+    triggers: z.array(TriggerSpecSchema).optional().describe('Multiple active schedules for the same item. Use this instead of trigger when the item should fire at several times.'),
     dueAt: z.string().optional(),
     action: z.enum(AgendaTriggerAction).optional(),
-    message: z.string().optional(),
+    message: z.string().optional().describe('OPTIONAL override of the fire-time text. Default = content (omit this field). Only set when the fire-time text genuinely needs to differ from content — e.g. a friendlier reminder tone for notify ("Time to submit your weekly report!"), or a fuller instruction for invoke when content alone is too terse to act on. Do NOT restate or paraphrase content; if you would just rewrite the same idea, omit this field.'),
     completionMode: z.enum(AgendaCompletionMode).optional(),
 });
 
@@ -57,6 +58,10 @@ const UpdatePatchSchema = z.object({
     priority: z.enum(AgendaPriority).optional(),
     completionMode: z.enum(AgendaCompletionMode).optional(),
     dueAt: z.string().nullable().optional(),
+    trigger: TriggerSpecSchema.optional().describe('Replace the existing schedule when the agenda time is wrong or the user changed the timing. Omit to keep the current schedule.'),
+    triggers: z.array(TriggerSpecSchema).optional().describe('Replace all active schedules with this exact list. Use [] to clear active triggers. Use this instead of trigger for multiple active schedules.'),
+    action: z.enum(AgendaTriggerAction).optional(),
+    message: z.string().nullable().optional().describe('Update the fire-time text. Use null to clear the override and fall back to content. Omit when unchanged.'),
 });
 
 const AgendaExtractSchema = z.object({
@@ -116,4 +121,3 @@ export class AgendaExtractor implements IAgendaExtractor {
         }
     }
 }
-

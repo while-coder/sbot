@@ -414,7 +414,7 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
       </SFormItem>
       <SFormItem :label="t('agenda.edit_due_at')" :hint="t('agenda.edit_due_at_hint')">
         <div class="agenda-edit-due">
-          <SInput v-model="editForm.dueAt" type="datetime-local" />
+          <input v-model="editForm.dueAt" type="datetime-local" class="agenda-edit-datetime" />
           <SButton v-if="editForm.dueAt" type="outline" size="sm" @click="clearDueAt">{{ t('agenda.edit_clear_due') }}</SButton>
         </div>
       </SFormItem>
@@ -732,6 +732,22 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
   display: flex;
   gap: var(--sui-sp-2);
   align-items: center;
+}
+.agenda-edit-datetime {
+  flex: 1;
+  height: 32px;
+  padding: 0 var(--sui-sp-3);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-sm);
+  background: var(--sui-bg);
+  color: var(--sui-fg);
+  font-size: var(--sui-fs-sm);
+  font-family: inherit;
+  outline: none;
+  color-scheme: light dark;
+}
+.agenda-edit-datetime:focus {
+  border-color: var(--sui-primary);
 }
 .agenda-edit-section-title {
   margin-top: var(--sui-sp-3);

@@ -95,7 +95,7 @@ export class AgendaService implements IAgendaService {
         // triggerEngine.reload 放在锁外（它只读 store + 调度 timer，不属于"写入唯一性"问题）。
         const result = await this.agendaStore.runExclusive(async () => {
             const existing = await this.findNearDuplicate(content, dueAt);
-            if (existing) return { record: existing, created: false as const, trigger: null };
+            if (existing) return { record: existing, created: false as const, triggers: [] };
 
             const inserted = await this.agendaStore.createItem({
                 content,
@@ -113,12 +113,12 @@ export class AgendaService implements IAgendaService {
             // 显式 dueAt 但没传 trigger（典型场景：纯 Todo 加截止）→ 派生一个 Absolute trigger，
             // 让 dueAt 时刻自动发一次"已到截止"提醒；否则 dueAt 过期后系统不会有任何主动行为。
             const effectiveArgs = this.withDefaultDueAtTrigger(args);
-            const trigger = await this.createTriggerIfNeeded(inserted.item, effectiveArgs, action, now);
-            return { record: inserted, created: true as const, trigger };
+            const triggers = await this.createTriggersIfNeeded(inserted.item, effectiveArgs, action, now);
+            return { record: inserted, created: true as const, triggers };
         });
 
         if (!result.created) return { item: result.record, created: false, existed: true };
-        if (result.trigger) await this.triggerEngine.reload(result.trigger.id);
+        for (const trigger of result.triggers) await this.triggerEngine.reload(trigger.id);
         const fresh = await this.agendaStore.findItem(result.record.item.id);
         return { item: fresh!, created: true, existed: false };
     }
@@ -139,14 +139,15 @@ export class AgendaService implements IAgendaService {
     }
 
     async update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null> {
-        // 整个 update（updateItem → appendTrigger → disableItemTriggers）必须原子，
-        // 否则两个 session 并发 update 同一 id 时会数据混乱（双 trigger / dueAt 与 trigger 不匹配等）。
+        // 整个 update（updateItem → appendTrigger(s) → disableItemTriggers）必须原子，
+        // 否则两个 session 并发 update 同一 id 时会数据混乱（多 trigger / dueAt 与 trigger 不匹配等）。
         // triggerEngine.reload / reloadItem 也放在锁内：可重入，且 reload 内部不会修改"哪个 trigger 当 active"
         // 这件事——它只是把锁内已确定的状态同步到 timer，安全。
         return this.agendaStore.runExclusive(async () => {
             const item = await this.loadItem(id);
             if (!item) return null;
             const now = Date.now();
+            const replacementSpecs = this.getPatchTriggerSpecs(patch);
             const fields: Partial<AgendaItem> = { updatedAt: now };
             if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
             if (patch.category != null) fields.category = patch.category;
@@ -154,32 +155,31 @@ export class AgendaService implements IAgendaService {
             if (patch.completionMode != null) fields.completionMode = patch.completionMode;
             if (patch.dueAt !== undefined) {
                 fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
-            } else if (patch.trigger !== undefined) {
-                // 调度变更但未显式指定 dueAt：依据新 trigger 推导，与 create 保持一致。
-                fields.dueAt = AgendaService.deriveDueAtFromSpec(patch.trigger, now);
+            } else if (replacementSpecs !== undefined) {
+                // 调度变更但未显式指定 dueAt：依据新 trigger 列表推导，与 create 保持一致。
+                fields.dueAt = AgendaService.deriveDueAtFromSpecs(replacementSpecs, now);
             }
 
             const data = await this.agendaStore.updateItem(id, fields);
             const updatedItem = data?.item;
             if (!updatedItem) return null;
 
-            if (patch.trigger !== undefined) {
-                const category = updatedItem.category;
+            if (replacementSpecs !== undefined) {
                 const action = patch.action ?? AgendaTriggerAction.Notify;
-                const trigger = await this.createTriggerIfNeeded(updatedItem, {
+                const triggers = await this.createTriggersIfNeeded(updatedItem, {
                     content: updatedItem.content,
-                    category,
+                    category: updatedItem.category,
                     priority: updatedItem.priority,
                     completionMode: updatedItem.completionMode,
-                    trigger: patch.trigger,
+                    triggers: replacementSpecs,
                     action,
                     message: patch.message ?? undefined,
                     channelSessionId: patch.channelSessionId,
                 }, action, now);
-                // 仅在新触发器创建成功时替换旧触发器；否则视为无效输入，不破坏现有调度
-                if (trigger) {
-                    await this.disableItemTriggers(id, trigger.id);
-                    await this.triggerEngine.reload(trigger.id);
+                // 非空替换但全部无效时，不破坏现有调度；空数组是显式清空 active triggers。
+                if (triggers.length > 0 || replacementSpecs.length === 0) {
+                    await this.disableItemTriggers(id, triggers.map(t => t.id));
+                    for (const trigger of triggers) await this.triggerEngine.reload(trigger.id);
                 }
             } else if (this.hasTriggerFieldPatch(patch)) {
                 const triggerFields: Partial<AgendaTrigger> = {};
@@ -228,7 +228,7 @@ export class AgendaService implements IAgendaService {
                 doneAt: now,
                 updatedAt: now,
             });
-            await this.disableItemTriggers(id);
+            await this.disableItemTriggers(id, []);
             const record = await this.agendaStore.findItem(id);
             return record ? { record, closedOccurrence: null } : null;
         });
@@ -266,7 +266,7 @@ export class AgendaService implements IAgendaService {
             status: AgendaStatus.Cancelled,
             updatedAt: now,
         });
-        await this.disableItemTriggers(id);
+        await this.disableItemTriggers(id, []);
         return this.agendaStore.findItem(id);
     }
 
@@ -436,10 +436,16 @@ export class AgendaService implements IAgendaService {
         }
     }
 
-    private async createTriggerIfNeeded(item: AgendaItem, args: AgendaCreateArgs, action: AgendaTriggerAction, now: number): Promise<AgendaTrigger | null> {
-        const spec = args.trigger;
-        if (!spec) return null;
+    private async createTriggersIfNeeded(item: AgendaItem, args: AgendaCreateArgs, action: AgendaTriggerAction, now: number): Promise<AgendaTrigger[]> {
+        const triggers: AgendaTrigger[] = [];
+        for (const spec of this.getCreateTriggerSpecs(args)) {
+            const trigger = await this.createTrigger(item, args, spec, action, now);
+            if (trigger) triggers.push(trigger);
+        }
+        return triggers;
+    }
 
+    private async createTrigger(item: AgendaItem, args: AgendaCreateArgs, spec: AgendaTriggerSpec, action: AgendaTriggerAction, now: number): Promise<AgendaTrigger | null> {
         let kind: AgendaTriggerKind;
         let expr: string;
 
@@ -490,11 +496,22 @@ export class AgendaService implements IAgendaService {
         return patch.action !== undefined || patch.message !== undefined;
     }
 
+    private getCreateTriggerSpecs(args: AgendaCreateArgs): AgendaTriggerSpec[] {
+        if (args.triggers !== undefined) return args.triggers;
+        return args.trigger ? [args.trigger] : [];
+    }
+
+    private getPatchTriggerSpecs(patch: AgendaUpdatePatch): AgendaTriggerSpec[] | undefined {
+        if (patch.triggers !== undefined) return patch.triggers;
+        if (patch.trigger !== undefined) return [patch.trigger];
+        return undefined;
+    }
+
     private inferCategory(args: AgendaCreateArgs): AgendaCategory {
         // category 只表达"时间形态"。"是否 AI 处理"由 args.action 独立承担。
-        const kind = args.trigger?.kind;
-        if (kind === AgendaTriggerKind.Interval || kind === AgendaTriggerKind.Cron) return AgendaCategory.Routine;
-        if (kind === AgendaTriggerKind.Absolute) return AgendaCategory.Reminder;
+        const specs = this.getCreateTriggerSpecs(args);
+        if (specs.some(spec => spec.kind === AgendaTriggerKind.Interval || spec.kind === AgendaTriggerKind.Cron)) return AgendaCategory.Routine;
+        if (specs.some(spec => spec.kind === AgendaTriggerKind.Absolute)) return AgendaCategory.Reminder;
         return AgendaCategory.Todo;
     }
 
@@ -509,7 +526,7 @@ export class AgendaService implements IAgendaService {
      * 过去时刻的 dueAt 由引擎按 markMissed 处理，不会立刻误触发。
      */
     private withDefaultDueAtTrigger(args: AgendaCreateArgs): AgendaCreateArgs {
-        if (args.trigger || !args.dueAt) return args;
+        if (args.trigger || args.triggers !== undefined || !args.dueAt) return args;
         return {
             ...args,
             trigger: { kind: AgendaTriggerKind.Absolute, at: args.dueAt },
@@ -519,7 +536,7 @@ export class AgendaService implements IAgendaService {
     private inferDueAt(args: AgendaCreateArgs, now: number): number | null {
         // 显式传入优先（主要给 Todo 用）
         if (args.dueAt) return TimeUtils.parseAt(args.dueAt);
-        return AgendaService.deriveDueAtFromSpec(args.trigger, now);
+        return AgendaService.deriveDueAtFromSpecs(this.getCreateTriggerSpecs(args), now);
     }
 
     /**
@@ -528,6 +545,14 @@ export class AgendaService implements IAgendaService {
      * - Interval + count > 0: startTime + (count-1) * everyMs（最后一次触发时刻）
      * - 其他（Cron / 无 count 的周期 / 无 trigger）: null
      */
+    private static deriveDueAtFromSpecs(specs: AgendaTriggerSpec[] | undefined, now: number): number | null {
+        const values = (specs ?? [])
+            .map(spec => AgendaService.deriveDueAtFromSpec(spec, now))
+            .filter((value): value is number => value != null);
+        if (values.length === 0) return null;
+        return Math.max(...values);
+    }
+
     private static deriveDueAtFromSpec(spec: AgendaTriggerSpec | undefined, now: number): number | null {
         if (!spec) return null;
         if (spec.kind === AgendaTriggerKind.Absolute && spec.at) return TimeUtils.parseAt(spec.at);
@@ -588,8 +613,8 @@ export class AgendaService implements IAgendaService {
         return values[0] ?? null;
     }
 
-    private async disableItemTriggers(itemId: number, exceptTriggerId?: number): Promise<void> {
-        const ids = await this.agendaStore.updateActiveTriggersByItem(itemId, { enabled: false, nextFireAt: null }, exceptTriggerId);
+    private async disableItemTriggers(itemId: number, exceptTriggerIds: number[]): Promise<void> {
+        const ids = await this.agendaStore.updateActiveTriggersByItem(itemId, { enabled: false, nextFireAt: null }, exceptTriggerIds);
         for (const id of ids) this.triggerEngine.cancel(id);
     }
 }

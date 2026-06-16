@@ -81,6 +81,7 @@ export class AgendaRoutes {
                 category: body.category,
                 priority: body.priority,
                 trigger: body.trigger,
+                triggers: body.triggers,
                 dueAt: body.dueAt,
                 action: body.action,
                 message: body.message,

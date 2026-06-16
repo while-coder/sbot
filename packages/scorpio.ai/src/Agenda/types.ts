@@ -203,7 +203,7 @@ export type AgendaTriggerSpec =
 
 /**
  * 创建参数。LLM 通过 agenda_create 工具调用这个。
- * 时间相关全部封装在 trigger 字段里；不传 trigger = 纯 Todo（无调度）。
+ * 时间相关封装在 trigger/triggers 字段里；不传 = 纯 Todo（无调度）。
  */
 export interface AgendaCreateArgs {
     /** 主内容。LLM 说"提醒我喝水" → "喝水"。trim 后非空，否则抛错。 */
@@ -212,8 +212,13 @@ export interface AgendaCreateArgs {
     category?: AgendaCategory;
     /** 优先级。默认 Normal。 */
     priority?: AgendaPriority;
-    /** 调度规格；省略 = 纯 Todo（无 trigger）。 */
+    /** 单条调度规格；省略 = 纯 Todo（无 trigger）。 */
     trigger?: AgendaTriggerSpec;
+    /**
+     * 多条调度规格。传入时优先于 trigger，用于同一事项多个 active triggers。
+     * 例：提前一天提醒 + 当天再提醒。
+     */
+    triggers?: AgendaTriggerSpec[];
     /**
      * 触发动作。缺省 Notify。
      * LLM 说"每天帮我总结一下"/"每天 8 点帮我跑数据" → 显式传 Invoke（让 AI 处理）。
@@ -248,8 +253,9 @@ export interface AgendaCreateArgs {
 /**
  * 更新参数。LLM 通过 agenda_update 工具调用这个。
  *
- * - 传 `trigger` = "调度变更"：旧 trigger 全 disable，按新规格建一条新 trigger
- * - 不传 `trigger` 但传 action/message = 原地改 trigger 字段，不重建
+ * - 传 `trigger` = "调度变更"：旧 active triggers 全 disable，按新规格建一条新 trigger
+ * - 传 `triggers` = "完整替换调度列表"：旧 active triggers 全 disable，按列表建多条 active triggers
+ * - 不传 `trigger/triggers` 但传 action/message = 原地改 active trigger 字段，不重建
  * - 都不传 = 仅改主体字段
  */
 export interface AgendaUpdatePatch {
@@ -263,8 +269,13 @@ export interface AgendaUpdatePatch {
      * 不传时若发生调度变更，dueAt 由新 trigger 推导。
      */
     dueAt?: string | null;
-    /** 调度变更：传入新 spec 替换旧 trigger。省略 = 不动调度。 */
+    /** 调度变更：传入新 spec 替换旧 active triggers。省略 = 不动调度。 */
     trigger?: AgendaTriggerSpec;
+    /**
+     * 调度变更：传入最终应生效的完整 trigger 列表。
+     * [] 表示清空所有 active triggers。传入时优先于 trigger。
+     */
+    triggers?: AgendaTriggerSpec[];
     /** 改触发动作。单独传时不重建 trigger。 */
     action?: SessionDeliveryMode;
     /** 改触发消息；传 null 清空回退到 content。单独传时不重建 trigger。 */

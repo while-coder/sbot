@@ -225,13 +225,14 @@ export class AgendaStore implements IAgendaStore {
         });
     }
 
-    async updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTrigger>, exceptTriggerId?: number): Promise<number[]> {
+    async updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTrigger>, exceptTriggerIds: number[]): Promise<number[]> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return [];
             const rows = this.db.prepare("SELECT id FROM triggers WHERE itemId = ? AND enabled = 1 ORDER BY id").all(itemId) as Array<{ id: number }>;
+            const except = new Set(exceptTriggerIds);
             const ids: number[] = [];
             for (const row of rows) {
-                if (row.id === exceptTriggerId) continue;
+                if (except.has(row.id)) continue;
                 ids.push(row.id);
                 this.updateById("triggers", row.id, fields, new Set(["enabled"]));
             }

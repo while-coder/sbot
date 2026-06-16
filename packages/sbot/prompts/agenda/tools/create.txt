@@ -2,6 +2,7 @@ Create a user agenda item. Use this for todos, reminders, schedules, routines, d
 
 Use this whenever the user asks you to remember something, remind them later, schedule a future notification, create a routine, or run an agent action later.
 Prefer structured time fields: at, after, every, or cron. Do not invent a cron expression when after/every/at is enough.
+Use `triggers` instead of `trigger` when one agenda item should have multiple active schedules, such as "remind me one day before and again at the deadline" or "remind me at 9:00 and 18:00".
 
 If you are not sure whether the item already exists, call agenda_list first. If this tool says an agenda item already exists, treat that as success and do not create another item.
 

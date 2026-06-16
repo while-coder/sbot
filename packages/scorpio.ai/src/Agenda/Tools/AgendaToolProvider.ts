@@ -60,7 +60,8 @@ export class AgendaToolProvider {
                     content: z.string().describe('Agenda item content, e.g. "喝水" or "交周报"'),
                     category: z.enum(AgendaCategory).optional(),
                     priority: z.enum(AgendaPriority).optional(),
-                    trigger: TriggerSpecSchema.optional().describe('Schedule of when this fires. Omit for plain todo without a time.'),
+                    trigger: TriggerSpecSchema.optional().describe('Single schedule of when this fires. Omit for plain todo without a time.'),
+                    triggers: z.array(TriggerSpecSchema).optional().describe('Multiple active schedules for the same agenda item. Use this instead of trigger when the item should fire at several times, e.g. one day before and again at the deadline.'),
                     dueAt: z.string().optional().describe('Optional ISO datetime deadline. Mainly for plain todos ("finish weekly report by Friday" → "2026-06-13T23:59:59"). When set without a `trigger`, the system auto-fires a one-shot reminder at this moment so the deadline does not pass silently. For Reminder/Routine the deadline is auto-derived from the trigger; only set this when you need to override.'),
                     action: z.enum(AgendaTriggerAction).optional().describe('notify=send the message text as-is to the user; the fire is NOT recorded in the conversation history (default; for one-shot reminders / external pings where the user reply does not need fire context). notify_and_record=same as notify, but also append the message to the conversation history as an AI message so the main agent sees that the system pinged the user — use this for occurrence routines (打卡/汇报/喝水) so the agent can correctly read user replies like "已喝/已交". invoke=feed the message to the AI agent as user input so it actively responds. Write any "提醒：..." prefix yourself in the message field if you want one.'),
                     message: z.string().optional().describe('Optional override for the text delivered when the trigger fires. Leave empty to deliver `content` as-is — only fill this when the delivered text needs to differ from `content` (e.g. content="分析昨日日志" as a short title, message="请分析昨天的 nginx 日志，找出 5xx 异常..." as the full instruction the AI agent should process).'),
@@ -73,7 +74,7 @@ export class AgendaToolProvider {
                         if (result.existed) {
                             return `Agenda #${item.id} already exists: ${item.content}\nNo new agenda item was created.`;
                         }
-                        return `Created agenda #${item.id}: ${item.content}\n\n${await agendaService.formatForLLM({ status: 'all', limit: 1 })}`;
+                        return `Created agenda #${item.id}: ${item.content}\n\n${await agendaService.formatForLLM({ status: 'all', view: AgendaListView.All, limit: 1 })}`;
                     } catch (e: any) {
                         return `Failed to create agenda item: ${e.message}`;
                     }
@@ -107,7 +108,7 @@ export class AgendaToolProvider {
                     priority: z.enum(AgendaPriority).optional(),
                     completionMode: z.enum(AgendaCompletionMode).optional(),
                     dueAt: z.string().nullable().optional(),
-                    trigger: TriggerSpecSchema.optional().describe('Replace existing triggers with a new schedule. Omit to keep current triggers.'),
+                    triggers: z.array(TriggerSpecSchema).optional().describe('Replace all existing active triggers with this exact list. Use [] to clear active triggers. Omit to keep current triggers.'),
                     action: z.enum(AgendaTriggerAction).optional(),
                     message: z.string().nullable().optional(),
                 }),
