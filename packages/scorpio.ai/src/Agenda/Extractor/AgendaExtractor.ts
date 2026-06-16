@@ -15,7 +15,8 @@ import {
     AgendaTriggerKind,
     type AgendaRecord,
 } from "../types";
-import { EXISTING_AGENDA_LIMIT, formatAgendaXml } from "../format";
+import { formatAgendaXml } from "../format";
+import { EXISTING_AGENDA_LIMIT } from "../limits";
 import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgendaExtractor";
 
 const RelativeTimeSchema = z.object({

@@ -1,4 +1,5 @@
 import { TimeUtils } from "../Utils/TimeUtils";
+import { OCC_DISPLAY_LIMIT } from "./limits";
 import {
     AgendaCompletionMode,
     AgendaOccurrenceStatus,
@@ -16,14 +17,6 @@ import {
  * - 只列 enabled trigger（disabled 是历史，sync 操作 active 调度，列了反而易误改）。
  * - Occurrence 只在 completionMode=occurrence 时输出；pending / missed 全量列，done / cancelled 截最近 N 条。
  */
-
-const OCC_GROUP_LIMIT = 10;
-
-/**
- * sync extractor 喂给 LLM 的 <existing-agenda> 最多列多少条 item。
- * 调用方（AgendaService.runExtractJob）按这个 limit 拉，extractor 内再 slice 兜底；两处共享同一常量。
- */
-export const EXISTING_AGENDA_LIMIT = 80;
 
 /** XML 属性值转义。同时套上引号。 */
 function attr(value: string): string {
@@ -51,7 +44,7 @@ function renderTrigger(t: AgendaTrigger): string {
     return `  <trigger ${parts.join(' ')} />`;
 }
 
-/** 选择要渲染的 occurrence：pending+missed 全量，done+cancelled 最近 OCC_GROUP_LIMIT 条。返回按 scheduledAt 升序。 */
+/** 选择要渲染的 occurrence：pending+missed 全量，done+cancelled 最近 OCC_DISPLAY_LIMIT 条。返回按 scheduledAt 升序。 */
 function selectOccurrences(all: AgendaOccurrence[]): AgendaOccurrence[] {
     const pending: AgendaOccurrence[] = [];
     const missed: AgendaOccurrence[] = [];
@@ -65,8 +58,8 @@ function selectOccurrences(all: AgendaOccurrence[]): AgendaOccurrence[] {
         else if (o.status === AgendaOccurrenceStatus.Done) doneAll.push(o);
         else if (o.status === AgendaOccurrenceStatus.Cancelled) cancelledAll.push(o);
     }
-    doneTail.push(...[...doneAll].sort((a, b) => b.scheduledAt - a.scheduledAt).slice(0, OCC_GROUP_LIMIT));
-    cancelledTail.push(...[...cancelledAll].sort((a, b) => b.scheduledAt - a.scheduledAt).slice(0, OCC_GROUP_LIMIT));
+    doneTail.push(...[...doneAll].sort((a, b) => b.scheduledAt - a.scheduledAt).slice(0, OCC_DISPLAY_LIMIT));
+    cancelledTail.push(...[...cancelledAll].sort((a, b) => b.scheduledAt - a.scheduledAt).slice(0, OCC_DISPLAY_LIMIT));
     return [...pending, ...missed, ...doneTail, ...cancelledTail].sort((a, b) => a.scheduledAt - b.scheduledAt);
 }
 

@@ -1,6 +1,7 @@
 import { ServiceContainer } from "scorpio.di";
 import { T_AgendaToolDescs } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
+import { DEFAULT_PENDING_JOB_LIMIT } from "../limits";
 import { IAgendaStore, type PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
 import { IAgendaExtractor } from "../Extractor/IAgendaExtractor";
@@ -109,7 +110,7 @@ export class AgendaServicePool {
         finally { service.release(); }
     }
 
-    listPendingJobs(agendaId: string, limit = 50): PendingAgendaJobRow[] {
+    listPendingJobs(agendaId: string, limit = DEFAULT_PENDING_JOB_LIMIT): PendingAgendaJobRow[] {
         const service = this.acquire(agendaId);
         if (!service) return [];
         try { return service.listPending(limit); }

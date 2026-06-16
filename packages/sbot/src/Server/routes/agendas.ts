@@ -119,7 +119,7 @@ export class AgendaRoutes {
         if (query.category && Object.values(AgendaCategory).includes(query.category)) filter.category = query.category as AgendaCategory;
         if (query.priority && Object.values(AgendaPriority).includes(query.priority)) filter.priority = query.priority as AgendaPriority;
         const limit = num(query.limit);
-        if (limit) filter.limit = limit;
+        if (limit && limit > 0) filter.limit = limit;
         return filter;
     }
 

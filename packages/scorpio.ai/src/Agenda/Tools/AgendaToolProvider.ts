@@ -16,6 +16,7 @@ import {
 } from "../types";
 import { IAgendaService } from "../Service/IAgendaService";
 import { TimeUtils } from "../../Utils/TimeUtils";
+import { DEFAULT_LIST_LIMIT } from "../limits";
 
 export const AGENDA_CREATE_TOOL_NAME = 'agenda_create' as const;
 export const AGENDA_LIST_TOOL_NAME = 'agenda_list' as const;
@@ -100,7 +101,7 @@ export class AgendaToolProvider {
                     status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, 'all']).optional().describe('Status filter. Default = pending. "all" = no status filter.'),
                     category: z.enum(AgendaCategory).optional().describe('Filter by category: todo / reminder / routine.'),
                     priority: z.enum(AgendaPriority).optional().describe('Filter by priority: low / normal / high.'),
-                    limit: z.number().optional().describe('Max items to return. Default 50.'),
+                    limit: z.number().int().positive().optional().describe(`Max items to return. Positive integer. Default ${DEFAULT_LIST_LIMIT}.`),
                 }),
                 func: async (filter: AgendaListFilter) => {
                     try {

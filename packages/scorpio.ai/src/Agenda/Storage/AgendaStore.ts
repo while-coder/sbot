@@ -6,6 +6,7 @@ import path from "path";
 import { inject } from "scorpio.di";
 import { T_AgendaDbPath } from "../../Core";
 import type { ChatMessage } from "../../Saver";
+import { ERROR_MESSAGE_MAX_LEN, PENDING_JOB_LIST_HARD_CAP } from "../limits";
 import {
     AgendaPendingJobType,
     type AgendaPendingJobStatus,
@@ -373,7 +374,7 @@ export class AgendaStore implements IAgendaStore {
                 attempt_count = attempt_count + 1,
                 updated_at    = @now
             WHERE id = @id
-        `).run({ id, errorMessage: errorMessage.slice(0, 1000), now });
+        `).run({ id, errorMessage: errorMessage.slice(0, ERROR_MESSAGE_MAX_LEN), now });
     }
 
     listPendingJobs(limit: number): PendingAgendaJobRow[] {
@@ -382,7 +383,7 @@ export class AgendaStore implements IAgendaStore {
             FROM agenda_pending_jobs
             ORDER BY id DESC
             LIMIT @limit
-        `).all({ limit: Math.max(1, Math.min(limit, 200)) }) as any[];
+        `).all({ limit: Math.max(1, Math.min(limit, PENDING_JOB_LIST_HARD_CAP)) }) as any[];
         return rows.map(r => this.mapPendingRow(r));
     }
 

@@ -24,7 +24,13 @@ import {
     type AgendaTriggerUpdatePatch,
     type AgendaUpdatePatch,
 } from "../types";
-import { EXISTING_AGENDA_LIMIT, formatAgendaListXml } from "../format";
+import { formatAgendaListXml } from "../format";
+import {
+    DEFAULT_LIST_LIMIT,
+    DEFAULT_PENDING_JOB_LIMIT,
+    ERROR_MESSAGE_MAX_LEN,
+    EXISTING_AGENDA_LIMIT,
+} from "../limits";
 import {
     type AgendaAction,
     AgendaActionType,
@@ -136,7 +142,7 @@ export class AgendaService implements IAgendaService {
             if (a.item.status !== b.item.status) return a.item.status === AgendaStatus.Pending ? -1 : 1;
             return an - bn;
         });
-        return filtered.slice(0, Math.max(1, filter?.limit ?? 50));
+        return filtered.slice(0, filter?.limit ?? DEFAULT_LIST_LIMIT);
     }
 
     async update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null> {
@@ -373,7 +379,7 @@ export class AgendaService implements IAgendaService {
     }
 
     listPending(limit?: number): PendingAgendaJobRow[] {
-        return this.agendaStore.listPendingJobs(limit ?? 50);
+        return this.agendaStore.listPendingJobs(limit ?? DEFAULT_PENDING_JOB_LIMIT);
     }
 
     processPending(): void {
@@ -406,7 +412,7 @@ export class AgendaService implements IAgendaService {
                     this.agendaStore.deletePendingJob(next.id);
                     this.logger?.info(`agenda pending ${next.type} #${next.id} done: ${applied} action(s) applied`);
                 } catch (e: any) {
-                    const errMsg = (e?.message ?? String(e)).slice(0, 1000);
+                    const errMsg = (e?.message ?? String(e)).slice(0, ERROR_MESSAGE_MAX_LEN);
                     try { this.agendaStore.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
                     this.logger?.warn(`agenda pending ${next.type} #${next.id} failed: ${errMsg}`);
                 }
@@ -562,7 +568,9 @@ export class AgendaService implements IAgendaService {
     private async findNearDuplicate(content: string, dueAt: number | null): Promise<AgendaRecord | null> {
         const records = await this.agendaStore.listItems();
         const normalized = this.normalize(content);
-        for (const record of records.slice(-30).reverse()) {
+        // 倒序扫描全部 pending：agenda 量级有限（典型 <200），无需窗口；越新的越可能是真重复。
+        for (let i = records.length - 1; i >= 0; i--) {
+            const record = records[i];
             const row = record.item;
             if (row.status !== AgendaStatus.Pending) continue;
             if (this.normalize(row.content) !== normalized) continue;
