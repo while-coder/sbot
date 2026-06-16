@@ -48,6 +48,8 @@ android {
                 storePassword = signingProp("storePassword", "ANDROID_KEYSTORE_PASSWORD")
                 keyAlias = signingProp("keyAlias", "ANDROID_KEY_ALIAS")
                 keyPassword = signingProp("keyPassword", "ANDROID_KEY_PASSWORD")
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }
