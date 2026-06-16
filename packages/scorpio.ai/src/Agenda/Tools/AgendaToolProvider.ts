@@ -40,7 +40,7 @@ const RelativeTimeSchema = z.object({
     unit: z.enum(AgendaTimeUnit).describe('minute / hour / day / week.'),
 });
 
-const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default) / notify_and_record / invoke. Choice rules → agenda_wiki §8.');
+const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default, 纯文字提醒) / notify_and_record (occurrence routine) / invoke (AI 在触发时主动产出，如"帮我生成/总结/写/整理"). Details → agenda_wiki §8.');
 
 const MessageSchema = z.string().nullable().optional().describe('Per-trigger fire-time text override; default = item.content. null clears.');
 
