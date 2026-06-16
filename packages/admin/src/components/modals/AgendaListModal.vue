@@ -18,6 +18,7 @@ const {
   sortedAgendas,
   pendingCount,
   dueCount,
+  cancelledCount,
   triggerCount,
   load,
   complete,
@@ -54,6 +55,7 @@ defineExpose({ openByAgendaId })
       :loading="loading"
       :pending-count="pendingCount"
       :due-count="dueCount"
+      :cancelled-count="cancelledCount"
       :trigger-count="triggerCount"
       :show-profile="false"
       compact

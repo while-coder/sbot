@@ -106,6 +106,7 @@ export function useAgendas(opts: UseAgendasOptions) {
   const sortedAgendas = computed(() => sortAgendas(agendas.value))
   const pendingCount = computed(() => agendas.value.filter(x => x.item.status === 'pending').length)
   const dueCount = computed(() => agendas.value.filter(x => isOverdue(x)).length)
+  const cancelledCount = computed(() => agendas.value.filter(x => x.item.status === 'cancelled').length)
   const triggerCount = computed(() => agendas.value.reduce((n, x) => n + x.triggers.filter(t => t.enabled).length, 0))
 
   async function load() {
@@ -183,6 +184,7 @@ export function useAgendas(opts: UseAgendasOptions) {
     sortedAgendas,
     pendingCount,
     dueCount,
+    cancelledCount,
     triggerCount,
     load,
     complete,
