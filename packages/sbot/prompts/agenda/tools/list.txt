@@ -1,12 +1,5 @@
-List the user's agenda items — todos, reminders, schedules, routines, deadlines.
+List the user's agenda items.
 
-WHEN TO USE
-"What's on my list / pending / coming up", "any reminders today", "which check-ins did I miss".
+Trigger phrases: "what's on my list / pending / coming up / which check-ins did I miss". Returns XML <agenda-list> with nested <trigger id .../> and <occurrence id scheduledAt .../>. Use those ids when calling agenda_trigger / agenda_complete.
 
-OUTPUT
-XML <agenda-list count="N">. Each <agenda> carries id / status / category / completionMode / priority / dueAt / content, plus nested <trigger id kind expr action message nextFireAt /> and <occurrence id scheduledAt status /> children. Times are UTC ISO truncated to minute. `expr`: absolute=ISO, interval=ms ("86400000"=24h), cron=6-field. Only enabled triggers are listed; for occurrence routines, all pending+missed plus the latest 10 done/cancelled are kept.
-
-ANSWERING
-- "Which ones did I miss" → cite concrete missed `scheduledAt` times, not just a count.
-- "I just finished the 16:38 one / I just submitted Monday's report" → call agenda_complete with `at`=that occurrence's scheduledAt.
-- "Move the 9:00 reminder to 10:00" → use the trigger's `id` and call agenda_trigger_update.
+Output-format details and answering rules → agenda_wiki.

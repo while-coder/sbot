@@ -1,13 +1,5 @@
-Create an agenda item — todo, reminder, schedule, routine, deadline, or future automation.
+Create an agenda item — todo, reminder, schedule, routine, or future automation.
 
-WHEN TO USE
-The user wants you to remember, remind later, schedule, or run something at a future time. Trust dedup: an "already exists" result counts as success. Do NOT pre-call agenda_list.
+Trigger phrases: "remember / remind me later / schedule / every day". Trust dedup: "already exists" = success; do NOT pre-call agenda_list. `triggers` is an array; omit category / completionMode / priority unless overriding inference.
 
-SCHEDULES
-Pass `triggers` as an array. Multiple elements = multiple active schedules on one item ("9:00 AND 18:00", "1 day before AND at deadline"). Each TriggerSpec carries its own action/message; kind/options live in the field schema.
-
-OCCURRENCE ROUTINES (per-fire check-in: drinking water, daily standup, weekly report, etc.)
-Set completionMode=occurrence so each fire is a separate instance the user checks off. EVERY trigger must use action=notify_and_record. Missed instances stay missed; users backfill via agenda_complete.
-
-DEFAULTS
-Omit category / completionMode / priority — inferred. dueAt is metadata only (dedup / overdue badge); for a deadline ping, also add a matching trigger.
+Edge cases (occurrence routines, multi-trigger, dueAt vs trigger, action choice) → agenda_wiki.

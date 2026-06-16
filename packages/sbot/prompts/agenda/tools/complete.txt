@@ -1,13 +1,5 @@
-Mark an agenda item (or one occurrence of a routine) as complete.
+Mark an agenda item done (or close ONE occurrence of a routine).
 
-NON-OCCURRENCE ITEMS
-Use when the user says it's done: "already finished", "submitted", "done with that". The whole item closes; remaining triggers are disabled.
+Occurrence routines: closes ONE instance, NOT the whole routine — to stop the routine, use agenda_cancel. Pass `at` (ISO) when the user pinpoints a specific past time (incl. backfilling missed ones); omit for plain "I just did it".
 
-OCCURRENCE ROUTINES (completionMode=occurrence)
-Closes ONE instance, NOT the whole routine. The routine keeps firing — to stop it entirely, use agenda_cancel.
-- Without `at`: closes the EARLIEST still-pending instance — for plain check-ins like "I drank it", "finished today's".
-- With `at`: pinpoint a specific occurrence by ISO. BOTH pending AND missed instances are reachable. Use it whenever the user references a specific past time:
-  * "I drank water at 16:38, forgot to log" → at=16:38 ISO of today.
-  * "I just submitted Monday's report" → at=that monday's scheduled fire ISO.
-  * "Here is the 10am hourly report …" → at=10:00 ISO of today.
-- Do NOT use `at` for ambiguous "now" / "just now" replies — let the default earliest-pending logic handle them.
+Lifecycle rules and `at` examples → agenda_wiki.

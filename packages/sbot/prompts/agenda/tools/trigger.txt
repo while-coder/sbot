@@ -1,23 +1,7 @@
-Manage triggers on an existing agenda item: add / update / remove / replace_all. ONE tool, choose with `op`.
+Manage triggers on an existing agenda item — choose with `op`:
+- add (itemId, trigger): append ONE trigger; existing stay.
+- update (triggerId, trigger): rewrite ONE trigger; spec must be COMPLETE; resets fireCount.
+- remove (triggerId): disable ONE trigger; item stays.
+- replace_all (itemId, triggers[]): replace the FULL active list; [] clears all.
 
-GENERAL
-The agenda item itself is NOT created or cancelled here — use agenda_create / agenda_cancel for that. All ops mutate trigger rows; existing fireCount/lastFiredAt are preserved EXCEPT on op=update (resets — see below).
-
-OP = add — append ONE trigger
-  { op: "add", itemId, trigger: { kind, ... action?, message? } }
-USE WHEN the user wants an additional reminder ON TOP of existing schedules: "remind me a day earlier too", "also add an 18:00 ping". `trigger` accepts the same shape as create.triggers[i]; action defaults to notify, message defaults to item.content.
-
-OP = update — rewrite ONE existing trigger
-  { op: "update", triggerId, trigger: { kind, ... action?, message? } }
-USE WHEN the user references a specific reminder already on the item: "move the 9am reminder to 10am", "switch that trigger to invoke mode". `trigger` must be the COMPLETE replacement spec — to change only `action`, still send the existing kind/schedule (read it from <existing-agenda> XML) plus the new action. fireCount / lastFiredAt are reset; harmless for unlimited routines, slight progress loss for count-bounded ones (rare in practice).
-
-OP = remove — disable ONE trigger
-  { op: "remove", triggerId }
-USE WHEN the user drops one reminder but wants to keep the item: "drop the 18:00 reminder, keep the item". Disabled, not deleted; history preserved.
-
-OP = replace_all — replace the FULL active trigger list
-  { op: "replace_all", itemId, triggers: [TriggerSpec, ...] }
-USE WHEN the user describes the final complete list ("from now on only ping at 9:00 and 18:00, drop the noon one"), or for cleanup / dedup of several active triggers. triggers=[] clears all active triggers (item stays; dueAt unchanged unless agenda_update is also called). For a single targeted edit prefer op=update / op=add — replace_all is heavier and harder for the user to reason about.
-
-CADENCE CONSISTENCY
-When the new schedule changes cadence, also check whether `content` (use agenda_update) or other triggers' `message` fields embed the old cadence and need syncing in the same turn.
+`trigger` / `triggers[]` shape = create.triggers[i]. Surgical-vs-replace tradeoffs, cadence sync, message sync → agenda_wiki.

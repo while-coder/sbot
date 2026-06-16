@@ -1,10 +1,5 @@
-Update an agenda item's BODY fields: content, category, priority, completionMode, dueAt.
+Update an agenda item's BODY fields: content / category / priority / completionMode / dueAt.
 
-DO NOT USE FOR
-Trigger schedule / action / message changes → use agenda_trigger_add / agenda_trigger_update / agenda_trigger_remove / agenda_trigger_replace_all.
+NOT FOR: trigger schedules → agenda_trigger. Marking done → agenda_complete. Terminating → agenda_cancel.
 
-CADENCE CONSISTENCY
-When the user changes cadence ("every hour" → "every two hours"), inspect whether `content` or any trigger `message` embeds the old cadence — if so, update them in the same turn (content here, message via agenda_trigger_update / agenda_trigger_replace_all). Otherwise the displayed name stays stale and contradicts the schedule. Skip only when text is already cadence-agnostic.
-
-dueAt INTERACTION
-Changing `dueAt` does NOT auto-retime existing triggers. If the user moves a deadline AND the existing trigger was the deadline reminder, also call agenda_trigger_replace_all with the new active trigger list. Otherwise the trigger keeps firing at its old time.
+Caveats (dueAt does NOT retime triggers, cadence-change consistency) → agenda_wiki.

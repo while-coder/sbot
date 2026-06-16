@@ -200,6 +200,10 @@ export class ChannelManager {
     }
 
     async reloadChannel(channelId: string): Promise<void> {
+        if (channelId === WEB_CHANNEL_ID) {
+            logger.debug("Built-in web channel reload skipped");
+            return;
+        }
         this.stopChannel(channelId);
         await this.startChannel(channelId);
     }

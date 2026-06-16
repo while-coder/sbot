@@ -32,6 +32,8 @@ export interface AgendaToolDescs {
     trigger: string;
     complete: string;
     cancel: string;
+    /** agenda_wiki 工具被调用时返回的 body（决策性知识全集）。tool 自身的 description 短而稳定，inline 在 ToolProvider 里。 */
+    wiki: string;
 }
 
 export interface IAgendaService {

@@ -24,6 +24,7 @@ const sharedToolDescs: AgendaToolDescs = {
     trigger: loadPrompt('agenda/tools/trigger.txt'),
     complete: loadPrompt('agenda/tools/complete.txt'),
     cancel: loadPrompt('agenda/tools/cancel.txt'),
+    wiki: loadPrompt('agenda/wiki.txt'),
 };
 
 /**

@@ -1,0 +1,96 @@
+Agenda system — full decision rules. Call agenda_wiki when uncertain about any of the topics below.
+
+# 1. MENTAL MODEL
+
+An agenda has THREE layers:
+- ITEM — the thing being tracked (id, content, status, category, completionMode, dueAt). Lifecycle: pending → done / cancelled.
+- TRIGGERS — 0..N schedules attached to an item; each has its own kind / expr / action / message / fireCount. Disabling a trigger does NOT cancel the item.
+- OCCURRENCES — ONLY exist when completionMode=occurrence. Each fire of a routine creates one instance the user can check off independently.
+
+Status of the ITEM is independent of triggers' enabled state and of occurrence statuses. Cancelling the item disables all triggers; disabling triggers does not cancel the item.
+
+# 2. CATEGORIES & DEFAULTS (inferred — usually omit them on create)
+
+System infers from triggers:
+- triggers includes interval / cron → category=routine
+- triggers is one absolute → category=reminder
+- no triggers → category=todo
+
+completionMode inferred from category:
+- todo → item (one-shot complete closes the whole thing)
+- reminder / routine → none (auto-close after triggers exhaust; user does NOT call complete)
+- EXCEPTION — per-fire check-in routines (drinking water, daily report, weekly review): YOU must explicitly set completionMode=occurrence on create. See §4.
+
+# 3. dueAt vs TRIGGER — they are NOT the same thing
+
+dueAt is PURE METADATA:
+- Used for: findNearDuplicate dedup key, "overdue" badge, list sort fallback, display.
+- Does NOT auto-create any trigger. Does NOT auto-fire anything.
+- For a plain todo with a deadline ("finish weekly report by Friday") → set dueAt only.
+- For a deadline that should also PING the user → set dueAt AND add a matching absolute trigger.
+
+Changing dueAt does NOT retime existing triggers. If the user moves a deadline AND the existing trigger was the deadline reminder, also call agenda_trigger op=update / op=replace_all with the new schedule. Otherwise the trigger keeps firing at its old time.
+
+# 4. OCCURRENCE ROUTINES (per-fire check-in)
+
+WHEN TO USE: drinking water, daily standup, weekly report, taking medication — anything where "today's done ≠ the whole thing's done".
+
+CREATE checklist:
+- completionMode: "occurrence"  (REQUIRED — system won't infer this)
+- For EVERY trigger in triggers[]: action: "notify_and_record"  (REQUIRED — fires must enter conversation history so the user can see the check-in prompt and reply)
+
+LIFECYCLE:
+- Each fire creates one occurrence row (status=pending, scheduledAt=fire time).
+- agenda_complete closes ONE occurrence; the routine keeps firing.
+- An occurrence missed before the next fire is auto-marked status=missed when the next one is generated.
+- agenda_cancel stops the whole routine (all triggers disabled, no more occurrences generated).
+
+agenda_complete behavior on occurrence routines:
+- Without `at` → closes the EARLIEST pending occurrence. Use this for plain "I drank it" / "done" replies.
+- With `at` (ISO datetime) → searches BOTH pending AND missed occurrences, picks the one with scheduledAt closest to `at`. Use this whenever the user pinpoints a time:
+  * "I drank water at 16:38, forgot to log" → at=16:38 ISO of today
+  * "I just submitted Monday's report" → at=Monday's scheduled fire ISO
+  * "Here's the 10am hourly report" → at=10:00 ISO of today
+- The result message tells you which scheduledAt was actually closed; if it doesn't match what the user described, the routing was approximate — clarify before claiming success.
+
+# 5. CADENCE CHANGES — cross-tool sync
+
+When the user changes cadence ("every hour" → "every 2 hours", "9am weekdays" → "10am weekdays"):
+1. Update the schedule via agenda_trigger op=update / op=replace_all.
+2. Inspect whether `content` (item-level) or any other trigger's `message` embeds the OLD cadence text. If so, sync them in the same turn:
+   - content → agenda_update with content=...
+   - message of other triggers → agenda_trigger op=update on each
+3. Skip step 2 only when text is already cadence-agnostic ("submit weekly report" — fine; "submit weekly report every Monday 9am" — needs sync).
+
+Otherwise the displayed name stays stale and contradicts the new schedule.
+
+# 6. SURGICAL vs REPLACE — choosing the trigger op
+
+- Adding ONE trigger alongside existing ones → op=add. ("also remind me a day earlier")
+- Editing ONE specific trigger by id → op=update. ("move the 9am reminder to 10am") — read the trigger id from <existing-agenda> XML; the spec must be COMPLETE (existing kind/schedule + new field).
+- Disabling ONE trigger → op=remove. ("drop the 18:00 reminder, keep the item")
+- The user describes the FULL final list ("from now on only ping at 9 and 18, drop noon") → op=replace_all.
+- triggers=[] with op=replace_all clears all active triggers (item itself stays, dueAt unchanged).
+- op=update RESETS fireCount/lastFiredAt on the affected trigger. Harmless for unlimited routines; slight progress loss for count-bounded ones.
+
+Prefer op=add / op=update over op=replace_all for surgical edits — replace_all is heavier and harder for the user to reason about.
+
+# 7. COMPLETE vs CANCEL — semantically opposite
+
+- complete = "I did it" → marks the item done (or closes one occurrence for routines).
+- cancel = "I don't want this anymore" → terminates the whole item; all active triggers disabled; routines stop firing entirely.
+
+Common confusion: occurrence routine + "I'm done with this routine forever" → that's cancel, NOT complete. complete only closes ONE instance.
+
+# 8. CREATE — common pitfalls
+
+- Trust dedup. An "already exists" result counts as success. Do NOT pre-call agenda_list to check.
+- `triggers` is an array; multiple elements = multiple active schedules on one item ("9:00 AND 18:00", "1 day before AND at deadline"). Each spec carries its own action/message — different triggers on the same item can mix invoke / notify / notify_and_record.
+- "1 hour from now", "100 days later" — compute the ISO yourself from the current time; trigger schemas only accept absolute ISO.
+- Default `action` is notify (pure text ping, fire NOT recorded in history). Use notify_and_record for occurrence routines (REQUIRED) or whenever the user wants the fire to appear as an AI message in history. Use invoke when the user wants the AI to actively work at fire time ("summarise the logs every morning at 8").
+
+# 9. LIST — answering shape
+
+Output is XML <agenda-list count="N"> with nested <trigger> and <occurrence> elements. Times are UTC ISO truncated to minute. `expr` semantics: absolute=ISO; interval=ms string ("86400000"=24h); cron=6-field. Only enabled triggers are listed. For occurrence routines, all pending+missed plus the latest 10 done/cancelled are kept.
+
+When answering "which ones did I miss" — cite concrete missed scheduledAt times, not just a count.
