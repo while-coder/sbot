@@ -28,10 +28,8 @@ export interface AgendaToolDescs {
     create: string;
     list: string;
     update: string;
-    triggerAdd: string;
-    triggerUpdate: string;
-    triggerRemove: string;
-    triggerReplaceAll: string;
+    /** 合并后的 trigger 工具描述：包含 add / update / remove / replace_all 四个 op 的统一说明。 */
+    trigger: string;
     complete: string;
     cancel: string;
 }

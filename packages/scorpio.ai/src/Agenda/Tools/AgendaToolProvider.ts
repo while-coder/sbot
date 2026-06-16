@@ -21,12 +21,16 @@ import { DEFAULT_LIST_LIMIT } from "../limits";
 export const AGENDA_CREATE_TOOL_NAME = 'agenda_create' as const;
 export const AGENDA_LIST_TOOL_NAME = 'agenda_list' as const;
 export const AGENDA_UPDATE_TOOL_NAME = 'agenda_update' as const;
-export const AGENDA_TRIGGER_ADD_TOOL_NAME = 'agenda_trigger_add' as const;
-export const AGENDA_TRIGGER_UPDATE_TOOL_NAME = 'agenda_trigger_update' as const;
-export const AGENDA_TRIGGER_REMOVE_TOOL_NAME = 'agenda_trigger_remove' as const;
-export const AGENDA_TRIGGER_REPLACE_ALL_TOOL_NAME = 'agenda_trigger_replace_all' as const;
+export const AGENDA_TRIGGER_TOOL_NAME = 'agenda_trigger' as const;
 export const AGENDA_COMPLETE_TOOL_NAME = 'agenda_complete' as const;
 export const AGENDA_CANCEL_TOOL_NAME = 'agenda_cancel' as const;
+
+export enum AgendaTriggerOp {
+    Add = 'add',
+    Update = 'update',
+    Remove = 'remove',
+    ReplaceAll = 'replace_all',
+}
 
 const RelativeTimeSchema = z.object({
     amount: z.number().int().positive().describe('Positive integer amount.'),
@@ -132,67 +136,58 @@ export class AgendaToolProvider {
                 },
             }),
             new DynamicStructuredTool({
-                name: AGENDA_TRIGGER_ADD_TOOL_NAME,
-                description: descs.triggerAdd,
-                schema: z.discriminatedUnion('kind', [
-                    TriggerSpecSchema.options[0].extend({ itemId: z.number().describe('Existing agenda item id.') }),
-                    TriggerSpecSchema.options[1].extend({ itemId: z.number().describe('Existing agenda item id.') }),
-                    TriggerSpecSchema.options[2].extend({ itemId: z.number().describe('Existing agenda item id.') }),
+                name: AGENDA_TRIGGER_TOOL_NAME,
+                description: descs.trigger,
+                schema: z.discriminatedUnion('op', [
+                    z.object({
+                        op: z.literal(AgendaTriggerOp.Add),
+                        itemId: z.number().describe('Existing agenda item id to append a trigger onto.'),
+                        trigger: TriggerSpecSchema.describe('Trigger spec to append; same shape as create.triggers[i].'),
+                    }).describe('Append ONE trigger; existing triggers stay untouched.'),
+                    z.object({
+                        op: z.literal(AgendaTriggerOp.Update),
+                        triggerId: z.number().describe('Id of the existing trigger to rewrite (read it from <existing-agenda> XML).'),
+                        trigger: TriggerSpecSchema.describe('FULL replacement spec — schedule + action + message. fireCount/lastFiredAt reset.'),
+                    }).describe('Rewrite ONE existing trigger by triggerId.'),
+                    z.object({
+                        op: z.literal(AgendaTriggerOp.Remove),
+                        triggerId: z.number().describe('Id of the trigger to disable. The agenda item itself stays.'),
+                    }).describe('Disable ONE trigger; the item stays.'),
+                    z.object({
+                        op: z.literal(AgendaTriggerOp.ReplaceAll),
+                        itemId: z.number().describe('Existing agenda item id whose active trigger list is being replaced.'),
+                        triggers: z.array(TriggerSpecSchema).describe('FINAL active trigger list. Each spec carries its own action/message. [] = clear all active triggers.'),
+                    }).describe('Replace the FULL active trigger list of an item in one shot.'),
                 ]),
-                func: async ({ itemId, ...spec }: { itemId: number } & AgendaTriggerSpec) => {
+                func: async (args: { op: AgendaTriggerOp } & Record<string, any>) => {
                     try {
-                        const record = await agendaService.addTrigger(itemId, { ...(spec as AgendaTriggerSpec), channelSessionId });
-                        return record ? `Added trigger to agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
+                        switch (args.op) {
+                            case AgendaTriggerOp.Add: {
+                                const itemId = args.itemId as number;
+                                const spec = args.trigger as AgendaTriggerSpec;
+                                const record = await agendaService.addTrigger(itemId, { ...spec, channelSessionId });
+                                return record ? `Added trigger to agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
+                            }
+                            case AgendaTriggerOp.Update: {
+                                const triggerId = args.triggerId as number;
+                                const spec = args.trigger as AgendaTriggerSpec;
+                                const record = await agendaService.updateTrigger(triggerId, { ...spec, channelSessionId });
+                                return record ? `Updated trigger #${triggerId} on agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
+                            }
+                            case AgendaTriggerOp.Remove: {
+                                const triggerId = args.triggerId as number;
+                                const record = await agendaService.removeTrigger(triggerId);
+                                return record ? `Removed trigger #${triggerId} from agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
+                            }
+                            case AgendaTriggerOp.ReplaceAll: {
+                                const itemId = args.itemId as number;
+                                const triggers = args.triggers as AgendaTriggerSpec[];
+                                const record = await agendaService.replaceTriggers(itemId, { triggers, channelSessionId } satisfies AgendaTriggerReplaceAllArgs);
+                                return record ? `Replaced triggers on agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
+                            }
+                        }
                     } catch (e: any) {
-                        return `Failed to add trigger to agenda #${itemId}: ${e.message}`;
-                    }
-                },
-            }),
-            new DynamicStructuredTool({
-                name: AGENDA_TRIGGER_UPDATE_TOOL_NAME,
-                description: descs.triggerUpdate,
-                schema: z.discriminatedUnion('kind', [
-                    TriggerSpecSchema.options[0].extend({ triggerId: z.number().describe('Id of the existing trigger to rewrite.') }),
-                    TriggerSpecSchema.options[1].extend({ triggerId: z.number().describe('Id of the existing trigger to rewrite.') }),
-                    TriggerSpecSchema.options[2].extend({ triggerId: z.number().describe('Id of the existing trigger to rewrite.') }),
-                ]),
-                func: async ({ triggerId, ...spec }: { triggerId: number } & AgendaTriggerSpec) => {
-                    try {
-                        const record = await agendaService.updateTrigger(triggerId, { ...(spec as AgendaTriggerSpec), channelSessionId });
-                        return record ? `Updated trigger #${triggerId} on agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
-                    } catch (e: any) {
-                        return `Failed to update trigger #${triggerId}: ${e.message}`;
-                    }
-                },
-            }),
-            new DynamicStructuredTool({
-                name: AGENDA_TRIGGER_REMOVE_TOOL_NAME,
-                description: descs.triggerRemove,
-                schema: z.object({
-                    triggerId: z.number().describe('Id of the trigger to disable. The agenda item itself stays.'),
-                }),
-                func: async ({ triggerId }: { triggerId: number }) => {
-                    try {
-                        const record = await agendaService.removeTrigger(triggerId);
-                        return record ? `Removed trigger #${triggerId} from agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
-                    } catch (e: any) {
-                        return `Failed to remove trigger #${triggerId}: ${e.message}`;
-                    }
-                },
-            }),
-            new DynamicStructuredTool({
-                name: AGENDA_TRIGGER_REPLACE_ALL_TOOL_NAME,
-                description: descs.triggerReplaceAll,
-                schema: z.object({
-                    itemId: z.number().describe('Existing agenda item id.'),
-                    triggers: z.array(TriggerSpecSchema).describe('FINAL active trigger list (replaces all current active triggers). Each spec carries its own action/message. [] = clear all active triggers.'),
-                }),
-                func: async ({ itemId, ...args }: { itemId: number } & AgendaTriggerReplaceAllArgs) => {
-                    try {
-                        const record = await agendaService.replaceTriggers(itemId, { ...args, channelSessionId });
-                        return record ? `Replaced triggers on agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
-                    } catch (e: any) {
-                        return `Failed to replace triggers on agenda #${itemId}: ${e.message}`;
+                        return `Failed agenda_trigger op=${args.op}: ${e.message}`;
                     }
                 },
             }),
