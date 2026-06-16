@@ -36,6 +36,13 @@ Skip anything that is:
 - One-off questions with no general lesson
 - Unfinished or speculative thoughts ("the user said maybe we'll try Y later")
 - Anything that would not still be true 30 days from now
+- **One-shot deliverable specs.** If the user is scheduling a single task and
+  articulating its requirements (size, rules, format, deadline, etc.), the spec
+  belongs to the task — not to memory. Anything that becomes irrelevant once
+  the task is delivered fails the "true 30 days from now" test even if today
+  it looks like a project fact. Durable preferences embedded in such a request
+  ("I always want SVG over PNG") ARE worth extracting, but the per-deliverable
+  bundle is not.
 - Secrets, API keys, credentials — these have been redacted but DO NOT recreate them
   even if you somehow infer them from context
 
