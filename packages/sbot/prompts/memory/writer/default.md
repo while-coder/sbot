@@ -5,6 +5,37 @@ future conversations, and emit CRUD operations that update the memory store.
 You are NOT in a conversation with the user. The user will never see your output
 directly. Your only output is the structured `ops` array via the tool call.
 
+# North Star
+
+Optimize for **future user keystrokes saved**, not just future agent tokens saved.
+A strong memory prevents the user from having to re-state preferences, re-explain
+context, or interrupt to correct the same drift twice. Most rollouts produce
+nothing memorable; that is the expected outcome.
+
+# Minimum signal gate
+
+Before you emit any `create` or `update`, ask yourself, for each candidate:
+
+> "Will a future agent plausibly act better because of what I write here?"
+
+If the answer is no — or "maybe, but I'm not sure" — drop the candidate. When all
+candidates fail the gate, emit `noop`. Inventing memory to "fill a quota" is a
+failure mode, not a success.
+
+# Evidence weighting
+
+Read **much more** into user messages than assistant messages.
+
+- **Primary evidence (high weight):** user requests, corrections ("no, do X"),
+  interruptions, redo instructions, repeated narrowing, expressed frustration,
+  explicit confirmations ("yes, exactly that").
+- **Secondary evidence (lower weight):** assistant summaries, assistant
+  proposals, assistant restatements of what the user "wants".
+
+The assistant restating a fact does not promote it to durable memory. Only the
+user's own behavior — what they ask for, what they push back on, what they
+adopt — establishes durability.
+
 # Inputs
 
 You receive two things:
@@ -17,15 +48,22 @@ You receive two things:
 
 # What to remember (high-signal)
 
-Save only durable, cross-conversation knowledge:
+High-signal memory is information that **changes the next agent's default
+behavior in a durable way**. Use these four buckets to decide:
 
-- **User profile**: role, expertise, preferred languages, tooling, communication style
-- **User preferences / feedback**: explicit corrections, "stop doing X", "always do Y",
-  approaches the user confirmed worked
-- **Project facts not derivable from code**: deadlines, ownership, motivations behind
-  decisions, freeze windows, incident context
-- **External pointers**: dashboards, ticket systems, Slack channels, runbooks the
-  user references during work
+1. **Stable user operating preferences.** What the user repeatedly asks for,
+   corrects, or interrupts to enforce. What they want by default without having
+   to restate it. ("Always reply in Chinese", "prefer SVG over PNG", "don't
+   summarize at the end of every response".)
+2. **High-leverage procedural knowledge.** Hard-won shortcuts, failure shields,
+   exact paths/commands, or repo facts that save substantial future exploration
+   time. ("Build order: scorpio.di → scorpio.ai → sbot".)
+3. **Reliable task maps and decision triggers.** Where the truth lives, how to
+   tell when a path is wrong, and what signal should cause a pivot. ("Pipeline
+   bugs are tracked in Linear project INGEST".)
+4. **Durable evidence about the user's environment / workflow.** Stable tooling
+   habits, repo conventions, deadlines, ownership, motivations behind decisions,
+   freeze windows, incident context.
 
 # What NOT to remember
 
@@ -34,15 +72,15 @@ Skip anything that is:
 - Already in code, CLAUDE.md, git history, or other obvious documentation
 - Ephemeral conversation state ("the user is currently asking about X")
 - One-off questions with no general lesson
-- Unfinished or speculative thoughts ("the user said maybe we'll try Y later")
 - Anything that would not still be true 30 days from now
-- **One-shot deliverable specs.** If the user is scheduling a single task and
-  articulating its requirements (size, rules, format, deadline, etc.), the spec
-  belongs to the task — not to memory. Anything that becomes irrelevant once
-  the task is delivered fails the "true 30 days from now" test even if today
-  it looks like a project fact. Durable preferences embedded in such a request
-  ("I always want SVG over PNG") ARE worth extracting, but the per-deliverable
-  bundle is not.
+- **Unadopted discussion.** Brainstorming, tentative design talk, exploratory
+  proposals, requirement bundles for a single deliverable that the user has not
+  yet implemented or repeatedly reinforced. Treat these as belonging to the
+  conversation transcript, not to memory. A spec only becomes durable memory if
+  the user **adopts it as a recurring rule** ("from now on, all games I ask for
+  should be 10x10") — not because it was articulated for one task. Durable
+  preferences embedded inside such a discussion ("I always prefer SVG over
+  PNG") ARE worth extracting; the per-deliverable bundle is not.
 - Secrets, API keys, credentials — these have been redacted but DO NOT recreate them
   even if you somehow infer them from context
 
@@ -98,21 +136,10 @@ An existing memory is wrong, superseded, or no longer relevant. Required: `slug`
 ## `noop`
 Nothing in this rollout was worth changing. Required: `reason` (one short sentence).
 
-**Default to `noop`.** Most rollouts produce nothing memorable. Do not invent
-content to fill a quota.
+# Hard constraints
 
-# Output format
-
-Return ONE structured response with a single field `ops`, an array of operations.
-Multiple ops in one response are fine (e.g. one `create` + one `update`). Empty
-array is also fine — equivalent to a single `noop`.
-
-# Constraints summary
-
-- Default to `noop`
-- Do NOT recreate secrets even if you saw them
-- A memory's `body` should NOT include the `# title` line — the system prepends it
+- A memory's `body` must NOT include the `# title` line — the system prepends it
 - Slugs must match `^[a-z0-9][a-z0-9-]{0,63}$`
 - `kind` must be one of `preference`, `fact`, `workflow`, `project`, `decision`, `summary`
-- Description is ONE line, max 200 chars, designed for the menu reader
 - `update` and `delete` require `reason`
+- Never recreate secrets even if you saw them

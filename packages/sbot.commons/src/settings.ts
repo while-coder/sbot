@@ -263,8 +263,6 @@ export interface ChannelConfig {
   type: string
   /** 插件特有配置（appId, botToken 等） */
   config: Record<string, any>
-  /** 新建 db session 时默认关联的 SessionProfile id；不设置则创建独立 auto profile */
-  profileId?: number
 
   // ── 频道级默认值（ChannelSessionRow 中同名字段可逐会话覆盖，会话值为 null 时回退到此处） ──
   /** Agent ID（对应 ~/.sbot/agents/<id> 目录名） */

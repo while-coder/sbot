@@ -48,7 +48,7 @@ sbot 的运行时配置全部落在用户目录 `~/.sbot/`。本 skill 把这套
 | `savers`                 | `Record<UUID, SaverConfig>`           | `{ name, type: "file" \| "sqlite" \| "memory" }` |
 | `notes`                  | `Record<UUID, NoteConfig>`            | `{ name, embedding: <embeddingUUID> }`           |
 | `wikis`                  | `Record<UUID, WikiConfig>`            | `{ name, embedding?: <embeddingUUID> }`          |
-| `channels`               | `Record<channelId, ChannelConfig>`    | key 是 channelId（不是 UUID），含 type/config/profileId/agent/saver/notes |
+| `channels`               | `Record<channelId, ChannelConfig>`    | key 是 channelId（不是 UUID），含 type/config/agent/saver/notes |
 | `plugins`                | string[]                              | 插件路径或包名                                   |
 | `agentSources`           | `{ url, name? }[]`                    | Agent 商店源列表                                 |
 | `tunnel`                 | `TunnelConfig[]`                      | 隧道列表，按 `id` 唯一                           |

@@ -174,12 +174,9 @@ export class ChannelDataService {
         const sessionData: Record<string, any> = {};
         if (opts?.autoSessionName != null) sessionData.autoSessionName = opts.autoSessionName;
         if (opts?.sessionAvatar !== undefined) sessionData.avatar = opts.sessionAvatar;
-        const channelProfileId = parseId(config.getChannel(channelId)?.profileId);
-        const defaultProfileId = channelProfileId != null && channelProfileId > 0 ? channelProfileId : 0;
-
         const [session, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
             where: { channelId, sessionId },
-            defaults: { ...sessionData, sessionName: opts?.sessionName ?? "", profileId: defaultProfileId, createdAt: now },
+            defaults: { ...sessionData, sessionName: opts?.sessionName ?? "", profileId: 0, createdAt: now },
         });
 
         if (!sessionCreated) {
