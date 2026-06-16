@@ -279,7 +279,6 @@ export {
   AgendaTriggerKind,
   AgendaTriggerAction,
   AgendaOccurrenceStatus,
-  AgendaListView,
   AgendaTimeUnit,
   AgendaPendingJobType,
   type AgendaCreateArgs,

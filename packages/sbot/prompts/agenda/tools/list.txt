@@ -1,17 +1,35 @@
-List the user's agenda items, including todos, reminders, scheduled tasks, routines, deadlines, upcoming notifications, and automations.
+List the user's agenda items — todos, reminders, scheduled tasks, routines, deadlines, upcoming notifications, automations.
 
-Use this whenever the user asks what they need to do, what reminders they have, what is scheduled, what is pending, or what is coming up.
-Default view should answer "待办/what do I have to do" and include todos, reminders, routines, and upcoming non-automation items. Use view=upcoming when the user specifically asks for scheduled future triggers.
+WHEN TO USE
+The user asks "我有什么待办 / 提醒 / 安排 / 还有什么没做 / 哪几次没打卡 / what's pending / what's coming up".
 
-For routines with completionMode=occurrence, the result expands occurrence history grouped by status:
-  occurrences: pending=N missed=N done=N cancelled=N
-    pending: <ISO times of instances waiting for the user to check in>
-    missed:  <ISO times of instances the user did not check in before the next fire>
-    done:    <ISO times the user has confirmed>
-Times are UTC ISO truncated to minute (YYYY-MM-DDTHH:mm). Each group lists at most 10 most recent times; older entries are summarized as "… N more earlier".
+FILTERS
+- status — default `pending`. Pass `all` to also include done/cancelled history.
+- category — optional. `todo` / `reminder` / `routine`.
+- priority — optional. `low` / `normal` / `high`.
+- limit — default 50.
 
-When the user asks "哪几次没做 / 哪天没发 / 我今天漏了几次 / 还有什么待办 / what did I miss" for an occurrence routine,
-read the missed and pending lists and answer with the concrete times (e.g. "12:00 和 13:00 没喝水"), not just a count.
-Compare against <now> to decide whether a pending instance is "the current one waiting" vs "already overdue and should be confirmed/cancelled".
+OUTPUT FORMAT
+Returned as XML inside <agenda-list count="N">. Each item:
 
-If the user wants to backfill a missed instance ("我现在补交周一的周报" / "16:38 喝了忘了回复"), call agenda_complete with `at` set to that occurrence's scheduledAt — both pending and missed are reachable that way.
+  <agenda id="N" status="..." category="..." completionMode="..." priority="..."
+          dueAt="2026-06-13T..." content="...">
+    <trigger id="M" kind="absolute|interval|cron" expr="..." action="..."
+             message="..." nextFireAt="2026-06-17T09:00" />
+    <occurrence id="X" scheduledAt="2026-06-12T14:00" status="pending" />
+    ...
+  </agenda>
+
+Times are UTC ISO truncated to minute (YYYY-MM-DDTHH:mm). Compare against <now> to decide whether a pending item is the active one waiting vs already overdue.
+
+`expr` semantics depend on `kind`:
+- absolute → ISO datetime (the single fire moment)
+- interval → milliseconds as string ("86400000" = every 24h, "7200000" = every 2h)
+- cron     → 6-field cron string ("0 0 9 * * 1-5" = 9am on weekdays)
+
+Only ENABLED triggers are listed. For occurrence routines, all pending+missed occurrences are listed; only the latest 10 done/cancelled are kept (older ones summarized in a comment).
+
+ANSWERING THE USER
+- "哪几次没做 / which ones did I miss" → read the <occurrence status="missed"> entries and answer with concrete `scheduledAt` times ("12:00 和 13:00 没喝水"), not just a count.
+- "我现在补一下 16:38 那次喝水 / 周一的周报刚补交了" → call agenda_complete with `at` set to that occurrence's `scheduledAt`. Both pending and missed are reachable via `at`.
+- "把 9:00 那条提醒改成 10:00" → use the trigger's `id` attribute and call agenda_trigger_update.

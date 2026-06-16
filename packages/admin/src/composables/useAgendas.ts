@@ -11,7 +11,7 @@ export type AgendaSource = 'user' | 'tool' | 'sync' | 'rule'
 export type AgendaTriggerKind = 'absolute' | 'interval' | 'cron'
 export type AgendaTriggerAction = 'notify' | 'notify_and_record' | 'invoke'
 export type AgendaOccurrenceStatus = 'pending' | 'done' | 'cancelled' | 'missed'
-export type AgendaViewFilter = 'todo' | 'upcoming' | 'routine' | 'automation' | 'all'
+export type AgendaCategoryFilter = AgendaCategory | 'all'
 export type AgendaStatusFilter = AgendaStatus | 'all'
 
 export interface AgendaItem {
@@ -102,7 +102,7 @@ export function useAgendas(opts: UseAgendasOptions) {
   const agendas = ref<AgendaRow[]>([])
   const loading = ref(false)
   const statusFilter = ref<AgendaStatusFilter>('pending')
-  const viewFilter = ref<AgendaViewFilter>('all')
+  const categoryFilter = ref<AgendaCategoryFilter>('all')
   const sortedAgendas = computed(() => sortAgendas(agendas.value))
   const pendingCount = computed(() => agendas.value.filter(x => x.item.status === 'pending').length)
   const dueCount = computed(() => agendas.value.filter(x => isOverdue(x)).length)
@@ -119,7 +119,7 @@ export function useAgendas(opts: UseAgendasOptions) {
       const parts = [
         base,
         `status=${encodeURIComponent(statusFilter.value)}`,
-        `view=${encodeURIComponent(viewFilter.value)}`,
+        categoryFilter.value !== 'all' ? `category=${encodeURIComponent(categoryFilter.value)}` : '',
         `limit=${encodeURIComponent(String(opts.limit ?? 500))}`,
       ].filter(Boolean)
       const res = await apiFetch(`/api/agendas?${parts.join('&')}`)
@@ -179,7 +179,7 @@ export function useAgendas(opts: UseAgendasOptions) {
     agendas,
     loading,
     statusFilter,
-    viewFilter,
+    categoryFilter,
     sortedAgendas,
     pendingCount,
     dueCount,

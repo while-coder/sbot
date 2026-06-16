@@ -5,7 +5,6 @@ import type { ChatMessage } from "../../Saver";
 import {
     AgendaCategory,
     AgendaCompletionMode,
-    AgendaListView,
     AgendaOccurrenceStatus,
     AgendaPriority,
     AgendaSource,
@@ -25,6 +24,7 @@ import {
     type AgendaTriggerUpdatePatch,
     type AgendaUpdatePatch,
 } from "../types";
+import { formatAgendaListXml } from "../format";
 import {
     type AgendaAction,
     AgendaActionType,
@@ -150,7 +150,7 @@ export class AgendaService implements IAgendaService {
             const item = await this.loadItem(id);
             if (!item) return null;
             const now = Date.now();
-            const replacementSpecs = this.getPatchTriggerSpecs(patch);
+            const replacementSpecs = patch.triggers;
             const fields: Partial<AgendaItem> = { updatedAt: now };
             if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
             if (patch.category != null) fields.category = patch.category;
@@ -209,7 +209,7 @@ export class AgendaService implements IAgendaService {
                 category: item.category,
                 priority: item.priority,
                 completionMode: item.completionMode,
-                trigger: args.trigger,
+                triggers: [args.trigger],
                 action,
                 message: args.message ?? undefined,
                 channelSessionId: args.channelSessionId,
@@ -378,76 +378,7 @@ export class AgendaService implements IAgendaService {
 
     async formatForLLM(filter?: AgendaListFilter): Promise<string> {
         const records = await this.list(filter);
-        if (records.length === 0) return "No agenda items.";
-        const lines = records.map(record => AgendaService.formatRecord(record));
-        return `${records.length} agenda item(s):\n\n${lines.join('\n')}`;
-    }
-
-    /** 每个 occurrence 状态分组里最多列出多少条（取最近的 = scheduledAt 降序）。 */
-    private static readonly OCC_GROUP_LIMIT = 10;
-
-    /** YYYY-MM-DDTHH:mm，UTC。LLM 看到 ISO 能精确判断"哪天/哪小时"。 */
-    private static fmtIso(ts: number): string {
-        return new Date(ts).toISOString().slice(0, 16);
-    }
-
-    private static formatRecord(record: AgendaRecord): string {
-        const item = record.item;
-        const next = AgendaService.firstNextFire(record);
-        const due = item.dueAt ? ` due=${AgendaService.fmtIso(item.dueAt)}` : '';
-        const nextText = next ? ` next=${AgendaService.fmtIso(next)}` : '';
-        const head = `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}]${due}${nextText} ${item.content}`;
-        if (item.completionMode !== AgendaCompletionMode.Occurrence || record.occurrences.length === 0) return head;
-        return `${head}\n${AgendaService.formatOccurrences(record.occurrences)}`;
-    }
-
-    /**
-     * 按 status 分组列出 occurrence 时间，例：
-     *   occurrences: done=3 missed=2 pending=1
-     *     pending: 2026-06-12T14:00
-     *     missed:  2026-06-12T12:00, 2026-06-12T13:00
-     *     done:    2026-06-12T09:00, 2026-06-12T10:00, 2026-06-12T11:00
-     * 每组最多列 OCC_GROUP_LIMIT 条最近的（按 scheduledAt 升序输出便于阅读），
-     * 更早的报 "… N more earlier"。LLM 用这个回答"哪几个时刻没做"。
-     */
-    private static formatOccurrences(occurrences: AgendaOccurrence[]): string {
-        const groups: Record<AgendaOccurrenceStatus, AgendaOccurrence[]> = {
-            [AgendaOccurrenceStatus.Pending]:   [],
-            [AgendaOccurrenceStatus.Missed]:    [],
-            [AgendaOccurrenceStatus.Done]:      [],
-            [AgendaOccurrenceStatus.Cancelled]: [],
-        };
-        for (const occ of occurrences) {
-            const bucket = groups[occ.status];
-            if (bucket) bucket.push(occ);
-        }
-        const counts = Object.entries(groups)
-            .filter(([, arr]) => arr.length > 0)
-            .map(([k, arr]) => `${k}=${arr.length}`)
-            .join(' ');
-
-        const lines: string[] = [`  occurrences: ${counts}`];
-        const order: AgendaOccurrenceStatus[] = [
-            AgendaOccurrenceStatus.Pending,
-            AgendaOccurrenceStatus.Missed,
-            AgendaOccurrenceStatus.Done,
-            AgendaOccurrenceStatus.Cancelled,
-        ];
-        for (const status of order) {
-            const arr = groups[status];
-            if (arr.length === 0) continue;
-            const sortedDesc = [...arr].sort((a, b) => b.scheduledAt - a.scheduledAt);
-            const recent = sortedDesc.slice(0, AgendaService.OCC_GROUP_LIMIT);
-            const omitted = sortedDesc.length - recent.length;
-            const times = recent
-                .slice()
-                .reverse()
-                .map(o => AgendaService.fmtIso(o.scheduledAt))
-                .join(', ');
-            const tail = omitted > 0 ? `, … ${omitted} more earlier` : '';
-            lines.push(`    ${status}: ${times}${tail}`);
-        }
-        return lines.join('\n');
+        return formatAgendaListXml(records);
     }
 
     // ── 写路径：入队 + 串行消费 ──
@@ -517,7 +448,7 @@ export class AgendaService implements IAgendaService {
 
     private async runExtractJob(messages: ChatMessage[], channelSessionId: number): Promise<number> {
         if (!this.extractor || messages.length === 0) return 0;
-        const existing = await this.list({ status: 'all', view: AgendaListView.All, limit: 80 });
+        const existing = await this.list({ status: 'all', limit: 80 });
         const actions = await this.extractor.extract(messages, existing);
         if (actions.length === 0) return 0;
         for (const action of actions) await this.applyAction(action, channelSessionId);
@@ -546,7 +477,7 @@ export class AgendaService implements IAgendaService {
 
     private async createTriggersIfNeeded(item: AgendaItem, args: AgendaCreateArgs, action: AgendaTriggerAction, now: number): Promise<AgendaTrigger[]> {
         const triggers: AgendaTrigger[] = [];
-        for (const spec of this.getCreateTriggerSpecs(args)) {
+        for (const spec of args.triggers ?? []) {
             const trigger = await this.createTrigger(item, args, spec, action, now);
             if (trigger) triggers.push(trigger);
         }
@@ -606,20 +537,9 @@ export class AgendaService implements IAgendaService {
         return patch.action !== undefined || patch.message !== undefined;
     }
 
-    private getCreateTriggerSpecs(args: AgendaCreateArgs): AgendaTriggerSpec[] {
-        if (args.triggers !== undefined) return args.triggers;
-        return args.trigger ? [args.trigger] : [];
-    }
-
-    private getPatchTriggerSpecs(patch: AgendaUpdatePatch): AgendaTriggerSpec[] | undefined {
-        if (patch.triggers !== undefined) return patch.triggers;
-        if (patch.trigger !== undefined) return [patch.trigger];
-        return undefined;
-    }
-
     private inferCategory(args: AgendaCreateArgs): AgendaCategory {
         // category 只表达"时间形态"。"是否 AI 处理"由 args.action 独立承担。
-        const specs = this.getCreateTriggerSpecs(args);
+        const specs = args.triggers ?? [];
         if (specs.some(spec => spec.kind === AgendaTriggerKind.Interval || spec.kind === AgendaTriggerKind.Cron)) return AgendaCategory.Routine;
         if (specs.some(spec => spec.kind === AgendaTriggerKind.Absolute)) return AgendaCategory.Reminder;
         return AgendaCategory.Todo;
@@ -630,23 +550,23 @@ export class AgendaService implements IAgendaService {
     }
 
     /**
-     * 用户显式传 dueAt 但没传 trigger 时，派生一个默认 Absolute trigger（at=dueAt）。
+     * 用户显式传 dueAt 但没传 triggers 时，派生一条默认 Absolute trigger（at=dueAt）。
      * 让 dueAt 时刻自动发一次"已到截止"提醒。trigger.message 留空，由 buildMessage 回退到 content。
      * 不影响 inferCategory（仍是 Todo）和 completionMode（Item，由用户 complete）。
      * 过去时刻的 dueAt 由引擎按 markMissed 处理，不会立刻误触发。
      */
     private withDefaultDueAtTrigger(args: AgendaCreateArgs): AgendaCreateArgs {
-        if (args.trigger || args.triggers !== undefined || !args.dueAt) return args;
+        if (args.triggers !== undefined || !args.dueAt) return args;
         return {
             ...args,
-            trigger: { kind: AgendaTriggerKind.Absolute, at: args.dueAt },
+            triggers: [{ kind: AgendaTriggerKind.Absolute, at: args.dueAt }],
         };
     }
 
     private inferDueAt(args: AgendaCreateArgs, now: number): number | null {
         // 显式传入优先（主要给 Todo 用）
         if (args.dueAt) return TimeUtils.parseAt(args.dueAt);
-        return AgendaService.deriveDueAtFromSpecs(this.getCreateTriggerSpecs(args), now);
+        return AgendaService.deriveDueAtFromSpecs(args.triggers ?? [], now);
     }
 
     private mergeDueAt(current: number | null, next: number | null): number | null {
@@ -707,18 +627,7 @@ export class AgendaService implements IAgendaService {
         if (status !== 'all' && item.status !== status) return false;
         if (filter?.category && item.category !== filter.category) return false;
         if (filter?.priority && item.priority !== filter.priority) return false;
-        const view = filter?.view ?? AgendaListView.Todo;
-        if (view === AgendaListView.All) return true;
-        if (view === AgendaListView.Routine) return item.category === AgendaCategory.Routine;
-        // Automation view 由 trigger.action 决定：含任何非 Notify 的 trigger 即视为"自动化任务"。
-        if (view === AgendaListView.Automation) return AgendaService.isAutomation(record);
-        if (view === AgendaListView.Upcoming) return record.triggers.some(t => t.enabled && t.nextFireAt);
-        // 默认 Todo view：排除"自动化"类（口径同 Automation view），与历史行为一致。
-        return !AgendaService.isAutomation(record);
-    }
-
-    private static isAutomation(record: AgendaRecord): boolean {
-        return record.triggers.some(t => t.action !== AgendaTriggerAction.Notify);
+        return true;
     }
 
     private static firstNextFire(record: AgendaRecord): number | null {

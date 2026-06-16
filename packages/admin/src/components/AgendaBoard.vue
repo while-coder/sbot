@@ -16,7 +16,7 @@ import {
   type AgendaStatusFilter,
   type AgendaTrigger,
   type AgendaTriggerAction,
-  type AgendaViewFilter,
+  type AgendaCategoryFilter,
 } from '@/composables/useAgendas'
 
 const props = withDefaults(defineProps<{
@@ -25,7 +25,7 @@ const props = withDefaults(defineProps<{
   pendingCount: number
   dueCount: number
   triggerCount: number
-  viewFilter: AgendaViewFilter
+  categoryFilter: AgendaCategoryFilter
   statusFilter: AgendaStatusFilter
   showProfile?: boolean
   compact?: boolean
@@ -35,7 +35,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  (e: 'update:viewFilter', value: AgendaViewFilter): void
+  (e: 'update:categoryFilter', value: AgendaCategoryFilter): void
   (e: 'update:statusFilter', value: AgendaStatusFilter): void
   (e: 'refresh'): void
   (e: 'complete', row: AgendaRow): void
@@ -46,12 +46,11 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const viewOptions: Array<{ value: AgendaViewFilter; label: string }> = [
+const categoryTabs: Array<{ value: AgendaCategoryFilter; label: string }> = [
   { value: 'all', label: 'agenda.view_all' },
-  { value: 'todo', label: 'agenda.view_todo' },
-  { value: 'upcoming', label: 'agenda.view_upcoming' },
-  { value: 'routine', label: 'agenda.view_routine' },
-  { value: 'automation', label: 'agenda.view_automation' },
+  { value: 'todo', label: 'agenda.category_todo' },
+  { value: 'reminder', label: 'agenda.category_reminder' },
+  { value: 'routine', label: 'agenda.category_routine' },
 ]
 
 const visibleCount = computed(() => props.items.length)
@@ -212,14 +211,14 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
     </section>
 
     <section class="agenda-controls" aria-label="Agenda controls">
-      <div class="agenda-viewbar" aria-label="Agenda views">
+      <div class="agenda-viewbar" aria-label="Agenda category">
         <button
-          v-for="option in viewOptions"
+          v-for="option in categoryTabs"
           :key="option.value"
           type="button"
           class="agenda-view-tab"
-          :class="{ 'agenda-view-tab--active': viewFilter === option.value }"
-          @click="emit('update:viewFilter', option.value)"
+          :class="{ 'agenda-view-tab--active': categoryFilter === option.value }"
+          @click="emit('update:categoryFilter', option.value)"
         >
           {{ t(option.label) }}
         </button>

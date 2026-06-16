@@ -1,10 +1,15 @@
-Mark an agenda item as complete. Use this when the user says a todo/task is done, finished, completed, or no longer pending because they did it.
+Mark an agenda item (or one occurrence of a routine) as complete.
 
-For routines with completionMode=occurrence, this closes ONE instance, not the whole routine. The routine keeps firing.
-- Default (no `at`): closes the earliest still-pending instance — use this for plain check-ins like "我喝了 / 完成了今天的 / 已交".
-- With `at`: pinpoint a specific occurrence by ISO datetime. Both pending and missed instances are reachable, so this also covers backfill cases:
+NON-OCCURRENCE ITEMS (todo / reminder / routine without per-fire check-in)
+Use this when the user says it's done: "已经做完了", "搞定了", "已交". The whole item is closed and remaining triggers are disabled.
+
+OCCURRENCE ROUTINES (completionMode=occurrence)
+Closes ONE instance, NOT the whole routine. The routine keeps firing.
+- Without `at`: closes the EARLIEST still-pending instance — for plain check-ins like "我喝了 / 完成了今天的 / 已交".
+- With `at`: pinpoint a specific occurrence by ISO datetime. BOTH pending AND missed instances are reachable through `at`. Use it for:
   * "16:38 喝了水忘了说" → at = 16:38 ISO of today (likely closes the missed 16:38 instance)
   * "周一的周报我刚补交了" → at = that monday's scheduled fire ISO
   * "10 点的工作报告：…" against an hourly routine → at = 10:00 ISO of today
+- Do NOT use `at` for ambiguous "现在 / just now / 刚刚" replies — let the default earliest-pending logic handle them.
 
-The system finds the occurrence (pending OR missed) with scheduledAt closest to `at`. Do not include `at` for ambiguous "现在/just now" replies — let the default earliest-pending logic handle them.
+To stop the whole routine entirely, use agenda_cancel instead.

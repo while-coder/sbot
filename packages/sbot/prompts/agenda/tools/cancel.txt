@@ -1,1 +1,7 @@
-Cancel an agenda item. Use this when the user says they no longer want a todo, reminder, schedule, routine, or automation.
+Cancel an agenda item entirely. Use when the user no longer wants a todo, reminder, schedule, routine, or automation.
+
+DIFFERENCE FROM agenda_complete
+- complete = "I did it" → marks done (or closes one occurrence for routines).
+- cancel = "I don't want this anymore" → terminates the whole item; all active triggers are disabled; routines stop firing.
+
+For occurrence routines, agenda_complete only closes ONE instance. To actually stop the routine, use agenda_cancel.

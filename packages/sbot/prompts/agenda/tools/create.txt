@@ -1,15 +1,35 @@
-Create a user agenda item. Use this for todos, reminders, schedules, routines, deadlines, and scheduled automations.
+Create a user agenda item — todo, reminder, schedule, routine, deadline, or scheduled automation.
 
-Use this whenever the user asks you to remember something, remind them later, schedule a future notification, create a routine, or run an agent action later.
-Prefer structured time fields: at, after, every, or cron. Do not invent a cron expression when after/every/at is enough.
-Use `triggers` instead of `trigger` when one agenda item should have multiple active schedules, such as "remind me one day before and again at the deadline" or "remind me at 9:00 and 18:00".
+WHEN TO USE
+Whenever the user asks you to remember something, remind them later, schedule a future notification, create a routine, or run an agent action at a future time.
 
-If you are not sure whether the item already exists, call agenda_list first. If this tool says an agenda item already exists, treat that as success and do not create another item.
+Trust the system's near-duplicate detection: if the result says "already exists", treat that as success. Do NOT pre-call agenda_list just to dedupe.
 
-When creating a routine with completionMode=occurrence, set action=notify_and_record (instead of the default notify):
-- The user is expected to reply ("已喝 / 已交 / 完成了") to each fire. Without a recorded fire in the saver, the main agent sees an orphan reply and gets confused.
-- notify_and_record writes the fire as an AI-role message into the conversation history so the agent can correctly read short check-in replies.
-For non-occurrence reminders (one-shot, simple notifications), keep action=notify (or omit) — recording every fire would inflate the conversation needlessly.
-Use action=invoke only when you want the AI to actively respond to the fire (e.g. "每天 8 点帮我总结日志").
+TIME — `triggers` (an array)
+- Plain todo without a time → omit `triggers`.
+- One schedule → `triggers: [<one>]`.
+- Multiple active schedules on the same item → `triggers: [<a>, <b>, ...]`. Examples: "remind me one day before AND at the deadline", "9:00 and 18:00".
 
-Note: occurrence routines have no "late completion" mode. Once a fire is missed (the next fire arrives before the user confirms), that instance stays missed forever and cannot be backfilled. This is the intended product behavior — occurrence routines force timely check-in.
+Pick `kind` to match what the user said:
+- one-shot at a specific moment → kind=absolute, `at`=ISO. For "1 hour from now" / "100 days later", compute the ISO yourself.
+- fixed-cadence recurrence ("每天", "每 90 分钟") → kind=interval, `every`={amount,unit}.
+- calendar-aligned recurrence ("工作日 9 点", "每月 1 号") → kind=cron, `expr`=6-field cron.
+Do NOT use cron when interval suffices.
+
+OCCURRENCE ROUTINES (打卡 / 汇报 / 喝水 / 周报)
+Use completionMode=occurrence when each fire is a separate instance the user must check off.
+Pair it with action=notify_and_record (NOT default notify):
+- notify alone does not record the fire in conversation history → the agent later sees an orphan reply like "已喝/已交" and may misroute it.
+- notify_and_record writes the fire as an AI message so the agent reads "[AI: 要喝水了][user: 已喝]" coherently.
+
+A missed occurrence stays missed forever once the next fire arrives — this is the intended product behavior to enforce timely check-in. Backfill via `at` on agenda_complete still works.
+
+ACTION (how fires are delivered)
+- notify (default) — pure text ping; fire NOT recorded. For one-shot reminders / external pings.
+- notify_and_record — text ping + recorded in history. Required for occurrence routines.
+- invoke — feed the text to the AI agent as user input so it actively responds. Use only when the user wants AI work at fire time, e.g. "每天 8 点帮我总结日志".
+
+DEFAULTS YOU CAN OMIT
+- category / completionMode / priority — system infers from triggers and content.
+- message — defaults to content; only set when the fire-time text needs to differ.
+- dueAt — auto-derived from triggers for reminder/routine. Set explicitly only to add a deadline to a plain todo (in which case the system auto-fires a one-shot reminder at that moment so the deadline cannot pass silently).

@@ -22,6 +22,11 @@ export class TimeUtils {
         return ts;
     }
 
+    /** "YYYY-MM-DDTHH:mm" UTC. LLM 看到能精确判断"哪天/哪小时"。 */
+    static formatIsoMinute(ts: number): string {
+        return new Date(ts).toISOString().slice(0, 16);
+    }
+
     static computeCronNext(expr: string, timezone?: string | null): number {
         const job = CronJob.from({
             cronTime: expr,

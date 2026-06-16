@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
     AgendaCategory,
     AgendaCompletionMode,
-    AgendaListView,
     AgendaPriority,
     AgendaStatus,
     AgendaTimeUnit,
@@ -29,27 +28,27 @@ export const AGENDA_COMPLETE_TOOL_NAME = 'agenda_complete' as const;
 export const AGENDA_CANCEL_TOOL_NAME = 'agenda_cancel' as const;
 
 const RelativeTimeSchema = z.object({
-    amount: z.number().describe('Positive amount'),
-    unit: z.enum(AgendaTimeUnit).describe('Time unit'),
+    amount: z.number().int().positive().describe('Positive integer amount.'),
+    unit: z.enum(AgendaTimeUnit).describe('Time unit: minute / hour / day / week.'),
 });
 
 const TriggerSpecSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal(AgendaTriggerKind.Absolute),
-        at: z.string().describe('ISO datetime when the trigger fires once, e.g. "2026-09-19T09:00:00". For "1 hour from now"-style requests, compute the ISO yourself from the current time.'),
-    }).describe('One-shot trigger at a specific moment.'),
+        at: z.string().describe('ISO datetime when the trigger fires once, e.g. "2026-09-19T09:00:00". For "1 hour from now" / "100 days later", compute the ISO yourself from the current time.'),
+    }).describe('One-shot at a specific moment.'),
     z.object({
         kind: z.literal(AgendaTriggerKind.Interval),
-        every: RelativeTimeSchema.describe('Repeat interval, e.g. {amount:1,unit:"day"} for every day, {amount:90,unit:"minute"} for every 90 minutes.'),
-        startAt: z.string().optional().describe('ISO datetime of the FIRST fire. Omit to fire one interval from now. For "starting 100 days from now", compute the ISO yourself.'),
-        count: z.number().int().positive().optional().describe('Total number of fires before stopping. Omit for unlimited.'),
-    }).describe('Recurring trigger at a fixed interval.'),
+        every: RelativeTimeSchema.describe('Repeat interval. Examples: {amount:1,unit:"day"} = every day; {amount:90,unit:"minute"} = every 90 minutes.'),
+        startAt: z.string().optional().describe('ISO datetime of the FIRST fire. Omit to fire one interval from now.'),
+        count: z.number().int().positive().optional().describe('Total fire count before stopping. Omit for unlimited.'),
+    }).describe('Fixed-cadence recurrence. Use this for "每天", "每 90 分钟" style requests; do NOT escalate to cron unless calendar alignment is required.'),
     z.object({
         kind: z.literal(AgendaTriggerKind.Cron),
-        expr: z.string().describe('Six-field cron expression (sec min hour dom month dow), e.g. "0 0 9 * * 1-5" for 9am on weekdays.'),
+        expr: z.string().describe('SIX-field cron expression: "sec min hour dom month dow". NOT five-field. Examples: "0 0 9 * * 1-5" = 9am on weekdays; "0 0 9 1 * *" = 9am on the 1st of every month.'),
         startAt: z.string().optional().describe('ISO datetime of the FIRST fire. Omit for the next cron match from now.'),
-        count: z.number().int().positive().optional().describe('Total number of fires before stopping. Omit for unlimited.'),
-    }).describe('Recurring trigger on a cron schedule.'),
+        count: z.number().int().positive().optional().describe('Total fire count before stopping. Omit for unlimited.'),
+    }).describe('Calendar-aligned recurrence. Use only when interval cannot express it (e.g. "工作日 9 点", "每月 1 号").'),
 ]);
 
 export class AgendaToolProvider {
@@ -64,15 +63,14 @@ export class AgendaToolProvider {
                 name: AGENDA_CREATE_TOOL_NAME,
                 description: descs.create,
                 schema: z.object({
-                    content: z.string().describe('Agenda item content, e.g. "喝水" or "交周报"'),
-                    category: z.enum(AgendaCategory).optional(),
-                    priority: z.enum(AgendaPriority).optional(),
-                    trigger: TriggerSpecSchema.optional().describe('Single schedule of when this fires. Omit for plain todo without a time.'),
-                    triggers: z.array(TriggerSpecSchema).optional().describe('Multiple active schedules for the same agenda item. Use this instead of trigger when the item should fire at several times, e.g. one day before and again at the deadline.'),
-                    dueAt: z.string().optional().describe('Optional ISO datetime deadline. Mainly for plain todos ("finish weekly report by Friday" → "2026-06-13T23:59:59"). When set without a `trigger`, the system auto-fires a one-shot reminder at this moment so the deadline does not pass silently. For Reminder/Routine the deadline is auto-derived from the trigger; only set this when you need to override.'),
-                    action: z.enum(AgendaTriggerAction).optional().describe('notify=send the message text as-is to the user; the fire is NOT recorded in the conversation history (default; for one-shot reminders / external pings where the user reply does not need fire context). notify_and_record=same as notify, but also append the message to the conversation history as an AI message so the main agent sees that the system pinged the user — use this for occurrence routines (打卡/汇报/喝水) so the agent can correctly read user replies like "已喝/已交". invoke=feed the message to the AI agent as user input so it actively responds. Write any "提醒：..." prefix yourself in the message field if you want one.'),
-                    message: z.string().optional().describe('Optional override for the text delivered when the trigger fires. Leave empty to deliver `content` as-is — only fill this when the delivered text needs to differ from `content` (e.g. content="分析昨日日志" as a short title, message="请分析昨天的 nginx 日志，找出 5xx 异常..." as the full instruction the AI agent should process).'),
-                    completionMode: z.enum(AgendaCompletionMode).optional(),
+                    content: z.string().describe('Canonical, self-contained title used as the default fire-time text. A clean noun-phrase or imperative ("喝水", "Submit weekly report"); not a reply or a kickoff sentence. Match the user\'s language.'),
+                    category: z.enum(AgendaCategory).optional().describe('Usually omit — system infers from triggers (interval/cron→routine, absolute→reminder, none→todo). Only set to override.'),
+                    priority: z.enum(AgendaPriority).optional().describe('Default normal. high for "重要 / 紧急", low for "顺手".'),
+                    triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list. Omit or [] for a plain todo with no time. One element for a single schedule; multiple elements for several active schedules on the same item (e.g. "remind one day before AND at the deadline", "9:00 and 18:00").'),
+                    dueAt: z.string().optional().describe('Explicit ISO deadline. Mainly for plain todos ("finish weekly report by Friday" → "2026-06-13T23:59:59"). When set without `triggers`, the system auto-fires a one-shot reminder at this moment so the deadline cannot pass silently. For reminder/routine the deadline is auto-derived from triggers; only set this to override.'),
+                    action: z.enum(AgendaTriggerAction).optional().describe('How fires are delivered. notify (default) = pure text ping to the user; the fire is NOT recorded in conversation history — best for one-shot reminders / external pings where no contextual reply is expected. notify_and_record = same delivery, but ALSO writes the fire as an AI message into history so the main agent reads "[AI: 要喝水了][user: 已喝]" coherently — REQUIRED for occurrence routines (打卡/汇报/喝水/周报). invoke = feed the text to the AI agent as user input so it actively responds — use only when the user wants AI work at fire time, e.g. "每天 8 点帮我总结日志".'),
+                    message: z.string().optional().describe('OPTIONAL override of the fire-time text. Defaults to `content` when omitted. Only set when fire-time text needs to differ from content — e.g. friendlier reminder tone ("Time to submit your weekly report!"), or a fuller invoke instruction when content is too terse (content="分析昨日日志" → message="请分析昨天的 nginx 日志，找出 5xx 异常并给出简报"). Do NOT paraphrase content; if you would just restate it, omit.'),
+                    completionMode: z.enum(AgendaCompletionMode).optional().describe('Usually omit — system infers (todo→item, others→none). Set occurrence for routines where each fire is a separate instance the user must check off; pair it with action=notify_and_record.'),
                 }),
                 func: async (args: AgendaCreateArgs) => {
                     try {
@@ -81,7 +79,7 @@ export class AgendaToolProvider {
                         if (result.existed) {
                             return `Agenda #${item.id} already exists: ${item.content}\nNo new agenda item was created.`;
                         }
-                        return `Created agenda #${item.id}: ${item.content}\n\n${await agendaService.formatForLLM({ status: 'all', view: AgendaListView.All, limit: 1 })}`;
+                        return `Created agenda #${item.id}: ${item.content}\n\n${await agendaService.formatForLLM({ status: 'all', limit: 1 })}`;
                     } catch (e: any) {
                         return `Failed to create agenda item: ${e.message}`;
                     }
@@ -91,11 +89,10 @@ export class AgendaToolProvider {
                 name: AGENDA_LIST_TOOL_NAME,
                 description: descs.list,
                 schema: z.object({
-                    status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, 'all']).optional(),
-                    category: z.enum(AgendaCategory).optional(),
-                    priority: z.enum(AgendaPriority).optional(),
-                    view: z.enum(AgendaListView).optional(),
-                    limit: z.number().optional(),
+                    status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, 'all']).optional().describe('Status filter. Default = pending. "all" = no status filter.'),
+                    category: z.enum(AgendaCategory).optional().describe('Filter by category: todo / reminder / routine.'),
+                    priority: z.enum(AgendaPriority).optional().describe('Filter by priority: low / normal / high.'),
+                    limit: z.number().optional().describe('Max items to return. Default 50.'),
                 }),
                 func: async (filter: AgendaListFilter) => {
                     try {
@@ -109,12 +106,12 @@ export class AgendaToolProvider {
                 name: AGENDA_UPDATE_TOOL_NAME,
                 description: descs.update,
                 schema: z.object({
-                    id: z.number(),
+                    id: z.number().describe('Agenda item id (the #N in the list).'),
                     content: z.string().optional(),
                     category: z.enum(AgendaCategory).optional(),
                     priority: z.enum(AgendaPriority).optional(),
                     completionMode: z.enum(AgendaCompletionMode).optional(),
-                    dueAt: z.string().nullable().optional(),
+                    dueAt: z.string().nullable().optional().describe('ISO datetime, or null to clear. Does NOT auto-adjust existing triggers — see tool description.'),
                 }),
                 func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {
                     try {
@@ -129,10 +126,10 @@ export class AgendaToolProvider {
                 name: AGENDA_TRIGGER_ADD_TOOL_NAME,
                 description: descs.triggerAdd,
                 schema: z.object({
-                    itemId: z.number(),
-                    trigger: TriggerSpecSchema.describe('New active trigger to add to this agenda item.'),
-                    action: z.enum(AgendaTriggerAction).optional(),
-                    message: z.string().nullable().optional(),
+                    itemId: z.number().describe('Existing agenda item id.'),
+                    trigger: TriggerSpecSchema.describe('New active trigger to append.'),
+                    action: z.enum(AgendaTriggerAction).optional().describe('Delivery mode for THIS new trigger. Defaults to notify.'),
+                    message: z.string().nullable().optional().describe('Per-fire text override for this new trigger. null/omit = fall back to item.content.'),
                 }),
                 func: async ({ itemId, ...args }: { itemId: number } & AgendaTriggerCreateArgs) => {
                     try {
@@ -147,10 +144,10 @@ export class AgendaToolProvider {
                 name: AGENDA_TRIGGER_UPDATE_TOOL_NAME,
                 description: descs.triggerUpdate,
                 schema: z.object({
-                    triggerId: z.number(),
-                    trigger: TriggerSpecSchema.optional().describe('Replacement schedule for this trigger. Omit to keep the current schedule.'),
-                    action: z.enum(AgendaTriggerAction).optional(),
-                    message: z.string().nullable().optional(),
+                    triggerId: z.number().describe('Id of the existing trigger to update.'),
+                    trigger: TriggerSpecSchema.optional().describe('Replacement schedule. Omit to keep the current schedule.'),
+                    action: z.enum(AgendaTriggerAction).optional().describe('New delivery mode. Omit to keep current.'),
+                    message: z.string().nullable().optional().describe('New per-fire text override. null clears the override (fall back to item.content). Omit to keep current.'),
                 }),
                 func: async ({ triggerId, ...patch }: { triggerId: number } & AgendaTriggerUpdatePatch) => {
                     try {
@@ -164,7 +161,9 @@ export class AgendaToolProvider {
             new DynamicStructuredTool({
                 name: AGENDA_TRIGGER_REMOVE_TOOL_NAME,
                 description: descs.triggerRemove,
-                schema: z.object({ triggerId: z.number() }),
+                schema: z.object({
+                    triggerId: z.number().describe('Id of the trigger to disable. The agenda item itself stays.'),
+                }),
                 func: async ({ triggerId }: { triggerId: number }) => {
                     try {
                         const record = await agendaService.removeTrigger(triggerId);
@@ -178,10 +177,10 @@ export class AgendaToolProvider {
                 name: AGENDA_TRIGGER_REPLACE_ALL_TOOL_NAME,
                 description: descs.triggerReplaceAll,
                 schema: z.object({
-                    itemId: z.number(),
-                    triggers: z.array(TriggerSpecSchema).describe('Final active trigger list. Use [] to clear all active triggers.'),
-                    action: z.enum(AgendaTriggerAction).optional(),
-                    message: z.string().nullable().optional(),
+                    itemId: z.number().describe('Existing agenda item id.'),
+                    triggers: z.array(TriggerSpecSchema).describe('FINAL active trigger list (replaces all current active triggers). [] = clear all active triggers.'),
+                    action: z.enum(AgendaTriggerAction).optional().describe('Delivery mode applied to every new trigger in the list. Defaults to notify.'),
+                    message: z.string().nullable().optional().describe('Per-fire text override applied to every new trigger. null/omit = fall back to item.content.'),
                 }),
                 func: async ({ itemId, ...args }: { itemId: number } & AgendaTriggerReplaceAllArgs) => {
                     try {
@@ -196,8 +195,8 @@ export class AgendaToolProvider {
                 name: AGENDA_COMPLETE_TOOL_NAME,
                 description: descs.complete,
                 schema: z.object({
-                    id: z.number(),
-                    at: z.string().optional().describe('Optional ISO datetime pointing at WHICH occurrence the user is completing — only meaningful for completionMode=occurrence routines. With `at` the system searches BOTH pending and missed instances and picks the one with scheduledAt closest to `at`. Use it whenever the user references a specific past time, including backfilling missed instances ("16:38 喝了忘了说" → at=16:38 ISO; "周一的周报刚补交了" → at=that monday). Omit for plain "我喝了 / 完成了" check-ins — the system closes the earliest pending instance.'),
+                    id: z.number().describe('Agenda item id.'),
+                    at: z.string().optional().describe('Optional ISO datetime pointing at WHICH occurrence — only meaningful for completionMode=occurrence routines. With `at` the system searches BOTH pending and missed instances and picks the one with scheduledAt closest to `at`. Use it whenever the user references a specific past time, including backfilling missed instances ("16:38 喝了忘了说" → at=16:38 ISO; "周一的周报刚补交了" → at=that monday). Omit for plain "我喝了 / 完成了" check-ins — the system closes the earliest pending instance.'),
                 }),
                 func: async ({ id, at }: { id: number; at?: string }) => {
                     try {
@@ -223,7 +222,9 @@ export class AgendaToolProvider {
             new DynamicStructuredTool({
                 name: AGENDA_CANCEL_TOOL_NAME,
                 description: descs.cancel,
-                schema: z.object({ id: z.number() }),
+                schema: z.object({
+                    id: z.number().describe('Agenda item id to terminate. All active triggers are disabled; for occurrence routines the routine itself stops firing.'),
+                }),
                 func: async ({ id }: { id: number }) => {
                     try {
                         const record = await agendaService.cancel(id);

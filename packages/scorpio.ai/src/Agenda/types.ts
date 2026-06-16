@@ -111,22 +111,6 @@ export enum AgendaOccurrenceStatus {
     Missed = 'missed',
 }
 
-/**
- * 列表视图。决定 list() 的默认过滤口径。
- */
-export enum AgendaListView {
-    /** 默认。普通待办视图，排除 Automation。 */
-    Todo = 'todo',
-    /** 即将到来：仅有 enabled trigger 且有 nextFireAt 的条目。 */
-    Upcoming = 'upcoming',
-    /** 仅周期任务（category=Routine）。 */
-    Routine = 'routine',
-    /** 仅"AI 处理类"任务：含任何非 Notify 的 trigger（Invoke/Send）。与 category 正交。 */
-    Automation = 'automation',
-    /** 全部。 */
-    All = 'all',
-}
-
 // ===== DTOs =====
 
 /**
@@ -203,7 +187,7 @@ export type AgendaTriggerSpec =
 
 /**
  * 创建参数。LLM 通过 agenda_create 工具调用这个。
- * 时间相关封装在 trigger/triggers 字段里；不传 = 纯 Todo（无调度）。
+ * 时间相关全部走 triggers 字段（数组）；不传或 [] = 纯 Todo（无调度）。
  */
 export interface AgendaCreateArgs {
     /** 主内容。LLM 说"提醒我喝水" → "喝水"。trim 后非空，否则抛错。 */
@@ -212,11 +196,11 @@ export interface AgendaCreateArgs {
     category?: AgendaCategory;
     /** 优先级。默认 Normal。 */
     priority?: AgendaPriority;
-    /** 单条调度规格；省略 = 纯 Todo（无 trigger）。 */
-    trigger?: AgendaTriggerSpec;
     /**
-     * 多条调度规格。传入时优先于 trigger，用于同一事项多个 active triggers。
-     * 例：提前一天提醒 + 当天再提醒。
+     * 调度规格列表。
+     * - 单个时间点：传 1 元素数组，例 [{ kind: 'absolute', at: '...' }]
+     * - 多个 active triggers：例提前一天提醒 + 当天再提醒
+     * - 省略或 [] = 纯 Todo（无调度）
      */
     triggers?: AgendaTriggerSpec[];
     /**
@@ -234,8 +218,8 @@ export interface AgendaCreateArgs {
     /**
      * 显式截止时刻（ISO 字符串）。优先级最高，会覆盖系统从 trigger 推导的 dueAt。
      * 主要给纯 Todo 用——LLM 说"周五前写完周报" → dueAt = "2026-06-13T23:59:59"。
-     * 副作用：当不传 trigger 时，系统会自动派生一条 Absolute trigger（at=dueAt）作为"截止前提醒"，
-     * 避免 dueAt 过期后无人通知；同时传 trigger 则用户调度优先，不派生。
+     * 副作用：当不传 triggers（或 triggers=[]）时，系统会自动派生一条 Absolute trigger（at=dueAt）作为"截止前提醒"，
+     * 避免 dueAt 过期后无人通知；同时传 triggers 则用户调度优先，不派生。
      * Reminder（Absolute trigger）默认 dueAt = trigger.at，无需显式传；
      * 周期任务（Interval+count）默认 dueAt = 最后一次触发时刻。
      */
@@ -259,14 +243,12 @@ export interface AgendaUpdatePatch {
     completionMode?: AgendaCompletionMode;
     /**
      * 显式改 dueAt（ISO 字符串或 null 清空）。
-     * 不传时若发生调度变更，dueAt 由新 trigger 推导。
+     * 不传时若发生调度变更，dueAt 由新 triggers 推导。
      */
     dueAt?: string | null;
-    /** 管理 API 兼容入口：传入新 spec 替换旧 active triggers。LLM 工具不暴露。 */
-    trigger?: AgendaTriggerSpec;
     /**
      * 管理 API 兼容入口：传入最终应生效的完整 trigger 列表。
-     * [] 表示清空所有 active triggers。传入时优先于 trigger。
+     * [] 表示清空所有 active triggers。LLM 工具不暴露（用 agenda_trigger_replace_all）。
      */
     triggers?: AgendaTriggerSpec[];
     /** 管理 API 兼容入口：改触发动作。LLM 工具不暴露。 */
@@ -274,8 +256,8 @@ export interface AgendaUpdatePatch {
     /** 管理 API 兼容入口：改触发消息；传 null 清空回退到 content。 */
     message?: string | null;
     /**
-     * 调度变更（重建 trigger）时新 trigger.channelHint 用的频道会话 id。
-     * 缺省 = 0。仅在传 trigger 时有意义；不在 LLM 工具 schema 暴露。
+     * 调度变更（重建 triggers）时新 trigger.channelHint 用的频道会话 id。
+     * 缺省 = 0。仅在传 triggers 时有意义；不在 LLM 工具 schema 暴露。
      */
     channelSessionId?: number;
 }
@@ -311,8 +293,6 @@ export interface AgendaListFilter {
     category?: AgendaCategory;
     /** 仅返回某优先级。 */
     priority?: AgendaPriority;
-    /** 视图过滤。缺省 Todo（排除 Automation）。 */
-    view?: AgendaListView;
     /** 上限条数。缺省 50，下限 1。 */
     limit?: number;
 }

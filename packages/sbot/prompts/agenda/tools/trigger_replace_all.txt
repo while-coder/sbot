@@ -1,5 +1,11 @@
-Replace all active triggers on an agenda item.
+Replace the FULL active trigger list of an agenda item in one shot.
 
-Use this for schedule cleanup, deduplication, or when the user describes the final complete reminder list. Pass the exact triggers that should remain active.
+USE WHEN
+- Schedule cleanup, deduplication, or normalizing several active triggers.
+- The user describes the final complete reminder list ("以后就只在 9:00 和 18:00 提醒，去掉中午那个").
 
-Pass an empty triggers array only when the item should have no active triggers.
+Pass exactly the triggers that should remain active. Existing active triggers not in the list are disabled.
+
+EDGE CASES
+- triggers=[] → clear all active triggers (the item itself stays; existing dueAt is unchanged unless explicitly modified via agenda_update).
+- For a single targeted edit, prefer agenda_trigger_update / agenda_trigger_add — replace_all is heavier and harder for the user to reason about.

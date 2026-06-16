@@ -1,5 +1,11 @@
-Update one existing trigger by triggerId.
+Update ONE existing trigger by triggerId — change its schedule, action, or message.
 
-Use this when the user refers to a specific reminder/schedule already listed on an agenda item, e.g. "change the 9:00 reminder to 10:00" or "make that trigger invoke the agent".
+USE WHEN
+The user references a specific reminder/schedule already on the item: "把 9:00 的提醒改成 10:00", "让那个触发器改成 invoke 模式".
 
-Omit fields that should stay unchanged.
+DO NOT USE WHEN
+- Adding a new trigger alongside existing ones → agenda_trigger_add.
+- Replacing the whole list of triggers → agenda_trigger_replace_all.
+- Removing a trigger → agenda_trigger_remove.
+
+Omit any field that should stay unchanged.

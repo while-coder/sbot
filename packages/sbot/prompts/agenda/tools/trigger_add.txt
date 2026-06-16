@@ -1,5 +1,8 @@
-Add one active trigger to an existing agenda item.
+Add ONE active trigger to an existing agenda item, leaving its current triggers in place.
 
-Use this when the item should keep its current reminders and gain another schedule, e.g. "also remind me one day before" or "add a 18:00 reminder too".
+USE WHEN
+The user wants an additional reminder ON TOP OF existing schedules: "再提前一天提醒我", "也加一个 18:00 的提醒".
 
-Do not use this to replace or clean up the whole schedule list; use agenda_trigger_replace_all for that.
+DO NOT USE WHEN
+- Replacing the entire schedule list → agenda_trigger_replace_all.
+- Editing one specific existing trigger → agenda_trigger_update.

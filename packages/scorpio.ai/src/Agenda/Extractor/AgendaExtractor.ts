@@ -4,6 +4,7 @@ import { IModelService } from "../../Model";
 import { ILoggerService, ILogger } from "../../Logger";
 import { MessageRole, type ChatMessage } from "../../Saver";
 import { renderConversation } from "../../Utils/conversationUtils";
+import { TimeUtils } from "../../Utils/TimeUtils";
 import { T_AgendaExtractorSystemPrompt } from "../../Core";
 import {
     AgendaCategory,
@@ -14,41 +15,41 @@ import {
     AgendaTriggerKind,
     type AgendaRecord,
 } from "../types";
+import { formatAgendaXml } from "../format";
 import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgendaExtractor";
 
 const RelativeTimeSchema = z.object({
-    amount: z.number(),
+    amount: z.number().int().positive(),
     unit: z.enum(AgendaTimeUnit),
 });
 
 const TriggerSpecSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal(AgendaTriggerKind.Absolute),
-        at: z.string(),
+        at: z.string().describe('ISO datetime of the single fire moment.'),
     }),
     z.object({
         kind: z.literal(AgendaTriggerKind.Interval),
-        every: RelativeTimeSchema,
+        every: RelativeTimeSchema.describe('Repeat interval, e.g. {amount:1,unit:"day"} = every day; {amount:90,unit:"minute"} = every 90 minutes.'),
         startAt: z.string().optional(),
         count: z.number().int().positive().optional(),
     }),
     z.object({
         kind: z.literal(AgendaTriggerKind.Cron),
-        expr: z.string(),
+        expr: z.string().describe('SIX-field cron: "sec min hour dom month dow". NOT five-field.'),
         startAt: z.string().optional(),
         count: z.number().int().positive().optional(),
     }),
 ]);
 
 const CreateArgsSchema = z.object({
-    content: z.string().describe('Canonical, self-contained description of the agenda — used as the default fire-time text. Write this so it stands alone without context (a clean noun-phrase or imperative title, e.g. "Submit weekly report", "Build a web matching game (timer / levels / shuffle / hints)"), not as a reply or a kickoff phrase like "Start by ...".'),
+    content: z.string().describe('Canonical, self-contained description used as the default fire-time text. A clean noun-phrase or imperative title ("Submit weekly report", "喝水", "Build a web matching game (timer / levels / shuffle / hints)"); not a reply or a kickoff phrase like "Start by ...". Match the user\'s language.'),
     category: z.enum(AgendaCategory).optional(),
     priority: z.enum(AgendaPriority).optional(),
-    trigger: TriggerSpecSchema.optional(),
-    triggers: z.array(TriggerSpecSchema).optional().describe('Multiple active schedules for the same item. Use this instead of trigger when the item should fire at several times.'),
+    triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list. Omit or [] for a plain todo with no time. One element for a single schedule; multiple elements for several active schedules on the same item.'),
     dueAt: z.string().optional(),
     action: z.enum(AgendaTriggerAction).optional(),
-    message: z.string().optional().describe('OPTIONAL override of the fire-time text. Default = content (omit this field). Only set when the fire-time text genuinely needs to differ from content — e.g. a friendlier reminder tone for notify ("Time to submit your weekly report!"), or a fuller instruction for invoke when content alone is too terse to act on. Do NOT restate or paraphrase content; if you would just rewrite the same idea, omit this field.'),
+    message: z.string().optional().describe('OPTIONAL override of the fire-time text. Default = content (omit this field). Only set when fire-time text needs to differ from content — e.g. friendlier reminder tone for notify ("Time to submit your weekly report!"), or a fuller invoke instruction when content alone is too terse. Do NOT restate or paraphrase content; if you would just rewrite the same idea, omit.'),
     completionMode: z.enum(AgendaCompletionMode).optional(),
 });
 
@@ -111,17 +112,10 @@ export class AgendaExtractor implements IAgendaExtractor {
             let human = renderConversation(messages);
 
             if (existingItems.length > 0) {
-                const lines = existingItems.slice(0, 80).map(record => {
-                    const item = record.item;
-                    const next = record.triggers
-                        .filter(t => t.enabled && t.nextFireAt)
-                        .map(t => new Date(t.nextFireAt!).toISOString())
-                        .sort()[0];
-                    return `#${item.id} [${item.status}/${item.category}/${item.priority}/${item.completionMode}]${item.dueAt ? ` due=${new Date(item.dueAt).toISOString()}` : ''}${next ? ` next=${next}` : ''} ${item.content}`;
-                });
-                human += `\n<existing-agenda>\n${lines.join("\n")}\n</existing-agenda>`;
+                const body = existingItems.slice(0, 80).map(formatAgendaXml).join('\n');
+                human += `\n<existing-agenda>\n${body}\n</existing-agenda>`;
             }
-            human += `\n<now>${new Date().toISOString()}</now>`;
+            human += `\n<now>${TimeUtils.formatIsoMinute(Date.now())}</now>`;
 
             const llmMessages: ChatMessage[] = [
                 { role: MessageRole.System, content: this.systemPrompt },
