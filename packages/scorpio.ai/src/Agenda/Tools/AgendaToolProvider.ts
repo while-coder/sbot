@@ -144,27 +144,13 @@ export class AgendaToolProvider {
             new DynamicStructuredTool({
                 name: AGENDA_TRIGGER_TOOL_NAME,
                 description: descs.trigger,
-                schema: z.discriminatedUnion('op', [
-                    z.object({
-                        op: z.literal(AgendaTriggerOp.Add),
-                        itemId: z.number().describe('Existing item id.'),
-                        trigger: TriggerSpecSchema.describe('Spec to append; shape = create.triggers[i].'),
-                    }).describe('Append ONE trigger.'),
-                    z.object({
-                        op: z.literal(AgendaTriggerOp.Update),
-                        triggerId: z.number().describe('Existing trigger id (from <existing-agenda> XML).'),
-                        trigger: TriggerSpecSchema.describe('COMPLETE replacement spec; resets fireCount.'),
-                    }).describe('Rewrite ONE existing trigger.'),
-                    z.object({
-                        op: z.literal(AgendaTriggerOp.Remove),
-                        triggerId: z.number().describe('Trigger id to disable.'),
-                    }).describe('Disable ONE trigger.'),
-                    z.object({
-                        op: z.literal(AgendaTriggerOp.ReplaceAll),
-                        itemId: z.number().describe('Existing item id.'),
-                        triggers: z.array(TriggerSpecSchema).describe('Final active list. [] clears all.'),
-                    }).describe('Replace the FULL active trigger list.'),
-                ]),
+                schema: z.object({
+                    op: z.enum(AgendaTriggerOp).describe('add = append ONE trigger / update = rewrite ONE existing trigger / remove = disable ONE trigger / replace_all = replace the FULL active trigger list.'),
+                    itemId: z.number().optional().describe('Existing item id. Required for op=add / op=replace_all.'),
+                    triggerId: z.number().optional().describe('Existing trigger id (from <existing-agenda> XML). Required for op=update / op=remove.'),
+                    trigger: TriggerSpecSchema.optional().describe('Spec to append (op=add) or COMPLETE replacement spec (op=update; resets fireCount). Shape = create.triggers[i].'),
+                    triggers: z.array(TriggerSpecSchema).optional().describe('Final active list for op=replace_all. [] clears all.'),
+                }),
                 func: async (args: { op: AgendaTriggerOp } & Record<string, any>) => {
                     try {
                         switch (args.op) {
