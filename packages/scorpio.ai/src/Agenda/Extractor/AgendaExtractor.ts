@@ -58,10 +58,24 @@ const UpdatePatchSchema = z.object({
     priority: z.enum(AgendaPriority).optional(),
     completionMode: z.enum(AgendaCompletionMode).optional(),
     dueAt: z.string().nullable().optional(),
-    trigger: TriggerSpecSchema.optional().describe('Replace the existing schedule when the agenda time is wrong or the user changed the timing. Omit to keep the current schedule.'),
-    triggers: z.array(TriggerSpecSchema).optional().describe('Replace all active schedules with this exact list. Use [] to clear active triggers. Use this instead of trigger for multiple active schedules.'),
+});
+
+const TriggerCreateArgsSchema = z.object({
+    trigger: TriggerSpecSchema,
+    action: z.enum(AgendaTriggerAction).optional(),
+    message: z.string().nullable().optional(),
+});
+
+const TriggerUpdatePatchSchema = z.object({
+    trigger: TriggerSpecSchema.optional(),
     action: z.enum(AgendaTriggerAction).optional(),
     message: z.string().nullable().optional().describe('Update the fire-time text. Use null to clear the override and fall back to content. Omit when unchanged.'),
+});
+
+const TriggerReplaceAllArgsSchema = z.object({
+    triggers: z.array(TriggerSpecSchema).describe('Final active trigger list. Use [] to clear all active triggers.'),
+    action: z.enum(AgendaTriggerAction).optional(),
+    message: z.string().nullable().optional(),
 });
 
 const AgendaExtractSchema = z.object({
@@ -74,6 +88,10 @@ const AgendaExtractSchema = z.object({
             at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Use it when the user references a past time — including backfilling missed instances. Omit for plain "现在/just now" check-ins.'),
         }),
         z.object({ type: z.literal(AgendaActionType.Cancel), id: z.number() }),
+        z.object({ type: z.literal(AgendaActionType.TriggerAdd), itemId: z.number(), args: TriggerCreateArgsSchema }),
+        z.object({ type: z.literal(AgendaActionType.TriggerUpdate), triggerId: z.number(), patch: TriggerUpdatePatchSchema }),
+        z.object({ type: z.literal(AgendaActionType.TriggerRemove), triggerId: z.number() }),
+        z.object({ type: z.literal(AgendaActionType.TriggerReplaceAll), itemId: z.number(), args: TriggerReplaceAllArgsSchema }),
     ])).describe("Agenda actions extracted from the conversation. Return [] if no agenda change is needed."),
 });
 

@@ -6,6 +6,9 @@ import type {
     AgendaListFilter,
     AgendaOccurrence,
     AgendaRecord,
+    AgendaTriggerCreateArgs,
+    AgendaTriggerReplaceAllArgs,
+    AgendaTriggerUpdatePatch,
     AgendaUpdatePatch,
 } from "../types";
 
@@ -25,6 +28,10 @@ export interface AgendaToolDescs {
     create: string;
     list: string;
     update: string;
+    triggerAdd: string;
+    triggerUpdate: string;
+    triggerRemove: string;
+    triggerReplaceAll: string;
     complete: string;
     cancel: string;
 }
@@ -34,6 +41,10 @@ export interface IAgendaService {
     create(args: AgendaCreateArgs): Promise<AgendaCreateResult>;
     list(filter?: AgendaListFilter): Promise<AgendaRecord[]>;
     update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null>;
+    addTrigger(itemId: number, args: AgendaTriggerCreateArgs): Promise<AgendaRecord | null>;
+    updateTrigger(triggerId: number, patch: AgendaTriggerUpdatePatch): Promise<AgendaRecord | null>;
+    removeTrigger(triggerId: number): Promise<AgendaRecord | null>;
+    replaceTriggers(itemId: number, args: AgendaTriggerReplaceAllArgs): Promise<AgendaRecord | null>;
     /**
      * 关一条 agenda。Occurrence 模式下可选 `at` 指定要关哪一次实例：
      * - 不传 at → 关最早的 pending（普通打卡语义）

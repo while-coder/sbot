@@ -1,0 +1,5 @@
+Add one active trigger to an existing agenda item.
+
+Use this when the item should keep its current reminders and gain another schedule, e.g. "also remind me one day before" or "add a 18:00 reminder too".
+
+Do not use this to replace or clean up the whole schedule list; use agenda_trigger_replace_all for that.

@@ -21,6 +21,10 @@ const sharedToolDescs: AgendaToolDescs = {
     create: loadPrompt('agenda/tools/create.txt'),
     list: loadPrompt('agenda/tools/list.txt'),
     update: loadPrompt('agenda/tools/update.txt'),
+    triggerAdd: loadPrompt('agenda/tools/trigger_add.txt'),
+    triggerUpdate: loadPrompt('agenda/tools/trigger_update.txt'),
+    triggerRemove: loadPrompt('agenda/tools/trigger_remove.txt'),
+    triggerReplaceAll: loadPrompt('agenda/tools/trigger_replace_all.txt'),
     complete: loadPrompt('agenda/tools/complete.txt'),
     cancel: loadPrompt('agenda/tools/cancel.txt'),
 };

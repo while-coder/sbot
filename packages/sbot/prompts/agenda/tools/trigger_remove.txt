@@ -1,0 +1,5 @@
+Remove one existing trigger by triggerId.
+
+This disables the trigger and keeps history. Use it when the user removes one reminder/schedule from an agenda item while keeping the item itself.
+
+Do not use this to cancel the whole agenda item; use agenda_cancel for that.

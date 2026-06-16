@@ -1,0 +1,5 @@
+Update one existing trigger by triggerId.
+
+Use this when the user refers to a specific reminder/schedule already listed on an agenda item, e.g. "change the 9:00 reminder to 10:00" or "make that trigger invoke the agent".
+
+Omit fields that should stay unchanged.

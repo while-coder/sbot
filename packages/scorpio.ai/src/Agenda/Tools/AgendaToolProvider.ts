@@ -11,6 +11,9 @@ import {
     AgendaTriggerKind,
     type AgendaCreateArgs,
     type AgendaListFilter,
+    type AgendaTriggerCreateArgs,
+    type AgendaTriggerReplaceAllArgs,
+    type AgendaTriggerUpdatePatch,
     type AgendaUpdatePatch,
 } from "../types";
 import { IAgendaService } from "../Service/IAgendaService";
@@ -18,6 +21,10 @@ import { IAgendaService } from "../Service/IAgendaService";
 export const AGENDA_CREATE_TOOL_NAME = 'agenda_create' as const;
 export const AGENDA_LIST_TOOL_NAME = 'agenda_list' as const;
 export const AGENDA_UPDATE_TOOL_NAME = 'agenda_update' as const;
+export const AGENDA_TRIGGER_ADD_TOOL_NAME = 'agenda_trigger_add' as const;
+export const AGENDA_TRIGGER_UPDATE_TOOL_NAME = 'agenda_trigger_update' as const;
+export const AGENDA_TRIGGER_REMOVE_TOOL_NAME = 'agenda_trigger_remove' as const;
+export const AGENDA_TRIGGER_REPLACE_ALL_TOOL_NAME = 'agenda_trigger_replace_all' as const;
 export const AGENDA_COMPLETE_TOOL_NAME = 'agenda_complete' as const;
 export const AGENDA_CANCEL_TOOL_NAME = 'agenda_cancel' as const;
 
@@ -108,9 +115,6 @@ export class AgendaToolProvider {
                     priority: z.enum(AgendaPriority).optional(),
                     completionMode: z.enum(AgendaCompletionMode).optional(),
                     dueAt: z.string().nullable().optional(),
-                    triggers: z.array(TriggerSpecSchema).optional().describe('Replace all existing active triggers with this exact list. Use [] to clear active triggers. Omit to keep current triggers.'),
-                    action: z.enum(AgendaTriggerAction).optional(),
-                    message: z.string().nullable().optional(),
                 }),
                 func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {
                     try {
@@ -118,6 +122,73 @@ export class AgendaToolProvider {
                         return record ? `Updated agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
                     } catch (e: any) {
                         return `Failed to update agenda #${id}: ${e.message}`;
+                    }
+                },
+            }),
+            new DynamicStructuredTool({
+                name: AGENDA_TRIGGER_ADD_TOOL_NAME,
+                description: descs.triggerAdd,
+                schema: z.object({
+                    itemId: z.number(),
+                    trigger: TriggerSpecSchema.describe('New active trigger to add to this agenda item.'),
+                    action: z.enum(AgendaTriggerAction).optional(),
+                    message: z.string().nullable().optional(),
+                }),
+                func: async ({ itemId, ...args }: { itemId: number } & AgendaTriggerCreateArgs) => {
+                    try {
+                        const record = await agendaService.addTrigger(itemId, { ...args, channelSessionId });
+                        return record ? `Added trigger to agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
+                    } catch (e: any) {
+                        return `Failed to add trigger to agenda #${itemId}: ${e.message}`;
+                    }
+                },
+            }),
+            new DynamicStructuredTool({
+                name: AGENDA_TRIGGER_UPDATE_TOOL_NAME,
+                description: descs.triggerUpdate,
+                schema: z.object({
+                    triggerId: z.number(),
+                    trigger: TriggerSpecSchema.optional().describe('Replacement schedule for this trigger. Omit to keep the current schedule.'),
+                    action: z.enum(AgendaTriggerAction).optional(),
+                    message: z.string().nullable().optional(),
+                }),
+                func: async ({ triggerId, ...patch }: { triggerId: number } & AgendaTriggerUpdatePatch) => {
+                    try {
+                        const record = await agendaService.updateTrigger(triggerId, { ...patch, channelSessionId });
+                        return record ? `Updated trigger #${triggerId} on agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
+                    } catch (e: any) {
+                        return `Failed to update trigger #${triggerId}: ${e.message}`;
+                    }
+                },
+            }),
+            new DynamicStructuredTool({
+                name: AGENDA_TRIGGER_REMOVE_TOOL_NAME,
+                description: descs.triggerRemove,
+                schema: z.object({ triggerId: z.number() }),
+                func: async ({ triggerId }: { triggerId: number }) => {
+                    try {
+                        const record = await agendaService.removeTrigger(triggerId);
+                        return record ? `Removed trigger #${triggerId} from agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
+                    } catch (e: any) {
+                        return `Failed to remove trigger #${triggerId}: ${e.message}`;
+                    }
+                },
+            }),
+            new DynamicStructuredTool({
+                name: AGENDA_TRIGGER_REPLACE_ALL_TOOL_NAME,
+                description: descs.triggerReplaceAll,
+                schema: z.object({
+                    itemId: z.number(),
+                    triggers: z.array(TriggerSpecSchema).describe('Final active trigger list. Use [] to clear all active triggers.'),
+                    action: z.enum(AgendaTriggerAction).optional(),
+                    message: z.string().nullable().optional(),
+                }),
+                func: async ({ itemId, ...args }: { itemId: number } & AgendaTriggerReplaceAllArgs) => {
+                    try {
+                        const record = await agendaService.replaceTriggers(itemId, { ...args, channelSessionId });
+                        return record ? `Replaced triggers on agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
+                    } catch (e: any) {
+                        return `Failed to replace triggers on agenda #${itemId}: ${e.message}`;
                     }
                 },
             }),

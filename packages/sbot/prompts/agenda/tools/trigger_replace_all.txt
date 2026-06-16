@@ -1,0 +1,5 @@
+Replace all active triggers on an agenda item.
+
+Use this for schedule cleanup, deduplication, or when the user describes the final complete reminder list. Pass the exact triggers that should remain active.
+
+Pass an empty triggers array only when the item should have no active triggers.
