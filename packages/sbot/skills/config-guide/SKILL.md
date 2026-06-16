@@ -1,184 +1,329 @@
 ---
 name: config-guide
-description: 当用户或 Agent 想读、改、新增 sbot 的配置（model / embedding / saver / note / wiki / channel / agent / mcp / skill / profile / tunnel / 通用 settings），或想了解 ~/.sbot/ 目录里某个文件归属和字段含义时使用。仅在涉及"配置"时触发，单纯查看会话/聊天/日志时不要触发。
+description: "用于查看、解释、新增或修改 sbot 运行时配置时使用，覆盖 ~/.sbot 下的 settings、models、embeddings、savers、notes、wikis、memoryProfiles、agendaProfiles、channels、agents、MCP、skills、agent store、profiles、tunnel、plugins，以及配置字段归属和安全修改路径。仅在问题涉及 sbot 配置、配置文件、配置 API 或配置目录时触发；单纯查看聊天、会话内容、日志或实现细节时不要触发。"
 ---
 
 # sbot 配置指南
 
-sbot 的运行时配置全部落在用户目录 `~/.sbot/`。本 skill 把这套目录、字段含义、修改入口与禁区一次讲清，避免直接 Edit/Write 误伤。
+把这个 skill 当成 sbot 配置的操作手册：先判断配置归属，再走对应 API 修改，最后验证运行时已刷新。不要把它当成完整 schema 文档；字段细节以运行时 API 和 `~/.sbot` 中的实际配置为准。
 
-## 1. 目录速览
+## 核心规则
 
+1. 优先用 HTTP API 读写配置。API 会做字段清洗、分配 UUID、刷新缓存或重载运行实例。
+2. 只在排查、迁移、sbot 未启动、或用户明确要求直接改文件时写 `~/.sbot` 下的 JSON/Markdown；写完要说明可能需要重启或触发 reload。
+3. 读取配置时掩码展示 `apiKey`、`cloudflareToken`、headers 里的 token、MCP env 中的 secret 等敏感值。
+4. 改配置前先 `GET /api/settings` 或读对应 API，确认现有 id 和引用关系；不要凭名字猜 UUID。
+5. 改完至少验证一次：重新 GET 对应 API，或确认相关缓存/服务状态已更新。
+
+## 运行目录
+
+sbot 运行时配置目录是 `~/.sbot/`。处理配置问题时只需要围绕这个目录和对应 HTTP API 判断归属。
+
+常见落点：
+
+| 路径 | 归属 |
+| --- | --- |
+| `settings.json` | 全局配置白名单字段 |
+| `settings.json.example` | 启动时覆盖生成的示例，不要改 |
+| `mcp.json` | 全局 MCP，保存格式固定为 `{ "mcpServers": ... }` |
+| `agents/<id>/agent.json` | Agent 配置主体，不含 `systemPrompt` |
+| `agents/<id>/system-prompt.md` | 非 ACP Agent 的真实 system prompt |
+| `agents/<id>/.store.json` | AgentStore 安装来源，普通配置修改不要手写 |
+| `agents/<id>/mcp.json` | Agent 专属 MCP |
+| `agents/<id>/skills/` | Agent 专属 skills |
+| `skills/` | 用户全局 skills |
+| `savers/<saverId>/` | saver 历史数据 |
+| `notes/<noteId>.db` / `notes/<noteId>/` | note SQLite 与检索缓存 |
+| `wiki/<wikiId>/` | wiki 数据 |
+| `memories/<memoryId>/` | memoryProfile 的长期记忆数据 |
+| `agendas/<agendaId>/agenda.db` | agendaProfile 的事项数据 |
+| `profiles/<threadId>/settings.json` | SessionService 的线程级设置，不等同于 Web profile 管理配置 |
+| `database.sqlite` | channel session、session_profile、usage 等数据库表 |
+| `plugins/` | 本地 channel plugin 扫描目录 |
+| `prompts/` | 用户覆盖 prompt 的目录 |
+
+## settings.json
+
+`settings.json` 加载时只保留白名单字段；多余字段会被删除并回写。白名单：
+
+`httpPort`, `httpUrl`, `autoApproveTools`, `autoApproveAllTools`, `startupCommands`, `checkUpdateTime`, `maxImageSize`, `contextFileNames`, `models`, `embeddings`, `savers`, `notes`, `wikis`, `memoryProfiles`, `agendaProfiles`, `channels`, `plugins`, `agentSources`, `tunnel`
+
+先用 `GET /api/settings` 读取总览；响应会包含 settings 和从 `agents/` 目录动态注入的 Agent 列表。挑选模型 ID 时用 `POST /api/models/available`，不要只靠记忆填写 provider 的模型名。
+
+常用字段：
+
+| 字段 | 说明 | 首选修改入口 |
+| --- | --- | --- |
+| `httpPort`, `httpUrl` | HTTP 监听端口和对外根 URL | `PUT /api/settings/general` |
+| `maxImageSize` | 图片缩放阈值，按 max(width,height) 判断 | `PUT /api/settings/general` |
+| `autoApproveTools`, `autoApproveAllTools` | 全局工具自动批准 | `PUT /api/settings/general` |
+| `startupCommands` | 启动后顺序同步执行的命令 | `PUT /api/settings/general` |
+| `contextFileNames` | workPath 向上扫描的上下文文件优先级；为空/未设时默认 `SBOT.md`, `AGENTS.md`，大小写不敏感 | `PUT /api/settings/general` |
+| `models` | `Record<UUID, ModelConfig>`，模型配置 | `/api/settings/models` |
+| `embeddings` | `Record<UUID, EmbeddingConfig>`，note/wiki 检索可用 | `/api/settings/embeddings` |
+| `savers` | `Record<UUID, { name, type }>`，`type=file/sqlite/memory` | `/api/settings/savers` |
+| `notes` | `Record<UUID, { name, embedding? }>`；无 embedding 时退化为关键词/时间检索 | `/api/settings/notes` |
+| `wikis` | `Record<UUID, { name, embedding? }>` | `/api/settings/wikis` |
+| `memoryProfiles` | 长期记忆模板，含 `enabled`, `writerModel`, prompt 文件 | `/api/settings/memoryProfiles` |
+| `agendaProfiles` | 事项模板，含 `enabled`, `syncModel`, prompt 文件 | `/api/settings/agendaProfiles` |
+| `channels` | channel 默认配置；内置 `web` 固定存在 | `/api/settings/channels` |
+| `agentSources` | AgentStore 源列表 | `/api/agent-store/*` |
+| `tunnel` | 内网穿透配置数组 | `/api/tunnel/config` |
+| `plugins` | 额外 channel plugin 包名或路径；另会扫描 `~/.sbot/plugins/*/index.js` | 通常需改文件或对应 UI |
+
+`models`、`embeddings`、`savers`、`notes`、`wikis`、`memoryProfiles`、`agendaProfiles` 的 key 应是 UUID。`channels` 是 channelId，`POST /api/settings/channels` 会生成 UUID，内置 Web channel 使用固定 id `web`。
+
+## 标准 Settings CRUD
+
+这些 section 使用相同模式：
+
+```http
+POST   /api/settings/<section>
+PUT    /api/settings/<section>/:id
+DELETE /api/settings/<section>/:id
 ```
-~/.sbot/
-├── settings.json                  # 全局配置
-├── settings.json.example          # 示例配置，每次启动会被覆盖，不要写入
-├── mcp.json                       # 全局 MCP 服务器
-├── agents/<id>/                   # 每个 Agent 一个目录，<id> 是路径合法名（不是 UUID）
-│   ├── agent.json                 # Agent 配置（不含 systemPrompt）
-│   ├── system-prompt.md           # systemPrompt 单独成文件（ACP 模式没有）
-│   ├── .store.json                # AgentStore 安装来源（手改会被覆盖）
-│   ├── mcp.json                   # 该 Agent 专属 MCP
-│   ├── skills/                    # 该 Agent 专属 skills
-│   └── insights/                  # Agent 维度的经验洞察
-├── skills/                        # 全局 skills（Agent 通过 skills 字段筛选可见性）
-├── savers/<saverId>/              # Saver 历史数据
-├── notes/<noteId>.db              # 笔记向量库（SQLite + embedding）
-├── wiki/<wikiId>/                 # Wiki 数据
-└── profiles/<profileId>/
-    ├── insights/                  # Profile 维度洞察
-    └── todos.json                 # 抽取出的 todo 列表
+
+适用 section：
+
+`models`, `embeddings`, `savers`, `notes`, `wikis`, `memoryProfiles`, `agendaProfiles`, `channels`
+
+注意：
+
+- `POST` 自动生成 UUID，不要手填 id，除非直接改文件。
+- `models` 保存后会异步探测并保存 context window。
+- `channels` 保存或删除后会 reload channel；删除 `web` 会被拒绝。
+- 删除 `memoryProfiles` 会在无活实例时删除 `memories/<id>/`；有活实例时延迟到 teardown。
+- 删除 `agendaProfiles` 会清理 agenda service/store/trigger engine。
+
+## Agent 配置
+
+Agent 不写在 `settings.json`。每个 Agent 是 `~/.sbot/agents/<id>/` 目录：
+
+```text
+agents/<id>/
+  agent.json
+  system-prompt.md
+  .store.json
+  mcp.json
+  skills/
 ```
 
-## 2. settings.json
+`<id>` 必须非空，不含路径非法字符和空白，且首尾不能是 `-`, `_`, `.`。
 
-字段必须在白名单内，未列出的字段会在加载时被静默删除并回写。允许的字段：
+首选 API：
 
-| 字段                     | 类型                                  | 说明                                             |
-| ------------------------ | ------------------------------------- | ------------------------------------------------ |
-| `httpPort`               | number                                | HTTP 端口，默认 5500                             |
-| `httpUrl`                | string                                | 对外根 URL，默认 `http://localhost:<port>`       |
-| `autoApproveTools`       | string[]                              | 全局免确认工具名                                 |
-| `autoApproveAllTools`    | boolean                               | 全局免确认所有工具（慎开）                       |
-| `startupCommands`        | string[]                              | 启动后顺序同步执行的命令                         |
-| `checkUpdateTime`        | number                                | 下次检查更新的时间戳，由系统维护，不要手填       |
-| `maxImageSize`           | number                                | 图片 max(w,h) 像素阈值，超过则按比例缩放         |
-| `models`                 | `Record<UUID, ModelConfig>`           | key 是 UUID，value 含 provider/apiKey/baseURL/model/name |
-| `embeddings`             | `Record<UUID, EmbeddingConfig>`       | 同上，用于笔记向量化                             |
-| `savers`                 | `Record<UUID, SaverConfig>`           | `{ name, type: "file" \| "sqlite" \| "memory" }` |
-| `notes`                  | `Record<UUID, NoteConfig>`            | `{ name, embedding: <embeddingUUID> }`           |
-| `wikis`                  | `Record<UUID, WikiConfig>`            | `{ name, embedding?: <embeddingUUID> }`          |
-| `channels`               | `Record<channelId, ChannelConfig>`    | key 是 channelId（不是 UUID），含 type/config/agent/saver/notes |
-| `plugins`                | string[]                              | 插件路径或包名                                   |
-| `agentSources`           | `{ url, name? }[]`                    | Agent 商店源列表                                 |
-| `tunnel`                 | `TunnelConfig[]`                      | 隧道列表，按 `id` 唯一                           |
+```http
+GET    /api/agents
+POST   /api/agents
+GET    /api/agents/:id
+PUT    /api/agents/:id
+DELETE /api/agents/:id
+```
 
-> `models` / `embeddings` / `savers` / `notes` / `wikis` 的 key 必须是 UUID（创建走 API 时由后端自动分配）。手填非 UUID 不会报错但会让前端识别异常。
+字段按模式区分：
 
-## 3. Agent 配置（`agents/<id>/`）
+| 模式 | 必要/常用字段 |
+| --- | --- |
+| `single` | `name`, `type`, `model`, `systemPrompt`, `compactModel?`, `mcp?`, `mcpExclude?`, `mcpParams?`, `skills?`, `modelCallTimeout?`, `autoApprove*?`, `tags?` |
+| `react` | single 工具字段 + `agents: { id, desc }[]`，其中 `id` 指向其他 Agent |
+| `generative` | `name`, `type`, `model`, `systemPrompt?`, `maxHistoryRounds?`, `autoApprove*?`, `tags?` |
+| `acp` | `name`, `type`, `command`, `args?`, `env?`, `sessionMode?`, `initTimeout?`, `autoApprove*?`, `tags?` |
 
-`<id>` 是路径合法名：非空、不含 `<>:"/\|?*` 和空白、首尾不是 `-_.`。
+`systemPrompt` 是 API 字段，但文件真源是 `system-prompt.md`。保存 Agent 时后端会把 `systemPrompt` 从 `agent.json` 拆出去；直接把 `systemPrompt` 塞进 `agent.json` 会在下次保存时消失。ACP 读取时不合并 prompt。
 
-`agent.json` 的字段取决于 `type`，共四种模式：
+`.store.json` 是 AgentStore 元数据；除非在修复安装来源，否则不要直接改。
 
-| 字段                | Single | ReAct | Generative | ACP | 说明                                       |
-| ------------------- | :----: | :---: | :--------: | :-: | ------------------------------------------ |
-| `name`              |   ✓    |   ✓   |     ✓      |  ✓  | 显示名                                     |
-| `type`              |   ✓    |   ✓   |     ✓      |  ✓  | `single` / `react` / `generative` / `acp`  |
-| `tags`              |   ✓    |   ✓   |     ✓      |  ✓  | 分类标签                                   |
-| `autoApproveTools`  |   ✓    |   ✓   |     ✓      |  ✓  | 该 Agent 免确认工具                        |
-| `autoApproveAllTools`|  ✓    |   ✓   |     ✓      |  ✓  | 该 Agent 免确认所有工具                    |
-| `model`             |   ✓    |   ✓   |     ✓      |     | 模型 UUID（ReAct 是 Think 编排模型）       |
-| `compactModel`      |   ✓    |   ✓   |            |     | 对话压缩模型 UUID                          |
-| `mcp`               |   ✓    |   ✓   |            |     | `string[]` 或 `'*'`                        |
-| `mcpExclude`        |   ✓    |   ✓   |            |     | `mcp='*'` 时的排除名单                     |
-| `mcpParams`         |   ✓    |   ✓   |            |     | 按 provider 分组的运行时参数               |
-| `skills`            |   ✓    |   ✓   |            |     | `string[]`（skill 名）或 `'*'`             |
-| `insight`           |   ✓    |   ✓   |            |     | `InsightConfig` 必填                       |
-| `todo`              |   ✓    |   ✓   |            |     | 不设置=不启用                              |
-| `modelCallTimeout`  |   ✓    |   ✓   |            |     | 单次模型调用秒数，<=0 视为不超时           |
-| `agents`            |        |   ✓   |            |     | 子 Agent 引用列表 `{ id, name?, desc }[]`  |
-| `maxHistoryRounds`  |        |       |     ✓      |     | 滑动窗口轮数，默认 5                       |
-| `command` / `args` / `env` |  |       |            |  ✓  | 启动外部 ACP 进程的参数                    |
-| `sessionMode`       |        |       |            |  ✓  | ACP 会话模式                               |
-| `initTimeout`       |        |       |            |  ✓  | ACP 进程初始化超时秒数                     |
+## MCP
 
-**`systemPrompt` 不在 `agent.json` 里**：保存时会被拆出来写到同目录的 `system-prompt.md`，加载时再合回去（ACP 模式跳过）。要改 prompt 就改 `system-prompt.md`，**不要**塞回 `agent.json`，下次保存会被覆盖。
+全局 MCP 文件：`~/.sbot/mcp.json`。Agent 专属 MCP 文件：`~/.sbot/agents/<id>/mcp.json`。
 
-`.store.json` 是 AgentStore 安装来源元数据 `{ url, version?, installedAt, updatedAt? }`，由 AgentStore 流程维护，**手改会被覆盖**。
+两种读取格式都兼容：
 
-## 4. MCP 配置
-
-两种格式都被接受：
 ```json
-{ "mcpServers": { "<uuid>": { ... } } }
+{ "mcpServers": { "<id>": { "type": "stdio" } } }
 ```
-或直接对象 `{ "<uuid>": { ... } }`。
 
-- 全局：`~/.sbot/mcp.json`
-- 单 Agent：`~/.sbot/agents/<id>/mcp.json`
+或直接：
 
-Agent 通过 `agent.json.mcp` 字段从全局集合里挑选启用项（`'*'` = 全选，`mcpExclude` 在 `'*'` 时生效）；专属 mcp.json 里的服务器对该 Agent 始终可见。
+```json
+{ "<id>": { "type": "stdio" } }
+```
 
-## 5. 修改配置：用 HTTP API，不要直接写文件
+保存时会统一写成 `{ "mcpServers": ... }`。
 
-后端 API 会做字段校验、自动分配 UUID、必要时刷新缓存与重载频道。
+API：
 
-| 操作                          | 路由                                                        | 备注 |
-| ----------------------------- | ----------------------------------------------------------- | ---- |
-| 读取全部 settings + agents 列表| `GET /api/settings`                                         |      |
-| 改通用项                      | `PUT /api/settings/general`                                 | 仅限 httpPort/httpUrl/maxImageSize/autoApprove*/startupCommands |
-| 列模型 provider 的可用模型 ID | `POST /api/models/available`                                | 用于挑选 `model` 字段值 |
-| Models / Embeddings / Savers / Notes / Wikis | `POST\|PUT\|DELETE /api/settings/{section}/:id` | UUID 由 POST 自动生成 |
-| Channels                      | `POST\|PUT\|DELETE /api/settings/channels/:id`              | save/delete 后会自动重载频道 |
-| Agent                         | `GET /api/agents`、`POST /api/agents`、`GET\|PUT\|DELETE /api/agents/:id` | POST 时 `id` 必填且需通过路径合法性校验 |
-| 全局 MCP                      | `GET\|POST\|PUT\|DELETE /api/mcp[/:id]`                     | 改动后会刷新工具缓存 |
-| MCP 详情（工具/Prompt/资源）  | `GET /api/mcp/:id/details`                                  |      |
-| Agent MCP                     | `GET\|POST\|PUT\|DELETE /api/agents/:name/mcp[/:id]`        |      |
-| 全局 Skills                   | `GET /api/skills`、`DELETE /api/skills/:name`               | 改动后会刷新 skill 缓存 |
-| Agent Skills                  | `GET /api/agents/:name/skills`、`PUT\|DELETE /api/agents/:name/skills/:skillName` | PUT body 必须含 `content` |
-| Web Profiles                  | `GET /api/profiles`、`POST\|PUT\|DELETE /api/settings/profiles[/:id]` |      |
-
-### 不要直接 Edit/Write 这些 JSON
-
-三个理由：
-1. settings.json 有字段白名单，未列出的字段会被静默清掉。
-2. 文件改了之后 sbot 进程的内存缓存还是旧值，频道、MCP、skills 各自还有自己的缓存，不调对应 API 不会重载。
-3. UUID key 容易写重或写错，没有后端校验。
-
-## 6. 常见任务范例
-
-**新增一个 OpenAI 模型**
 ```http
-POST /api/settings/models
-Content-Type: application/json
+GET    /api/mcp
+POST   /api/mcp
+PUT    /api/mcp/:id
+DELETE /api/mcp/:id
+GET    /api/mcp/:id/details
 
-{
-  "name": "gpt-4o",
-  "provider": "openai",
-  "apiKey": "sk-...",
-  "baseURL": "https://api.openai.com/v1",
-  "model": "gpt-4o"
-}
+GET    /api/agents/:name/mcp
+POST   /api/agents/:name/mcp
+PUT    /api/agents/:name/mcp/:id
+DELETE /api/agents/:name/mcp/:id
+GET    /api/agents/:name/mcp/:id/details
 ```
-后端会自动分配 UUID 并探测 context window。
 
-**给某个 Agent 加一个 MCP server（专属）**
+全局 MCP 修改会 `refreshGlobalAgentToolService()`。Agent 专属 MCP 只影响该 Agent。Agent 的 `mcp` 字段从全局集合中筛选：`'*'` 表示全选，`mcpExclude` 只在 `'*'` 时生效；专属 `mcp.json` 对该 Agent 始终可见。
+
+MCP entry 常见字段：`type` (`stdio`/`http`/`sse`), `command`, `args`, `env`, `url`, `headers`, `cwd`, `toolTimeout`, `enablePromptTools`, `enableResourceTools`。
+
+## Skills
+
+全局 skill 可见来源不止 `~/.sbot/skills`。服务会扫描：
+
+- 内置：随 sbot 安装包提供的内置 skills
+- Agents：`~/.agents/skills`
+- Claude Code：`~/.claude/skills`
+- SkillHub：`~/skills`
+- 全局：`~/.sbot/skills`
+
+Agent 运行时还会注册：
+
+- `~/.sbot/agents/<id>/skills`
+- `<workPath>/.skills`，除非 channel/profile 设置 `disableWorkspaceSkills`
+
+API：
+
 ```http
-POST /api/agents/<agentId>/mcp
-Content-Type: application/json
+GET    /api/skills
+DELETE /api/skills/:name
 
-{ "name": "my-fs", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"] }
+GET    /api/agents/:name/skills
+PUT    /api/agents/:name/skills/:skillName
+DELETE /api/agents/:name/skills/:skillName
+
+POST   /api/agents/:agentName/skill-hub/install
+POST   /api/agents/:agentName/skill-hub/install-zip
 ```
 
-**改 Agent 的 system prompt** — 走 `PUT /api/agents/:id`，把 `systemPrompt` 字段放在 body 里，后端会拆到 `system-prompt.md`。
+`DELETE /api/skills/:name` 只删除 `~/.sbot/skills/<name>`，不会删内置、Agents、Claude Code 或 SkillHub 目录里的同名 skill。`PUT /api/agents/:name/skills/:skillName` 的 body 必须包含 `content`，写入 Agent 专属 `SKILL.md`。
 
-**新建一个 Web profile**
+Agent 的 `skills` 字段从全局 skill 集合中筛选：`'*'` 表示全选，数组表示按 skill name 选择。Agent 专属 skills 不依赖这个筛选。
+
+## Channel、Session Profile、Web Profile
+
+`channels` 在 `settings.json` 中保存 channel 默认值。`web` channel 是内置项，缺失时启动会自动补回。
+
+`ChannelConfig` 常用字段：
+
+`name`, `type`, `config`, `agent`, `saver`, `notes`, `wikis`, `workPath`, `streamVerbose`, `autoApproveAllTools`, `disableWorkspaceContext`, `disableWorkspaceSkills`, `approvalTimeout`, `approvalTimeoutValue`, `askTimeout`, `askTimeoutMessage`, `intentModel`, `intentPrompt`, `intentThreshold`, `mergeWindow`, `memory`, `agenda`, `tools`, `triggerTools`
+
+Session profile 不在 `settings.json`。它在 `database.sqlite` 的 `session_profile` 表中，字段值为 `null` 时沿用 channel 默认值。
+
+相关 API：
+
 ```http
-POST /api/settings/profiles
-Content-Type: application/json
+GET    /api/profiles
+POST   /api/settings/profiles
+PUT    /api/settings/profiles/:id
+DELETE /api/settings/profiles/:id
 
-{ "name": "demo", "agent": "<agentId>", "saver": "<saverUUID>", "notes": [] }
+GET    /api/channel-sessions
+PUT    /api/channel-sessions/:id
+POST   /api/channel-sessions/:id/clone-profile
+POST   /api/channel-sessions/:id/detach-profile
+GET    /api/channel-sessions/:id/effective-config
+
+GET    /api/session-profiles
+GET    /api/session-profiles/:id
+POST   /api/session-profiles
+PUT    /api/session-profiles/:id
+DELETE /api/session-profiles/:id
 ```
 
-## 7. 危险禁区
+`/api/settings/profiles` 是 Web 管理界面的兼容入口：创建 Web session 并写一组初始 profile 字段。通用的 visible profile 管理走 `/api/session-profiles`。
 
-- **内置 Web Channel** 不能删；系统会自动补回，删了也是白删。
-- **`checkUpdateTime`** 由系统维护，手工置 0 等于强制立即检查更新，不是 bug。
-- **`apiKey` / `cloudflareToken`** 不要回显到聊天、日志、PR 描述。读取后做掩码再展示。
-- **`.store.json`** 是 AgentStore 安装记录，手改会被下一次 pull/update 覆盖；要解绑就删整个 Agent 目录后重新 `POST /api/agents`。
-- **`settings.json.example`** 每次进程启动都会被覆盖，写它没意义。
-- **直接 Edit `agent.json`** 添加 `systemPrompt` 字段会被下次保存拆掉，永远只有 `system-prompt.md` 是 prompt 真源。
+## Memory 与 Agenda
 
-## 8. 故障排查
+配置模板在 `settings.json`：
 
-| 现象                                     | 原因                                                   |
-| ---------------------------------------- | ------------------------------------------------------ |
-| 写到 settings.json 的字段重启后消失       | 不在白名单内，加载时被清掉                             |
-| 改了 settings.json 但进程行为没变         | 没走 API，进程内的 settings 缓存仍是旧值               |
-| 创建 Agent 报 "Invalid id"                | id 为空、含路径非法字符/空白，或首尾是 `-_.`           |
-| `getAgent` 报 "not found"                | `<id>/agent.json` 不存在                               |
-| Agent 启动后 `systemPrompt` 是空的        | `system-prompt.md` 缺失或被误塞回 `agent.json`         |
-| MCP 改了但 Agent 工具列表没刷新           | 走的不是 API，工具缓存没刷新                           |
-| `notes` 配置存了但向量搜索报 embedding 错 | `embedding` 字段写的不是 `embeddings` 中真实的 UUID    |
-| Web channel 怎么也删不掉                  | 系统会自动补回，按设计如此                             |
+```http
+POST   /api/settings/memoryProfiles
+PUT    /api/settings/memoryProfiles/:id
+DELETE /api/settings/memoryProfiles/:id
+
+POST   /api/settings/agendaProfiles
+PUT    /api/settings/agendaProfiles/:id
+DELETE /api/settings/agendaProfiles/:id
+```
+
+引用位置：
+
+- `channels.<id>.memory` / `channels.<id>.agenda`
+- `session_profile.memory` / `session_profile.agenda`
+
+运行数据：
+
+- memory：`~/.sbot/memories/<memoryId>/`
+- agenda：`~/.sbot/agendas/<agendaId>/agenda.db`
+
+`enabled: false` 表示引用可以存在，但运行时不启用。`memoryProfiles.writerModel` 必须指向 `models` 中的 UUID。`agendaProfiles.syncModel` 可选；为空时同步抽取不启用。
+
+Agenda item 管理走：
+
+```http
+GET    /api/agendas?agendaId=<id>
+POST   /api/agendas
+PATCH  /api/agendas/:id
+POST   /api/agendas/:id/complete
+POST   /api/agendas/:id/cancel
+DELETE /api/agendas/:id
+```
+
+## Tunnel 与 AgentStore
+
+Tunnel 配置用专门 API，body 是完整数组替换：
+
+```http
+GET  /api/tunnel/status
+PUT  /api/tunnel/config
+POST /api/tunnel/start
+POST /api/tunnel/stop
+POST /api/tunnel/entries/:id/start
+POST /api/tunnel/entries/:id/stop
+```
+
+Tunnel `id` 必须匹配 `[A-Za-z0-9_.-]{1,64}`，`type` 是 `cloudflare-quick`、`cloudflare-token` 或 `localtunnel`。不要回显 `cloudflareToken`。
+
+AgentStore 源和安装：
+
+```http
+GET  /api/agent-store/list
+POST /api/agent-store/add
+POST /api/agent-store/remove
+POST /api/agent-store/install
+GET  /api/agent-store/export?id=<agentId>
+```
+
+安装 AgentStore 包会写入 Agent 目录并生成 `.store.json`。
+
+## 直接写文件时的检查清单
+
+仅在 API 不可用或用户明确要求时使用：
+
+1. 先备份或至少读出原文件。
+2. 保持 JSON 格式化为 2 空格缩进。
+3. 不要新增 `settings.json` 白名单外字段。
+4. 新增跨引用时先确认目标存在：model、embedding、saver、note、wiki、memoryProfile、agendaProfile、agent。
+5. 改 Agent prompt 时写 `system-prompt.md`，不要写回 `agent.json.systemPrompt`。
+6. 改 MCP 后优先调用对应 API 或重启，以刷新工具缓存。
+7. 改 channel 后要 reload channel；API 会做，直接改文件不会做。
+8. 改 `plugins` 或本地 plugin 后通常需要重启 channel/plugin loader。
+
+## 常见排查
+
+| 现象 | 重点检查 |
+| --- | --- |
+| `settings.json` 字段重启后消失 | 字段不在白名单 |
+| 改了 JSON 但行为没变 | 绕过 API，内存缓存或 channel/MCP/skill 缓存未刷新 |
+| 创建 Agent 报 `Invalid id` | id 含空白/路径非法字符，或首尾是 `-_.` |
+| Agent prompt 为空 | `system-prompt.md` 缺失，或 ACP 模式不会合并 prompt |
+| MCP 工具没刷新 | 全局 MCP 未走 `/api/mcp`，或 Agent 专属 MCP 需要重建对应 Agent |
+| note/wiki 语义搜索异常 | `embedding` 指向不存在的 embedding UUID |
+| memory/agenda 没启用 | profile 不存在、`enabled=false`，或 model 引用无效 |
+| Web channel 删除后又出现 | `ensureWebChannel()` 会自动补回 |
+| `checkUpdateTime=0` 后立刻检查更新 | 这是设计行为，0/undefined 表示立即检查 |
