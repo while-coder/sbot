@@ -35,7 +35,6 @@ const resolveConfig: MemoryServiceConfigResolver = (memoryId) => {
         writerModel,
         writerPrompt: loadPrompt(profile.writerPromptFile ?? DEFAULT_WRITER_PROMPT),
         readTemplate: loadPrompt(profile.readPromptFile ?? DEFAULT_READ_PROMPT),
-        menuMaxEntries: profile.writerMemoryMenuMaxEntries,
     };
 };
 

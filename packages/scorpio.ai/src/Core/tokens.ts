@@ -49,8 +49,6 @@ export const T_MemoryDbPath = Symbol("scorpio:T_MemoryDbPath");
 export const T_MemoryReadTemplate = Symbol("scorpio:T_MemoryReadTemplate");
 /** MemoryWriter LLM 的 system prompt（已加载文件内容）。 */
 export const T_MemoryWriterPrompt = Symbol("scorpio:T_MemoryWriterPrompt");
-/** MemoryWriter 判断 create/update 时可见的 menu 条目上限。 */
-export const T_MemoryMenuMaxEntries = Symbol("scorpio:T_MemoryMenuMaxEntries");
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");

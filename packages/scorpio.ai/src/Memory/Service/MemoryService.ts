@@ -3,7 +3,6 @@ import { inject } from "scorpio.di";
 import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
-    T_MemoryMenuMaxEntries,
 } from "../../Core/tokens";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
@@ -25,7 +24,11 @@ import { type ChatMessage, MessageRole } from "../../Saver";
 import { renderConversation } from "../../Utils/conversationUtils";
 import { memoryServicePool } from "./MemoryServicePool";
 
-const DEFAULT_MENU_LIMIT = 200;
+// 读路径（每轮注入 system prompt）—— 高频常驻成本，截到 evidence/recency 排序里的头部就够，
+// 模型未命中时还有 search_memory 工具兜底。
+const DEFAULT_READ_MENU_LIMIT = 50;
+// 写路径（writer LLM 单次抽取）—— 单次成本，需要更广的覆盖来判断 create/update 去重。
+const DEFAULT_WRITER_MENU_LIMIT = 200;
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_SCORE_FLOOR = 0.15;
 
@@ -128,7 +131,6 @@ export class MemoryService implements IMemoryService {
     private logger?: ILogger;
     private readonly modelService: IModelService;
     private readonly writerPrompt: string;
-    private readonly menuMaxEntries: number;
     private isRunning = false;
     private refCount = 0;
     private disposed = false;
@@ -139,13 +141,11 @@ export class MemoryService implements IMemoryService {
         @inject(T_MemoryReadTemplate) private readonly readTemplate: string,
         @inject(T_MemoryWriterPrompt) writerPrompt: string,
         @inject(IModelService) modelService: IModelService,
-        @inject(T_MemoryMenuMaxEntries, { optional: true }) menuMaxEntries?: number,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("MemoryService");
         this.modelService = modelService;
         this.writerPrompt = writerPrompt;
-        this.menuMaxEntries = menuMaxEntries ?? DEFAULT_MENU_LIMIT;
     }
 
     // ── 生命周期：refCount 配对，归零一次性 teardown ──
@@ -184,7 +184,7 @@ export class MemoryService implements IMemoryService {
     // ── 读路径 ──
 
     async getSystemMessage(): Promise<string | null> {
-        const menu = await this.store.listMenu(DEFAULT_MENU_LIMIT);
+        const menu = await this.store.listMenu(DEFAULT_READ_MENU_LIMIT);
         const count = menu.length;
         const menuText = count === 0
             ? "_(empty — no memories recorded yet)_"
@@ -311,7 +311,7 @@ export class MemoryService implements IMemoryService {
         }
 
         const conversation = renderConversation(messages);
-        const menu = await this.store.listMenu(this.menuMaxEntries);
+        const menu = await this.store.listMenu(DEFAULT_WRITER_MENU_LIMIT);
         const menuLines = menu.length === 0
             ? '_(no existing memories)_'
             : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.description}`).join('\n');

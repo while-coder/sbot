@@ -64,7 +64,6 @@ export {
   T_MemoryDbPath,
   T_MemoryReadTemplate,
   T_MemoryWriterPrompt,
-  T_MemoryMenuMaxEntries,
   T_WikiSystemPromptTemplate,
   T_WikiCachePath,
   T_ModelCallTimeout,

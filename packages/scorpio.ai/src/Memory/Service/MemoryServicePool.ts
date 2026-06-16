@@ -4,7 +4,6 @@ import {
     T_MemoryDbPath,
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
-    T_MemoryMenuMaxEntries,
 } from "../../Core/tokens";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
@@ -30,8 +29,6 @@ export interface MemoryServiceConfig {
     writerPrompt: string;
     /** 已加载的 read 模板字符串（含 `{{ memory_menu }}` 占位符） */
     readTemplate: string;
-    /** Writer 注入 menu 时的最大条目数，默认 200 */
-    menuMaxEntries?: number;
 }
 
 /**
@@ -160,7 +157,6 @@ export class MemoryServicePool {
         if (this.loggerService) sub.registerInstance(ILoggerService, this.loggerService);
         sub.registerInstance(T_MemoryReadTemplate, cfg.readTemplate);
         sub.registerInstance(T_MemoryWriterPrompt, cfg.writerPrompt);
-        sub.registerInstance(T_MemoryMenuMaxEntries, cfg.menuMaxEntries ?? 200);
         sub.registerInstance(IModelService, cfg.writerModel);
         sub.registerWithArgs(IMemoryStore, MemoryStore, {
             [T_MemoryDir]:    cfg.memoryDir,

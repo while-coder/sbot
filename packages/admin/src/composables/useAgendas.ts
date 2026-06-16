@@ -153,6 +153,17 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
+  async function update(payload: { row: AgendaRow; patch: Record<string, unknown> }) {
+    const { row, patch } = payload
+    try {
+      await apiFetch(`/api/agendas/${row.item.id}`, 'PATCH', { agendaId: row.agendaId, ...patch })
+      show(t('common.saved'))
+      await load()
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+
   async function remove(row: AgendaRow) {
     if (!await confirm(t('agenda.confirm_delete', { id: row.item.id }), { danger: true })) return
     try {
@@ -177,5 +188,6 @@ export function useAgendas(opts: UseAgendasOptions) {
     complete,
     cancel,
     remove,
+    update,
   }
 }

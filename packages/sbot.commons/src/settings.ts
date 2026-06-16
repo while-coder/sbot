@@ -98,10 +98,6 @@ export interface MemoryProfileConfig {
   writerPromptFile?: string
   /** 注入到主 agent 的 read 模板路径，默认 'memory/reader/default.md'（含 {{ memory_menu }} 占位符） */
   readPromptFile?: string
-
-  // ── Writer 上下文 ──
-  /** MemoryWriter 判断 create/update 时可见的已有记忆菜单条目上限，默认 200 */
-  writerMemoryMenuMaxEntries?: number
 }
 
 export interface AgendaProfileConfig {

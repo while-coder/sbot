@@ -11,7 +11,6 @@ interface MemoryProfileForm {
   writerModel: string
   writerPromptFile: string
   readPromptFile: string
-  writerMemoryMenuMaxEntries: number
 }
 
 interface MemorySummary {
@@ -81,7 +80,6 @@ function emptyForm(): MemoryProfileForm {
     writerModel: '',
     writerPromptFile: '',
     readPromptFile: '',
-    writerMemoryMenuMaxEntries: 200,
   }
 }
 
@@ -121,7 +119,6 @@ function openEdit(id: string) {
     writerModel: p.writerModel || '',
     writerPromptFile: p.writerPromptFile || '',
     readPromptFile: p.readPromptFile || '',
-    writerMemoryMenuMaxEntries: p.writerMemoryMenuMaxEntries ?? 200,
   }
   loadPrompts()
   showModal.value = true
@@ -137,7 +134,6 @@ async function save() {
       name: form.value.name.trim(),
       enabled: form.value.enabled,
       writerModel: form.value.writerModel,
-      writerMemoryMenuMaxEntries: form.value.writerMemoryMenuMaxEntries,
     }
     if (form.value.writerPromptFile) body.writerPromptFile = form.value.writerPromptFile
     if (form.value.readPromptFile)   body.readPromptFile   = form.value.readPromptFile
@@ -381,9 +377,6 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
           <option value="">{{ t('common.default') }}</option>
           <option v-for="p in readPromptFiles" :key="p.path" :value="p.path">{{ p.path }}</option>
         </SSelect>
-      </SFormItem>
-      <SFormItem :label="t('memory_profiles.writer_memory_menu_max_entries')">
-        <SInput type="number" :model-value="form.writerMemoryMenuMaxEntries" @update:model-value="(v: any) => (form.writerMemoryMenuMaxEntries = Number(v) || 100)" />
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>

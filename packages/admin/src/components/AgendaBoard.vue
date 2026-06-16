@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SButton, SEntityList, SSelect } from 'sbot-ui'
+import { SBadge, SButton, SEntityList, SFormItem, SInput, SModal, SSelect, STextarea } from 'sbot-ui'
 import {
   firstNextFire,
   isOverdue,
   type AgendaCategory,
+  type AgendaCompletionMode,
   type AgendaItem,
   type AgendaOccurrence,
   type AgendaOccurrenceStatus,
@@ -14,6 +15,7 @@ import {
   type AgendaStatus,
   type AgendaStatusFilter,
   type AgendaTrigger,
+  type AgendaTriggerAction,
   type AgendaViewFilter,
 } from '@/composables/useAgendas'
 
@@ -39,6 +41,7 @@ const emit = defineEmits<{
   (e: 'complete', row: AgendaRow): void
   (e: 'cancel', row: AgendaRow): void
   (e: 'remove', row: AgendaRow): void
+  (e: 'update', payload: { row: AgendaRow; patch: Record<string, unknown> }): void
 }>()
 
 const { t } = useI18n()
@@ -91,6 +94,80 @@ function occurrenceStatusLabel(o: AgendaOccurrence): string { return t(`agenda.o
 function formatTime(ts: number | null | undefined): string {
   if (!ts) return t('agenda.no_time')
   return new Date(ts).toLocaleString()
+}
+
+interface EditForm {
+  content: string
+  category: AgendaCategory
+  priority: AgendaPriority
+  completionMode: AgendaCompletionMode
+  dueAt: string
+  action: AgendaTriggerAction
+  message: string
+}
+
+const showEdit = ref(false)
+const editingRow = ref<AgendaRow | null>(null)
+const editForm = reactive<EditForm>({
+  content: '',
+  category: 'todo',
+  priority: 'normal',
+  completionMode: 'item',
+  dueAt: '',
+  action: 'notify',
+  message: '',
+})
+const hasActiveTrigger = computed(() => !!editingRow.value && editingRow.value.triggers.some(t => t.enabled))
+
+function pad2(n: number): string { return String(n).padStart(2, '0') }
+function tsToLocalInput(ts: number): string {
+  const d = new Date(ts)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+function localInputToIso(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const d = new Date(trimmed)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+function openEdit(row: AgendaRow): void {
+  editingRow.value = row
+  const firstActive = row.triggers.find(t => t.enabled)
+  editForm.content = row.item.content
+  editForm.category = row.item.category
+  editForm.priority = row.item.priority
+  editForm.completionMode = row.item.completionMode
+  editForm.dueAt = row.item.dueAt ? tsToLocalInput(row.item.dueAt) : ''
+  editForm.action = firstActive?.action ?? 'notify'
+  editForm.message = firstActive?.message ?? ''
+  showEdit.value = true
+}
+
+function clearDueAt(): void { editForm.dueAt = '' }
+
+function submitEdit(): void {
+  const row = editingRow.value
+  if (!row) return
+  const content = editForm.content.trim()
+  if (!content) return
+  const patch: Record<string, unknown> = {
+    content,
+    category: editForm.category,
+    priority: editForm.priority,
+    completionMode: editForm.completionMode,
+    dueAt: editForm.dueAt ? localInputToIso(editForm.dueAt) : null,
+  }
+  if (hasActiveTrigger.value) {
+    const firstActive = row.triggers.find(t => t.enabled)
+    if (firstActive && editForm.action !== firstActive.action) patch.action = editForm.action
+    const originalMsg = firstActive?.message ?? ''
+    const newMsg = editForm.message.trim()
+    if (newMsg !== originalMsg) patch.message = newMsg ? newMsg : null
+  }
+  emit('update', { row, patch })
+  showEdit.value = false
+  editingRow.value = null
 }
 
 function rowKeyFn(row: AgendaRow): number { return row.item.id }
@@ -189,6 +266,7 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
 
       <template #ops="{ item: row }">
         <SButton v-if="row.item.status === 'pending'" type="primary" size="sm" @click="emit('complete', row)">{{ t('agenda.complete') }}</SButton>
+        <SButton v-if="row.item.status === 'pending'" type="outline" size="sm" @click="openEdit(row)">{{ t('agenda.edit') }}</SButton>
         <SButton v-if="row.item.status === 'pending'" type="outline" size="sm" @click="emit('cancel', row)">{{ t('agenda.cancel') }}</SButton>
         <SButton type="danger" size="sm" @click="emit('remove', row)">{{ t('common.delete') }}</SButton>
       </template>
@@ -308,6 +386,57 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
         </div>
       </template>
     </SEntityList>
+
+    <SModal v-model:visible="showEdit" :title="editingRow ? t('agenda.edit_title', { id: editingRow.item.id }) : ''" width="md">
+      <SFormItem :label="t('agenda.edit_content') + ' *'">
+        <STextarea v-model="editForm.content" :placeholder="t('agenda.edit_content_placeholder')" :rows="3" />
+      </SFormItem>
+      <SFormItem :label="t('agenda.category_col')">
+        <SSelect v-model="editForm.category">
+          <option value="todo">{{ t('agenda.category_todo') }}</option>
+          <option value="reminder">{{ t('agenda.category_reminder') }}</option>
+          <option value="routine">{{ t('agenda.category_routine') }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('agenda.priority_col')">
+        <SSelect v-model="editForm.priority">
+          <option value="low">{{ t('agenda.priority_low') }}</option>
+          <option value="normal">{{ t('agenda.priority_normal') }}</option>
+          <option value="high">{{ t('agenda.priority_high') }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('agenda.completion_col')">
+        <SSelect v-model="editForm.completionMode">
+          <option value="none">{{ t('agenda.completion_none') }}</option>
+          <option value="item">{{ t('agenda.completion_item') }}</option>
+          <option value="occurrence">{{ t('agenda.completion_occurrence') }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('agenda.edit_due_at')" :hint="t('agenda.edit_due_at_hint')">
+        <div class="agenda-edit-due">
+          <SInput v-model="editForm.dueAt" type="datetime-local" />
+          <SButton v-if="editForm.dueAt" type="outline" size="sm" @click="clearDueAt">{{ t('agenda.edit_clear_due') }}</SButton>
+        </div>
+      </SFormItem>
+      <template v-if="hasActiveTrigger">
+        <div class="agenda-edit-section-title">{{ t('agenda.edit_trigger_section') }}</div>
+        <SFormItem :label="t('agenda.trigger_action')">
+          <SSelect v-model="editForm.action">
+            <option value="notify">{{ t('agenda.action_notify') }}</option>
+            <option value="notify_and_record">{{ t('agenda.action_notify_and_record') }}</option>
+            <option value="invoke">{{ t('agenda.action_invoke') }}</option>
+          </SSelect>
+        </SFormItem>
+        <SFormItem :label="t('agenda.trigger_message')">
+          <SInput v-model="editForm.message" :placeholder="t('agenda.edit_trigger_message_placeholder')" />
+        </SFormItem>
+      </template>
+      <p v-else class="agenda-edit-no-trigger">{{ t('agenda.edit_no_active_trigger') }}</p>
+      <template #footer>
+        <SButton type="outline" @click="showEdit = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" :disabled="!editForm.content.trim()" @click="submitEdit">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
   </div>
 </template>
 
@@ -598,6 +727,24 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
 .agenda-occurrence-time { color: var(--sui-fg); }
 .agenda-occurrence-time.mono { font-family: var(--sui-font-mono); }
 .agenda-occurrence-time.muted { color: var(--sui-fg-muted); }
+
+.agenda-edit-due {
+  display: flex;
+  gap: var(--sui-sp-2);
+  align-items: center;
+}
+.agenda-edit-section-title {
+  margin-top: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-2);
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+  font-weight: 600;
+}
+.agenda-edit-no-trigger {
+  margin: var(--sui-sp-3) 0 0;
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+}
 
 @media (max-width: 1100px) {
   .agenda-summary { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
