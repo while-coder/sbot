@@ -269,24 +269,17 @@ export interface AgendaUpdatePatch {
     channelSessionId?: number;
 }
 
-export interface AgendaTriggerCreateArgs {
-    /** 新 trigger 完整 spec（含可选 action / message）。 */
-    trigger: AgendaTriggerSpec;
-    channelSessionId?: number;
-}
-
 /**
- * trigger_update 的 patch 语义：
- * - 传 trigger（含 action/message）→ 重建调度 + 设置 action/message（fireCount/lastFiredAt 重置）
- * - 仅传顶层 action / message → 不动调度，只改投递（保留 fireCount）
- * 顶层 action/message 优先级高于 trigger 内同名字段。
+ * trigger_add / trigger_update 的载荷：直接就是 TriggerSpec（含 action/message）+ channelSessionId。
+ * 没有外层 `trigger:` 包裹，单 trigger 操作的 spec 平铺。
+ *
+ * 语义：
+ * - trigger_add：append 一条新 trigger
+ * - trigger_update：用 spec 整体覆盖目标 trigger（fireCount / lastFiredAt 重置）
+ *   想只改 action 不重置进度？现在做不到——传完整 spec 即可，多数 routine 是 unlimited，重置无影响。
  */
-export interface AgendaTriggerUpdatePatch {
-    trigger?: AgendaTriggerSpec;
-    action?: SessionDeliveryMode;
-    message?: string | null;
-    channelSessionId?: number;
-}
+export type AgendaTriggerCreateArgs = AgendaTriggerSpec & { channelSessionId?: number };
+export type AgendaTriggerUpdatePatch = AgendaTriggerSpec & { channelSessionId?: number };
 
 export interface AgendaTriggerReplaceAllArgs {
     /** 完整新 trigger 列表（每条自带 action/message）。[] = 清空。 */

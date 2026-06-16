@@ -195,11 +195,11 @@ export class AgendaService implements IAgendaService {
                 category: item.category,
                 priority: item.priority,
                 completionMode: item.completionMode,
-                triggers: [args.trigger],
+                triggers: [args],
                 channelSessionId: args.channelSessionId,
-            }, args.trigger, now);
+            }, args, now);
             if (!trigger) return this.agendaStore.findItem(itemId);
-            const dueAt = AgendaService.deriveDueAtFromSpec(args.trigger, now);
+            const dueAt = AgendaService.deriveDueAtFromSpec(args, now);
             await this.agendaStore.updateItem(itemId, {
                 updatedAt: now,
                 dueAt: this.mergeDueAt(item.dueAt, dueAt),
@@ -214,23 +214,17 @@ export class AgendaService implements IAgendaService {
             const found = await this.agendaStore.findTrigger(triggerId);
             if (!found) return null;
             const now = Date.now();
-            const fields: Partial<AgendaTrigger> = {};
-            if (patch.trigger !== undefined) {
-                const schedule = this.buildTriggerScheduleFields(patch.trigger, now);
-                if (!schedule) return found.data;
-                Object.assign(fields, schedule, {
-                    enabled: true,
-                    fireCount: 0,
-                    lastFiredAt: null,
-                });
-                // spec 内的 action/message 作为新调度的初值；顶层 patch.action / patch.message 之后再覆盖。
-                if (patch.trigger.action !== undefined) fields.action = patch.trigger.action;
-                if (patch.trigger.message !== undefined) fields.message = patch.trigger.message?.trim() || null;
-            }
-            if (patch.action !== undefined) fields.action = patch.action;
-            if (patch.message !== undefined) fields.message = patch.message?.trim() || null;
+            const schedule = this.buildTriggerScheduleFields(patch, now);
+            if (!schedule) return found.data;
+            const fields: Partial<AgendaTrigger> = {
+                ...schedule,
+                enabled: true,
+                fireCount: 0,
+                lastFiredAt: null,
+                action: patch.action ?? AgendaTriggerAction.Notify,
+                message: patch.message?.trim() || null,
+            };
             if (patch.channelSessionId !== undefined) fields.channelHint = patch.channelSessionId;
-            if (Object.keys(fields).length === 0) return found.data;
             const record = await this.agendaStore.updateTrigger(triggerId, fields);
             await this.agendaStore.updateItem(found.data.item.id, { updatedAt: now });
             await this.triggerEngine.reload(triggerId);

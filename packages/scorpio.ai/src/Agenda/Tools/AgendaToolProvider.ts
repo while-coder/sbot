@@ -10,9 +10,8 @@ import {
     AgendaTriggerKind,
     type AgendaCreateArgs,
     type AgendaListFilter,
-    type AgendaTriggerCreateArgs,
     type AgendaTriggerReplaceAllArgs,
-    type AgendaTriggerUpdatePatch,
+    type AgendaTriggerSpec,
     type AgendaUpdatePatch,
 } from "../types";
 import { IAgendaService } from "../Service/IAgendaService";
@@ -134,13 +133,14 @@ export class AgendaToolProvider {
             new DynamicStructuredTool({
                 name: AGENDA_TRIGGER_ADD_TOOL_NAME,
                 description: descs.triggerAdd,
-                schema: z.object({
-                    itemId: z.number().describe('Existing agenda item id.'),
-                    trigger: TriggerSpecSchema.describe('New active trigger to append (action/message inside the spec).'),
-                }),
-                func: async ({ itemId, ...args }: { itemId: number } & AgendaTriggerCreateArgs) => {
+                schema: z.discriminatedUnion('kind', [
+                    TriggerSpecSchema.options[0].extend({ itemId: z.number().describe('Existing agenda item id.') }),
+                    TriggerSpecSchema.options[1].extend({ itemId: z.number().describe('Existing agenda item id.') }),
+                    TriggerSpecSchema.options[2].extend({ itemId: z.number().describe('Existing agenda item id.') }),
+                ]),
+                func: async ({ itemId, ...spec }: { itemId: number } & AgendaTriggerSpec) => {
                     try {
-                        const record = await agendaService.addTrigger(itemId, { ...args, channelSessionId });
+                        const record = await agendaService.addTrigger(itemId, { ...(spec as AgendaTriggerSpec), channelSessionId });
                         return record ? `Added trigger to agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
                     } catch (e: any) {
                         return `Failed to add trigger to agenda #${itemId}: ${e.message}`;
@@ -150,15 +150,14 @@ export class AgendaToolProvider {
             new DynamicStructuredTool({
                 name: AGENDA_TRIGGER_UPDATE_TOOL_NAME,
                 description: descs.triggerUpdate,
-                schema: z.object({
-                    triggerId: z.number().describe('Id of the existing trigger to update.'),
-                    trigger: TriggerSpecSchema.optional().describe('Replacement spec — supplies new schedule (and optionally action/message inside the spec). Resets fireCount/lastFiredAt. Omit to keep the schedule unchanged and only patch action/message via the top-level fields below.'),
-                    action: z.enum(AgendaTriggerAction).optional().describe('Patch only the delivery mode without touching the schedule (no fireCount reset). Wins over `trigger.action` if both are set.'),
-                    message: z.string().nullable().optional().describe('Patch only the fire-time text without touching the schedule. null clears the override (fall back to item.content). Wins over `trigger.message` if both are set.'),
-                }),
-                func: async ({ triggerId, ...patch }: { triggerId: number } & AgendaTriggerUpdatePatch) => {
+                schema: z.discriminatedUnion('kind', [
+                    TriggerSpecSchema.options[0].extend({ triggerId: z.number().describe('Id of the existing trigger to rewrite.') }),
+                    TriggerSpecSchema.options[1].extend({ triggerId: z.number().describe('Id of the existing trigger to rewrite.') }),
+                    TriggerSpecSchema.options[2].extend({ triggerId: z.number().describe('Id of the existing trigger to rewrite.') }),
+                ]),
+                func: async ({ triggerId, ...spec }: { triggerId: number } & AgendaTriggerSpec) => {
                     try {
-                        const record = await agendaService.updateTrigger(triggerId, { ...patch, channelSessionId });
+                        const record = await agendaService.updateTrigger(triggerId, { ...(spec as AgendaTriggerSpec), channelSessionId });
                         return record ? `Updated trigger #${triggerId} on agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
                     } catch (e: any) {
                         return `Failed to update trigger #${triggerId}: ${e.message}`;

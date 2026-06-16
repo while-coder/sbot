@@ -1,10 +1,12 @@
-Update ONE existing trigger by triggerId.
+Rewrite ONE existing trigger by triggerId. Replaces the schedule + action + message; resets fireCount/lastFiredAt.
 
-TWO PATHS
-- Change the schedule (with or without action/message): pass `trigger` — a full new spec. Optional inner `action` / `message` set the new delivery. fireCount/lastFiredAt are RESET (treat as a fresh schedule).
-- Change ONLY action and/or message without touching the schedule: pass top-level `action` / `message` and OMIT `trigger`. fireCount is preserved.
+INPUT SHAPE
+The new spec is FLAT — pass `triggerId` plus the full spec fields directly:
+  { triggerId: 12, kind: "absolute", at: "2026-06-20T10:00:00", action: "notify" }
+  { triggerId: 12, kind: "interval", every: { amount: 2, unit: "hour" }, action: "notify_and_record" }
+  { triggerId: 12, kind: "cron", expr: "0 0 9 * * 1-5", action: "invoke", message: "..." }
 
-If both `trigger` and top-level `action`/`message` are provided, top-level wins.
+The spec must be COMPLETE — kind + schedule fields + (optionally) action + message. Want to change only action? Still send the full spec with the existing schedule plus the new action; you can read the current `kind` / `expr` / `at` / `every` from <existing-agenda> XML.
 
 USE WHEN
 The user references a specific reminder/schedule already on the item: "把 9:00 的提醒改成 10:00", "让那个触发器改成 invoke 模式".
@@ -13,3 +15,6 @@ DO NOT USE WHEN
 - Adding a new trigger alongside existing ones → agenda_trigger_add.
 - Replacing the whole list of triggers → agenda_trigger_replace_all.
 - Removing a trigger → agenda_trigger_remove.
+
+NOTE
+fireCount / lastFiredAt are reset (treat as a fresh trigger). For unlimited routines this is harmless; for count-bounded triggers ("提醒 7 天") progress is lost — rare in practice.

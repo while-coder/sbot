@@ -68,16 +68,6 @@ const UpdatePatchSchema = z.object({
     dueAt: z.string().nullable().optional(),
 });
 
-const TriggerCreateArgsSchema = z.object({
-    trigger: TriggerSpecSchema,
-});
-
-const TriggerUpdatePatchSchema = z.object({
-    trigger: TriggerSpecSchema.optional().describe('Replacement spec — new schedule + optional action/message inside. Resets fireCount/lastFiredAt. Omit to patch only delivery via top-level fields below.'),
-    action: z.enum(AgendaTriggerAction).optional().describe('Delivery-only patch (no schedule reset). Wins over trigger.action if both set.'),
-    message: z.string().nullable().optional().describe('Delivery-only patch. null clears. Wins over trigger.message if both set.'),
-});
-
 const TriggerReplaceAllArgsSchema = z.object({
     triggers: z.array(TriggerSpecSchema).describe('Final active trigger list (each carries its own action/message). [] = clear all active triggers.'),
 });
@@ -92,8 +82,8 @@ const AgendaExtractSchema = z.object({
             at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Use it when the user references a past time — including backfilling missed instances. Omit for plain "现在/just now" check-ins.'),
         }),
         z.object({ type: z.literal(AgendaActionType.Cancel), id: z.number() }),
-        z.object({ type: z.literal(AgendaActionType.TriggerAdd), itemId: z.number(), args: TriggerCreateArgsSchema }),
-        z.object({ type: z.literal(AgendaActionType.TriggerUpdate), triggerId: z.number(), patch: TriggerUpdatePatchSchema }),
+        z.object({ type: z.literal(AgendaActionType.TriggerAdd), itemId: z.number(), args: TriggerSpecSchema }),
+        z.object({ type: z.literal(AgendaActionType.TriggerUpdate), triggerId: z.number(), patch: TriggerSpecSchema }),
         z.object({ type: z.literal(AgendaActionType.TriggerRemove), triggerId: z.number() }),
         z.object({ type: z.literal(AgendaActionType.TriggerReplaceAll), itemId: z.number(), args: TriggerReplaceAllArgsSchema }),
     ])).describe("Agenda actions extracted from the conversation. Return [] if no agenda change is needed."),
