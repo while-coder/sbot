@@ -15,7 +15,12 @@ const percent = computed(() =>
   total.value > 0 ? Math.min(100, Math.round((downloaded.value / total.value) * 100)) : 0,
 )
 
+function isMobileRuntime() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
+
 onMounted(async () => {
+  if (isMobileRuntime()) return
   try {
     const u = await check()
     if (u) {

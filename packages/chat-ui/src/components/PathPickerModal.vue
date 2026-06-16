@@ -23,6 +23,7 @@ const pickerParent    = ref<string | null>(null)
 const pickerItems     = ref<string[]>([])    // 绝对路径
 const pickerDrives    = ref<DriveEntry[]>([])
 const pickerQuickDirs = ref<QuickDir[]>([])
+const pickerError     = ref('')
 const pickerCreating  = ref(false)
 const pickerNewName   = ref('')
 const newNameInput    = ref<InstanceType<typeof SInput> | null>(null)
@@ -50,6 +51,10 @@ function resetCreate() {
   pickerNewName.value  = ''
 }
 
+function getErrorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
 function enterDriveMode() {
   resetCreate()
   pickerPath.value   = ''
@@ -66,9 +71,11 @@ async function navigate(absPath: string): Promise<boolean> {
     pickerPath.value   = res.path
     pickerParent.value = res.parent
     pickerItems.value  = res.items
+    pickerError.value  = ''
     return true
   } catch (e: any) {
-    emit('error', e?.message ?? String(e))
+    pickerError.value = getErrorMessage(e)
+    emit('error', pickerError.value)
     return false
   } finally {
     pickerLoading.value = false
@@ -108,17 +115,29 @@ async function open(initialPath = '') {
   enterDriveMode()
   pickerDrives.value    = []
   pickerQuickDirs.value = []
+  pickerError.value     = ''
+  pickerLoading.value   = true
   pickerOpen.value      = true
 
-  const [drives, quicks] = await Promise.all([
-    props.transport.listDrives().catch(() => [] as DriveEntry[]),
-    props.transport.quickDirs().catch(() => [] as QuickDir[]),
+  const [drivesResult, quicksResult] = await Promise.allSettled([
+    props.transport.listDrives(),
+    props.transport.quickDirs(),
   ])
-  pickerDrives.value    = drives
-  pickerQuickDirs.value = quicks
+
+  if (drivesResult.status === 'fulfilled') pickerDrives.value = drivesResult.value
+  if (quicksResult.status === 'fulfilled') pickerQuickDirs.value = quicksResult.value
+
+  const errors: string[] = []
+  if (drivesResult.status === 'rejected') errors.push(`磁盘列表：${getErrorMessage(drivesResult.reason)}`)
+  if (quicksResult.status === 'rejected') errors.push(`常用目录：${getErrorMessage(quicksResult.reason)}`)
+  if (errors.length) {
+    pickerError.value = `请求目录失败：${errors.join('；')}`
+    emit('error', pickerError.value)
+  }
+  pickerLoading.value = false
 
   if (initialPath && await navigate(initialPath)) return
-  if (drives.length === 1) await navigate(drives[0].path)
+  if (pickerDrives.value.length === 1) await navigate(pickerDrives.value[0].path)
   // 多盘符：保持 driveMode 让用户选
 }
 
@@ -156,11 +175,12 @@ defineExpose({ open })
         @click="navigate(d.path)"
       >{{ d.label }}</SChip>
     </div>
+    <div v-if="pickerError" class="chatui-picker-error">{{ pickerError }}</div>
 
     <div class="chatui-picker-list">
       <div v-if="pickerLoading" class="chatui-picker-empty">{{ L.loading }}</div>
       <template v-else-if="pickerDriveMode">
-        <div v-if="pickerDrives.length === 0" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
+        <div v-if="pickerDrives.length === 0 && !pickerError" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
         <div
           v-for="d in pickerDrives" :key="d.path"
           class="chatui-picker-item"
@@ -187,7 +207,7 @@ defineExpose({ open })
           <SButton type="outline" size="sm" @click="confirmCreate">✓</SButton>
           <SButton type="outline" size="sm" @click="cancelCreate">✕</SButton>
         </div>
-        <div v-if="pickerItems.length === 0 && !pickerCreating" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
+        <div v-if="pickerItems.length === 0 && !pickerCreating && !pickerError" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
         <div v-for="item in pickerItems" :key="item" class="chatui-picker-item" @click="navigate(item)">
           <span class="chatui-picker-icon">▶</span>{{ itemLabel(item) }}
         </div>
@@ -227,6 +247,15 @@ defineExpose({ open })
   background: var(--chatui-bg-hover);
 }
 .chatui-picker-qd-active { background: var(--chatui-bg-active) !important; }
+.chatui-picker-error {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--chatui-border);
+  color: var(--chatui-btn-danger, #d14343);
+  background: var(--chatui-bg-surface);
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-word;
+}
 .chatui-picker-create-row {
   display: flex; align-items: center; gap: 6px; padding: 5px 14px;
   border-bottom: 1px solid var(--chatui-border);

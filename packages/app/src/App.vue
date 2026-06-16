@@ -17,12 +17,25 @@ const THEME_KEY = 'sbot-app-theme'
 
 type ThemeMode = 'system' | 'light' | 'dark'
 
+function readStorage(key: string): string | null {
+  try { return window.localStorage?.getItem(key) ?? null }
+  catch { return null }
+}
+
+function writeStorage(key: string, value: string) {
+  try { window.localStorage?.setItem(key, value) }
+  catch {}
+}
+
 function loadRemotes(): RemoteEntry[] {
-  try { return JSON.parse(localStorage.getItem(REMOTES_KEY) || '[]') }
+  try {
+    const parsed = JSON.parse(readStorage(REMOTES_KEY) || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  }
   catch { return [] }
 }
 function saveRemotes(list: RemoteEntry[]) {
-  localStorage.setItem(REMOTES_KEY, JSON.stringify(list))
+  writeStorage(REMOTES_KEY, JSON.stringify(list))
 }
 
 const remotes = ref<RemoteEntry[]>(loadRemotes())
@@ -33,17 +46,19 @@ const connectError = ref('')
 const connecting = ref(false)
 
 const themeMode = ref<ThemeMode>(((): ThemeMode => {
-  const v = localStorage.getItem(THEME_KEY)
+  const v = readStorage(THEME_KEY)
   return v === 'light' || v === 'dark' || v === 'system' ? v : 'system'
 })())
 
-const mq = window.matchMedia('(prefers-color-scheme: dark)')
+const mq = typeof window.matchMedia === 'function'
+  ? window.matchMedia('(prefers-color-scheme: dark)')
+  : null
 const themeStyleEl = document.createElement('style')
 themeStyleEl.id = 'sbot-app-theme'
 document.head.appendChild(themeStyleEl)
 
 const resolvedTheme = computed<'light' | 'dark'>(() =>
-  themeMode.value === 'system' ? (mq.matches ? 'dark' : 'light') : themeMode.value,
+  themeMode.value === 'system' ? (mq?.matches ? 'dark' : 'light') : themeMode.value,
 )
 
 function applyTheme(t: 'light' | 'dark') {
@@ -52,13 +67,26 @@ function applyTheme(t: 'light' | 'dark') {
 }
 
 watch(resolvedTheme, applyTheme, { immediate: true })
-watch(themeMode, (m) => localStorage.setItem(THEME_KEY, m))
+watch(themeMode, (m) => writeStorage(THEME_KEY, m))
 
 function onSystemChange() {
   if (themeMode.value === 'system') applyTheme(resolvedTheme.value)
 }
-onMounted(() => mq.addEventListener('change', onSystemChange))
-onUnmounted(() => mq.removeEventListener('change', onSystemChange))
+
+function addSystemThemeListener() {
+  if (!mq) return
+  if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onSystemChange)
+  else mq.addListener?.(onSystemChange)
+}
+
+function removeSystemThemeListener() {
+  if (!mq) return
+  if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onSystemChange)
+  else mq.removeListener?.(onSystemChange)
+}
+
+onMounted(addSystemThemeListener)
+onUnmounted(removeSystemThemeListener)
 
 async function selectServer(baseUrl: string) {
   if (connecting.value) return
