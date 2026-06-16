@@ -81,8 +81,6 @@ export class AgendaRoutes {
                 priority: body.priority,
                 triggers: body.triggers,
                 dueAt: body.dueAt,
-                action: body.action,
-                message: body.message,
                 completionMode: body.completionMode,
                 channelSessionId,
             }));

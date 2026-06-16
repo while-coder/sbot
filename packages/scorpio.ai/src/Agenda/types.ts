@@ -135,11 +135,30 @@ export interface AgendaRelativeTime {
 }
 
 /**
+ * 所有 TriggerSpec 共享的投递字段。每条 trigger 自带 action/message，
+ * 同一 item 上不同 trigger 可挂不同 action（如 9 点 invoke、18 点 notify）。
+ */
+interface TriggerSpecDelivery {
+    /**
+     * 触发动作。缺省 Notify。
+     * LLM 说"每天帮我总结一下"/"每天 8 点帮我跑数据" → 显式传 Invoke（让 AI 处理）。
+     * 占卡/汇报/喝水 等 occurrence routine 必须用 NotifyAndRecord（让 fire 进会话历史）。
+     */
+    action?: SessionDeliveryMode;
+    /**
+     * 触发时投递的消息文本。缺省 = item.content。
+     * LLM 说"每天 9 点用'记得交周报'提醒我" → message = "记得交周报"。
+     * null 显式清空（回退到 content）。
+     */
+    message?: string | null;
+}
+
+/**
  * Absolute 触发器：一次性，在 `at` 指定的 ISO 时刻触发。
  * LLM 说"明天 9 点提醒开会" → { kind: 'absolute', at: '2026-06-12T09:00:00' }。
  * "1 小时后" 的相对时刻请由 LLM 自行加到当前时间算成 ISO。
  */
-export interface AgendaAbsoluteTriggerSpec {
+export interface AgendaAbsoluteTriggerSpec extends TriggerSpecDelivery {
     kind: AgendaTriggerKind.Absolute;
     /** ISO 时刻字符串。 */
     at: string;
@@ -150,7 +169,7 @@ export interface AgendaAbsoluteTriggerSpec {
  * LLM 说"每天提醒我喝水" → { kind: 'interval', every: { amount: 1, unit: 'day' } }。
  * 配合 startAt 推迟首次、count 限定总次数。
  */
-export interface AgendaIntervalTriggerSpec {
+export interface AgendaIntervalTriggerSpec extends TriggerSpecDelivery {
     kind: AgendaTriggerKind.Interval;
     /** 间隔大小。 */
     every: AgendaRelativeTime;
@@ -167,7 +186,7 @@ export interface AgendaIntervalTriggerSpec {
  * Cron 触发器：cron 表达式驱动的重复。
  * LLM 说"工作日 9 点" → { kind: 'cron', expr: '0 0 9 * * 1-5' }。
  */
-export interface AgendaCronTriggerSpec {
+export interface AgendaCronTriggerSpec extends TriggerSpecDelivery {
     kind: AgendaTriggerKind.Cron;
     /** 6 字段 cron 表达式（秒 分 时 日 月 周）。 */
     expr: string;
@@ -188,6 +207,7 @@ export type AgendaTriggerSpec =
 /**
  * 创建参数。LLM 通过 agenda_create 工具调用这个。
  * 时间相关全部走 triggers 字段（数组）；不传或 [] = 纯 Todo（无调度）。
+ * action / message 写在每条 trigger spec 内（per-trigger，非 batch 级）。
  */
 export interface AgendaCreateArgs {
     /** 主内容。LLM 说"提醒我喝水" → "喝水"。trim 后非空，否则抛错。 */
@@ -197,22 +217,12 @@ export interface AgendaCreateArgs {
     /** 优先级。默认 Normal。 */
     priority?: AgendaPriority;
     /**
-     * 调度规格列表。
-     * - 单个时间点：传 1 元素数组，例 [{ kind: 'absolute', at: '...' }]
-     * - 多个 active triggers：例提前一天提醒 + 当天再提醒
+     * 调度规格列表。每条 spec 自带 action / message。
+     * - 单个时间点：传 1 元素数组，例 [{ kind: 'absolute', at: '...', action: 'invoke' }]
+     * - 多个 active triggers：可分别配 action（9 点 invoke、18 点 notify）
      * - 省略或 [] = 纯 Todo（无调度）
      */
     triggers?: AgendaTriggerSpec[];
-    /**
-     * 触发动作。缺省 Notify。
-     * LLM 说"每天帮我总结一下"/"每天 8 点帮我跑数据" → 显式传 Invoke（让 AI 处理）。
-     */
-    action?: SessionDeliveryMode;
-    /**
-     * 触发时投递的消息文本。缺省=content。
-     * LLM 说"每天 9 点用'记得交周报'提醒我" → message = "记得交周报"。
-     */
-    message?: string;
     /** 显式完成模式。一般省略，由系统按 category 推断。 */
     completionMode?: AgendaCompletionMode;
     /**
@@ -247,14 +257,10 @@ export interface AgendaUpdatePatch {
      */
     dueAt?: string | null;
     /**
-     * 管理 API 兼容入口：传入最终应生效的完整 trigger 列表。
+     * 管理 API 兼容入口：传入最终应生效的完整 trigger 列表（每条自带 action/message）。
      * [] 表示清空所有 active triggers。LLM 工具不暴露（用 agenda_trigger_replace_all）。
      */
     triggers?: AgendaTriggerSpec[];
-    /** 管理 API 兼容入口：改触发动作。LLM 工具不暴露。 */
-    action?: SessionDeliveryMode;
-    /** 管理 API 兼容入口：改触发消息；传 null 清空回退到 content。 */
-    message?: string | null;
     /**
      * 调度变更（重建 triggers）时新 trigger.channelHint 用的频道会话 id。
      * 缺省 = 0。仅在传 triggers 时有意义；不在 LLM 工具 schema 暴露。
@@ -263,12 +269,17 @@ export interface AgendaUpdatePatch {
 }
 
 export interface AgendaTriggerCreateArgs {
+    /** 新 trigger 完整 spec（含可选 action / message）。 */
     trigger: AgendaTriggerSpec;
-    action?: SessionDeliveryMode;
-    message?: string | null;
     channelSessionId?: number;
 }
 
+/**
+ * trigger_update 的 patch 语义：
+ * - 传 trigger（含 action/message）→ 重建调度 + 设置 action/message（fireCount/lastFiredAt 重置）
+ * - 仅传顶层 action / message → 不动调度，只改投递（保留 fireCount）
+ * 顶层 action/message 优先级高于 trigger 内同名字段。
+ */
 export interface AgendaTriggerUpdatePatch {
     trigger?: AgendaTriggerSpec;
     action?: SessionDeliveryMode;
@@ -277,9 +288,8 @@ export interface AgendaTriggerUpdatePatch {
 }
 
 export interface AgendaTriggerReplaceAllArgs {
+    /** 完整新 trigger 列表（每条自带 action/message）。[] = 清空。 */
     triggers: AgendaTriggerSpec[];
-    action?: SessionDeliveryMode;
-    message?: string | null;
     channelSessionId?: number;
 }
 

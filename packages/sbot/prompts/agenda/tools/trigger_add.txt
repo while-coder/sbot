@@ -3,6 +3,8 @@ Add ONE active trigger to an existing agenda item, leaving its current triggers 
 USE WHEN
 The user wants an additional reminder ON TOP OF existing schedules: "再提前一天提醒我", "也加一个 18:00 的提醒".
 
+`trigger` carries its own `action` (default notify) and `message` (default = item.content). Set them inside the spec.
+
 DO NOT USE WHEN
 - Replacing the entire schedule list → agenda_trigger_replace_all.
 - Editing one specific existing trigger → agenda_trigger_update.

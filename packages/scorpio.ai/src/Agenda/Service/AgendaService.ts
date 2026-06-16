@@ -24,7 +24,7 @@ import {
     type AgendaTriggerUpdatePatch,
     type AgendaUpdatePatch,
 } from "../types";
-import { formatAgendaListXml } from "../format";
+import { EXISTING_AGENDA_LIMIT, formatAgendaListXml } from "../format";
 import {
     type AgendaAction,
     AgendaActionType,
@@ -90,7 +90,6 @@ export class AgendaService implements IAgendaService {
         const now = Date.now();
         const category = args.category ?? this.inferCategory(args);
         const completionMode = args.completionMode ?? this.inferCompletionMode(category);
-        const action = args.action ?? AgendaTriggerAction.Notify;
         const dueAt = this.inferDueAt(args, now);
 
         // findNearDuplicate + createItem + appendTrigger 必须原子，否则 tool 路径
@@ -116,7 +115,7 @@ export class AgendaService implements IAgendaService {
             // 显式 dueAt 但没传 trigger（典型场景：纯 Todo 加截止）→ 派生一个 Absolute trigger，
             // 让 dueAt 时刻自动发一次"已到截止"提醒；否则 dueAt 过期后系统不会有任何主动行为。
             const effectiveArgs = this.withDefaultDueAtTrigger(args);
-            const triggers = await this.createTriggersIfNeeded(inserted.item, effectiveArgs, action, now);
+            const triggers = await this.createTriggersIfNeeded(inserted.item, effectiveArgs, now);
             return { record: inserted, created: true as const, triggers };
         });
 
@@ -168,30 +167,19 @@ export class AgendaService implements IAgendaService {
             if (!updatedItem) return null;
 
             if (replacementSpecs !== undefined) {
-                const action = patch.action ?? AgendaTriggerAction.Notify;
                 const triggers = await this.createTriggersIfNeeded(updatedItem, {
                     content: updatedItem.content,
                     category: updatedItem.category,
                     priority: updatedItem.priority,
                     completionMode: updatedItem.completionMode,
                     triggers: replacementSpecs,
-                    action,
-                    message: patch.message ?? undefined,
                     channelSessionId: patch.channelSessionId,
-                }, action, now);
+                }, now);
                 // 非空替换但全部无效时，不破坏现有调度；空数组是显式清空 active triggers。
                 if (triggers.length > 0 || replacementSpecs.length === 0) {
                     await this.disableItemTriggers(id, triggers.map(t => t.id));
                     for (const trigger of triggers) await this.triggerEngine.reload(trigger.id);
                 }
-            } else if (this.hasTriggerFieldPatch(patch)) {
-                const triggerFields: Partial<AgendaTrigger> = {};
-                if (patch.action !== undefined) triggerFields.action = patch.action;
-                if (patch.message !== undefined) triggerFields.message = patch.message?.trim() || null;
-                const record = await this.agendaStore.findItem(id);
-                const activeTriggers = record?.triggers.filter(t => t.enabled) ?? [];
-                for (const trigger of activeTriggers) await this.agendaStore.updateTrigger(trigger.id, triggerFields);
-                await this.triggerEngine.reloadItem(id);
             }
             // 注意：仅改 dueAt 不会联动现有 trigger。如需调度同步，调用方应在同一次 update 里显式传 trigger。
             return this.agendaStore.findItem(id);
@@ -203,17 +191,14 @@ export class AgendaService implements IAgendaService {
             const item = await this.loadItem(itemId);
             if (!item) return null;
             const now = Date.now();
-            const action = args.action ?? AgendaTriggerAction.Notify;
             const trigger = await this.createTrigger(item, {
                 content: item.content,
                 category: item.category,
                 priority: item.priority,
                 completionMode: item.completionMode,
                 triggers: [args.trigger],
-                action,
-                message: args.message ?? undefined,
                 channelSessionId: args.channelSessionId,
-            }, args.trigger, action, now);
+            }, args.trigger, now);
             if (!trigger) return this.agendaStore.findItem(itemId);
             const dueAt = AgendaService.deriveDueAtFromSpec(args.trigger, now);
             await this.agendaStore.updateItem(itemId, {
@@ -239,6 +224,9 @@ export class AgendaService implements IAgendaService {
                     fireCount: 0,
                     lastFiredAt: null,
                 });
+                // spec 内的 action/message 作为新调度的初值；顶层 patch.action / patch.message 之后再覆盖。
+                if (patch.trigger.action !== undefined) fields.action = patch.trigger.action;
+                if (patch.trigger.message !== undefined) fields.message = patch.trigger.message?.trim() || null;
             }
             if (patch.action !== undefined) fields.action = patch.action;
             if (patch.message !== undefined) fields.message = patch.message?.trim() || null;
@@ -271,17 +259,14 @@ export class AgendaService implements IAgendaService {
             const item = await this.loadItem(itemId);
             if (!item) return null;
             const now = Date.now();
-            const action = args.action ?? AgendaTriggerAction.Notify;
             const triggers = await this.createTriggersIfNeeded(item, {
                 content: item.content,
                 category: item.category,
                 priority: item.priority,
                 completionMode: item.completionMode,
                 triggers: args.triggers,
-                action,
-                message: args.message ?? undefined,
                 channelSessionId: args.channelSessionId,
-            }, action, now);
+            }, now);
             // 非空替换但全部无效时，不破坏现有调度；空数组是显式清空 active triggers。
             if (triggers.length > 0 || args.triggers.length === 0) {
                 await this.disableItemTriggers(itemId, triggers.map(t => t.id));
@@ -448,7 +433,7 @@ export class AgendaService implements IAgendaService {
 
     private async runExtractJob(messages: ChatMessage[], channelSessionId: number): Promise<number> {
         if (!this.extractor || messages.length === 0) return 0;
-        const existing = await this.list({ status: 'all', limit: 80 });
+        const existing = await this.list({ status: 'all', limit: EXISTING_AGENDA_LIMIT });
         const actions = await this.extractor.extract(messages, existing);
         if (actions.length === 0) return 0;
         for (const action of actions) await this.applyAction(action, channelSessionId);
@@ -475,23 +460,23 @@ export class AgendaService implements IAgendaService {
         }
     }
 
-    private async createTriggersIfNeeded(item: AgendaItem, args: AgendaCreateArgs, action: AgendaTriggerAction, now: number): Promise<AgendaTrigger[]> {
+    private async createTriggersIfNeeded(item: AgendaItem, args: AgendaCreateArgs, now: number): Promise<AgendaTrigger[]> {
         const triggers: AgendaTrigger[] = [];
         for (const spec of args.triggers ?? []) {
-            const trigger = await this.createTrigger(item, args, spec, action, now);
+            const trigger = await this.createTrigger(item, args, spec, now);
             if (trigger) triggers.push(trigger);
         }
         return triggers;
     }
 
-    private async createTrigger(item: AgendaItem, args: AgendaCreateArgs, spec: AgendaTriggerSpec, action: AgendaTriggerAction, now: number): Promise<AgendaTrigger | null> {
+    private async createTrigger(item: AgendaItem, args: AgendaCreateArgs, spec: AgendaTriggerSpec, now: number): Promise<AgendaTrigger | null> {
         const schedule = this.buildTriggerScheduleFields(spec, now);
         if (!schedule) return null;
         return this.agendaStore.appendTrigger(item.id, {
             itemId: item.id,
             ...schedule,
-            action,
-            message: args.message?.trim() || null,
+            action: spec.action ?? AgendaTriggerAction.Notify,
+            message: spec.message?.trim() || null,
             channelHint: args.channelSessionId ?? 0,
             enabled: true,
             fireCount: 0,
@@ -533,12 +518,8 @@ export class AgendaService implements IAgendaService {
         return count != null && count > 0 ? Math.floor(count) : 0;
     }
 
-    private hasTriggerFieldPatch(patch: AgendaUpdatePatch): boolean {
-        return patch.action !== undefined || patch.message !== undefined;
-    }
-
     private inferCategory(args: AgendaCreateArgs): AgendaCategory {
-        // category 只表达"时间形态"。"是否 AI 处理"由 args.action 独立承担。
+        // category 只表达"时间形态"。"是否 AI 处理"由 trigger.action 独立承担（per-spec）。
         const specs = args.triggers ?? [];
         if (specs.some(spec => spec.kind === AgendaTriggerKind.Interval || spec.kind === AgendaTriggerKind.Cron)) return AgendaCategory.Routine;
         if (specs.some(spec => spec.kind === AgendaTriggerKind.Absolute)) return AgendaCategory.Reminder;

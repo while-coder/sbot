@@ -19,6 +19,12 @@ import {
 
 const OCC_GROUP_LIMIT = 10;
 
+/**
+ * sync extractor 喂给 LLM 的 <existing-agenda> 最多列多少条 item。
+ * 调用方（AgendaService.runExtractJob）按这个 limit 拉，extractor 内再 slice 兜底；两处共享同一常量。
+ */
+export const EXISTING_AGENDA_LIMIT = 80;
+
 /** XML 属性值转义。同时套上引号。 */
 function attr(value: string): string {
     const escaped = value

@@ -16,20 +16,26 @@ Pick `kind` to match what the user said:
 - calendar-aligned recurrence ("工作日 9 点", "每月 1 号") → kind=cron, `expr`=6-field cron.
 Do NOT use cron when interval suffices.
 
+PER-TRIGGER `action` AND `message`
+Each trigger element carries its OWN `action` and `message`. There are no top-level action/message fields on this tool.
+
+action options (per trigger):
+- notify (default) — pure text ping; fire NOT recorded in conversation history. For one-shot reminders / external pings.
+- notify_and_record — text ping + recorded in history. Required for occurrence routines (打卡/汇报/喝水/周报) so the agent later reads "[AI: 要喝水了][user: 已喝]" coherently.
+- invoke — feed the text to the AI agent as user input so it actively responds. Use when the user wants AI work at fire time, e.g. "每天 8 点帮我总结日志".
+
+message (per trigger):
+Override the fire-time text. Defaults to `content`. Set only when fire-time text needs to differ — friendlier reminder tone for notify, fuller instruction for invoke.
+
+This per-trigger granularity means: same item can have one trigger fire as "notify" and another as "invoke" — e.g. content="周报"; triggers=[{kind:absolute, at:"...09:00", action:"invoke", message:"分析本周状态并起草"}, {kind:absolute, at:"...18:00", action:"notify"}].
+
 OCCURRENCE ROUTINES (打卡 / 汇报 / 喝水 / 周报)
 Use completionMode=occurrence when each fire is a separate instance the user must check off.
-Pair it with action=notify_and_record (NOT default notify):
-- notify alone does not record the fire in conversation history → the agent later sees an orphan reply like "已喝/已交" and may misroute it.
-- notify_and_record writes the fire as an AI message so the agent reads "[AI: 要喝水了][user: 已喝]" coherently.
-
-A missed occurrence stays missed forever once the next fire arrives — this is the intended product behavior to enforce timely check-in. Backfill via `at` on agenda_complete still works.
-
-ACTION (how fires are delivered)
-- notify (default) — pure text ping; fire NOT recorded. For one-shot reminders / external pings.
-- notify_and_record — text ping + recorded in history. Required for occurrence routines.
-- invoke — feed the text to the AI agent as user input so it actively responds. Use only when the user wants AI work at fire time, e.g. "每天 8 点帮我总结日志".
+EVERY trigger on an occurrence routine should have action=notify_and_record (otherwise the user reply is orphaned in history).
+A missed occurrence stays missed forever once the next fire arrives — intended product behavior. Backfill via `at` on agenda_complete still works.
 
 DEFAULTS YOU CAN OMIT
 - category / completionMode / priority — system infers from triggers and content.
-- message — defaults to content; only set when the fire-time text needs to differ.
+- trigger.action — defaults to notify.
+- trigger.message — defaults to content.
 - dueAt — auto-derived from triggers for reminder/routine. Set explicitly only to add a deadline to a plain todo (in which case the system auto-fires a one-shot reminder at that moment so the deadline cannot pass silently).

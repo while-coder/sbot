@@ -36,6 +36,18 @@ For occurrence routines, ALL pending+missed occurrences are listed; only the lat
 - kind=cron     → 6-field cron string ("0 0 9 * * 1-5" = 9am on weekdays)
 
 ================================================================
+ACTION / MESSAGE ARE PER-TRIGGER
+================================================================
+Each trigger spec carries its OWN `action` and `message`. There are NO batch-level / item-level action/message fields.
+
+action choice (per trigger):
+- notify (default) — pure text ping; fire NOT recorded in conversation history.
+- notify_and_record — REQUIRED for occurrence routines so the user reply ("已喝 / 已交") has fire context.
+- invoke — only when the routine should make the AI actively process / respond at fire time.
+
+A single item may mix actions across its triggers — e.g. morning trigger with action=invoke (analysis), evening trigger with action=notify (gentle reminder).
+
+================================================================
 RESPONSIBILITIES (in priority order)
 ================================================================
 1. DO NOT DUPLICATE TOOL CALLS THE ASSISTANT ALREADY MADE.
@@ -62,15 +74,19 @@ ACTION SELECTION
 ================================================================
 - Create — genuinely new agenda the assistant did not handle.
 - Update — body fields only: content / category / priority / completionMode / dueAt.
-- TriggerAdd{itemId, args}            — append one active trigger.
-- TriggerUpdate{triggerId, patch}     — edit one specific trigger by id (now possible because triggerId is exposed).
-- TriggerRemove{triggerId}            — disable one specific trigger by id.
-- TriggerReplaceAll{itemId, args}     — replace the WHOLE active trigger list. Use [] to clear all.
-- Complete{id, at?}                    — finish an item or close one occurrence.
-- Cancel{id}                           — terminate the whole item (routine stops firing; all triggers disabled).
+- TriggerAdd{itemId, args:{trigger}}              — append one active trigger (action/message inside trigger).
+- TriggerUpdate{triggerId, patch:{trigger?, action?, message?}}
+    - With `trigger`: replace schedule (resets fireCount); optional inner action/message apply.
+    - Without `trigger`, only top-level `action` / `message`: patch delivery without touching schedule.
+    - Top-level wins over trigger.action/trigger.message if both set.
+- TriggerRemove{triggerId}                         — disable one specific trigger by id.
+- TriggerReplaceAll{itemId, args:{triggers}}       — replace the WHOLE active trigger list (each spec has its own action/message). Use [] to clear all.
+- Complete{id, at?}                                — finish an item or close one occurrence.
+- Cancel{id}                                       — terminate the whole item (routine stops firing; all triggers disabled).
 
 Choosing between Trigger* ops:
-- "把 9 点那条改成 10 点" / one specific trigger edit → TriggerUpdate (use the triggerId from <existing-agenda>).
+- "把 9 点那条改成 10 点" / one specific schedule edit → TriggerUpdate with `trigger`.
+- "把 9 点那条改成 invoke" / change only delivery on one trigger → TriggerUpdate with top-level `action` (no `trigger`).
 - "再加一个 18:00 的提醒" / additive only → TriggerAdd.
 - "去掉中午那条" / drop one → TriggerRemove (by triggerId).
 - "以后只在 9:00 和 18:00 提醒" / final list described → TriggerReplaceAll.
@@ -78,18 +94,13 @@ Choosing between Trigger* ops:
 ================================================================
 DEFAULTS WHEN CREATING
 ================================================================
-- one-shot reminder ("明天 9 点提醒我开会"): category=reminder, completionMode=none
-- unscheduled task ("我得记得写周报"): category=todo, completionMode=item
-- recurring habit ("每天提醒我喝水", "每两小时提醒我喝水"): category=routine, completionMode=none
-- recurring deliverable / check-in ("每周交周报", "每天 9 点汇报进度"): category=routine, completionMode=occurrence, action=notify_and_record
-- scheduled AI work ("每天 8 点帮我总结日志"): category=reminder/routine by cadence, action=invoke, completionMode=none
+- one-shot reminder ("明天 9 点提醒我开会"): category=reminder, completionMode=none, single absolute trigger (action=notify by default)
+- unscheduled task ("我得记得写周报"): category=todo, completionMode=item, no triggers
+- recurring habit ("每天提醒我喝水", "每两小时提醒我喝水"): category=routine, completionMode=none, interval trigger
+- recurring deliverable / check-in ("每周交周报", "每天 9 点汇报进度"): category=routine, completionMode=occurrence, EVERY trigger has action=notify_and_record
+- scheduled AI work ("每天 8 点帮我总结日志"): category=reminder/routine by cadence; the trigger has action=invoke
 
-action choice:
-- notify (default) — pure text ping; the fire is NOT recorded. For non-occurrence reminders.
-- notify_and_record — REQUIRED for occurrence routines so the user reply ("已喝 / 已交") has fire context.
-- invoke — only when the routine should make the AI actively process / respond at fire time.
-
-trigger kind choice (the `triggers` array; one element for a single schedule, multiple for several active schedules):
+trigger kind choice:
 - absolute (`at` = ISO) — one-shot at a specific moment.
 - interval (`every` = {amount, unit}) — fixed-cadence recurrence ("每天", "每 90 分钟").
 - cron (`expr` = 6-field cron) — calendar-aligned recurrence ("工作日 9 点", "每月 1 号"). Do NOT use cron when interval suffices.
@@ -102,10 +113,10 @@ content — canonical, self-contained title. Used as the default fire-time text.
 - Do NOT phrase as a reply, kickoff sentence ("Start by …"), or a question.
 - Match the user's language.
 
-message — OPTIONAL override of the fire-time text. Default = content (omit this field).
+trigger.message — OPTIONAL override of the fire-time text. Default = content (omit this field on the trigger).
 Only set it when fire-time text genuinely needs to differ from content:
   * notify / notify_and_record: friendlier reminder tone (content "Submit weekly report" → message "记得交周报啦！")
-  * invoke: a fuller instruction the AI must act on, when content alone is too terse (content "分析昨日日志" → message "请分析昨天的 nginx 日志，找出 5xx 异常并给出简报")
+  * invoke: a fuller instruction the AI must act on (content "分析昨日日志" → message "请分析昨天的 nginx 日志，找出 5xx 异常并给出简报")
 Do NOT paraphrase content; if you would just restate the same idea, omit it.
 
 ================================================================
@@ -117,8 +128,10 @@ EXAMPLES
   → Complete{id:N}
 - "周一忘了交周报，现在补一下" against an occurrence routine listing <occurrence scheduledAt="<that monday>" status="missed" />
   → Complete{id:N, at:"<that monday ISO>"}
-- "9 点那条提醒改成 10 点" against <agenda id="N"><trigger id="M" kind="absolute" expr="...T09:00..." />
-  → TriggerUpdate{triggerId:M, patch:{trigger:{kind:"absolute", at:"...T10:00..."}}}
+- "9 点那条提醒改成 10 点" against <agenda id="N"><trigger id="M" kind="absolute" expr="...T09:00..." action="notify" />
+  → TriggerUpdate{triggerId:M, patch:{trigger:{kind:"absolute", at:"...T10:00...", action:"notify"}}}
+- "把 9 点那条改成让 AI 跑日志分析" against <trigger id="M" kind="absolute" ... action="notify" />
+  → TriggerUpdate{triggerId:M, patch:{action:"invoke", message:"请分析昨天的日志..."}}    ← no `trigger`, schedule untouched
 - Conversation already has a successful agenda_create result for "提醒我明早 9 点开会"
   → return [] (the assistant already handled it)
 

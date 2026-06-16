@@ -1,4 +1,10 @@
-Update ONE existing trigger by triggerId — change its schedule, action, or message.
+Update ONE existing trigger by triggerId.
+
+TWO PATHS
+- Change the schedule (with or without action/message): pass `trigger` — a full new spec. Optional inner `action` / `message` set the new delivery. fireCount/lastFiredAt are RESET (treat as a fresh schedule).
+- Change ONLY action and/or message without touching the schedule: pass top-level `action` / `message` and OMIT `trigger`. fireCount is preserved.
+
+If both `trigger` and top-level `action`/`message` are provided, top-level wins.
 
 USE WHEN
 The user references a specific reminder/schedule already on the item: "把 9:00 的提醒改成 10:00", "让那个触发器改成 invoke 模式".
@@ -7,5 +13,3 @@ DO NOT USE WHEN
 - Adding a new trigger alongside existing ones → agenda_trigger_add.
 - Replacing the whole list of triggers → agenda_trigger_replace_all.
 - Removing a trigger → agenda_trigger_remove.
-
-Omit any field that should stay unchanged.
