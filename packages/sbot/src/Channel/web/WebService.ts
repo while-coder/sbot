@@ -159,6 +159,18 @@ export class WebService implements IChannelService {
         }
     }
 
+    /**
+     * 向已连接的 ws 客户端广播一条 {@link WebChatEventType.Message} 事件。
+     * 仅广播，不写 saver——saver 由调用方按需自行处理（例如以不同 kind 落库）。
+     */
+    broadcastMessage(profileId: string | number, message: ChatMessage, kind: MessageKind): void {
+        this.broadcast(JSON.stringify({
+            profileId: String(profileId),
+            type: WebChatEventType.Message,
+            data: { message, createdAt: Date.now() / 1000, kind },
+        }));
+    }
+
     // ── IChannelService ──
 
     createSessionHandler(session: SessionService): ChannelSessionHandler {

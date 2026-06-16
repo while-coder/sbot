@@ -171,6 +171,11 @@ function handleEvent(evt: ChatEvent) {
       loadUsage()
       break
     case ChatEventType.Error:
+      messages.value.push({
+        message: { role: MessageRole.System, content: `[Error] ${evt.data.message}` },
+        createdAt: Date.now() / 1000,
+        kind: MessageKind.Exception,
+      })
       resetStreamState()
       break
     case ChatEventType.Usage:
