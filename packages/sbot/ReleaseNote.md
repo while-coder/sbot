@@ -4,9 +4,8 @@ This release includes the following main changes:
 
 1. Added the Agenda system, a unified replacement for the previous Scheduler and Todo features. You can create, list, update, complete, cancel, and manually trigger agendas, with editing supported in both the chat and the management page.
 2. Added Smart Heartbeat. The AI decides whether the current moment is appropriate to reach out, instead of sending on a fixed interval.
-3. Added card message support in the Lark channel for richer replies.
-4. Added hybrid search for notes, combining keyword and semantic retrieval for more accurate results.
-5. Added a Settings API and a Memories management API in the web UI.
+3. Added hybrid search for notes, combining keyword and semantic retrieval for more accurate results.
+4. Added a Settings API and a Memories management API in the web UI.
 
 ### Improved
 
