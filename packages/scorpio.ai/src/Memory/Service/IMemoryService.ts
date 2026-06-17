@@ -60,6 +60,19 @@ export interface IMemoryService {
     listAll(): Promise<MemoryRow[]>;
 
     /**
+     * admin 删除单条 memory：软删除（文件移到 .archive/，DB 行 DELETE）。
+     * slug 不存在抛错。返回 archive 文件名。
+     */
+    deleteMemory(slug: string): Promise<string>;
+
+    /**
+     * admin 重新对账：扫描 memories/ 下的 .md 文件，同步进 SQLite 索引。
+     * 用于"手写 / 外部编辑 .md 文件后让索引立即生效"的场景。
+     * 返回 { indexed, pruned } 计数。
+     */
+    reconcile(): Promise<{ indexed: number; pruned: number }>;
+
+    /**
      * 每轮对话结束后同步触发：把消息快照入队 SQLite，触发后台串行抽取。
      * 调用方不需要 await 抽取完成；本方法只负责同步入队并唤醒后台处理。
      */

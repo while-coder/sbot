@@ -83,6 +83,38 @@ export class MemoryRoutes {
                 service.release();
             }
         }));
+
+        /** 软删除单条 memory：文件移到 .archive/，DB 行 DELETE。 */
+        app.delete('/api/memories/:id/entries/:slug', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const slug = String(req.params.slug ?? '').trim();
+            if (!slug) throwBad('Missing slug');
+            const service = memoryServicePool.acquire(memoryId);
+            if (!service) throwBad(`MemoryProfile "${memoryId}" not initialized`);
+            try {
+                const archive = await service.deleteMemory(slug);
+                return { memoryId, slug, archive };
+            } finally {
+                service.release();
+            }
+        }));
+
+        /**
+         * 手动 FS 与 DB 对账。
+         * - 用于"手写 / 外部编辑 / 删除 .md 文件"后让索引立即生效
+         * - 平时只在 service 首次 build 时跑一次，活着的 service 不会自动对账
+         */
+        app.post('/api/memories/:id/reconcile/run', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const service = memoryServicePool.acquire(memoryId);
+            if (!service) throwBad(`MemoryProfile "${memoryId}" not initialized`);
+            try {
+                const stats = await service.reconcile();
+                return { memoryId, ...stats };
+            } finally {
+                service.release();
+            }
+        }));
     }
 }
 

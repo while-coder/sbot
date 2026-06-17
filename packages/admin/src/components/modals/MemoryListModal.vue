@@ -40,6 +40,8 @@ const jobsLoading = ref(false)
 const bodyLoading = ref(false)
 const running = ref(false)
 const consolidating = ref(false)
+const reconciling = ref(false)
+const deleting = ref(false)
 
 const rows = ref<MemorySummary[]>([])
 const jobs = ref<MemoryJob[]>([])
@@ -147,6 +149,41 @@ async function runConsolidate() {
   }
 }
 
+async function runReconcile() {
+  if (!memoryId.value || reconciling.value) return
+  reconciling.value = true
+  try {
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/reconcile/run`, 'POST', {})
+    const indexed = res.data?.indexed ?? 0
+    const pruned = res.data?.pruned ?? 0
+    show(t('memory_profiles.reconcile_done', { indexed, pruned }))
+    await refresh()
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    reconciling.value = false
+  }
+}
+
+async function deleteMemory(slug: string) {
+  if (!memoryId.value || !slug || deleting.value) return
+  if (!window.confirm(t('memory_profiles.confirm_delete_memory', { slug }))) return
+  deleting.value = true
+  try {
+    await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/entries/${encodeURIComponent(slug)}`, 'DELETE')
+    show(t('memory_profiles.delete_memory_done'))
+    if (selectedSlug.value === slug) {
+      selectedSlug.value = ''
+      selectedBody.value = ''
+    }
+    await loadMemories()
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    deleting.value = false
+  }
+}
+
 function fmtTime(value: number | null | undefined): string {
   if (!value) return '-'
   return new Date(value).toLocaleString()
@@ -195,6 +232,7 @@ defineExpose({ openByMemoryId })
         </div>
         <div class="memory-actions">
           <SButton type="outline" size="sm" :loading="loading || jobsLoading" @click="refresh">{{ t('common.refresh') }}</SButton>
+          <SButton type="outline" size="sm" :loading="reconciling" @click="runReconcile">{{ t('memory_profiles.run_reconcile') }}</SButton>
           <SButton type="outline" size="sm" :loading="running" @click="runExtract">{{ t('memory_profiles.run_extract') }}</SButton>
           <SButton type="outline" size="sm" :loading="consolidating" @click="runConsolidate">{{ t('memory_profiles.run_consolidate') }}</SButton>
         </div>
@@ -235,6 +273,9 @@ defineExpose({ openByMemoryId })
               <SBadge :variant="kindVariant(selected.kind)" size="sm">{{ selected.kind }}</SBadge>
               <SBadge variant="neutral" size="sm">{{ t('memory_profiles.evidence') }} {{ selected.evidenceCount }}</SBadge>
               <SBadge variant="neutral" size="sm">{{ t('memory_profiles.read_count') }} {{ selected.readCount }}</SBadge>
+              <SButton type="danger" size="sm" :loading="deleting" @click="deleteMemory(selected.slug)">
+                {{ t('memory_profiles.delete_memory') }}
+              </SButton>
             </div>
           </div>
           <div v-if="selected" class="memory-detail-meta">

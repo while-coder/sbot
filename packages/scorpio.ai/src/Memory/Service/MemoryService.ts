@@ -217,6 +217,20 @@ export class MemoryService implements IMemoryService {
         return this.store.list();
     }
 
+    async deleteMemory(slug: string): Promise<string> {
+        const archive = await this.store.softDelete(slug, Date.now());
+        this.logger?.info(`memory admin delete: ${slug} -> ${archive}`);
+        return archive;
+    }
+
+    async reconcile(): Promise<{ indexed: number; pruned: number }> {
+        const stats = await this.store.reconcile();
+        if (stats.indexed > 0 || stats.pruned > 0) {
+            this.logger?.info(`memory admin reconcile: indexed=${stats.indexed} pruned=${stats.pruned}`);
+        }
+        return stats;
+    }
+
     // ── 写路径：入队 + 串行消费 ──
 
     extractFromConversation(messages: ChatMessage[]): void {
