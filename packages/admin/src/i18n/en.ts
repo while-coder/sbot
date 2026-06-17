@@ -569,6 +569,9 @@ export default {
     prompt: 'Sync Prompt',
     confirm_delete: 'Delete agenda profile "{name}"? All stored agenda items and triggers will be removed.',
   },
+  memory: {
+    title: 'Memory',
+  },
   agenda: {
     title: 'Agenda',
     empty: 'No agenda items',

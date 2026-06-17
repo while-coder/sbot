@@ -1,6 +1,7 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
+import { WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { channelDataService, type ChannelSessionWithProfile } from '../../Session/ChannelDataService';
 import { channelManager } from '../../Channel/ChannelManager';
 import { config } from '../../Core/Config';
@@ -45,7 +46,8 @@ export function createChannelListTool(currentChannelId?: string): StructuredTool
                 const sessionsByChannel = groupByChannel(allSessions);
                 const usersByChannel    = groupByChannel(allUsers);
 
-                const channels = Object.entries(config.settings.channels ?? {});
+                const channels = Object.entries(config.settings.channels ?? {})
+                    .filter(([_, c]) => c.type !== WEB_CHANNEL_TYPE);
                 const channelBlocks = channels.map(([id, c]) => {
                     const caps = channelManager.getChannelCapabilities(id).join(',');
                     const currentAttr = currentChannelId === id ? ' current="1"' : '';

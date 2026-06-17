@@ -14,7 +14,6 @@ export enum BuiltinProvider {
     Playwright = 'builtin_playwright',
     Markitdown = 'builtin_markitdown',
     Exa = 'builtin_exa',
-    // GameData = 'builtin_gamedata'
 }
 
 export const globalAgentToolService = new AgentToolService(GlobalLoggerService.getLoggerService());

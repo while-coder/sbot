@@ -569,6 +569,9 @@ export default {
     prompt: '同步 Prompt',
     confirm_delete: '删除 Agenda 模板 "{name}"？该模板下的所有事项和触发器都会被清除。',
   },
+  memory: {
+    title: '记忆管理',
+  },
   agenda: {
     title: '事项管理',
     empty: '暂无事项',

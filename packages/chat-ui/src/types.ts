@@ -16,6 +16,7 @@ export interface SessionItem {
   workPath?: string
   autoApproveAllTools?: boolean
   agenda?: string | null
+  memory?: string | null
 }
 
 export interface AgentOption { id: string; name?: string }

@@ -10,14 +10,21 @@ import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-light.css'
 import { SButton } from 'sbot-ui'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
+import MemoryListModal from '@/components/modals/MemoryListModal.vue'
 
 const { t } = useI18n()
 const transport = new WebSocketTransport()
 const agendaListModal = ref<InstanceType<typeof AgendaListModal>>()
+const memoryListModal = ref<InstanceType<typeof MemoryListModal>>()
 
 function openAgenda(session: SessionItem) {
   if (!session.agenda) return
   agendaListModal.value?.openByAgendaId(session.agenda, session.name || session.id)
+}
+
+function openMemory(session: SessionItem) {
+  if (!session.memory) return
+  memoryListModal.value?.openByMemoryId(session.memory, session.name || session.id)
 }
 </script>
 
@@ -27,9 +34,13 @@ function openAgenda(session: SessionItem) {
       <SButton v-if="session?.agenda" type="outline" size="sm" @click="openAgenda(session)">
         {{ t('agenda.title') }}
       </SButton>
+      <SButton v-if="session?.memory" type="outline" size="sm" @click="openMemory(session)">
+        {{ t('memory.title') }}
+      </SButton>
     </template>
   </ChatView>
   <AgendaListModal ref="agendaListModal" />
+  <MemoryListModal ref="memoryListModal" />
 </template>
 
 <!--

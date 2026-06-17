@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
+import MemoryListModal from '@/components/modals/MemoryListModal.vue'
 
 interface MemoryProfileForm {
   name: string
@@ -11,28 +12,6 @@ interface MemoryProfileForm {
   writerModel: string
   writerPromptFile: string
   readPromptFile: string
-}
-
-interface MemorySummary {
-  slug: string
-  kind: string
-  title: string
-  description: string
-  evidenceCount: number
-  createdAt: number
-  updatedAt: number
-  lastReadAt: number | null
-  readCount: number
-}
-
-interface MemoryJob {
-  id: number
-  type: string
-  status: string
-  attemptCount: number
-  errorMessage: string | null
-  createdAt: number
-  updatedAt: number
 }
 
 const { t } = useI18n()
@@ -57,21 +36,8 @@ const columns = computed<STableColumn[]>(() => [
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
-const running = ref<Record<string, boolean>>({})
 const consolidating = ref<Record<string, boolean>>({})
-const showMemoryViewer = ref(false)
-const memoryViewerId = ref('')
-const memoryViewerTab = ref<'memories' | 'jobs'>('memories')
-const memoryLoading = ref(false)
-const memoryJobsLoading = ref(false)
-const memoryBodyLoading = ref(false)
-const memoryRows = ref<MemorySummary[]>([])
-const memoryJobs = ref<MemoryJob[]>([])
-const selectedMemorySlug = ref('')
-const selectedMemoryBody = ref('')
-
-const selectedMemory = computed(() => memoryRows.value.find(m => m.slug === selectedMemorySlug.value) || null)
-const memoryViewerTitle = computed(() => profileLabel(memoryViewerId.value))
+const memoryListModal = ref<InstanceType<typeof MemoryListModal>>()
 
 function emptyForm(): MemoryProfileForm {
   return {
@@ -171,19 +137,6 @@ async function refresh() {
   }
 }
 
-async function runExtract(id: string) {
-  if (running.value[id]) return
-  running.value[id] = true
-  try {
-    await apiFetch(`/api/memories/${encodeURIComponent(id)}/extract/run`, 'POST', {})
-    show(t('memory_profiles.extract_done'))
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    running.value[id] = false
-  }
-}
-
 async function runConsolidate(id: string) {
   if (consolidating.value[id]) return
   consolidating.value[id] = true
@@ -197,125 +150,14 @@ async function runConsolidate(id: string) {
   }
 }
 
-async function openMemoryViewer(id: string) {
-  memoryViewerId.value = id
-  memoryViewerTab.value = 'memories'
-  showMemoryViewer.value = true
-  await refreshMemoryViewer()
-}
-
-async function refreshMemoryViewer() {
-  const id = memoryViewerId.value
-  if (!id) return
-  await Promise.all([
-    loadMemories(id),
-    loadMemoryJobs(id),
-  ])
-}
-
-async function loadMemories(id = memoryViewerId.value) {
-  if (!id) return
-  memoryLoading.value = true
-  try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/list`)
-    const rows = (res.data?.memories || []) as MemorySummary[]
-    memoryRows.value = rows
-    const nextSlug = rows.find(r => r.slug === selectedMemorySlug.value)?.slug || rows[0]?.slug || ''
-    selectedMemorySlug.value = nextSlug
-    if (nextSlug) await loadMemoryBody(nextSlug)
-    else selectedMemoryBody.value = ''
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    memoryLoading.value = false
-  }
-}
-
-async function loadMemoryJobs(id = memoryViewerId.value) {
-  if (!id) return
-  memoryJobsLoading.value = true
-  try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/jobs?limit=50`)
-    memoryJobs.value = (res.data?.jobs || []) as MemoryJob[]
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    memoryJobsLoading.value = false
-  }
-}
-
-async function selectMemory(slug: string) {
-  if (selectedMemorySlug.value === slug && selectedMemoryBody.value) return
-  selectedMemorySlug.value = slug
-  await loadMemoryBody(slug)
-}
-
-async function loadMemoryBody(slug: string) {
-  const id = memoryViewerId.value
-  if (!id || !slug) return
-  memoryBodyLoading.value = true
-  try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/entries/${encodeURIComponent(slug)}`)
-    selectedMemoryBody.value = res.data?.row?.body || ''
-  } catch (e: any) {
-    selectedMemoryBody.value = ''
-    show(e.message, 'error')
-  } finally {
-    memoryBodyLoading.value = false
-  }
-}
-
-async function runExtractFromViewer() {
-  if (!memoryViewerId.value) return
-  await runExtract(memoryViewerId.value)
-  await refreshMemoryViewer()
-}
-
-async function runConsolidateFromViewer() {
-  if (!memoryViewerId.value) return
-  await runConsolidate(memoryViewerId.value)
-  await refreshMemoryViewer()
+function openMemoryViewer(id: string) {
+  const p: any = profiles.value[id]
+  memoryListModal.value?.openByMemoryId(id, p?.name || id)
 }
 
 function modelLabel(id: string | undefined | null): string {
   if (!id) return '-'
   return modelOptions.value.find(m => m.id === id)?.label || id
-}
-
-function profileLabel(id: string): string {
-  const p: any = profiles.value[id]
-  return p?.name || id
-}
-
-function fmtTime(value: number | null | undefined): string {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
-}
-
-function kindVariant(kind: string): 'success' | 'info' | 'warning' | 'danger' | 'neutral' {
-  if (kind === 'preference') return 'success'
-  if (kind === 'workflow') return 'info'
-  if (kind === 'decision') return 'warning'
-  if (kind === 'project') return 'danger'
-  return 'neutral'
-}
-
-function jobTypeLabel(type: string): string {
-  if (type === 'extract') return t('memory_profiles.job_type_extract')
-  if (type === 'consolidate') return t('memory_profiles.job_type_consolidate')
-  return type
-}
-
-function jobStatusLabel(status: string): string {
-  if (status === 'pending') return t('memory_profiles.job_status_pending')
-  if (status === 'failed') return t('memory_profiles.job_status_failed')
-  return status
-}
-
-function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' | 'neutral' {
-  if (status === 'failed') return 'danger'
-  if (status === 'pending') return 'warning'
-  return 'neutral'
 }
 </script>
 
@@ -384,88 +226,7 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
       </template>
     </SModal>
 
-    <SModal v-model:visible="showMemoryViewer" :title="t('memory_profiles.viewer_title', { name: memoryViewerTitle })" width="xl">
-      <div class="memory-viewer">
-        <div class="memory-viewer-toolbar">
-          <div class="memory-tabs">
-            <SButton :type="memoryViewerTab === 'memories' ? 'primary' : 'outline'" size="sm" @click="memoryViewerTab = 'memories'">
-              {{ t('memory_profiles.viewer_memories') }}
-            </SButton>
-            <SButton :type="memoryViewerTab === 'jobs' ? 'primary' : 'outline'" size="sm" @click="memoryViewerTab = 'jobs'">
-              {{ t('memory_profiles.viewer_jobs') }}
-            </SButton>
-          </div>
-          <div class="memory-actions">
-            <SButton type="outline" size="sm" :loading="memoryLoading || memoryJobsLoading" @click="refreshMemoryViewer">{{ t('common.refresh') }}</SButton>
-            <SButton type="outline" size="sm" :loading="running[memoryViewerId]" @click="runExtractFromViewer">{{ t('memory_profiles.run_extract') }}</SButton>
-            <SButton type="outline" size="sm" :loading="consolidating[memoryViewerId]" @click="runConsolidateFromViewer">{{ t('memory_profiles.run_consolidate') }}</SButton>
-          </div>
-        </div>
-
-        <div v-if="memoryViewerTab === 'memories'" class="memory-pane">
-          <aside class="memory-list">
-            <div v-if="memoryLoading" class="memory-empty">{{ t('memory_profiles.loading') }}</div>
-            <div v-else-if="memoryRows.length === 0" class="memory-empty">{{ t('memory_profiles.no_memories') }}</div>
-            <button
-              v-for="m in memoryRows"
-              v-else
-              :key="m.slug"
-              class="memory-row"
-              :class="{ active: m.slug === selectedMemorySlug }"
-              @click="selectMemory(m.slug)"
-            >
-              <div class="memory-row-head">
-                <SBadge :variant="kindVariant(m.kind)" size="xs">{{ m.kind }}</SBadge>
-                <span class="memory-row-slug">{{ m.slug }}</span>
-              </div>
-              <div class="memory-row-title">{{ m.title }}</div>
-              <div class="memory-row-desc">{{ m.description }}</div>
-              <div class="memory-row-meta">
-                <span>{{ t('memory_profiles.evidence') }} {{ m.evidenceCount }}</span>
-                <span>{{ fmtTime(m.updatedAt) }}</span>
-              </div>
-            </button>
-          </aside>
-
-          <section class="memory-detail">
-            <div v-if="selectedMemory" class="memory-detail-head">
-              <div>
-                <div class="memory-detail-title">{{ selectedMemory.title }}</div>
-                <div class="memory-detail-slug">{{ selectedMemory.slug }}</div>
-              </div>
-              <div class="memory-detail-badges">
-                <SBadge :variant="kindVariant(selectedMemory.kind)" size="sm">{{ selectedMemory.kind }}</SBadge>
-                <SBadge variant="neutral" size="sm">{{ t('memory_profiles.evidence') }} {{ selectedMemory.evidenceCount }}</SBadge>
-                <SBadge variant="neutral" size="sm">{{ t('memory_profiles.read_count') }} {{ selectedMemory.readCount }}</SBadge>
-              </div>
-            </div>
-            <div v-if="selectedMemory" class="memory-detail-meta">
-              <span>{{ t('memory_profiles.updated_at') }}: {{ fmtTime(selectedMemory.updatedAt) }}</span>
-              <span>{{ t('memory_profiles.created_at') }}: {{ fmtTime(selectedMemory.createdAt) }}</span>
-            </div>
-            <pre class="memory-body">{{ memoryBodyLoading ? t('memory_profiles.loading') : (selectedMemoryBody || t('memory_profiles.no_body')) }}</pre>
-          </section>
-        </div>
-
-        <div v-else class="memory-jobs">
-          <div v-if="memoryJobsLoading" class="memory-empty">{{ t('memory_profiles.loading') }}</div>
-          <div v-else-if="memoryJobs.length === 0" class="memory-empty">{{ t('memory_profiles.no_jobs') }}</div>
-          <div v-for="job in memoryJobs" v-else :key="job.id" class="memory-job">
-            <div class="memory-job-head">
-              <div class="memory-job-id">#{{ job.id }}</div>
-              <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
-            </div>
-            <div class="memory-job-grid">
-              <span>{{ t('memory_profiles.job_type') }}</span><code>{{ jobTypeLabel(job.type) }}</code>
-              <span>{{ t('memory_profiles.attempt_count') }}</span><code>{{ job.attemptCount }}</code>
-              <span>{{ t('memory_profiles.created_at') }}</span><code>{{ fmtTime(job.createdAt) }}</code>
-              <span>{{ t('memory_profiles.updated_at') }}</span><code>{{ fmtTime(job.updatedAt) }}</code>
-              <span>{{ t('memory_profiles.error_message') }}</span><code>{{ job.errorMessage || '-' }}</code>
-            </div>
-          </div>
-        </div>
-      </div>
-    </SModal>
+    <MemoryListModal ref="memoryListModal" />
   </div>
 </template>
 
@@ -474,213 +235,5 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
   display: inline-flex;
   gap: var(--sui-sp-2);
   white-space: nowrap;
-}
-
-.memory-viewer {
-  display: flex;
-  flex-direction: column;
-  min-height: 560px;
-  max-height: 72vh;
-  overflow: hidden;
-}
-
-.memory-viewer-toolbar {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sui-sp-3);
-  padding-bottom: var(--sui-sp-3);
-  border-bottom: 1px solid var(--sui-border-subtle);
-}
-
-.memory-tabs,
-.memory-actions {
-  display: inline-flex;
-  gap: var(--sui-sp-2);
-  align-items: center;
-  white-space: nowrap;
-}
-
-.memory-pane {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(300px, 38%) minmax(0, 1fr);
-  gap: var(--sui-sp-3);
-  padding-top: var(--sui-sp-3);
-  overflow: hidden;
-}
-
-.memory-list {
-  min-height: 0;
-  overflow: auto;
-  border-right: 1px solid var(--sui-border-subtle);
-  padding-right: var(--sui-sp-3);
-}
-
-.memory-row {
-  width: 100%;
-  display: block;
-  text-align: left;
-  padding: var(--sui-sp-3);
-  border: 1px solid var(--sui-border-subtle);
-  background: var(--sui-bg);
-  color: var(--sui-fg);
-  border-radius: var(--sui-radius-sm);
-  margin-bottom: var(--sui-sp-2);
-  cursor: pointer;
-}
-
-.memory-row:hover,
-.memory-row.active {
-  border-color: var(--sui-color-primary);
-}
-
-.memory-row-head,
-.memory-row-meta,
-.memory-detail-badges,
-.memory-job-head {
-  display: flex;
-  align-items: center;
-  gap: var(--sui-sp-2);
-}
-
-.memory-row-head,
-.memory-job-head {
-  justify-content: space-between;
-}
-
-.memory-row-slug,
-.memory-detail-slug,
-.memory-job-grid code {
-  font-family: var(--sui-font-mono);
-  font-size: var(--sui-fs-xs);
-}
-
-.memory-row-title {
-  font-weight: 600;
-  margin-top: var(--sui-sp-2);
-}
-
-.memory-row-desc {
-  margin-top: var(--sui-sp-1);
-  color: var(--sui-fg-muted);
-  font-size: var(--sui-fs-sm);
-  line-height: 1.4;
-}
-
-.memory-row-meta {
-  justify-content: space-between;
-  margin-top: var(--sui-sp-2);
-  color: var(--sui-fg-subtle);
-  font-size: var(--sui-fs-xs);
-}
-
-.memory-detail {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.memory-detail-head {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sui-sp-3);
-  align-items: flex-start;
-}
-
-.memory-detail-title {
-  font-size: var(--sui-fs-lg);
-  font-weight: 700;
-}
-
-.memory-detail-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sui-sp-2);
-  margin: var(--sui-sp-3) 0;
-  color: var(--sui-fg-muted);
-  font-size: var(--sui-fs-sm);
-}
-
-.memory-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  margin: 0;
-  padding: var(--sui-sp-3);
-  border: 1px solid var(--sui-border-subtle);
-  border-radius: var(--sui-radius-sm);
-  background: var(--sui-bg-subtle);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: var(--sui-fs-sm);
-  line-height: 1.5;
-}
-
-.memory-jobs {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding-top: var(--sui-sp-3);
-}
-
-.memory-job {
-  border: 1px solid var(--sui-border-subtle);
-  border-radius: var(--sui-radius-sm);
-  padding: var(--sui-sp-3);
-  margin-bottom: var(--sui-sp-2);
-}
-
-.memory-job-id {
-  font-weight: 700;
-}
-
-.memory-job-grid {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: var(--sui-sp-2);
-  margin-top: var(--sui-sp-3);
-  font-size: var(--sui-fs-sm);
-}
-
-.memory-job-grid span {
-  color: var(--sui-fg-muted);
-}
-
-.memory-job-grid code {
-  overflow-wrap: anywhere;
-}
-
-.memory-empty {
-  color: var(--sui-fg-muted);
-  padding: var(--sui-sp-4);
-  text-align: center;
-}
-
-@media (max-width: 900px) {
-  .memory-viewer-toolbar,
-  .memory-detail-head {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .memory-pane {
-    grid-template-columns: 1fr;
-  }
-
-  .memory-list {
-    border-right: 0;
-    border-bottom: 1px solid var(--sui-border-subtle);
-    padding-right: 0;
-    padding-bottom: var(--sui-sp-3);
-    max-height: 280px;
-  }
-
-  .memory-detail-meta,
-  .memory-job-grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

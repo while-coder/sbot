@@ -11,16 +11,16 @@ A <channel> with no matching children is rendered self-closing.
 
 current="1" on a <channel> marks the channel that THIS conversation is happening on. When the user mentions a session/user name without specifying which channel and the name exists on multiple channels, prefer the entry under current="1" — it's almost always what they meant.
 
-Each <session>/<user> exposes only `id` and `name`. Pass that `id` directly to channel_send_message / channel_send_file — it is globally unique across channels. The owning channel (and its caps) is whichever <channel> the row sits under.
+Each <session>/<user> exposes only `id` and `name`. Pass that `id` directly to channel_send — it is globally unique across channels. The owning channel (and its caps) is whichever <channel> the row sits under.
 
 caps (on <channel>) is a comma-separated capability set. Tokens:
-  text       — channel_send_message works on sessions of this channel
-  file       — channel_send_file works on sessions of this channel
-  text_user  — direct text to a user is supported on this channel
-  file_user  — direct file to a user is supported on this channel
+  text       — channel_send (kind=text) works on sessions of this channel
+  file       — channel_send (kind=file) works on sessions of this channel
+  text_user  — channel_send (kind=text) works on users of this channel
+  file_user  — channel_send (kind=file) works on users of this channel
 A token NOT listed means the corresponding call will fail; do not attempt it.
 Empty caps usually means the channel is configured but not currently running.
 
 Note: sessions/users only include those the bot has actually interacted with (or that an admin has manually registered).
 
-Use this tool to discover ids to pass into channel_send_message / channel_send_file.
+Use this tool to discover ids to pass into channel_send.

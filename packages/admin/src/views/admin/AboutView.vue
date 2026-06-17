@@ -128,11 +128,12 @@ onMounted(async () => {
   margin-bottom: var(--sui-sp-6);
 }
 .info-link {
-  color: var(--sui-accent);
+  color: var(--sui-info-link);
   text-decoration: none;
   font-family: var(--sui-font-mono);
   font-size: var(--sui-fs-sm);
 }
+.info-link:hover { color: var(--sui-info-link-hover); text-decoration: underline; }
 
 .feedback-row {
   margin-top: var(--sui-sp-4);
@@ -175,9 +176,10 @@ onMounted(async () => {
 }
 
 .newRelease-banner {
-  border: 1px solid var(--sui-warning);
+  border: 1px solid var(--sui-warning-fg);
   border-radius: var(--sui-radius-lg);
-  background: var(--sui-warning-soft, #fffbeb);
+  background: var(--sui-warning-soft);
+  color: var(--sui-on-warning-soft);
   padding: var(--sui-sp-4) var(--sui-sp-5);
   margin-bottom: var(--sui-sp-6);
 }
@@ -195,7 +197,7 @@ onMounted(async () => {
 .newRelease-tag {
   display: inline-block;
   padding: 2px 8px;
-  background: var(--sui-warning);
+  background: var(--sui-warning-fg);
   color: #fff;
   border-radius: var(--sui-radius-sm);
   font-size: var(--sui-fs-sm);
@@ -205,20 +207,22 @@ onMounted(async () => {
 .newRelease-title {
   font-size: var(--sui-fs-md);
   font-weight: 600;
-  color: var(--sui-fg);
+  color: var(--sui-on-warning-soft);
 }
 .newRelease-link {
   font-size: var(--sui-fs-sm);
-  color: var(--sui-accent);
-  text-decoration: none;
+  color: var(--sui-on-warning-soft);
+  text-decoration: underline;
+  font-weight: 600;
 }
-.newRelease-link:hover { text-decoration: underline; }
+.newRelease-link:hover { opacity: 0.8; }
 .newRelease-body {
-  border-top: 1px solid var(--sui-warning);
+  border-top: 1px solid var(--sui-warning-fg);
   padding-top: var(--sui-sp-3);
   font-size: var(--sui-fs-md);
-  opacity: 0.9;
+  color: var(--sui-on-warning-soft);
 }
+.newRelease-body :deep(a) { color: var(--sui-on-warning-soft); text-decoration: underline; }
 
 .readme-loading,
 .readme-error {
@@ -285,7 +289,7 @@ onMounted(async () => {
   color: var(--sui-fg);
 }
 .readme-wrap :deep(a) {
-  color: var(--sui-accent);
+  color: var(--sui-info-link);
   text-decoration: none;
 }
 .readme-wrap :deep(a:hover) { text-decoration: underline; }

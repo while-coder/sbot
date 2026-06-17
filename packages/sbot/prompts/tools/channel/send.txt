@@ -1,0 +1,9 @@
+Send a markdown message or local file to a known session or user. Use channel_list_data first to discover the target id.
+
+Parameters:
+- type="session": id is the dbSessionId (the <session id="..."> attribute).
+- type="user":    id is the dbUserId    (the <user id="..."> attribute).
+- payload.kind="text": requires content (markdown). Channel cap: "text" (session) / "text_user" (user).
+- payload.kind="file": requires file_path (absolute), optional file_name. Channel cap: "file" (session) / "file_user" (user).
+
+If the required cap is not advertised by the channel, the call will fail — do not attempt it.
