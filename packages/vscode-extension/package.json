@@ -32,7 +32,8 @@
         {
           "type": "webview",
           "id": "sbot.chatView",
-          "name": "SBOT"
+          "name": "SBOT",
+          "icon": "media/icon.svg"
         }
       ]
     },
