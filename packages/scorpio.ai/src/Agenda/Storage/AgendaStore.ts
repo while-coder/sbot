@@ -41,12 +41,6 @@ export class AgendaStore implements IAgendaStore {
         @inject(T_AgendaDbPath) private readonly dbPath: string,
     ) {}
 
-    /** 显式触发 schema 创建。幂等。pool build 之后调用一次，确保表存在。 */
-    init(): void {
-        // 触发 lazy db 初始化，schema 在 get db() 里建好
-        void this.db;
-    }
-
     private get db(): Database.Database {
         if (!this._db) {
             const dir = path.dirname(this.dbPath);

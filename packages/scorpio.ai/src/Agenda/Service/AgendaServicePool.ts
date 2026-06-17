@@ -75,19 +75,29 @@ export class AgendaServicePool {
 
     /**
      * 拿一个 service 引用并 incRef。caller 用完务必调 `service.release()`。
-     * cache 中只可能有"还活着"的 service —— refCount 归零的 service 会通过 evict
-     * 自我从 cache 移除，所以这里直接 get 就行。
+     *
+     * 流程：
+     * - cache miss → 同步 build + cache.set（同步路径无 await 缝隙，保证同 agendaId 只构造一次实例）
+     * - 然后 await service.init() —— service 自身做 once-only dedup（首次唤醒 drain），
+     *   多个并发 acquire 共享同一个 init promise
+     * - 命中已 resolved 的 promise 几乎零成本（一次 microtask）
+     *
+     * agendaId 配置错误（profile 不存在 / disabled）直接 throw —— caller 应当在调用前
+     * 自行 guard。后续 acquire 不会再唤醒 drain；chat 路径靠 extractFromConversation
+     * 自启 drain，admin 走 forceExtract 时自带显式 processPending。
      */
-    acquire(agendaId: string): IAgendaService | null {
-        let service = this.cache.get(agendaId);
-        if (!service) {
-            service = this.build(agendaId) ?? undefined;
-            if (!service) return null;
+    async acquire(agendaId: string): Promise<IAgendaService> {
+        let service: AgendaService;
+        const cached = this.cache.get(agendaId);
+        if (cached) {
+            service = cached;
+        } else {
+            service = this.build(agendaId);
+            this.cache.set(agendaId, service);
         }
+
+        await service.init();
         service.incRef();
-        // incRef 之后再 kick drain：drain 自固定的引用是叠加在 caller 的 1 之上，
-        // 即便队列空导致 drain 立刻 release，refCount 也不会落到 0。
-        service.processPending();
         return service;
     }
 
@@ -103,26 +113,27 @@ export class AgendaServicePool {
     }
 
     /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 自行轮询 listPendingJobs 看进度）。 */
-    forceExtract(agendaId: string): boolean {
-        const service = this.acquire(agendaId);
-        if (!service) return false;
-        try { service.processPending(); return true; }
+    async forceExtract(agendaId: string): Promise<void> {
+        const service = await this.acquire(agendaId);
+        try { service.processPending(); }
         finally { service.release(); }
     }
 
-    listPendingJobs(agendaId: string, limit = DEFAULT_PENDING_JOB_LIMIT): PendingAgendaJobRow[] {
-        const service = this.acquire(agendaId);
-        if (!service) return [];
+    async listPendingJobs(agendaId: string, limit = DEFAULT_PENDING_JOB_LIMIT): Promise<PendingAgendaJobRow[]> {
+        const service = await this.acquire(agendaId);
         try { return service.listPending(limit); }
         finally { service.release(); }
     }
 
-    private build(agendaId: string): AgendaService | null {
-        if (!this.resolveConfig) {
-            throw new Error('AgendaServicePool: resolver not configured. Call setResolver() before use.');
-        }
+    /**
+     * 同步构造 service 实例（DI），不跑任何异步副作用。
+     * agendaId 配置缺失（resolver 没配 / profile 不存在）直接 throw —— 这条路径属于配置错误，
+     * caller 应当在调用前自行 guard，不应靠 build 返回 null 兜底。
+     */
+    private build(agendaId: string): AgendaService {
+        if (!this.resolveConfig) throw new Error('AgendaServicePool: resolver not configured. Call setResolver() before use.');
         const cfg = this.resolveConfig(agendaId);
-        if (!cfg) return null;
+        if (!cfg) throw new Error(`AgendaServicePool: unknown or disabled agendaId "${agendaId}"`);
 
         const sub = new ServiceContainer();
         if (this.loggerService) sub.registerInstance(ILoggerService, this.loggerService);
@@ -133,11 +144,6 @@ export class AgendaServicePool {
         sub.registerSingleton(IAgendaService, AgendaService);
 
         const service = sub.resolve<AgendaService>(IAgendaService) as AgendaService;
-        this.cache.set(agendaId, service);
-
-        // 显式触发 schema 创建（幂等）。store 可能被多方持有，pool 这里只是确保表已存在。
-        cfg.agendaStore.init();
-
         this.logger?.info(`AgendaService [${agendaId}] built`);
         return service;
     }

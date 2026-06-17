@@ -33,9 +33,6 @@ export interface PendingAgendaJobRow {
  * 不允许跨模板访问。所有方法都隐式作用于该模板的数据。
  */
 export interface IAgendaStore {
-    /** 创建表 schema。幂等；同步：仅 better-sqlite3 schema exec。 */
-    init(): void;
-
     listItems(): Promise<AgendaRecord[]>;
     findItem(itemId: number): Promise<AgendaRecord | null>;
     findTrigger(triggerId: number): Promise<{ data: AgendaRecord; trigger: AgendaTrigger } | null>;

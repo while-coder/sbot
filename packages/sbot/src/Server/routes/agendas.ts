@@ -33,8 +33,7 @@ function requireAgendaId(value: unknown): string {
  * 与 AgentRunner 共享同一 pool 单例 —— 同 agendaId 下两个调用方拿到的是同一个 service。
  */
 async function withAgendaService<T>(agendaId: string, fn: (service: IAgendaService) => Promise<T> | T): Promise<T> {
-    const service = agendaServicePool.acquire(agendaId);
-    if (!service) throwBad(`Agenda profile "${agendaId}" not enabled`);
+    const service = await agendaServicePool.acquire(agendaId);
     try {
         return await fn(service);
     } finally {

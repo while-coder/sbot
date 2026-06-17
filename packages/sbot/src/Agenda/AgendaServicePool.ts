@@ -72,20 +72,21 @@ const logger = LoggerService.getLogger("Agenda/AgendaServicePool.ts");
 /**
  * 启动时对所有已启用的 agendaProfile 触发一次 forceExtract，消化上次进程残留的
  * pending 抽取队列。无 syncModel 的 profile 在 service 内会直接 noop，安全幂等。
- * forceExtract 内部 drain 自固定 refCount，立即返回，后台串行跑 LLM。
+ *
+ * forceExtract 现在是 async（acquire 内含 service.init()）。这里 fire-and-forget
+ * 启动时不阻塞主流程；进程启动时间不受 agenda profile 数量影响。
  */
 export function startupExtractAll(): void {
     const profiles = config.settings.agendaProfiles ?? {};
-    let triggered = 0;
+    let scheduled = 0;
     for (const [id, profile] of Object.entries(profiles)) {
         if (!profile?.enabled) continue;
-        try {
-            if (agendaServicePool.forceExtract(id)) triggered++;
-        } catch (e: any) {
+        scheduled++;
+        agendaServicePool.forceExtract(id).catch(e => {
             logger.warn(`Agenda startup extract [${id}] failed: ${e?.message ?? String(e)}`);
-        }
+        });
     }
-    if (triggered > 0) logger.info(`Agenda startup extract triggered for ${triggered} profile(s)`);
+    if (scheduled > 0) logger.info(`Agenda startup extract scheduled for ${scheduled} profile(s)`);
 }
 
 export { agendaServicePool };

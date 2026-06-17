@@ -21,8 +21,8 @@ export class MemoryRoutes {
          */
         app.post('/api/memories/:id/extract/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const ran = memoryServicePool.forceExtract(memoryId);
-            return { memoryId, ran };
+            await memoryServicePool.forceExtract(memoryId);
+            return { memoryId };
         }));
 
         /**
@@ -31,8 +31,7 @@ export class MemoryRoutes {
          */
         app.get('/api/memories/:id/list', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const service = memoryServicePool.acquire(memoryId);
-            if (!service) return { memoryId, memories: [] };
+            const service = await memoryServicePool.acquire(memoryId);
             try {
                 const rows = await service.listAll();
                 // body 不返回（避免响应膨胀）；admin UI 单击行后再走 read_memory 取全文
@@ -57,15 +56,15 @@ export class MemoryRoutes {
         app.get('/api/memories/:id/jobs', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
             const limit = Math.max(1, Math.min(Number(req.query.limit ?? 50) || 50, 200));
-            const jobs = memoryServicePool.listPendingJobs(memoryId, limit);
+            const jobs = await memoryServicePool.listPendingJobs(memoryId, limit);
             return { memoryId, jobs };
         }));
 
         /** 手动整理：入队合并重复、删除明显冗余、压缩过长 memory 的后台 job。 */
         app.post('/api/memories/:id/consolidate/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const jobId = memoryServicePool.forceConsolidate(memoryId);
-            return { memoryId, jobId, queued: jobId != null };
+            const jobId = await memoryServicePool.forceConsolidate(memoryId);
+            return { memoryId, jobId };
         }));
 
         /** 单条 memory 全文。 */
@@ -73,8 +72,7 @@ export class MemoryRoutes {
             const memoryId = requireMemoryId(req.params.id);
             const slug = String(req.params.slug ?? '').trim();
             if (!slug) throwBad('Missing slug');
-            const service = memoryServicePool.acquire(memoryId);
-            if (!service) throwBad(`MemoryProfile "${memoryId}" not initialized`);
+            const service = await memoryServicePool.acquire(memoryId);
             try {
                 const row = (await service.listAll()).find(r => r.slug === slug) ?? null;
                 if (!row) throwBad(`Memory "${slug}" not found`);
@@ -89,8 +87,7 @@ export class MemoryRoutes {
             const memoryId = requireMemoryId(req.params.id);
             const slug = String(req.params.slug ?? '').trim();
             if (!slug) throwBad('Missing slug');
-            const service = memoryServicePool.acquire(memoryId);
-            if (!service) throwBad(`MemoryProfile "${memoryId}" not initialized`);
+            const service = await memoryServicePool.acquire(memoryId);
             try {
                 const archive = await service.deleteMemory(slug);
                 return { memoryId, slug, archive };
@@ -106,8 +103,7 @@ export class MemoryRoutes {
          */
         app.post('/api/memories/:id/reconcile/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const service = memoryServicePool.acquire(memoryId);
-            if (!service) throwBad(`MemoryProfile "${memoryId}" not initialized`);
+            const service = await memoryServicePool.acquire(memoryId);
             try {
                 const stats = await service.reconcile();
                 return { memoryId, ...stats };

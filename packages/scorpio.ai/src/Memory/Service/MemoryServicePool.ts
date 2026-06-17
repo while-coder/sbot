@@ -86,31 +86,45 @@ export class MemoryServicePool {
 
     /**
      * 拿一个 service 引用并 incRef。caller 用完务必调 `service.release()`。
-     * cache 中只可能有"还活着"的 service —— refCount 归零的 service 会通过 onDispose
-     * 自我从 cache 移除，所以这里直接 get 就行。
+     *
+     * 流程：
+     * - cache miss → 同步 build + cache.set（同步路径无 await 缝隙，保证同 memoryId 只构造一次实例）
+     * - 然后 await service.init() —— service 自身做 once-only dedup（reconcile + 唤醒 drain），
+     *   多个并发 acquire 共享同一个 init promise，索引就绪后才返回
+     * - 命中已 resolved 的 promise 几乎零成本（一次 microtask）
+     *
+     * memoryId 配置错误（profile 不存在 / disabled）直接 throw —— caller 应当在调用前
+     * 自行 guard。后续 acquire 不会再唤醒 drain；chat 路径靠 extractFromConversation
+     * 自启 drain，admin 走 forceExtract 时自带显式 processPending。
      */
-    acquire(memoryId: string): IMemoryService | null {
-        let service = this.cache.get(memoryId);
-        if (!service) {
-            service = this.build(memoryId) ?? undefined;
-            if (!service) return null;
+    async acquire(memoryId: string): Promise<IMemoryService> {
+        let service: MemoryService;
+        const cached = this.cache.get(memoryId);
+        if (cached) {
+            service = cached;
+        } else {
+            service = this.build(memoryId);
+            this.cache.set(memoryId, service);
         }
+
+        await service.init();
         service.incRef();
-        // incRef 之后再 kick drain：drain 自固定的引用是叠加在 caller 的 1 之上，
-        // 即便队列空导致 drain 立刻 release，refCount 也不会落到 0。
-        service.processPending();
         return service;
     }
 
     /**
      * 标记 service 在 refCount 归零 teardown 时执行 store.deleteAll()。
-     * 返回 true = 已标记；false = 没有活实例且 resolver 也拉不起来（caller 自处理）。
+     * 返回 true = 已标记；false = cache 没命中（caller 自处理 fs.rm）。
+     *
+     * 不走 acquire/release —— markForDeletion 只是设置 deleteOnTeardown 这个 boolean，
+     * 不需要持有引用。cache 里活着的 service refCount 必然 > 0（归零会立即 evict），
+     * 标记后等所有 caller 自然 release 到归零，service.release() 内部统一处理 deleteAll。
      */
     markForDeletion(memoryId: string): boolean {
-        const service = this.acquire(memoryId) as MemoryService | null;
+        const service = this.cache.get(memoryId);
         if (!service) return false;
-        try { service.markForDeletion(); return true; }
-        finally { service.release(); }
+        service.markForDeletion();
+        return true;
     }
 
     /** Service 自驱逐：refCount 归零 teardown 完成后由 service.release() 调进来。 */
@@ -125,33 +139,36 @@ export class MemoryServicePool {
     }
 
     /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 自行轮询 listPendingJobs 看进度）。 */
-    forceExtract(memoryId: string): boolean {
-        const service = this.acquire(memoryId);
-        if (!service) return false;
-        try { service.processPending(); return true; }
+    async forceExtract(memoryId: string): Promise<void> {
+        const service = await this.acquire(memoryId);
+        try { service.processPending(); }
         finally { service.release(); }
     }
 
-    forceConsolidate(memoryId: string): number | null {
-        const service = this.acquire(memoryId);
-        if (!service) return null;
+    async forceConsolidate(memoryId: string): Promise<number> {
+        const service = await this.acquire(memoryId);
         try { return service.enqueueConsolidate(); }
         finally { service.release(); }
     }
 
-    listPendingJobs(memoryId: string, limit = 50): PendingMemoryJobRow[] {
-        const service = this.acquire(memoryId);
-        if (!service) return [];
+    async listPendingJobs(memoryId: string, limit = 50): Promise<PendingMemoryJobRow[]> {
+        const service = await this.acquire(memoryId);
         try { return service.listPending(limit); }
         finally { service.release(); }
     }
 
-    private build(memoryId: string): MemoryService | null {
-        if (!this.resolveConfig) {
-            throw new Error('MemoryServicePool: resolver not configured. Call setResolver() before use.');
-        }
+    /**
+     * 同步构造 service 实例（DI + store.init），不跑 reconcile。
+     * reconcile 由 service.init() 自身做 once-only dedup，acquire 在 cache.set 后 await 它，
+     * 所以这里保持纯同步即可。
+     *
+     * memoryId 配置缺失（resolver 没配 / profile 不存在）直接 throw —— 这条路径属于配置错误，
+     * caller 应当在调用前自行 guard，不应靠 build 返回 null 兜底。
+     */
+    private build(memoryId: string): MemoryService {
+        if (!this.resolveConfig) throw new Error('MemoryServicePool: resolver not configured. Call setResolver() before use.');
         const cfg = this.resolveConfig(memoryId);
-        if (!cfg) return null;
+        if (!cfg) throw new Error(`MemoryServicePool: unknown or disabled memoryId "${memoryId}"`);
 
         const sub = new ServiceContainer();
         if (this.loggerService) sub.registerInstance(ILoggerService, this.loggerService);
@@ -164,26 +181,10 @@ export class MemoryServicePool {
         });
         sub.registerSingleton(IMemoryService, MemoryService);
 
-        const store = sub.resolve<IMemoryStore>(IMemoryStore);
+        // store 在 resolve 时就完成 mkdir；db/searcher 仍 lazy
+        sub.resolve<IMemoryStore>(IMemoryStore);
         const service = sub.resolve<MemoryService>(IMemoryService) as MemoryService;
-
-        this.cache.set(memoryId, service);
-
-        store.init();
-
-        // 启动时跑一次 reconcile（异步，使用 fs/promises），不阻塞 build
-        store.reconcile().then(stats => {
-            if (stats.indexed > 0 || stats.pruned > 0) {
-                this.logger?.info(`[${memoryId}] startup reconcile: indexed=${stats.indexed} pruned=${stats.pruned}`);
-            }
-        }).catch(e => {
-            this.logger?.warn(`[${memoryId}] startup reconcile failed: ${e?.message ?? e}`);
-        });
-
-        // 历史 pending 由 acquire 在 incRef 之后 kick；这里不再 processPending，
-        // 否则 drain 自固定结束时会自我 teardown（caller 还没 incRef）。
         this.logger?.info(`MemoryService [${memoryId}] built`);
-
         return service;
     }
 }

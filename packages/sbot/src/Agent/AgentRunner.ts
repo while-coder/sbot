@@ -123,8 +123,8 @@ export class AgentRunner {
         container.registerInstance(T_ChannelSessionId, channelSessionId);
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
-        const memoryService = AgentRunner.registerMemoryService(container, options.memoryId);
-        const agendaService = AgentRunner.registerAgendaService(container, options.agendaId);
+        const memoryService = await AgentRunner.registerMemoryService(container, options.memoryId);
+        const agendaService = await AgentRunner.registerAgendaService(container, options.agendaId);
 
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
         let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
@@ -255,14 +255,14 @@ export class AgentRunner {
      * 返回 acquire 到的 service 引用；caller（run finally）负责调 service.release()
      * 来减 refCount。
      */
-    private static registerMemoryService(
+    private static async registerMemoryService(
         container: ServiceContainer,
         memoryId: string | null | undefined,
-    ): IMemoryService | null {
+    ): Promise<IMemoryService | null> {
         if (!memoryId) return null;
         const profileConfig = config.getMemoryProfile(memoryId);
         if (!profileConfig?.enabled) return null;
-        const service = memoryServicePool.acquire(memoryId);
+        const service = await memoryServicePool.acquire(memoryId);
         if (service) container.registerInstance(IMemoryService, service);
         return service;
     }
@@ -273,15 +273,15 @@ export class AgentRunner {
      * 来减 refCount。channelSessionId 不进 service 构造器，由 SingleAgentService 通过
      * T_ChannelSessionId 注入到 agenda tool / extractFromConversation 调用点。
      */
-    private static registerAgendaService(
+    private static async registerAgendaService(
         container: ServiceContainer,
         agendaId: string | null | undefined,
-    ): IAgendaService | null {
+    ): Promise<IAgendaService | null> {
         if (!agendaId) return null;
         const profileConfig = config.getAgendaProfile(agendaId);
         if (!profileConfig?.enabled) return null;
-        const service = agendaServicePool.acquire(agendaId);
-        if (service) container.registerInstance(IAgendaService, service);
+        const service = await agendaServicePool.acquire(agendaId);
+        container.registerInstance(IAgendaService, service);
         return service;
     }
 }

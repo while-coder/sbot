@@ -45,14 +45,10 @@ export class MemoryStore implements IMemoryStore {
     ) {
         this.memoriesDir = path.join(rootDir, "memories");
         this.archiveDir = path.join(this.memoriesDir, ".archive");
-    }
-
-    init(): void {
+        // mkdir 是 init 时唯一必须 eager 做的副作用：reconcile / softDelete / create
+        // 都需要这两个目录已存在。db / searcher 仍走 lazy getter，第一次用时自动建。
         if (!existsSync(this.memoriesDir)) mkdirSync(this.memoriesDir, { recursive: true });
         if (!existsSync(this.archiveDir)) mkdirSync(this.archiveDir, { recursive: true });
-        // 触发 lazy init（DB schema + HybridSearcher 自管 searcher.sqlite）
-        void this.db;
-        void this.searcher;
     }
 
     /**

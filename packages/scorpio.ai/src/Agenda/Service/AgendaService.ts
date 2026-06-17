@@ -61,6 +61,12 @@ export class AgendaService implements IAgendaService {
     private isRunning = false;
     private refCount = 0;
     private disposed = false;
+    /**
+     * pool.acquire 第一次调用 init() 时启动；并发 caller 共享同一 promise。
+     * Agenda 没有 reconcile，init 只负责唤醒一次 drain 消化进程崩溃前残留的 pending job。
+     * 后续 acquire 命中已 resolved 的 promise，零成本。
+     */
+    private initPromise?: Promise<void>;
 
     constructor(
         @inject(T_AgendaToolDescs) private toolDescs: AgendaToolDescs,
@@ -84,6 +90,20 @@ export class AgendaService implements IAgendaService {
         if (--this.refCount !== 0 || this.disposed) return;
         this.disposed = true;
         agendaServicePool.evict(this);
+    }
+
+    /**
+     * 由 pool 在每次 acquire 时调用：单实例只真正跑一次（唤醒 pending drain），
+     * 并发 caller 共享同一个 promise；后续命中已 resolved 的 promise，零成本。
+     * Agenda 没有 reconcile，init 仅负责"启动后第一次唤醒 drain"。
+     */
+    init(): Promise<void> {
+        if (!this.initPromise) {
+            this.initPromise = Promise.resolve().then(() => {
+                this.processPending();
+            });
+        }
+        return this.initPromise;
     }
 
     getToolDescs(): AgendaToolDescs {

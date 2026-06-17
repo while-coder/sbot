@@ -135,6 +135,12 @@ export class MemoryService implements IMemoryService {
     private refCount = 0;
     private disposed = false;
     private deleteOnTeardown = false;
+    /**
+     * pool.acquire 第一次调用 init() 时启动；并发 caller 共享同一 promise，零成本。
+     * 失败 warn 但保留 resolved promise，避免下次 acquire 反复重试。
+     * 注意：不复用给 admin 手动 reconcile()——那条路径每次都重新扫盘。
+     */
+    private initPromise?: Promise<void>;
 
     constructor(
         @inject(IMemoryStore) private readonly store: IMemoryStore,
@@ -229,6 +235,33 @@ export class MemoryService implements IMemoryService {
             this.logger?.info(`memory admin reconcile: indexed=${stats.indexed} pruned=${stats.pruned}`);
         }
         return stats;
+    }
+
+    /**
+     * 由 pool 在每次 acquire 时调用：单实例只真正跑一次（reconcile + 唤醒 pending drain），
+     * 并发 caller 共享同一个 promise；后续命中已 resolved 的 promise，零成本。
+     *
+     * - reconcile 失败 warn 但保留 resolved promise（不重置）——避免反复重试稳定失败的对账，
+     *   失败时仍可用旧索引；admin 手动按钮走 reconcile() 全量重跑，不受此影响
+     * - processPending 在 reconcile 完成后唤醒一次 drain（消化进程崩溃前残留的 pending job），
+     *   不 await drain（drain self-pin refCount + LLM 调用，可能跑很久；init 只关心索引就绪）
+     */
+    init(): Promise<void> {
+        if (!this.initPromise) {
+            this.initPromise = this.store.reconcile()
+                .then(stats => {
+                    if (stats.indexed > 0 || stats.pruned > 0) {
+                        this.logger?.info(`memory init reconcile: indexed=${stats.indexed} pruned=${stats.pruned}`);
+                    }
+                })
+                .catch(e => {
+                    this.logger?.warn(`memory init reconcile failed: ${e?.message ?? e}`);
+                })
+                .finally(() => {
+                    this.processPending();
+                });
+        }
+        return this.initPromise;
     }
 
     // ── 写路径：入队 + 串行消费 ──
