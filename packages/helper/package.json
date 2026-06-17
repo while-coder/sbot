@@ -11,17 +11,17 @@
     "linux:build": "tauri build"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-dialog": "^2",
-    "@tauri-apps/plugin-process": "^2",
-    "@tauri-apps/plugin-updater": "^2",
-    "vue": "^3.5.33",
-    "vue-router": "^4.4.5"
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-process": "catalog:",
+    "@tauri-apps/plugin-updater": "catalog:",
+    "vue": "catalog:",
+    "vue-router": "catalog:"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "@vitejs/plugin-vue": "^6.0.6",
+    "@tauri-apps/cli": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
     "typescript": "catalog:",
-    "vite": "^8.0.9"
+    "vite": "catalog:"
   }
 }
