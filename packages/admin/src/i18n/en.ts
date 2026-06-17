@@ -187,7 +187,7 @@ export default {
     section_channel_advanced: 'Channel Advanced',
     section_common: 'Common',
     section_resources_workspace: 'Knowledge & Workspace',
-    section_automation_memory: 'Automation Memory',
+    section_automation_memory: 'Memory & Agenda',
     section_runtime: 'Runtime Controls',
     section_advanced_show: 'Show advanced ({n})',
     section_advanced_hide: 'Hide advanced',
