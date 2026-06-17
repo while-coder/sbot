@@ -23,3 +23,4 @@ This release includes the following main changes:
 2. Fixed inconsistent "current time" / "today's date" reported in tool calls.
 3. Fixed image resize edge cases when handling large or non-standard inputs.
 4. Fixed channel prompt loading in some configurations.
+5. Fixed the built-in Web channel being reloaded after saving channel settings, which dropped in-progress chat connections.
