@@ -17,7 +17,7 @@ async function killTree(proc: ChildProcess, isExited: () => boolean): Promise<vo
 
     if (process.platform === 'win32') {
         await new Promise<void>((resolve) => {
-            const killer = spawn('taskkill', ['/pid', String(pid), '/f', '/t'], { stdio: 'ignore' });
+            const killer = spawn('taskkill', ['/pid', String(pid), '/f', '/t'], { stdio: 'ignore', windowsHide: true });
             killer.once('exit', () => resolve());
             killer.once('error', () => resolve());
         });
@@ -121,12 +121,14 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
         let settled = false;
 
         // detached: !win32 —— 让子进程成为新进程组组长，killTree 才能 kill -pgid 杀到孙子进程。
+        // windowsHide: true —— Windows 下不弹出控制台窗口，静默执行。
         const proc = spawn(file, args, {
             shell,
             cwd,
             env: buildChildEnv(),
             stdio: [stdin !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
             detached: process.platform !== 'win32',
+            windowsHide: true,
         });
 
         if (stdin !== undefined && proc.stdin) {
