@@ -20,7 +20,6 @@
   "dependencies": {
     "ansi-escapes": "^7.3.0",
     "axios": "catalog:",
-    "chalk": "^5.6.2",
     "ink": "^7.0.1",
     "ink-spinner": "^5.0.0",
     "marked": "catalog:",

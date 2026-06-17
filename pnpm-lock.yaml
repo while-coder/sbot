@@ -18,9 +18,6 @@ catalogs:
     '@tauri-apps/plugin-updater':
       specifier: ^2.10.1
       version: 2.10.1
-    '@tiptap/extension-dropcursor':
-      specifier: ^3.26.1
-      version: 3.26.1
     '@tiptap/extension-image':
       specifier: ^3.26.1
       version: 3.26.1
@@ -105,21 +102,6 @@ importers:
       '@sbot/chat-ui':
         specifier: workspace:*
         version: link:../chat-ui
-      '@tiptap/extension-dropcursor':
-        specifier: 'catalog:'
-        version: 3.26.1(@tiptap/extensions@3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1))
-      '@tiptap/extension-image':
-        specifier: 'catalog:'
-        version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))
-      '@tiptap/extension-placeholder':
-        specifier: 'catalog:'
-        version: 3.26.1(@tiptap/extensions@3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1))
-      '@tiptap/starter-kit':
-        specifier: 'catalog:'
-        version: 3.26.1
-      '@tiptap/vue-3':
-        specifier: 'catalog:'
-        version: 3.26.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)(vue@3.5.38(typescript@6.0.3))
       axios:
         specifier: 'catalog:'
         version: 1.18.0
@@ -410,6 +392,18 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.1
         version: 6.43.1
+      '@tiptap/extension-image':
+        specifier: 'catalog:'
+        version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))
+      '@tiptap/extension-placeholder':
+        specifier: 'catalog:'
+        version: 3.26.1(@tiptap/extensions@3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1))
+      '@tiptap/starter-kit':
+        specifier: 'catalog:'
+        version: 3.26.1
+      '@tiptap/vue-3':
+        specifier: 'catalog:'
+        version: 3.26.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)(vue@3.5.38(typescript@6.0.3))
       '@xterm/addon-fit':
         specifier: ^0.11.0
         version: 0.11.0
@@ -435,21 +429,6 @@ importers:
         specifier: ^6.1.1
         version: 6.1.1(codemirror@6.0.2)(vue@3.5.38(typescript@6.0.3))
     devDependencies:
-      '@tiptap/extension-dropcursor':
-        specifier: 'catalog:'
-        version: 3.26.1(@tiptap/extensions@3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1))
-      '@tiptap/extension-image':
-        specifier: 'catalog:'
-        version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))
-      '@tiptap/extension-placeholder':
-        specifier: 'catalog:'
-        version: 3.26.1(@tiptap/extensions@3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1))
-      '@tiptap/starter-kit':
-        specifier: 'catalog:'
-        version: 3.26.1
-      '@tiptap/vue-3':
-        specifier: 'catalog:'
-        version: 3.26.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)(vue@3.5.38(typescript@6.0.3))
       '@types/dompurify':
         specifier: ^3.2.0
         version: 3.2.0
@@ -462,9 +441,6 @@ importers:
       axios:
         specifier: 'catalog:'
         version: 1.18.0
-      chalk:
-        specifier: ^5.6.2
-        version: 5.6.2
       ink:
         specifier: ^7.0.1
         version: 7.0.1(@types/react@19.2.14)(react@19.2.5)
@@ -572,9 +548,6 @@ importers:
       axios:
         specifier: 'catalog:'
         version: 1.18.0
-      better-sqlite3:
-        specifier: 'catalog:'
-        version: 12.11.1
       channel.base:
         specifier: workspace:*
         version: link:../channel.base
@@ -605,9 +578,6 @@ importers:
       commander:
         specifier: 'catalog:'
         version: 15.0.0
-      cron:
-        specifier: 'catalog:'
-        version: 4.4.0
       diff:
         specifier: ^9.0.0
         version: 9.0.0
@@ -657,9 +627,6 @@ importers:
       '@types/adm-zip':
         specifier: ^0.5.8
         version: 0.5.8
-      '@types/better-sqlite3':
-        specifier: 'catalog:'
-        version: 7.6.13
       '@types/diff':
         specifier: ^8.0.0
         version: 8.0.0

@@ -17,11 +17,6 @@
     "Chat"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [
-    "onView:sbot.chatView",
-    "onCommand:sbot.openChat",
-    "onCommand:sbot.selectServer"
-  ],
   "contributes": {
     "viewsContainers": {
       "secondarySidebar": [
