@@ -235,6 +235,48 @@ export class SbotClient {
     return `${this.baseUrl}/api/fs/entry/raw?path=${encodeURIComponent(filePath)}`;
   }
 
+  /**
+   * Stream a file's raw bytes from the server straight to disk (no full-file buffering),
+   * reporting progress as bytes arrive. Writes to a `.part` temp file and renames on
+   * success; the partial file is removed on error/cancel so a failed download never
+   * clobbers an existing target.
+   */
+  async downloadToFile(
+    filePath: string,
+    destPath: string,
+    opts: { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void } = {},
+  ): Promise<void> {
+    const fs = require('node:fs') as typeof import('node:fs');
+    const res = await this.http.get('/api/fs/entry/raw', {
+      params: { path: filePath },
+      responseType: 'stream',
+      signal: opts.signal,
+    });
+    const total = Number(res.headers['content-length'] ?? 0);
+    const stream = res.data as NodeJS.ReadableStream;
+    const tmpPath = `${destPath}.part`;
+    const out = fs.createWriteStream(tmpPath);
+    let loaded = 0;
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        stream.on('data', (chunk: Buffer) => {
+          loaded += chunk.length;
+          opts.onProgress?.(loaded, total);
+        });
+        stream.on('error', reject);
+        out.on('error', reject);
+        out.on('finish', resolve);
+        stream.pipe(out);
+      });
+      await fs.promises.rename(tmpPath, destPath);
+    } catch (err) {
+      try { out.destroy(); } catch { /* ignore */ }
+      await fs.promises.unlink(tmpPath).catch(() => {});
+      throw err;
+    }
+  }
+
   async gitStatus(root: string): Promise<any> {
     const res = await this.http.get('/api/git/status', { params: { root } });
     return res.data.data ?? res.data;

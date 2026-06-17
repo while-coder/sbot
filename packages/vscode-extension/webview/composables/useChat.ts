@@ -161,6 +161,7 @@ export class VsCodeTransport implements IChatTransport {
   readFile(path: string): Promise<FsReadResult> { return rpc('readFile', path) }
   writeFile(path: string, content: string, expectedMtime?: number): Promise<FsWriteResult> { return rpc('writeFile', path, content, expectedMtime) }
   getRawFileUrl(_path: string): string { return '' }
+  downloadFile(path: string): Promise<void> { return rpc('downloadFile', path) }
   gitStatus(root: string): Promise<GitStatusResult> { return rpc('gitStatus', root) }
   gitDiff(root: string, path: string, fullContent = false): Promise<GitDiffResult> { return rpc('gitDiff', root, path, fullContent) }
 

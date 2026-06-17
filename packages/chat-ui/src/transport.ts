@@ -45,6 +45,11 @@ export interface IChatTransport {
   writeFile(path: string, content: string, expectedMtime?: number): Promise<FsWriteResult>
   /** 返回可直接下载/在新标签页打开的原始文件 URL；用于 tooLarge 或 binary 等无法在 viewer 中显示的场景 */
   getRawFileUrl(path: string): string
+  /**
+   * 触发把文件下载/保存到用户本地。由 transport 决定具体方式（浏览器直接下载 vs 宿主弹保存对话框）。
+   * 不实现时回退到 getRawFileUrl 的链接方式。
+   */
+  downloadFile?(path: string): Promise<void>
   gitStatus(root: string): Promise<GitStatusResult>
   gitDiff(root: string, path: string, fullContent?: boolean): Promise<GitDiffResult>
 

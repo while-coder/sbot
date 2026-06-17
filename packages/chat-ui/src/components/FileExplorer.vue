@@ -700,6 +700,23 @@ const rawDownloadHref = computed(() =>
     ? props.transport.getRawFileUrl(selectedPath.value)
     : '',
 )
+// 宿主代为下载（如 VSCode 插件：webview 无法直接用 <a href> 触达服务器）。
+// 与 rawDownloadHref 天然互斥：实现了 downloadFile 的 transport 通常让 getRawFileUrl 返回空串。
+const useHostDownload = computed(() => typeof props.transport.downloadFile === 'function')
+
+async function onDownload(): Promise<void> {
+  const p = selectedPath.value
+  if (!p) return
+  if (typeof props.transport.downloadFile === 'function') {
+    try {
+      await props.transport.downloadFile(p)
+    } catch (e: any) {
+      errMsg.value = e?.message ?? String(e)
+    }
+  } else if (rawDownloadHref.value) {
+    window.open(rawDownloadHref.value, '_blank', 'noopener')
+  }
+}
 
 function openImagePreview(): void {
   if (imageSrc.value) imageLightbox.value?.open(imageSrc.value)
@@ -877,7 +894,14 @@ onMounted(() => {
           <span class="chatui-explorer-meta">{{ fmtSize(fileSize) }}</span>
           <span v-if="isDirty" class="chatui-explorer-dirty" :title="L.explorerEditDirty">●</span>
           <SIconButton
-            v-if="rawDownloadHref"
+            v-if="useHostDownload"
+            variant="outline"
+            size="sm"
+            :title="L.explorerDownload || 'Download'"
+            @click="onDownload"
+          >⤓</SIconButton>
+          <SIconButton
+            v-else-if="rawDownloadHref"
             variant="outline"
             size="sm"
             :href="rawDownloadHref"
@@ -910,7 +934,10 @@ onMounted(() => {
         <div v-else-if="errMsg" class="chatui-explorer-state chatui-explorer-error">{{ errMsg }}</div>
         <div v-else-if="fileTooLarge" class="chatui-explorer-state">
           <div>{{ tpl(L.explorerTooLarge, { size: fmtSize(fileSize) }) }}</div>
-          <a v-if="rawDownloadHref" class="chatui-explorer-link" :href="rawDownloadHref" target="_blank" rel="noopener">
+          <button v-if="useHostDownload" type="button" class="chatui-explorer-link" @click="onDownload">
+            {{ L.explorerDownload || 'Download full file' }}
+          </button>
+          <a v-else-if="rawDownloadHref" class="chatui-explorer-link" :href="rawDownloadHref" target="_blank" rel="noopener">
             {{ L.explorerDownload || 'Download full file' }}
           </a>
         </div>
@@ -921,7 +948,10 @@ onMounted(() => {
         </div>
         <div v-else-if="isUnsupportedBinary" class="chatui-explorer-state">
           <div>{{ L.explorerBinaryFile }}</div>
-          <a v-if="rawDownloadHref" class="chatui-explorer-link" :href="rawDownloadHref" target="_blank" rel="noopener">
+          <button v-if="useHostDownload" type="button" class="chatui-explorer-link" @click="onDownload">
+            {{ L.explorerDownload || 'Download file' }}
+          </button>
+          <a v-else-if="rawDownloadHref" class="chatui-explorer-link" :href="rawDownloadHref" target="_blank" rel="noopener">
             {{ L.explorerDownload || 'Download file' }}
           </a>
         </div>
@@ -1183,6 +1213,13 @@ onMounted(() => {
   color: var(--chatui-link, #2563eb);
   font-size: 12px;
   text-decoration: underline;
+}
+button.chatui-explorer-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
 }
 .chatui-explorer-state {
   flex: 1;

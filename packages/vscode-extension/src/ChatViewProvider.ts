@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import WebSocket from 'ws';
 import { WebChatEventType, WsCommandType, type WebChatEvent } from 'sbot.commons';
 import { SbotClient } from './SbotClient';
@@ -180,6 +181,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
         return client.fetchThinks(args[0]);
       case 'listShells':
         return client.listShells();
+      case 'downloadFile':
+        return this.downloadFile(args[0]);
       default:
         throw new Error(`Unknown RPC method: ${method}`);
     }
@@ -261,6 +264,48 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     this.ptySockets.clear();
   }
 
+  // ── Download ──
+  // The webview can't navigate to the server URL (CSP + server connection lives here),
+  // so the host fetches the bytes and saves them via the native save dialog.
+
+  private async downloadFile(filePath: string): Promise<void> {
+    const name = filePath.split(/[\\/]/).pop() || 'download';
+    const baseDir = this.getWorkspaceFolder() ?? os.homedir();
+    const target = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(path.join(baseDir, name)),
+      saveLabel: 'Download',
+    });
+    if (!target) return; // user cancelled the save dialog
+
+    const client = this.ensureClient();
+    let cancelled = false;
+    try {
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Downloading ${name}`, cancellable: true },
+        async (progress, token) => {
+          const controller = new AbortController();
+          token.onCancellationRequested(() => { cancelled = true; controller.abort(); });
+          let lastPct = 0;
+          await client.downloadToFile(filePath, target.fsPath, {
+            signal: controller.signal,
+            onProgress: (loaded, total) => {
+              if (!total) { progress.report({ message: formatBytes(loaded) }); return; }
+              const pct = Math.floor((loaded / total) * 100);
+              if (pct > lastPct) {
+                progress.report({ increment: pct - lastPct, message: `${pct}% · ${formatBytes(loaded)} / ${formatBytes(total)}` });
+                lastPct = pct;
+              }
+            },
+          });
+        },
+      );
+      void vscode.window.showInformationMessage(`Downloaded: ${target.fsPath}`);
+    } catch (e: any) {
+      if (cancelled) return; // user aborted — stay quiet
+      void vscode.window.showErrorMessage(`Download failed: ${e?.message ?? e}`);
+    }
+  }
+
   private onServerEvent = (event: WebChatEvent) => {
     const chatType = EVENT_TYPE_MAP[event.type];
     if (!chatType) return;
@@ -326,6 +371,14 @@ function getNonce(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   for (let i = 0; i < 32; i++) text += chars.charAt(Math.floor(Math.random() * chars.length));
   return text;
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes < 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const value = bytes / Math.pow(1024, i);
+  return `${i === 0 ? value : value.toFixed(1)} ${units[i]}`;
 }
 
 function isLocalBaseUrl(baseUrl: string): boolean {
