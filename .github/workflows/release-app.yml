@@ -261,32 +261,6 @@ jobs:
         working-directory: packages/vscode-extension
         run: npx --yes @vscode/vsce package --no-dependencies --out "sbot-vscode-${{ steps.version.outputs.version }}.vsix"
 
-      - name: Publish to VS Marketplace
-        if: github.event_name == 'push'
-        working-directory: packages/vscode-extension
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        shell: bash
-        run: |
-          VSIX="sbot-vscode-${{ steps.version.outputs.version }}.vsix"
-
-          set +e
-          OUT=$(npx --yes @vscode/vsce publish --no-dependencies --packagePath "$VSIX" 2>&1)
-          CODE=$?
-          set -e
-          echo "$OUT"
-          [ $CODE -eq 0 ] && exit 0
-
-          # Same version already on the Marketplace — skip without failing the workflow,
-          # so the rest of the release pipeline (desktop/android) isn't blocked by a
-          # re-run of the same tag. Bump the version to actually push an update.
-          if echo "$OUT" | grep -qi "already exists"; then
-            echo "::warning::v${{ steps.version.outputs.version }} already on Marketplace — skipped. Bump packages/vscode-extension/package.json to release a new version."
-            exit 0
-          fi
-
-          exit $CODE
-
       - name: Attach VSIX to release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
