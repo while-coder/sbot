@@ -34,7 +34,7 @@ export type {
 
 export { MessageRole, MessageKind, ContentPartType, AskQuestionType, ChatEventType, ToolApproval } from './types';
 
-export type { FsUploadOptions, FsUploadProgress, IChatTransport } from './transport';
+export type { FsUploadOptions, FsUploadProgress, IChatTransport, ShellOption } from './transport';
 
 export { getContentParts, renderMd, fmtTs, fmtDateSep, toggleToolCall } from './messageRender';
 export { inlineArgs, resultPreview } from './toolCallFormat';

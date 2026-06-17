@@ -1,4 +1,4 @@
-import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, FsWriteResult, GitStatusResult, GitDiffResult, RemoteEntry, FsUploadOptions, FsUploadProgress } from '@sbot/chat-ui'
+import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, FsWriteResult, GitStatusResult, GitDiffResult, RemoteEntry, FsUploadOptions, FsUploadProgress, ShellOption } from '@sbot/chat-ui'
 
 declare function acquireVsCodeApi(): { postMessage(msg: any): void }
 const vscode = acquireVsCodeApi()
@@ -10,6 +10,9 @@ let rpcId = 0
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>()
 const handlers = new Set<EventHandler>()
 
+let ptySeq = 0
+const ptySockets = new Map<number, PtyProxySocket>()
+
 window.addEventListener('message', (e: MessageEvent) => {
   const msg = e.data
   if (msg.type === 'rpc-result') {
@@ -20,8 +23,70 @@ window.addEventListener('message', (e: MessageEvent) => {
     if (p) { pending.delete(msg.id); p.reject(new Error(msg.error)) }
   } else if (msg.type === 'event') {
     handlers.forEach(h => h(msg.event))
+  } else if (msg.type === 'pty-open') {
+    ptySockets.get(msg.id)?.handleOpen()
+  } else if (msg.type === 'pty-message') {
+    ptySockets.get(msg.id)?.handleMessage(msg.data)
+  } else if (msg.type === 'pty-error') {
+    ptySockets.get(msg.id)?.handleError()
+  } else if (msg.type === 'pty-close') {
+    ptySockets.get(msg.id)?.handleClose(msg.code, msg.reason)
   }
 })
+
+/**
+ * A WebSocket-compatible shim that relays a single pty session through the
+ * extension host over postMessage. Implements just the subset Terminal.vue uses
+ * (onopen/onmessage/onerror/onclose, send, close, readyState + WebSocket.OPEN).
+ */
+class PtyProxySocket {
+  static readonly CONNECTING = 0
+  static readonly OPEN = 1
+  static readonly CLOSING = 2
+  static readonly CLOSED = 3
+
+  readyState = PtyProxySocket.CONNECTING
+  onopen: ((ev?: any) => void) | null = null
+  onmessage: ((ev: { data: any }) => void) | null = null
+  onerror: ((ev?: any) => void) | null = null
+  onclose: ((ev?: any) => void) | null = null
+
+  constructor(private readonly id: number) {
+    ptySockets.set(id, this)
+    cmd('ptyOpen', id)
+  }
+
+  send(data: string): void {
+    if (this.readyState !== PtyProxySocket.OPEN) return
+    cmd('ptySend', this.id, data)
+  }
+
+  close(): void {
+    if (this.readyState === PtyProxySocket.CLOSED || this.readyState === PtyProxySocket.CLOSING) return
+    this.readyState = PtyProxySocket.CLOSING
+    cmd('ptyClose', this.id)
+  }
+
+  handleOpen(): void {
+    this.readyState = PtyProxySocket.OPEN
+    this.onopen?.()
+  }
+
+  handleMessage(data: any): void {
+    this.onmessage?.({ data })
+  }
+
+  handleError(): void {
+    this.onerror?.()
+  }
+
+  handleClose(code?: number, reason?: string): void {
+    if (this.readyState === PtyProxySocket.CLOSED) return
+    this.readyState = PtyProxySocket.CLOSED
+    ptySockets.delete(this.id)
+    this.onclose?.({ code, reason })
+  }
+}
 
 function rpc(method: string, ...args: any[]): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -101,6 +166,9 @@ export class VsCodeTransport implements IChatTransport {
 
   getThinksUrlPrefix(profileId: string): string | null { return `/api/profiles/${encodeURIComponent(profileId)}/thinks` }
   async fetchThinks(url: string): Promise<any> { return rpc('fetchThinks', url) }
+
+  listShells(): Promise<ShellOption[]> { return rpc('listShells') }
+  openPty(): WebSocket { return new PtyProxySocket(++ptySeq) as unknown as WebSocket }
 
   getRemotes(): Promise<RemoteEntry[]> { return rpc('getRemotes') }
   saveRemotes(remotes: RemoteEntry[]): Promise<void> { return rpc('saveRemotes', remotes) }

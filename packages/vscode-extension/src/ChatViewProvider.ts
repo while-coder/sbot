@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import WebSocket from 'ws';
 import { WebChatEventType, WsCommandType, type WebChatEvent } from 'sbot.commons';
 import { SbotClient } from './SbotClient';
 
@@ -21,6 +22,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
   private view: vscode.WebviewView | undefined;
   private client: SbotClient | undefined;
   private viewDisposables: vscode.Disposable[] = [];
+  /** Active pty proxy sockets, keyed by the webview-assigned id. */
+  private ptySockets = new Map<number, WebSocket>();
 
   private readonly globalState: vscode.Memento;
   private static readonly REMOTES_KEY = 'sbot.remotes';
@@ -86,6 +89,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     const local = isLocalBaseUrl(input);
     this.customBaseUrl = input;
     this.isLocalServer = local;
+    this.closeAllPty();
     this.client?.dispose();
     this.client = undefined;
     const client = this.ensureClient();
@@ -174,6 +178,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
         return client.gitDiff(args[0], args[1], args[2]);
       case 'fetchThinks':
         return client.fetchThinks(args[0]);
+      case 'listShells':
+        return client.listShells();
       default:
         throw new Error(`Unknown RPC method: ${method}`);
     }
@@ -198,7 +204,61 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       case 'abort':
         client.send(args[0], { type: WsCommandType.Abort });
         break;
+      case 'ptyOpen':
+        this.openPty(args[0]);
+        break;
+      case 'ptySend':
+        this.ptySend(args[0], args[1]);
+        break;
+      case 'ptyClose':
+        this.ptyClose(args[0]);
+        break;
     }
+  }
+
+  // ── Pty proxy ──
+  // The webview cannot open a WebSocket directly (CSP + the server connection lives here),
+  // so it drives a single pty over postMessage and we relay to the server's /ws/pty.
+
+  private openPty(id: number): void {
+    let ws: WebSocket;
+    try {
+      ws = this.ensureClient().openPtySocket();
+    } catch (e: any) {
+      this.postMessage({ type: 'pty-error', id });
+      this.postMessage({ type: 'pty-close', id, reason: e?.message ?? String(e) });
+      return;
+    }
+    this.ptySockets.set(id, ws);
+    ws.on('open', () => this.postMessage({ type: 'pty-open', id }));
+    // Server frames are text: raw pty bytes and JSON control frames alike.
+    ws.on('message', (data: WebSocket.RawData) => {
+      this.postMessage({ type: 'pty-message', id, data: data.toString('utf8') });
+    });
+    ws.on('error', () => this.postMessage({ type: 'pty-error', id }));
+    ws.on('close', (code: number, reason: Buffer) => {
+      this.ptySockets.delete(id);
+      this.postMessage({ type: 'pty-close', id, code, reason: reason?.toString() });
+    });
+  }
+
+  private ptySend(id: number, data: string): void {
+    const ws = this.ptySockets.get(id);
+    if (ws?.readyState === WebSocket.OPEN) ws.send(data);
+  }
+
+  private ptyClose(id: number): void {
+    const ws = this.ptySockets.get(id);
+    if (!ws) return;
+    this.ptySockets.delete(id);
+    try { ws.close(); } catch { /* ignore */ }
+  }
+
+  private closeAllPty(): void {
+    for (const ws of this.ptySockets.values()) {
+      try { ws.close(); } catch { /* ignore */ }
+    }
+    this.ptySockets.clear();
   }
 
   private onServerEvent = (event: WebChatEvent) => {
@@ -250,6 +310,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
   }
 
   private disposeClient(): void {
+    this.closeAllPty();
     this.client?.dispose();
   }
 

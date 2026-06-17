@@ -252,6 +252,19 @@ export class SbotClient {
     return res.data;
   }
 
+  // ── Pty (terminal) ──
+
+  async listShells(): Promise<any[]> {
+    const res = await this.http.get('/api/pty/shells');
+    return res.data.data ?? res.data ?? [];
+  }
+
+  /** Open a fresh WebSocket bound to a single pty session. Caller owns its lifecycle. */
+  openPtySocket(): WebSocket {
+    const url = this.baseUrl.replace(/^http/, 'ws') + '/ws/pty';
+    return new WebSocket(url);
+  }
+
   // ── WebSocket commands ──
 
   send(profileId: string, msg: Record<string, any>): void {
