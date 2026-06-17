@@ -118,13 +118,13 @@ export class SettingsRoutes {
             // 配置变更（writerModel / prompt 等）不强制丢弃缓存实例 —— 那会让同 id 同时跑两个
             // live MemoryService，破坏 store 数据。已 acquire 的实例继续吃旧配置，等 refCount
             // 归零自然 evict，下次 acquire 才拿新配置。
-            afterDelete: async (id) => {
+            //
+            // 走 beforeDelete 而不是 afterDelete —— markForDeletion 内部 acquire 需要 resolver
+            // 仍能解析 profile 配置；afterDelete 时 config 已被删，acquire 会 throw。
+            // markForDeletion 已包含 cache miss / hit 两种情况下的 deleteAll 触发，无需 fallback。
+            beforeDelete: async (id) => {
                 const { memoryServicePool } = await import('../../Memory/MemoryServicePool');
-                // 有活实例 → 打标记，teardown 时由 store.deleteAll() 删
-                if (memoryServicePool.markForDeletion(id)) return;
-                // 无活实例 → 直接 rm（profile 删了，无人会再 acquire）
-                const fs = await import('fs');
-                try { fs.rmSync(config.getMemoryPath(id), { recursive: true, force: true }); } catch {}
+                await memoryServicePool.markForDeletion(id);
             },
         });
         settingsCrudHelper.register(app, 'agendaProfiles', {

@@ -113,18 +113,19 @@ export class MemoryServicePool {
     }
 
     /**
-     * 标记 service 在 refCount 归零 teardown 时执行 store.deleteAll()。
-     * 返回 true = 已标记；false = cache 没命中（caller 自处理 fs.rm）。
+     * profile 删除路径专用：标记 service 在 refCount 归零 teardown 时执行 store.deleteAll()。
      *
-     * 不走 acquire/release —— markForDeletion 只是设置 deleteOnTeardown 这个 boolean，
-     * 不需要持有引用。cache 里活着的 service refCount 必然 > 0（归零会立即 evict），
-     * 标记后等所有 caller 自然 release 到归零，service.release() 内部统一处理 deleteAll。
+     * 必须在 settings 还没把 profile 从 config 中移除之前调用（resolver 仍能解析），
+     * 走 beforeDelete 而不是 afterDelete。流程：
+     * - cache 命中：incRef → 设 flag → release，service 仍被其他 caller 持有，他们归零时触发 deleteAll
+     * - cache miss：build 出新实例 → 设 flag → 立即 release 归零 → service.release() 内部触发 deleteAll
+     *
+     * 统一一条 lifecycle 路径，caller 不需要写 fs.rm fallback。
      */
-    markForDeletion(memoryId: string): boolean {
-        const service = this.cache.get(memoryId);
-        if (!service) return false;
-        service.markForDeletion();
-        return true;
+    async markForDeletion(memoryId: string): Promise<void> {
+        const service = (await this.acquire(memoryId)) as MemoryService;
+        try { service.markForDeletion(); }
+        finally { service.release(); }
     }
 
     /** Service 自驱逐：refCount 归零 teardown 完成后由 service.release() 调进来。 */

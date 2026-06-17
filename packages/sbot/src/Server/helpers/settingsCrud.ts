@@ -7,7 +7,11 @@ export interface SettingsCrudOptions {
     label?: string;
     checkOnUpdate?: boolean;
     checkOnDelete?: boolean;
-    beforeDelete?: (id: string) => void;
+    /**
+     * 删除流程在 config 落库 *之前* 调用——此时 profile 仍在 settings 里，可以走 resolver
+     * 拉服务、做带 lifecycle 的清理（如 service.markForDeletion 触发 store.deleteAll）。
+     */
+    beforeDelete?: (id: string) => Promise<void> | void;
     afterDelete?: (id: string) => Promise<void> | void;
     afterSave?: (id: string) => Promise<void> | void;
     createReturn?: (id: string, body: any) => any;
@@ -49,9 +53,9 @@ export class SettingsCrudHelper {
 
         app.delete(`/api/settings/${section}/:id`, api(async req => {
             const id = req.params.id as string;
-            opts?.beforeDelete?.(id);
             const map = getSection();
             if (checkOnDelete && !map[id]) throwBad(`${label} "${id}" not found`);
+            await opts?.beforeDelete?.(id);
             delete map[id];
             config.saveSettings();
             await opts?.afterDelete?.(id);
