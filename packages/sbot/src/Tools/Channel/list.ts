@@ -51,7 +51,7 @@ export function createChannelListTool(currentChannelId?: string): StructuredTool
                 const channelBlocks = channels.map(([id, c]) => {
                     const caps = channelManager.getChannelCapabilities(id).join(',');
                     const currentAttr = currentChannelId === id ? ' current="1"' : '';
-                    const headAttrs = `id="${id}" type="${c.type}" name="${escapeAttr(c.name ?? '')}" caps="${caps}"${currentAttr}`;
+                    const headAttrs = `type="${c.type}" name="${escapeAttr(c.name ?? '')}" caps="${caps}"${currentAttr}`;
 
                     const lines: string[] = [];
                     if (includeSessions) {

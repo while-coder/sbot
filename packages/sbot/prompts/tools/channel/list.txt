@@ -11,7 +11,7 @@ A <channel> with no matching children is rendered self-closing.
 
 current="1" on a <channel> marks the channel that THIS conversation is happening on. When the user mentions a session/user name without specifying which channel and the name exists on multiple channels, prefer the entry under current="1" — it's almost always what they meant.
 
-Each <session>/<user> exposes only `id` and `name`. Pass that `id` directly to channel_send — it is globally unique across channels. The owning channel (and its caps) is whichever <channel> the row sits under.
+Each <session>/<user> exposes only `id` and `name`. Pass that `id` directly to channel_send — it is globally unique across channels. The owning channel (and its caps) is whichever <channel> the row sits under. Note: <channel> itself has no id — you only ever send to a <session> or <user>, never to a channel directly.
 
 caps (on <channel>) is a comma-separated capability set. Tokens:
   text       — channel_send (kind=text) works on sessions of this channel
