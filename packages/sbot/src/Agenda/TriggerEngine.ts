@@ -30,19 +30,25 @@ const ABSOLUTE_RETRY_DEADLINE_MS = 30 * 60 * 1000;
 export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     private executor = new TimerExecutor<NodeJS.Timeout>({ name: "AgendaTrigger", stop: handle => clearTimeout(handle), concurrencyGuard: true });
     private started = false;
+    private startPromise?: Promise<void>;
 
     constructor(
         private readonly agendaId: string,
         private readonly store: IAgendaStore,
     ) {}
 
-    async start(): Promise<void> {
-        // 幂等保护：重复调用会导致旧 setTimeout handle 被 executor.set 覆盖但未 clearTimeout，
-        // 旧 handle 还会 fire → 同 trigger 双触发 + 内存泄漏。
-        if (this.started) {
-            logger.info(`Agenda trigger engine [agenda=${this.agendaId}] start ignored (already started)`);
-            return;
-        }
+    /**
+     * 幂等 + 可 await：首次调用真正加载并调度已启用 trigger，并发/重复调用共享同一 promise。
+     * 注意 doStart() 会**同步**置 started=true（async 函数在首个 await 前同步执行），
+     * 因此懒创建路径下，pool.get() 里 fire-and-forget 调用 start() 后，
+     * 紧随其后的 reload()→schedule() 已能看到 started=true，不会被静默丢弃。
+     */
+    start(): Promise<void> {
+        if (!this.startPromise) this.startPromise = this.doStart();
+        return this.startPromise;
+    }
+
+    private async doStart(): Promise<void> {
         this.started = true;
         const triggers = await this.store.listEnabledTriggers();
         for (const trigger of triggers) {
@@ -53,6 +59,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
     stopAll(): void {
         this.started = false;
+        this.startPromise = undefined;
         this.executor.stopAll();
     }
 

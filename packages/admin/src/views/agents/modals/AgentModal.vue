@@ -201,6 +201,24 @@ function saveSubAgent() {
   show(t('agents.sub_updated'))
 }
 
+// 由 LLM 根据目标 agent 的 systemPrompt/tools/skills 生成 desc，填回输入框供用户确认/编辑
+const generatingDesc = ref(false)
+async function generateDesc() {
+  if (!subForm.value.id) { show(t('agents.error_agent'), 'error'); return }
+  generatingDesc.value = true
+  try {
+    // 传入编排者（当前正在编辑的 ReAct agent）选定的 model：用同一模型生成描述更贴合编排者的路由判断
+    const res = await apiFetch(`/api/agents/${encodeURIComponent(subForm.value.id)}/generate-desc`, 'POST', { model: form.value.model || undefined })
+    const desc = (res.data?.desc || '').trim()
+    if (desc) subForm.value.desc = desc
+    else show(t('agents.gen_desc_empty'), 'error')
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    generatingDesc.value = false
+  }
+}
+
 async function deleteSubAgent(idx: number) {
   if (!await confirm(t('agents.confirm_delete_sub'), { danger: true })) return
   tempSubAgents.value.splice(idx, 1)
@@ -352,6 +370,11 @@ defineExpose({ open })
       </SSelect>
     </SFormItem>
     <SFormItem :label="t('agents.sub_desc_label') + ' *'">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+        <SButton type="outline" size="sm" :disabled="!subForm.id || generatingDesc" @click="generateDesc">
+          {{ generatingDesc ? t('agents.generating_desc') : t('agents.generate_desc') }}
+        </SButton>
+      </div>
       <STextarea v-model="subForm.desc" :placeholder="t('agents.sub_desc_placeholder')" :rows="3" resize="vertical" />
     </SFormItem>
 

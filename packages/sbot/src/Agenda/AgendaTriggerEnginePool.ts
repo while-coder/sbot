@@ -16,6 +16,13 @@ class AgendaTriggerEnginePool {
         if (!engine) {
             engine = new AgendaTriggerEngine(agendaId, agendaStorePool.get(agendaId));
             this.cache.set(agendaId, engine);
+            // 运行期懒创建的引擎（进程启动后才新增/启用的 agenda profile）也必须 start，
+            // 否则 reload()→schedule() 命中 !started 静默丢弃 timer，trigger 永不触发。
+            // start() 幂等且同步置 started=true，随后的 create()→reload() 即可正常调度；
+            // boot 时 startAll() 仍可 await 同一 startPromise，加载语义不变。
+            void engine.start().catch(e =>
+                logger.warn(`Agenda trigger engine [agenda=${agendaId}] lazy start failed: ${e?.message ?? String(e)}`),
+            );
         }
         return engine;
     }

@@ -407,6 +407,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--sui-sp-1);
+  flex-wrap: nowrap;
 }
 .topbar-link {
   padding: var(--sui-sp-1) var(--sui-sp-5);
@@ -415,6 +416,8 @@ body {
   color: var(--sui-fg-secondary);
   text-decoration: none;
   border-radius: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: background var(--sui-transition-base), color var(--sui-transition-base);
 }
 .topbar-link:hover {
@@ -445,6 +448,7 @@ body {
   font-size: var(--sui-fs-2xl);
   font-weight: 700;
   color: var(--sui-fg);
+  white-space: nowrap;
 }
 .lang-dropdown,
 .theme-dropdown {
