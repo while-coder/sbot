@@ -48,6 +48,10 @@
 - 支持的题型：单选、多选、文本输入
 - 兼容 Web UI 与飞书；用户回答后 Agent 自动继续
 
-## Notes 与 Wiki
+## 知识与记忆
 
-当 [Notes](./note) 或 [Wiki](./wiki) 被分配给会话 / 渠道时，Agent 会自动获得对应的工具用于读取、写入、检索和更新条目。
+当 [Notes](./note)、[Wiki](./wiki)、[Memory](./memory) 或 [Agenda](./agenda) 在会话 / 渠道中启用时，Agent 会自动获得对应的工具：
+
+- **Notes / Wiki** —— 读取、写入、检索和更新条目
+- **Memory** —— `search_memory` / `read_memory`，召回后台提取的长期记忆
+- **Agenda** —— `agenda_create` / `agenda_list` / `agenda_update` / `agenda_complete` / `agenda_cancel` / `agenda_trigger`，管理提醒与日程

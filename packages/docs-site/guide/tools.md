@@ -48,6 +48,10 @@ These tools are available to every agent without any configuration. Toggle them 
 - Supported question types: single-select, multi-select, text input
 - Works across Web UI and Lark; the agent resumes automatically after the user responds
 
-## Notes & Wiki
+## Knowledge & Memory
 
-When a [Notes](./note) or [Wiki](./wiki) is assigned to the session/channel, the agent automatically gets matching tools to read, write, search, and update entries.
+When [Notes](./note), [Wiki](./wiki), [Memory](./memory), or [Agenda](./agenda) is enabled for the session/channel, the agent automatically gets the matching tools:
+
+- **Notes / Wiki** — read, write, search, and update entries
+- **Memory** — `search_memory` / `read_memory` to recall background-extracted long-term memories
+- **Agenda** — `agenda_create` / `agenda_list` / `agenda_update` / `agenda_complete` / `agenda_cancel` / `agenda_trigger` to manage reminders and schedules

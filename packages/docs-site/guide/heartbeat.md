@@ -34,5 +34,6 @@ Heartbeat is a higher-level loop attached to an agent + target; the Scheduler to
 ## Notes
 
 - Each heartbeat target gets its own conversation thread (isolated history)
-- Combine with [Insight](./insight) so the agent learns from each tick
+- Combine with [Memory](./memory) so the agent learns from each tick
+- For stateful reminders/schedules driven by conversation content, use [Agenda](./agenda) instead
 - Disable a heartbeat to pause without losing its config

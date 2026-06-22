@@ -46,10 +46,10 @@ const messages = {
     getStartedLink: '/sbot/guide/getting-started',
     highlights: [
       '<strong>Multi-provider</strong> — OpenAI · Claude · Gemini · Ollama · any OpenAI-compatible API',
-      '<strong>Multi-channel</strong> — Web · CLI · Lark · Slack · WeCom · WeChat · OneBot · XiaoAI · REST · WS',
+      '<strong>Multi-channel</strong> — Web · CLI · Lark · Slack · WeCom · WeChat · DingTalk · QQ · OneBot · XiaoAI · REST · WS',
       '<strong>Multi-mode agents</strong> — Single · ReAct · Generative, plus ACP integration',
-      '<strong>Long-term recall</strong> — Notes (vector) · Wiki (hybrid keyword + semantic) · Insight',
-      '<strong>Proactive runtime</strong> — Heartbeat · cron Scheduler · Todo · Ask',
+      '<strong>Long-term recall</strong> — Notes (vector) · Wiki (hybrid keyword + semantic) · Memory',
+      '<strong>Proactive runtime</strong> — Memory · Agenda · Heartbeat · cron Scheduler · Todo · Ask',
     ],
   },
   'zh-CN': {
@@ -61,10 +61,10 @@ const messages = {
     getStartedLink: '/sbot/zh/guide/getting-started',
     highlights: [
       '<strong>多供应商</strong> — OpenAI · Claude · Gemini · Ollama · 任意 OpenAI 兼容接口',
-      '<strong>多渠道</strong> — Web · CLI · 飞书 · Slack · 企业微信 · 微信 · OneBot · 小爱 · REST · WS',
+      '<strong>多渠道</strong> — Web · CLI · 飞书 · Slack · 企业微信 · 微信 · 钉钉 · QQ · OneBot · 小爱 · REST · WS',
       '<strong>多模式 Agent</strong> — Single · ReAct · Generative，外加 ACP 集成',
-      '<strong>长期记忆</strong> — Notes（向量）· Wiki（关键词 + 语义混合）· Insight',
-      '<strong>主动运行时</strong> — 心跳 · cron 调度器 · 待办 · 提问',
+      '<strong>长期记忆</strong> — Notes（向量）· Wiki（关键词 + 语义混合）· Memory',
+      '<strong>主动运行时</strong> — 记忆 · 日程 · 心跳 · cron 调度器 · 待办 · 提问',
     ],
   },
 }

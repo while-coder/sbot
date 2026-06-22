@@ -38,6 +38,6 @@ Wiki 可在多个层级分配（最具体的优先）：
 - **会话级** —— 在聊天会话中覆盖
 - **渠道级** —— 在渠道中覆盖
 
-## Wiki vs Notes vs Insight
+## Wiki vs Notes vs Memory
 
-参见 [Notes（记忆）](./note#notes-vs-wiki-vs-insight) 中的对比表。
+参见 [Notes](./note#notes-vs-wiki-vs-memory) 中的对比表。

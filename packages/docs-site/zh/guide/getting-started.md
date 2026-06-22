@@ -103,8 +103,9 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 
 可选的下一步：
 
-- **接入渠道** —— 侧栏 → **渠道**，支持飞书 / Slack / 企业微信 / 微信 / OneBot / 小爱。详见 [渠道](./channels)
+- **接入渠道** —— 侧栏 → **渠道**，支持飞书 / Slack / 企业微信 / 微信 / 钉钉 / QQ / OneBot / 小爱。详见 [渠道](./channels)
 - **启用 Wiki** —— 长期知识库。详见 [Wiki](./wiki)
 - **启用 Notes** —— 向量召回式记忆。详见 [Notes](./note)
-- **启用 Insight** —— 静默后置知识提取器。详见 [Insight](./insight)
+- **启用 Memory** —— 由后台 MemoryLLM 自动提取的长期记忆。详见 [Memory](./memory)
+- **启用 Agenda** —— 由对话驱动的提醒 / 日程。详见 [Agenda](./agenda)
 - **安装预制 Agent** —— 侧栏 → **Agent 商店**。详见 [Agent 商店](./agent-store)

@@ -9,10 +9,11 @@
 - **Knowledge base** — Built-in wiki with hybrid keyword + semantic search, referenced by agents during conversations
 - **Long-term memory** — Vector-embedding semantic search for persistent context recall (OpenAI, Google, Ollama, Cohere, VoyageAI)
 - **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
-- **Insight system** — Per-agent silent post-turn extractor that distills user preferences and lessons learned into reusable Markdown notes; auto-marks notes stale and archives them based on usage
+- **Memory** — Per-agent automatic long-term memory: a background MemoryLLM extracts durable knowledge after each conversation idles; the agent reads it back via `search_memory` / `read_memory`, with consolidate/reconcile maintenance
+- **Agenda** — Conversation-driven reminders, schedules, and routines with absolute / interval / cron triggers; optionally synced from the conversation after every turn and delivered to any session or channel
 - **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
-- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, OneBot (QQ), XiaoAI, REST API, WebSocket
+- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), OneBot (QQ), XiaoAI, REST API, WebSocket
 - **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo, ask
 - **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
 - **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources

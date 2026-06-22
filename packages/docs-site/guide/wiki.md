@@ -38,6 +38,6 @@ Wikis can be assigned at multiple scopes (most specific wins):
 - **Per session** — override on the chat session
 - **Per channel** — override per channel
 
-## Wiki vs Notes vs Insight
+## Wiki vs Notes vs Memory
 
-See [Notes (Memory)](./note#notes-vs-wiki-vs-insight) for a comparison table.
+See [Notes](./note#notes-vs-wiki-vs-memory) for a comparison table.

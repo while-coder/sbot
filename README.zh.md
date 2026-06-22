@@ -9,6 +9,8 @@
 
 **开源、自托管的 AI Agent 框架。** 模块化配置：模型、记忆、工具、渠道均可独立组合，按需搭建 Agent —— 在自己的服务器上运行，支持多渠道接入、MCP 工具协议和内置 Web UI，无供应商绑定。
 
+📖 **[完整文档 →](https://while-coder.github.io/sbot/zh/)**
+
 ---
 
 ## 快速开始
@@ -138,7 +140,8 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **知识库** — 内置 Wiki 系统，关键词与语义混合检索，Agent 对话中自动引用
 - **长期记忆** — 基于向量 Embedding 的语义检索（OpenAI、Google、Ollama、Cohere、VoyageAI），持久化上下文记忆
 - **对话压缩** — Token 用量超阈值时自动摘要压缩，保持上下文连续性的同时降低消耗
-- **Insight 洞察** — 按 Agent 配置的静默后置提取器，将用户偏好、项目事实、经验教训沉淀为可复用的 Markdown 笔记，并按使用情况自动标记陈旧、归档过期
+- **记忆（Memory）** — Agent 级自动长期记忆：会话空闲后由后台 MemoryLLM 提炼持久知识，主 Agent 通过 `search_memory` / `read_memory` 召回，并有 consolidate / reconcile 维护任务
+- **日程（Agenda）** — 由对话驱动的提醒、日程与周期任务，支持 absolute / interval / cron 触发器；可每轮对话后从对话自动同步，并投递到任意会话或渠道
 - **心跳唤醒** — 可配置定时提示词，让 Agent 在任意渠道周期性主动发起任务
 - **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态；支持全局与 Agent 级独立配置，故障自动重启
 - **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、OneBot（v11 反向 WebSocket）、小爱音箱、REST API、WebSocket
@@ -151,239 +154,17 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 
 ---
 
-## 使用指南
-
-启动后打开 `http://localhost:5500`，按以下步骤操作：
-
-**1. 添加模型** — 侧栏 → **模型** → 新建
-
-填写 provider、API Key、Base URL 和模型名。支持 OpenAI、Anthropic、Google Gemini、Ollama，以及任何兼容 OpenAI 的接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）。
-
----
-
-**2. 创建 Saver** — 侧栏 → **存储** → 新建
-
-选择对话历史的持久化后端：
-
-| 后端 | 说明 |
-|---|---|
-| 文件 | 每个会话线程存储为独立 JSON 文件（推荐） |
-| SQLite | 本地 SQLite 数据库 |
-| 内存 | 对话完成后即清空，不持久化，适合一次性对话或问答助手 |
-
----
-
-**3. 创建 Agent** — 侧栏 → **Agent** → 新建
-
-选择运行模式：
-- **Single** — 选择模型，填写系统提示词，按需挂载 MCP 工具和技能
-- **ReAct** — 选择 Think 模型，添加子 Agent（每个子 Agent 需填写描述，供 Think 模型调度决策）。Think 模型递归拆解任务并分发；每个子 Agent 对共享记忆拥有只读权限
-- **Generative** — 选择多模态模型，支持图文混合内容生成
-
-→ [MCP 工具](#添加-mcp-工具) · [技能](#管理技能)
-
----
-
-**4. 开始对话** — 选择接入方式
-
-- **会话** — 侧栏 → **聊天** → 新建会话，选择 Agent + Saver + Memory，可配置工作目录
-- **渠道**（即时通讯）— 侧栏 → **渠道** → 新建 → [渠道配置](#渠道配置)，可配置工作目录
-
----
-
-**5. （可选）开启 Wiki 知识库** — 侧栏 → **Wiki** → 新建
-
-内置知识库系统，可手动创建词条（标题 + 内容 + 标签）。创建后将 Wiki 分配给会话或渠道，Agent 对话时可通过内置工具搜索、读取、写入和更新词条。可选填 Embedding 模型以启用语义检索（不填则退回纯关键词检索）。
-
-| 字段 | 说明 |
-|------|------|
-| 名称 | Wiki 标识 |
-| 向量模型 | 可选，启用语义检索；不填则使用关键词匹配 |
-
----
-
-**6. （可选）开启 Memory** — 侧栏 → **记忆** → 新建
-
-Agent 可通过工具调用读写的向量库。需先创建 Embedding 模型（侧栏 → **向量模型** → 新建），然后将 Memory 分配给会话或渠道。检索时按时间衰减加权，写入时自动去重。
-
-| 字段 | 说明 |
-|------|------|
-| 名称 | Memory 标识 |
-| 向量模型 | 用于语义检索（OpenAI、Google、Ollama、Cohere、VoyageAI） |
-
----
-
-**7.（可选）为 Agent 启用 Insight** — Agent 编辑页 → Insight 区块
-
-Insight 是 Agent 级别的静默后置提取器，每轮对话结束后自动运行，将持久价值的知识（用户偏好、项目事实、经验教训）沉淀为可复用的 Markdown 笔记（存放在 `~/.sbot/insights/` 下的 `SKILL.md` 文件）。后续对话开始时，相关 Insight 会通过关键词 + 语义混合检索自动注入到系统提示词中。
-
-| 字段 | 说明 |
-|------|------|
-| Scope | `Disabled` 关闭 / `Per Agent` 该 Agent 跨会话共享 / `Per Session` 按 thread 隔离 |
-| 提取模型 | 用于运行后置提取的模型（一般选成本低、速度快的小模型） |
-| 提取提示词 | 来自 `~/.sbot/prompts/insight/extractor/` 的提示词文件，决定提取内容 |
-
-提取器会根据对话演进对 Insight 执行 `create`（新增）、`patch`（修订）、`delete`（移除）操作。长期未用（默认 30 天）的 Insight 会被标记为陈旧，超期未用（默认 90 天）的会自动归档。
-
----
-
-**8.（可选）安装预打包 Agent** — 侧栏 → **Agent 商店**
-
-从配置好的注册源浏览并安装 Agent。每个安装包内含模型选择、系统提示词、技能与 MCP 服务器配置，一键导入即用。可在 **设置** 中添加自定义注册源 URL。
-
----
-
-### 添加 MCP 工具
-
-侧栏 → **MCP** → 新建
-
-添加工具服务器：
-- **stdio** — 填写命令和参数（如 `npx -y some-mcp-package`）
-- **sse** — 填写远程 URL 和可选请求头
-
-支持全局共享服务器和 Agent 级别独立配置，故障自动重启。然后打开 Agent 编辑页 → MCP 标签页挂载所需服务器。
-
----
-
-### 管理技能
-
-侧栏 → **技能**
-
-技能文件（Markdown 格式）存储在 `~/.sbot/skills/`，可在技能页面从 Clawhub、skills.sh、skillhub.cn 等远程平台搜索并安装，也可手动放入文件夹。在 Agent 编辑页 → 技能标签页中选择要加载的技能，不选则全部加载。
-
----
-
-### 自定义提示词
-
-侧栏 → **提示词**
-
-查看和编辑任意内置提示词（系统提示、Agent 提示、工具描述等），保存后存储在 `~/.sbot/prompts/` 并覆盖默认值，立即生效无需重启。支持 `{varName}` 占位符，运行时自动替换。
-
----
-
-### 心跳唤醒（主动激活）
-
-侧栏 → **心跳**
-
-为 Agent 配置周期性提示词，按固定间隔自动唤醒——适合监控、每日汇总、定时主动推送等场景。每条心跳指向具体的渠道或会话并执行一段提示词模板。一次性任务可结合调度器工具使用。
-
----
-
-### 渠道配置
-
-在 **渠道 → 新建** 中选择类型，填写凭据，再分配 Agent + Saver + Memory。每个用户/群聊的会话自动隔离。
-
-| 类型 | 必填字段 |
-|------|---------|
-| Lark / 飞书 | App ID、App Secret |
-| Slack | Bot Token（`xoxb-...`）、App Token（`xapp-...`）|
-| 企业微信 WeCom | Bot ID、Secret |
-| 微信 WeChat | 扫码登录（自动获取凭据） |
-| 钉钉 DingTalk | Client ID、Client Secret（即 AppKey / AppSecret，Stream 模式） |
-| QQ | App ID、Client Secret（QQ 开放平台官方机器人，WebSocket Gateway） |
-| OneBot | WS 端口（默认 6700）、可选 Access Token，反向 WebSocket，对接 NapCat / go-cqhttp 等 |
-
-**配置飞书 / Lark：**
-1. 在[飞书开放平台](https://open.feishu.cn)（国际版用 [Lark Developer Console](https://open.larksuite.com/)）创建自建应用
-2. 开启**机器人**能力
-3. 在 **权限管理** 中开通以下权限（也可在 **批量开通** 中导入下方 JSON）：
-
-| 权限 | 说明 |
-|------|------|
-| `im:message:send_as_bot` | 以机器人身份发送消息 |
-| `im:message.p2p_msg:readonly` | 接收私聊消息 |
-| `im:message.group_at_msg:readonly` | 接收群聊 @机器人 消息 |
-| `im:message.group_msg` | 接收群聊所有消息 |
-| `im:message:readonly` | 读取消息内容 |
-| `im:chat:readonly` | 读取群信息 |
-| `im:resource` | 读取消息中的文件和图片 |
-| `contact:user.base:readonly` | 读取用户基本信息 |
-| `contact:contact.base:readonly` | 读取通讯录基本信息 |
-
-<details>
-<summary>批量导入 JSON</summary>
-
-```json
-{
-  "scopes": {
-    "tenant": [
-      "contact:contact.base:readonly",
-      "contact:user.base:readonly",
-      "im:chat:readonly",
-      "im:message.group_at_msg:readonly",
-      "im:message.group_msg",
-      "im:message.p2p_msg:readonly",
-      "im:message:readonly",
-      "im:message:send_as_bot",
-      "im:resource"
-    ],
-    "user": []
-  }
-}
-```
-
-</details>
-
-4. 在 **事件与回调** 中将订阅方式设置为**长连接**
-5. 在 Web UI → **渠道** 中创建 Lark 渠道，填入 **App ID** 和 **App Secret**
-
-支持事件去重、互动卡片、多用户上下文隔离，以及文件和图片的收发。
-
-**配置企业微信 / WeCom：**
-1. 在[企业微信管理后台](https://work.weixin.qq.com)创建智能应用，获取 **Bot ID** 和 **Secret**
-2. 在 Web UI → **渠道** 中创建 WeCom 渠道，填入 Bot ID 和 Secret
-
-通过 WebSocket 实时接收和回复消息，支持文件和图片收发。
-
-**配置微信 / WeChat：**
-1. 在 Web UI → **渠道** 中创建 WeChat 渠道
-2. 点击扫码登录，使用微信扫描二维码完成认证
-3. 认证成功后凭据自动保存，渠道即刻上线
-
-微信渠道基于 iLink Bot API 接入，支持文件和图片的收发。
-
----
-
-## 内置工具
-
-**命令执行**
-- Shell 命令与脚本
-- Python / PowerShell 内联执行
-- 引用磁盘脚本文件执行
-- 每条命令可独立配置超时时间
-
-**文件系统**
-- 读取、写入、编辑文件
-- 正则内容搜索（grep）
-- 按模式匹配查找文件（glob）
-- 目录列举、创建、删除、移动、复制
-- 媒体文件读取（图片等）
-- 支持按 Agent 启用只读模式
-
-**归档工具**
-- 压缩与解压归档文件
-- 列举归档内容
-- 直接读取归档内部文件
-
-**Web 工具**
-- 抓取网页 URL 并转换为干净的 Markdown
-- 从网络下载文件
-
-**调度器**
-- 标准 6 字段 Cron 表达式（秒 分 时 日 月 周），服务重启后任务自动恢复
-- 任务可指向渠道用户、Web 会话或工作目录
-- 可设置最大执行次数，到达上限后自动清理
-- 可通过 Web UI 管理，也可直接让 Agent 创建定时任务
-
-**待办事项**
-- 后置提取器自动从对话中识别待办，并按需执行 `create` / `patch` / `done` / `delete` 操作
-- Agent 可通过 `todo_list` 工具查询当前待办（只读）
-- Web UI 提供 Todo 管理页面
-
-**Ask（交互提问）**
-- Agent 在执行过程中可随时暂停并向用户提问
-- 支持三种问题类型：单选、多选、文本输入
-- 支持 Web UI 和飞书；用户回答后 Agent 自动继续执行
+## 文档
+
+完整使用指南（含分步配置与各功能详解）见
+**[while-coder.github.io/sbot](https://while-coder.github.io/sbot/zh/)**：
+
+- **快速上手** — [快速开始](https://while-coder.github.io/sbot/zh/guide/getting-started) · [核心特性](https://while-coder.github.io/sbot/zh/guide/features)
+- **模型与 Agent** — [模型](https://while-coder.github.io/sbot/zh/guide/models) · [Agent](https://while-coder.github.io/sbot/zh/guide/agents) · [Agent 商店](https://while-coder.github.io/sbot/zh/guide/agent-store)
+- **存储与知识** — [存储](https://while-coder.github.io/sbot/zh/guide/savers) · [笔记](https://while-coder.github.io/sbot/zh/guide/note) · [知识库](https://while-coder.github.io/sbot/zh/guide/wiki)
+- **自动化** — [记忆](https://while-coder.github.io/sbot/zh/guide/memory) · [日程](https://while-coder.github.io/sbot/zh/guide/agenda) · [心跳唤醒](https://while-coder.github.io/sbot/zh/guide/heartbeat)
+- **工具与技能** — [内置工具](https://while-coder.github.io/sbot/zh/guide/tools) · [MCP 工具](https://while-coder.github.io/sbot/zh/guide/mcp) · [技能](https://while-coder.github.io/sbot/zh/guide/skills)
+- **渠道** — [渠道配置](https://while-coder.github.io/sbot/zh/guide/channels)（飞书/Lark · Slack · 企业微信 · 微信 · 钉钉 · QQ · OneBot · 小爱）
 
 ---
 

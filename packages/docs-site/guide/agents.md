@@ -18,6 +18,8 @@ Use ReAct when:
 - The task is open-ended ("plan and execute X end-to-end")
 - You want the orchestrator to choose specialists dynamically
 
+Each dispatched sub-task can inherit context from the parent conversation (`none` — clean start, the default; `state` — a bounded snapshot of recent parent messages; `full` — the full forked history). Recursion depth is guarded to prevent runaway nesting.
+
 ### Generative
 
 Pick a multimodal model for mixed text + image content generation.
@@ -30,9 +32,10 @@ Pick a multimodal model for mixed text + image content generation.
 | System prompt | Persona, capabilities, response style |
 | MCP tools | Per-agent enable list of [MCP servers](./mcp) |
 | Skills | Per-agent [skill](./skills) selection (empty = load all) |
-| Memory | Default [notes/memory](./note) for sessions using this agent |
+| Notes | Default [notes](./note) (vector store) for sessions using this agent |
 | Wiki | Default [wiki/knowledge base](./wiki) for sessions |
-| Insight | Per-agent silent post-turn extractor — see [Insight](./insight) |
+| Memory | Per-agent long-term memory via background MemoryLLM — see [Memory](./memory) |
+| Agenda | Per-agent reminders / schedules, optionally synced from the conversation — see [Agenda](./agenda) |
 | Heartbeat | Periodic self-activation — see [Heartbeat](./heartbeat) |
 
 ## Pre-Built Agents

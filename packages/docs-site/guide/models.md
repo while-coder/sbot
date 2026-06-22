@@ -26,4 +26,4 @@ Any endpoint that implements the OpenAI chat completions API can be used as a pr
 
 Sidebar → **Embedding Models** → New
 
-Embeddings are required for vector-based features ([Notes](./note), [Wiki](./wiki) semantic search, [Insight](./insight) hybrid search). Supported: OpenAI, Google, Ollama, Cohere, VoyageAI.
+Embeddings are required for vector-based features ([Notes](./note), [Wiki](./wiki) semantic search, [Memory](./memory) hybrid search). Supported: OpenAI, Google, Ollama, Cohere, VoyageAI.

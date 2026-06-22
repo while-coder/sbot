@@ -9,10 +9,11 @@
 - **知识库** —— 内置 Wiki，支持关键词与语义混合检索，Agent 对话中自动引用
 - **长期记忆** —— 基于向量 Embedding 的语义检索，持久化上下文召回（OpenAI、Google、Ollama、Cohere、VoyageAI）
 - **对话压缩** —— Token 用量超阈值时自动摘要早期消息，保持上下文连续性同时降低消耗
-- **Insight 系统** —— Agent 级别的静默后置提取器，将用户偏好和经验教训沉淀为可复用的 Markdown 笔记；按使用情况自动标记陈旧、归档过期
+- **记忆（Memory）** —— Agent 级自动长期记忆：会话空闲后由后台 MemoryLLM 提炼持久知识，主 Agent 通过 `search_memory` / `read_memory` 召回，并有 consolidate / reconcile 维护任务
+- **日程（Agenda）** —— 由对话驱动的提醒、日程与周期任务，支持 absolute / interval / cron 触发器；可每轮对话后从对话自动同步，并投递到任意会话或渠道
 - **心跳唤醒** —— 可配置的周期性自激活，让 Agent 在任意渠道主动执行预定提示词
 - **MCP 工具** —— 标准 MCP 协议（stdio / SSE），接入任意 MCP 工具生态；支持 Agent 级与全局服务器，故障自动重启
-- **多渠道** —— Web UI、CLI、飞书 / Lark、Slack、企业微信、微信、OneBot（QQ）、小爱、REST API、WebSocket
+- **多渠道** —— Web UI、CLI、飞书 / Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、OneBot（QQ）、小爱、REST API、WebSocket
 - **内置工具** —— Shell 执行、文件系统、归档操作、媒体文件读取、Python / PowerShell 内联执行、Web 抓取 / 下载、Cron 调度器、待办、提问
 - **技能系统** —— 可安装的 Prompt 模块，支持从 Clawhub、skills.sh、skillhub.cn 远程安装
 - **Agent 商店** —— 浏览并一键安装预打包 Agent（模型 + 提示词 + 工具 + 技能 + MCP 服务器），支持自定义源

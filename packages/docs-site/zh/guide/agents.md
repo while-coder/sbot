@@ -18,6 +18,8 @@
 - 任务开放（"端到端规划并执行 X"）
 - 希望由调度模型动态选择专家 Agent
 
+每个派发的子任务可继承父对话的上下文（`none` —— 干净起步，默认；`state` —— 父对话近期消息的有界快照；`full` —— 完整克隆父历史）。递归深度有护栏，防止失控嵌套。
+
 ### Generative
 
 选择多模态模型，用于文本 + 图像混合内容生成。
@@ -30,9 +32,10 @@
 | 系统提示词 | 角色、能力、回复风格 |
 | MCP 工具 | Agent 级启用的 [MCP 服务器](./mcp) 列表 |
 | 技能 | Agent 级 [技能](./skills) 选择（留空表示加载全部） |
-| 记忆 | 使用此 Agent 的会话默认 [notes / 记忆](./note) |
+| 笔记 | 使用此 Agent 的会话默认 [Notes](./note)（向量库） |
 | Wiki | 会话默认的 [wiki / 知识库](./wiki) |
-| Insight | Agent 级静默后置提取器 —— 详见 [Insight](./insight) |
+| 记忆 | Agent 级长期记忆，由后台 MemoryLLM 提取 —— 详见 [Memory](./memory) |
+| 日程 | Agent 级提醒 / 日程，可从对话自动同步 —— 详见 [Agenda](./agenda) |
 | 心跳 | 周期性自激活 —— 详见 [Heartbeat](./heartbeat) |
 
 ## 预制 Agent

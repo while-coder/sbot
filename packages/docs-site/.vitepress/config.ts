@@ -69,9 +69,8 @@ export default defineConfig({
             text: 'Storage & Knowledge',
             items: [
               { text: 'Savers', link: '/guide/savers' },
-              { text: 'Notes (Memory)', link: '/guide/note' },
+              { text: 'Notes', link: '/guide/note' },
               { text: 'Wiki', link: '/guide/wiki' },
-              { text: 'Insight', link: '/guide/insight' },
             ],
           },
           {
@@ -83,10 +82,17 @@ export default defineConfig({
             ],
           },
           {
-            text: 'Channels & Runtime',
+            text: 'Automation',
+            items: [
+              { text: 'Memory', link: '/guide/memory' },
+              { text: 'Agenda', link: '/guide/agenda' },
+              { text: 'Heartbeat', link: '/guide/heartbeat' },
+            ],
+          },
+          {
+            text: 'Channels',
             items: [
               { text: 'Channels', link: '/guide/channels' },
-              { text: 'Heartbeat', link: '/guide/heartbeat' },
             ],
           },
         ],
@@ -126,9 +132,8 @@ export default defineConfig({
             text: '存储与知识',
             items: [
               { text: '存储 (Savers)', link: '/zh/guide/savers' },
-              { text: '记忆 (Notes)', link: '/zh/guide/note' },
+              { text: '笔记 (Notes)', link: '/zh/guide/note' },
               { text: '知识库 (Wiki)', link: '/zh/guide/wiki' },
-              { text: 'Insight 洞察', link: '/zh/guide/insight' },
             ],
           },
           {
@@ -140,10 +145,17 @@ export default defineConfig({
             ],
           },
           {
-            text: '渠道与运行时',
+            text: '自动化',
+            items: [
+              { text: '记忆 (Memory)', link: '/zh/guide/memory' },
+              { text: '日程 (Agenda)', link: '/zh/guide/agenda' },
+              { text: '心跳唤醒', link: '/zh/guide/heartbeat' },
+            ],
+          },
+          {
+            text: '渠道',
             items: [
               { text: '渠道', link: '/zh/guide/channels' },
-              { text: '心跳唤醒', link: '/zh/guide/heartbeat' },
             ],
           },
         ],

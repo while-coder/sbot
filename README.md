@@ -9,6 +9,8 @@
 
 **Open-source, self-hosted AI agent framework.** Modular by design: models, memory, tools, and channels are independent building blocks you mix and match to assemble agents — run on your own server with multi-channel integrations, MCP tool support, and a built-in web UI, no vendor lock-in.
 
+📖 **[Full documentation →](https://while-coder.github.io/sbot/)**
+
 ---
 
 ## Quick Start
@@ -139,11 +141,12 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 - **Knowledge base** — Built-in wiki system with hybrid keyword + semantic search, referenced by agents during conversations
 - **Long-term memory** — Vector-embedding semantic search for persistent context recall (OpenAI, Google, Ollama, Cohere, VoyageAI)
 - **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
-- **Insight system** — Per-agent silent post-turn extractor that distills user preferences and lessons learned into reusable Markdown notes; auto-marks notes stale and archives them based on usage
+- **Memory** — Per-agent automatic long-term memory: a background MemoryLLM distills durable knowledge after each conversation idles, read back via `search_memory` / `read_memory` with consolidate/reconcile maintenance
+- **Agenda** — Conversation-driven reminders, schedules, and routines with absolute / interval / cron triggers; optionally synced from the conversation after every turn and delivered to any session or channel
 - **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
 - **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), OneBot (v11 reverse WebSocket), XiaoAI, REST API, WebSocket
-- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo
+- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo, ask
 - **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
 - **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources
 - **Token usage tracking** — Per-model consumption statistics, model response caching with hit/miss metrics
@@ -152,239 +155,17 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 
 ---
 
-## Usage Guide
-
-Open `http://localhost:5500` after starting sbot. Follow these steps:
-
-**1. Add a Model** — sidebar → **Models** → New
-
-Fill in provider, API key, base URL, and model name. Supported providers: OpenAI, Anthropic, Google Gemini, Ollama, and any OpenAI-compatible endpoint (Azure OpenAI, Groq, Mistral, DeepSeek, etc.).
-
----
-
-**2. Create a Saver** — sidebar → **Savers** → New
-
-Choose a backend for storing conversation history:
-
-| Backend | Description |
-|---|---|
-| File | JSON files per conversation thread (recommended) |
-| SQLite | Local SQLite database |
-| Memory | Cleared after conversation ends, no persistence, suitable for one-off conversations or Q&A assistants |
-
----
-
-**3. Create an Agent** — sidebar → **Agents** → New
-
-Choose a mode:
-- **Single** — select a model, write a system prompt, optionally attach MCP tools and skills
-- **ReAct** — select a think model, then add sub-agents (each with an id and description for task dispatch). The think model decomposes tasks and dispatches sub-tasks recursively; each sub-agent has read-only access to shared memory
-- **Generative** — select a multimodal model for mixed text and image content generation
-
-→ [MCP Tools](#add-mcp-tools) · [Skills](#manage-skills)
-
----
-
-**4. Start chatting** — choose your entry point
-
-- **Session** — sidebar → **Chat** → New Session, select agent + saver + memory; optionally configure a working directory
-- **Channel** (IM) — sidebar → **Channels** → New → [Channel Setup](#channel-setup); optionally configure a working directory
-
----
-
-**5. (Optional) Enable Wiki Knowledge Base** — sidebar → **Wiki** → New
-
-Built-in knowledge base. Create pages manually (title + content + tags). Assign wikis to a session or channel; agents can search, read, write, and update pages via built-in tools. An optional embedding model enables semantic search alongside keyword matching.
-
-| Field | Description |
-|-------|-------------|
-| Name | Wiki identifier |
-| Embedding | Optional — enables semantic search; without it, falls back to keyword search |
-
----
-
-**6. (Optional) Enable Memory** — sidebar → **Memories** → New
-
-A vector store the agent can write to and search via tool calls. Requires an embedding model first (sidebar → **Embeddings** → New), then assign the memory to a session or channel. Entries are time-decay weighted on retrieval and de-duplicated on insert.
-
-| Field | Description |
-|-------|-------------|
-| Name | Memory identifier |
-| Embedding | Embedding model for semantic search (OpenAI, Google, Ollama, Cohere, VoyageAI) |
-
----
-
-**7. (Optional) Enable Insight on an agent** — Agent edit page → Insight section
-
-Insight is a silent post-turn extractor that runs after every conversation turn and distills durable knowledge — user preferences, project facts, lessons learned — into reusable Markdown notes (`SKILL.md` files under `~/.sbot/insights/`). Relevant insights are auto-injected back into the system prompt on subsequent turns via hybrid keyword + semantic search.
-
-| Field | Description |
-|-------|-------------|
-| Scope | `Disabled` / `Per Agent` (shared across all sessions of this agent) / `Per Session` (isolated per thread) |
-| Extraction Model | Model used to run the post-turn extraction (typically a cheap, fast model) |
-| Extraction Prompt | Prompt file from `~/.sbot/prompts/insight/extractor/` controlling what is extracted |
-
-The extractor can `create`, `patch`, or `delete` insights based on conversation evolution. Stale notes (default 30 days unused) are marked, and unused notes (default 90 days) are auto-archived.
-
----
-
-**8. (Optional) Install pre-packaged agents** — sidebar → **Agent Store**
-
-Browse and install agents from configurable registries. Each package bundles model selection, system prompt, skills, and MCP server configuration in one click. Add custom registry URLs in **Settings**.
-
----
-
-### Add MCP Tools
-
-Sidebar → **MCP** → New
-
-Add a server:
-- **stdio** — command + args (e.g. `npx -y some-mcp-package`)
-- **sse** — remote URL + optional headers
-
-Supports global servers shared across all agents and per-agent overrides. Servers auto-restart on failure. Then open an agent → MCP tab to attach the servers you want it to use.
-
----
-
-### Manage Skills
-
-Sidebar → **Skills**
-
-Skill files (Markdown) are stored in `~/.sbot/skills/`. Search and install from remote hubs (Clawhub, skills.sh, skillhub.cn) on the Skills page, or drop files manually. In an agent → Skills tab, select specific skills to load, or leave empty to load all.
-
----
-
-### Customize Prompts
-
-Sidebar → **Prompts**
-
-View and edit any built-in prompt (system prompts, agent prompts, tool descriptions, etc.). Saved overrides are stored in `~/.sbot/prompts/` and take precedence over the defaults, effective immediately without restart. Supports `{varName}` placeholders substituted at runtime.
-
----
-
-### Heartbeat (Proactive Activation)
-
-Sidebar → **Heartbeat**
-
-Configure periodic prompts that wake an agent on a fixed interval — useful for monitoring, daily summaries, or scheduled outreach. Each heartbeat targets a specific channel or session and runs a prompt template. Combine with the Scheduler tool for one-off tasks.
-
----
-
-### Channel Setup
-
-In **Channels → New**, select the type and fill in the credentials, then assign agent + saver + memory. Every user/group chat is isolated automatically.
-
-| Type | Required fields |
-|------|----------------|
-| Lark / Feishu | App ID, App Secret |
-| Slack | Bot Token (`xoxb-...`), App Token (`xapp-...`) |
-| WeCom | Bot ID, Secret |
-| WeChat | QR code login (credentials auto-populated) |
-| DingTalk | Client ID, Client Secret (a.k.a. AppKey / AppSecret, Stream mode) |
-| QQ | App ID, Client Secret (QQ Bot Open Platform, WebSocket Gateway) |
-| OneBot | WS port (default 6700), optional Access Token; reverse WebSocket, pairs with NapCat / go-cqhttp |
-
-**Setting up Lark / Feishu:**
-1. Create a bot app in the [Feishu Developer Console](https://open.feishu.cn) (or [Lark Developer Console](https://open.larksuite.com/) for international)
-2. Enable **Bot** capability
-3. Grant the following permissions under **Permissions & Scopes** (or use **Batch Import** with the JSON below):
-
-| Permission | Description |
-|------------|-------------|
-| `im:message:send_as_bot` | Send messages as bot |
-| `im:message.p2p_msg:readonly` | Receive direct messages |
-| `im:message.group_at_msg:readonly` | Receive group @bot messages |
-| `im:message.group_msg` | Receive all group messages |
-| `im:message:readonly` | Read message content |
-| `im:chat:readonly` | Read chat/group info |
-| `im:resource` | Read files and images in messages |
-| `contact:user.base:readonly` | Read basic user info |
-| `contact:contact.base:readonly` | Read basic contact info |
-
-<details>
-<summary>Batch import JSON</summary>
-
-```json
-{
-  "scopes": {
-    "tenant": [
-      "contact:contact.base:readonly",
-      "contact:user.base:readonly",
-      "im:chat:readonly",
-      "im:message.group_at_msg:readonly",
-      "im:message.group_msg",
-      "im:message.p2p_msg:readonly",
-      "im:message:readonly",
-      "im:message:send_as_bot",
-      "im:resource"
-    ],
-    "user": []
-  }
-}
-```
-
-</details>
-
-4. Under **Events & Callbacks**, set the subscription mode to **Long Connection**
-5. In Web UI → **Channels**, create a Lark channel and fill in **App ID** and **App Secret**
-
-Supports event deduplication, interactive cards, per-user context isolation, and file/image send and receive.
-
-**Setting up WeCom:**
-1. Create an AI app in the [WeCom Admin Console](https://work.weixin.qq.com) and obtain the **Bot ID** and **Secret**
-2. In Web UI → **Channels**, create a WeCom channel and fill in Bot ID and Secret
-
-Connects via WebSocket for real-time messaging, with file and image support.
-
-**Setting up WeChat:**
-1. In Web UI → **Channels**, create a WeChat channel
-2. Click QR login and scan the code with WeChat to authenticate
-3. Credentials are saved automatically once authenticated, and the channel goes live immediately
-
-WeChat integration connects via the iLink Bot API, with file and image support.
-
----
-
-## Built-in Tools
-
-**Command Execution**
-- Shell commands and scripts
-- Inline Python and PowerShell execution
-- File-referenced script execution
-- Configurable timeout per command
-
-**File System**
-- Read, write, edit files
-- Search with regex (grep)
-- Find files by pattern (glob)
-- Directory listing, create, remove, move, copy
-- Read media files (images, etc.)
-- Optional read-only mode per agent
-
-**Archive**
-- Compress and extract archive files
-- List archive contents
-- Read files directly from within archives
-
-**Web**
-- Fetch URLs and convert HTML to clean Markdown
-- Download files from the web
-
-**Scheduler**
-- Standard 6-field cron expressions (`second minute hour day month weekday`), persisted across restarts
-- Tasks can target a channel user, a web session, or a working directory
-- Optional max run count with auto-cleanup
-- Manageable via the Web UI or by asking the agent directly
-
-**Todo**
-- A post-turn extractor automatically detects todos from conversations and applies `create` / `patch` / `done` / `delete` actions
-- Agents can query current todos via the `todo_list` tool (read-only)
-- Web UI provides a Todo management page
-
-**Ask**
-- Agents can pause mid-task and ask the user structured questions
-- Supported question types: single-select, multi-select, text input
-- Works across Web UI and Lark; the agent resumes automatically after the user responds
+## Documentation
+
+Full guide, with step-by-step setup and per-feature reference, lives at
+**[while-coder.github.io/sbot](https://while-coder.github.io/sbot/)**:
+
+- **Get started** — [Getting Started](https://while-coder.github.io/sbot/guide/getting-started) · [Features](https://while-coder.github.io/sbot/guide/features)
+- **Models & agents** — [Models](https://while-coder.github.io/sbot/guide/models) · [Agents](https://while-coder.github.io/sbot/guide/agents) · [Agent Store](https://while-coder.github.io/sbot/guide/agent-store)
+- **Storage & knowledge** — [Savers](https://while-coder.github.io/sbot/guide/savers) · [Notes](https://while-coder.github.io/sbot/guide/note) · [Wiki](https://while-coder.github.io/sbot/guide/wiki)
+- **Automation** — [Memory](https://while-coder.github.io/sbot/guide/memory) · [Agenda](https://while-coder.github.io/sbot/guide/agenda) · [Heartbeat](https://while-coder.github.io/sbot/guide/heartbeat)
+- **Tools & skills** — [Built-in Tools](https://while-coder.github.io/sbot/guide/tools) · [MCP Tools](https://while-coder.github.io/sbot/guide/mcp) · [Skills](https://while-coder.github.io/sbot/guide/skills)
+- **Channels** — [Channels](https://while-coder.github.io/sbot/guide/channels) (Lark/Feishu · Slack · WeCom · WeChat · DingTalk · QQ · OneBot · XiaoAI)
 
 ---
 

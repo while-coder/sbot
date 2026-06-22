@@ -12,6 +12,8 @@ Select the channel type and fill in the credentials, then assign agent + saver +
 | Slack | Bot Token (`xoxb-...`), App Token (`xapp-...`) |
 | WeCom | Bot ID, Secret |
 | WeChat | QR code login (credentials auto-populated) |
+| DingTalk | Client ID, Client Secret (AppKey / AppSecret, Stream mode) |
+| QQ | App ID, Client Secret (QQ Bot Open Platform, WebSocket Gateway) |
 | OneBot (QQ) | WS Host, WS Port, optional Access Token |
 | XiaoAI | Mi account ID, Login credential, Speaker name |
 
@@ -81,6 +83,23 @@ Connects via WebSocket for real-time messaging, with file and image support.
 3. Credentials are saved automatically once authenticated, and the channel goes live immediately
 
 WeChat integration connects via the iLink Bot API, with file and image support.
+
+## DingTalk
+
+1. Create a bot app in the [DingTalk Open Platform](https://open-dev.dingtalk.com) and obtain the **Client ID** and **Client Secret** (a.k.a. AppKey / AppSecret)
+2. Use **Stream mode** for the bot so no public callback URL is required
+3. In Web UI → **Channels**, create a DingTalk channel and fill in Client ID and Client Secret
+
+## QQ
+
+The QQ channel connects an official bot from the [QQ Bot Open Platform](https://q.qq.com) via its WebSocket Gateway.
+
+1. Create a bot on the QQ Bot Open Platform and obtain the **App ID** and **Client Secret** (AppSecret)
+2. In Web UI → **Channels**, create a QQ channel and fill in App ID and Client Secret
+
+::: tip QQ vs OneBot
+Use **QQ** for an official QQ bot via the open platform. Use **OneBot** below to bridge an unofficial QQ adapter (NapCat / Lagrange) over reverse WebSocket.
+:::
 
 ## OneBot (QQ / Telegram bridges / etc.)
 

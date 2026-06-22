@@ -30,10 +30,10 @@ Note 可在多个层级分配（最具体的优先）：
 - **会话级** —— 在聊天会话中覆盖
 - **渠道级** —— 在渠道中覆盖
 
-## Notes vs Wiki vs Insight
+## Notes vs Wiki vs Memory
 
 | 概念 | 写入方 | 适用场景 |
 |---------|-------|----------|
 | [Notes](./note) | Agent（自动写入） | Agent 通过语义召回的自由格式事实 |
 | [Wiki](./wiki) | 人工编纂（可叠加 Embedding） | 带标题与标签的结构化知识页 |
-| [Insight](./insight) | 静默提取 Agent | 从过往对话中提炼的经验教训 |
+| [Memory](./memory) | 后台 MemoryLLM | 从过往对话中提炼的长期知识 |

@@ -30,10 +30,10 @@ Notes can be assigned at multiple scopes (most specific wins):
 - **Per session** — override on the chat session
 - **Per channel** — override per channel
 
-## Notes vs Wiki vs Insight
+## Notes vs Wiki vs Memory
 
 | Concept | Owner | Best for |
 |---------|-------|----------|
 | [Notes](./note) | Agent (auto-write) | Free-form facts the agent recalls semantically |
 | [Wiki](./wiki) | Human-curated (with optional embeddings) | Structured knowledge pages with titles + tags |
-| [Insight](./insight) | Silent extractor agent | Distilled lessons from past conversations |
+| [Memory](./memory) | Background MemoryLLM | Distilled long-term knowledge from past conversations |

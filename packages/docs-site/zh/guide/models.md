@@ -26,4 +26,4 @@
 
 侧栏 → **向量模型** → 新建
 
-向量模型是基于向量的功能（[Notes](./note)、[Wiki](./wiki) 语义检索、[Insight](./insight) 混合检索）的前置依赖。支持：OpenAI、Google、Ollama、Cohere、VoyageAI。
+向量模型是基于向量的功能（[Notes](./note)、[Wiki](./wiki) 语义检索、[Memory](./memory) 混合检索）的前置依赖。支持：OpenAI、Google、Ollama、Cohere、VoyageAI。
