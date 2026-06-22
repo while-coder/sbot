@@ -34,6 +34,14 @@ export interface InitSessionContext {
   sessionName?: string;
   sessionAvatar?: string;
   sendUpdate?: (msg: string) => Promise<void>;
+  /** 渠道私有会话状态，持久化到 channel_session.metadata（JSON）。重启后可经 loadSessions 取回。 */
+  metadata?: Record<string, any>;
+}
+
+/** 已持久化的会话条目，供 plugin 在 init 时重建内存态（如钉钉 sessions map）。 */
+export interface PersistedSession {
+  sessionId: string;
+  metadata: Record<string, any>;
 }
 
 export interface ChannelSessionInfo {
@@ -58,6 +66,8 @@ export interface ChannelPluginContext {
   logger: any;
   filterEvent: (eventId: string) => Promise<boolean>;
   initSession: (ctx: InitSessionContext) => Promise<ChannelSessionInfo>;
+  /** 读取本 channel 已持久化的会话（含 metadata），用于 init 时重建内存会话态。 */
+  loadSessions: () => Promise<PersistedSession[]>;
   onReceiveMessage: (session: ChannelSessionInfo, query: MessageContent, args: ChannelMessageArgs) => Promise<void>;
   onTriggerAction: (session: ChannelSessionInfo, args: any) => Promise<void>;
 }

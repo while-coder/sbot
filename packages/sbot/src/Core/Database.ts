@@ -92,6 +92,7 @@ export type ChannelSessionRow = {
   avatar: string;
   profileId: number;            // 关联的 SessionProfile（NOT NULL，doInitSession 自动建 auto profile 并指向）
   createdAt: number;
+  metadata: string;             // 渠道私有会话状态(JSON 字符串)，空串表示无
 };
 
 /**
@@ -377,6 +378,12 @@ class Database {
           allowNull: false,
           defaultValue: 0,
           comment: "创建时间戳(ms)",
+        },
+        metadata: {
+          type: DataTypes.TEXT,
+          allowNull: false,
+          defaultValue: "",
+          comment: "渠道私有会话状态(JSON)，如钉钉 conversationType/senderStaffId；空串表示无",
         },
       },
       {

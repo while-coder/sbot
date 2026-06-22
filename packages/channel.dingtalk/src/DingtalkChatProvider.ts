@@ -30,7 +30,7 @@ export class DingtalkChatProvider extends AbstractChatProvider {
     try {
       const text = parseMessages2Text(this.getDisplayMessages()).trim();
       if (!text) return;
-      await this.dingtalkService.sendMarkdown(this.sessionId, text);
+      await this.dingtalkService.sendTextToSession(this.sessionId, text);
     } catch (e: any) {
       getLogger()?.error(`flush exception: ${e.message || e}`, e.stack);
     }

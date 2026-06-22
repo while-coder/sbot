@@ -36,7 +36,7 @@ export const dingtalkPlugin: ChannelPlugin = {
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { config, logger, filterEvent, initSession, onReceiveMessage } = ctx;
+    const { config, logger, filterEvent, initSession, loadSessions, onReceiveMessage } = ctx;
 
     if (!config.clientId?.trim() || !config.clientSecret?.trim()) return undefined;
 
@@ -47,13 +47,19 @@ export const dingtalkPlugin: ChannelPlugin = {
       logger,
       filterEvent,
       onReceiveMessage: async (userId: string, args: DingtalkMessageArgs, query: MessageContent) => {
+        const isGroup = args.conversationType === DingtalkConversationType.Group;
         const session = await initSession({
           userId,
           userName: args.senderNick,
           userInfo: JSON.stringify({ staffId: userId, nick: args.senderNick }),
           sessionId: args.sessionId,
-          sessionName: args.conversationType === DingtalkConversationType.Group ? `group_${args.sessionId.slice(-8)}` : `p2p_${args.senderNick}`,
-          sendUpdate: (msg: string) => service.sendMarkdown(args.sessionId, msg).then(() => {}),
+          sessionName: isGroup ? `group_${args.sessionId.slice(-8)}` : `p2p_${args.senderNick}`,
+          sendUpdate: (msg: string) => service.sendTextToSession(args.sessionId, msg).then(() => {}),
+          // 群聊发送只需 conversationType（用 conversationId=sessionId 投递）；
+          // 单聊还需 senderStaffId（batchSend 目标）。staffId 在 p2p 中稳定，避免群聊每条消息触发写库。
+          metadata: isGroup
+            ? { conversationType: args.conversationType }
+            : { conversationType: args.conversationType, senderStaffId: args.senderStaffId },
         });
         await onReceiveMessage(session, query, {
           ...args,
@@ -61,6 +67,7 @@ export const dingtalkPlugin: ChannelPlugin = {
         });
       },
     });
+    service.hydrateSessions(await loadSessions());
     await service.start();
     return service;
   },

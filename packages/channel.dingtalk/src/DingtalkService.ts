@@ -1,10 +1,11 @@
 import { DWClient, EventAck, type DWClientDownStream, type EventAckData } from 'dingtalk-stream';
 import {
   IChannelService, ChannelSessionHandler, SessionService,
-  type ILogger, type MessageContent,
+  type ILogger, type MessageContent, type PersistedSession,
 } from 'channel.base';
 import { DingtalkSessionHandler, type DingtalkMessageArgs } from './DingtalkSessionHandler';
 import { DingtalkOpenApi } from './DingtalkOpenApi';
+import path from 'path';
 
 const TOPIC_ROBOT = '/v1.0/im/bot/messages/get';
 const TITLE_LEN = 12;
@@ -76,13 +77,72 @@ export class DingtalkService implements IChannelService {
     return new DingtalkSessionHandler(session, this);
   }
 
+  /**
+   * 用持久化的会话 metadata 重建内存 sessions（重启后无需等入站消息即可主动发送）。
+   * metadata 形如 { conversationType, senderStaffId? }；conversationId 即 sessionId。
+   */
+  hydrateSessions(sessions: PersistedSession[]): void {
+    let count = 0;
+    for (const { sessionId, metadata } of sessions) {
+      const conversationType = metadata?.conversationType as DingtalkConversationType | undefined;
+      if (conversationType !== DingtalkConversationType.Group && conversationType !== DingtalkConversationType.Single) continue;
+      this.sessions.set(sessionId, {
+        conversationId: sessionId,
+        conversationType,
+        senderStaffId: typeof metadata.senderStaffId === 'string' ? metadata.senderStaffId : '',
+        lastMsgId: '',
+        updatedAt: 0,
+      });
+      count++;
+    }
+    if (count) this.logger?.info(`Dingtalk hydrated ${count} session(s) from store`);
+  }
+
+  /** 发送 markdown 消息到会话，群/单聊由 entry 决定 */
   async sendTextToSession(sessionId: string, text: string): Promise<void> {
-    await this.sendMarkdown(sessionId, text);
+    const entry = this.sessions.get(sessionId);
+    if (!entry) {
+      this.logger?.warn(`Dingtalk sendTextToSession: unknown session ${sessionId}`);
+      return;
+    }
+    const title = makeTitle(text);
+    try {
+      if (entry.conversationType === DingtalkConversationType.Group) {
+        await this.openApi.sendMarkdownToGroup(entry.conversationId, title, text);
+      } else {
+        await this.openApi.sendMarkdownToUser([entry.senderStaffId], title, text);
+      }
+    } catch (e: any) {
+      this.logger?.error(`Dingtalk sendTextToSession failed: ${e.message}`);
+    }
   }
 
   async sendTextToUser(userId: string, text: string): Promise<void> {
     // userId 为 senderStaffId；OpenAPI 直接 batchSend 即可，不依赖历史会话
     await this.openApi.sendMarkdownToUser([userId], makeTitle(text), text);
+  }
+
+  /** 发送文件消息到会话，群/单聊由 entry 决定 */
+  async sendFileToSession(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
+    const entry = this.sessions.get(sessionId);
+    if (!entry) {
+      this.logger?.warn(`Dingtalk sendFileToSession: unknown session ${sessionId}`);
+      return;
+    }
+    const name = resolveFileName(file, fileName);
+    const mediaId = await this.openApi.uploadMedia(file, name, 'file');
+    const fileType = DingtalkOpenApi.fileTypeOf(name);
+    if (entry.conversationType === DingtalkConversationType.Group) {
+      await this.openApi.sendFileToGroup(entry.conversationId, mediaId, name, fileType);
+    } else {
+      await this.openApi.sendFileToUser([entry.senderStaffId], mediaId, name, fileType);
+    }
+  }
+
+  async sendFileToUser(userId: string, file: string | Buffer, fileName?: string): Promise<void> {
+    const name = resolveFileName(file, fileName);
+    const mediaId = await this.openApi.uploadMedia(file, name, 'file');
+    await this.openApi.sendFileToUser([userId], mediaId, name, DingtalkOpenApi.fileTypeOf(name));
   }
 
   dispose(): void {
@@ -95,25 +155,6 @@ export class DingtalkService implements IChannelService {
     this.client.registerCallbackListener(TOPIC_ROBOT, (msg) => this.handleRobotMessage(msg));
     await this.client.connect();
     this.logger?.info('Dingtalk Stream connected');
-  }
-
-  /** 通过 Open API 发送 markdown 消息，群/单聊由 entry 决定 */
-  async sendMarkdown(sessionId: string, text: string): Promise<void> {
-    const entry = this.sessions.get(sessionId);
-    if (!entry) {
-      this.logger?.warn(`Dingtalk sendMarkdown: unknown session ${sessionId}`);
-      return;
-    }
-    const title = makeTitle(text);
-    try {
-      if (entry.conversationType === DingtalkConversationType.Group) {
-        await this.openApi.sendMarkdownToGroup(entry.conversationId, title, text);
-      } else {
-        await this.openApi.sendMarkdownToUser([entry.senderStaffId], title, text);
-      }
-    } catch (e: any) {
-      this.logger?.error(`Dingtalk sendMarkdown failed: ${e.message}`);
-    }
   }
 
   /** 处理 IM 机器人消息 */
@@ -166,6 +207,12 @@ export class DingtalkService implements IChannelService {
     await this.opts.onReceiveMessage(senderStaffId, args, query);
   }
 
+}
+
+function resolveFileName(file: string | Buffer, fileName?: string): string {
+  if (fileName) return fileName;
+  if (typeof file === 'string') return path.basename(file);
+  throw new Error('fileName is required when file is a Buffer');
 }
 
 function makeTitle(text: string): string {

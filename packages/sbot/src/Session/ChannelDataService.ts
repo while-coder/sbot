@@ -168,12 +168,15 @@ export class ChannelDataService {
             sessionName?: string;
             autoSessionName?: string | null;
             sessionAvatar?: string;
+            /** 渠道私有会话状态，序列化为 JSON 存入 metadata 列 */
+            metadata?: Record<string, any>;
         },
     ): Promise<{ session: ChannelSessionRow; profile: SessionProfileRow; created: boolean }> {
         const now = Date.now();
         const sessionData: Record<string, any> = {};
         if (opts?.autoSessionName != null) sessionData.autoSessionName = opts.autoSessionName;
         if (opts?.sessionAvatar !== undefined) sessionData.avatar = opts.sessionAvatar;
+        if (opts?.metadata !== undefined) sessionData.metadata = JSON.stringify(opts.metadata);
         const [session, sessionCreated] = await database.findOrCreate<ChannelSessionRow>(database.channelSession, {
             where: { channelId, sessionId },
             defaults: { ...sessionData, sessionName: opts?.sessionName ?? "", profileId: 0, createdAt: now },

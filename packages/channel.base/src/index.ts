@@ -1,6 +1,7 @@
 export { ChannelSessionHandler, ToolCallStatus } from './ChannelSessionHandler';
 export {
   ChannelPlugin, ChannelPluginContext, ChannelMessageArgs, InitSessionContext, ChannelSessionInfo,
+  PersistedSession,
   IChannelService, ProcessAIHandler,
   ChannelCapability,
   ConfigFieldType, ConfigField,

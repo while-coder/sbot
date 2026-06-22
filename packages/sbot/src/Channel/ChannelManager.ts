@@ -71,8 +71,19 @@ function hasChanged(row: Record<string, any>, data: Record<string, any>): boolea
     return Object.keys(data).some(k => row[k] !== data[k]);
 }
 
+/** 解析 channel_session.metadata（JSON 字符串）；空串或非法 JSON 返回 {}。 */
+function parseSessionMetadata(raw: string | undefined): Record<string, any> {
+    if (!raw) return {};
+    try {
+        const v = JSON.parse(raw);
+        return v && typeof v === 'object' ? v : {};
+    } catch {
+        return {};
+    }
+}
+
 async function doInitSession(channelId: string, ctx: import("channel.base").InitSessionContext): Promise<{ dbUserId: number; dbSessionId: number }> {
-    const { userId, userName, userInfo, sessionId, sessionName, sendUpdate, userAvatar, sessionAvatar } = ctx;
+    const { userId, userName, userInfo, sessionId, sessionName, sendUpdate, userAvatar, sessionAvatar, metadata } = ctx;
     const userData: Record<string, any> = { userName, userInfo };
     if (userAvatar !== undefined) userData.avatar = userAvatar;
     const [dbUser, userCreated] = await database.findOrCreate<ChannelUserRow>(database.channelUser, {
@@ -86,6 +97,7 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
     const { session: dbSession } = await channelDataService.ensureSession(channelId, sessionId, {
         autoSessionName: sessionName ?? null,
         sessionAvatar,
+        metadata,
     });
 
     if (sendUpdate) checkForUpdate(sendUpdate).catch(() => {});
@@ -138,6 +150,10 @@ export class ChannelManager {
                 initSession: async (initCtx) => {
                     const { dbUserId, dbSessionId } = await doInitSession(channelId, initCtx);
                     return { channelId, userId: initCtx.userId, sessionId: initCtx.sessionId, dbUserId, dbSessionId };
+                },
+                loadSessions: async () => {
+                    const rows = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { channelId } });
+                    return rows.map(r => ({ sessionId: r.sessionId, metadata: parseSessionMetadata(r.metadata) }));
                 },
                 onReceiveMessage: async (session, query, args) =>
                     sessionManager.onReceiveChannelMessage(query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
