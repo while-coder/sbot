@@ -117,7 +117,7 @@ export class AgentRunner {
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-        // SingleAgentService 把它传给 AgendaToolProvider 作为新 trigger 的 channelHint，
+        // SingleAgentService 把它传给 AgendaToolProvider 作为新 trigger 的 channelSessionId，
         // 也作为 extractFromConversation push pending job 时的 channelSessionId。
         const channelSessionId = parseInt(dbSessionId, 10) || 0;
         container.registerInstance(T_ChannelSessionId, channelSessionId);

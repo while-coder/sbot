@@ -186,6 +186,7 @@ export interface AgentConfig {
   mcpExclude?: string[]
   mcpParams?: Record<string, Record<string, string>>
   skills?: string[] | '*'
+  skillsExclude?: string[]
   compactModel?: string
   modelCallTimeout?: number
   // react
@@ -206,7 +207,7 @@ export interface AgentConfig {
 /** 单个版本的配置快照 */
 export interface AgentPackageVersion {
   version: string
-  agent: Omit<AgentConfig, 'storeSource' | 'mcp' | 'mcpExclude' | 'skills' | 'autoApproveTools' | 'autoApproveAllTools' | 'model'>
+  agent: Omit<AgentConfig, 'storeSource' | 'mcp' | 'mcpExclude' | 'skills' | 'skillsExclude' | 'autoApproveTools' | 'autoApproveAllTools' | 'model'>
 }
 
 /** 智能体包 = 元信息 + 版本列表（index 0 = 最新版） */

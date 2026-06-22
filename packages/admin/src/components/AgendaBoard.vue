@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SBadge, SButton, SEntityList, SFormItem, SInput, SModal, SSelect, STextarea } from 'sbot-ui'
+import { apiFetch } from '@/shared/api'
 import {
   firstNextFire,
   isOverdue,
@@ -44,6 +45,7 @@ const emit = defineEmits<{
   (e: 'cancel', row: AgendaRow): void
   (e: 'remove', row: AgendaRow): void
   (e: 'update', payload: { row: AgendaRow; patch: Record<string, unknown> }): void
+  (e: 'fire-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
 }>()
 
 const { t } = useI18n()
@@ -114,6 +116,8 @@ interface TriggerDraft {
   // shared delivery
   action: AgendaTriggerAction
   message: string
+  /** 投递目标频道会话 db id；'' = 自动解析归属会话。 */
+  channelSessionId: string
 }
 
 interface EditForm {
@@ -136,6 +140,42 @@ const editForm = reactive<EditForm>({
   triggers: [],
 })
 const triggersDirty = ref(false)
+
+interface SessionOption { id: number; label: string; agenda: string | null }
+const sessionOptions = ref<SessionOption[]>([])
+const sessionsLoaded = ref(false)
+
+/** 拉取频道会话列表，供投递会话下拉框使用。仅首次打开编辑时加载一次。 */
+async function loadSessionOptions(): Promise<void> {
+  if (sessionsLoaded.value) return
+  sessionsLoaded.value = true
+  try {
+    const res = await apiFetch('/api/channel-sessions')
+    sessionOptions.value = (res.data || []).map((s: any) => ({
+      id: s.id,
+      agenda: s.agenda ?? null,
+      label: `#${s.id} ${s.sessionName || s.autoSessionName || s.sessionId || ''}`.trim(),
+    }))
+  } catch {
+    sessionsLoaded.value = false  // 允许下次重试
+    sessionOptions.value = []
+  }
+}
+
+/** 优先列出绑定到当前事项模板的会话；没有匹配时退回全部，避免下拉为空无从选择。 */
+const editSessionOptions = computed<SessionOption[]>(() => {
+  const agendaId = editingRow.value?.agendaId
+  if (!agendaId) return sessionOptions.value
+  const matched = sessionOptions.value.filter(s => s.agenda === agendaId)
+  return matched.length ? matched : sessionOptions.value
+})
+
+/** 当前草稿选中的会话若已不在选项中（会话被删/未绑定），补一条占位避免值丢失。 */
+function draftSessionOptions(draft: TriggerDraft): SessionOption[] {
+  const opts = editSessionOptions.value
+  if (!draft.channelSessionId || opts.some(o => String(o.id) === draft.channelSessionId)) return opts
+  return [{ id: Number(draft.channelSessionId), agenda: null, label: `#${draft.channelSessionId}` }, ...opts]
+}
 
 function pad2(n: number): string { return String(n).padStart(2, '0') }
 function tsToLocalInput(ts: number): string {
@@ -176,6 +216,7 @@ function triggerToDraft(t: AgendaTrigger): TriggerDraft {
     count: t.maxFires > 0 ? String(t.maxFires) : '',
     action: t.action,
     message: t.message ?? '',
+    channelSessionId: t.channelSessionId > 0 ? String(t.channelSessionId) : '',
   }
   if (t.kind === 'absolute') {
     base.at = tsToLocalInput(new Date(t.expr).getTime())
@@ -204,14 +245,17 @@ function emptyDraft(): TriggerDraft {
     count: '',
     action: 'notify',
     message: '',
+    channelSessionId: '',
   }
 }
 
 function draftToSpec(d: TriggerDraft): Record<string, unknown> | null {
+  const sid = d.channelSessionId.trim() ? Math.floor(Number(d.channelSessionId)) : 0
   const base: Record<string, unknown> = {
     kind: d.kind,
     action: d.action,
     message: d.message.trim() ? d.message.trim() : null,
+    channelSessionId: Number.isFinite(sid) && sid > 0 ? sid : 0,
   }
   if (d.kind === 'absolute') {
     const iso = localInputToIso(d.at)
@@ -261,6 +305,7 @@ function openEdit(row: AgendaRow): void {
   editForm.triggers = row.triggers.filter(t => t.enabled).map(triggerToDraft)
   triggersDirty.value = false
   showEdit.value = true
+  void loadSessionOptions()
 }
 
 function clearDueAt(): void { editForm.dueAt = '' }
@@ -476,6 +521,13 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
                   <SBadge v-if="trigger.enabled" variant="info" size="xs">{{ triggerActionLabel(trigger) }}</SBadge>
                   <SBadge v-if="!trigger.enabled" variant="neutral" size="xs">{{ t('agenda.trigger_disabled') }}</SBadge>
                   <code class="agenda-trigger-expr">{{ trigger.expr }}</code>
+                  <SButton
+                    type="outline"
+                    size="sm"
+                    class="agenda-trigger-fire"
+                    :title="t('agenda.fire_trigger_hint')"
+                    @click="emit('fire-trigger', { row, trigger })"
+                  >⚡ {{ t('agenda.fire_trigger') }}</SButton>
                 </div>
                 <dl class="agenda-trigger-grid">
                   <div>
@@ -657,6 +709,12 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
               :rows="3"
               @update:model-value="markTriggersDirty"
             />
+          </SFormItem>
+          <SFormItem :label="t('agenda.edit_channel_session')" :hint="t('agenda.edit_channel_session_hint')">
+            <SSelect v-model="draft.channelSessionId" @update:model-value="markTriggersDirty">
+              <option value="">{{ t('agenda.edit_channel_session_auto') }}</option>
+              <option v-for="opt in draftSessionOptions(draft)" :key="opt.id" :value="String(opt.id)">{{ opt.label }}</option>
+            </SSelect>
           </SFormItem>
         </li>
       </ul>
@@ -914,6 +972,7 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
   border-radius: var(--sui-radius-sm);
   overflow-wrap: anywhere;
 }
+.agenda-trigger-fire { margin-left: auto; flex-shrink: 0; }
 .agenda-trigger-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

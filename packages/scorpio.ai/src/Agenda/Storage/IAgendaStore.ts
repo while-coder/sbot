@@ -17,7 +17,7 @@ export type AgendaPendingJobStatus = 'pending' | 'failed';
 export interface PendingAgendaJobRow {
     id: number;
     type: AgendaPendingJobType;
-    /** 该 job 来自哪个 channel session；drain 时回填到 createTrigger 的 channelHint。 */
+    /** 该 job 来自哪个 channel session；drain 时回填到 createTrigger 的 channelSessionId。 */
     channelSessionId: number;
     /** Extract 任务的对话快照。 */
     messages?: ChatMessage[];

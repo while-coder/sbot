@@ -47,6 +47,7 @@ export interface ToolAgentEntry extends BaseAgentEntry {
   mcpExclude?: string[];       // 在 mcp = "*" 时排除掉指定 provider 名（对显式列表无效）
   mcpParams?: Record<string, Record<string, any>>; // 按 provider 名分组的参数；'*' 与显式列表均可使用
   skills?: string[] | '*';     // Skills 过滤列表（skill 名称）；"*" = 加载全部
+  skillsExclude?: string[];    // 在 skills = "*" 时排除掉指定 skill 名（对显式列表无效）
   modelCallTimeout?: number;   // 单次模型调用超时（秒），不设置则不超时
 }
 

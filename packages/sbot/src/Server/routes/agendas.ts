@@ -9,7 +9,7 @@ import {
     type AgendaCompleteResult,
     type AgendaRecord,
 } from 'scorpio.ai';
-import { agendaServicePool, agendaStorePool } from '../../Agenda';
+import { agendaServicePool, agendaStorePool, agendaTriggerEnginePool } from '../../Agenda';
 import { config } from '../../Core/Config';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
@@ -99,6 +99,15 @@ export class AgendaRoutes {
 
         app.post('/api/agendas/:id/complete', api(req => this.applyItemAction(req, 'complete')));
         app.post('/api/agendas/:id/cancel', api(req => this.applyItemAction(req, 'cancel')));
+
+        // 手动触发某条 trigger：立即按其 action 投递一次，不改调度状态（含已停用 trigger）。
+        app.post('/api/agendas/triggers/:triggerId/fire', api(async req => {
+            const triggerId = Number(req.params.triggerId);
+            if (!Number.isInteger(triggerId) || triggerId <= 0) throwBad('Invalid triggerId');
+            const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
+            const result = await agendaTriggerEnginePool.get(agendaId).fireManual(triggerId);
+            return { triggerId, ...result };
+        }));
 
         app.delete('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);

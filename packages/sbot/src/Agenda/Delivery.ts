@@ -12,20 +12,20 @@ const logger = LoggerService.getLogger("Agenda/Delivery.ts");
  *
  * 因为 agenda 模板是跨 profile/channel 共享的，没有唯一"所有者会话"。
  * 优先级：
- *   1. trigger.channelHint：上次成功投递时记录的会话；仍指向该 agenda 模板则继续使用
+ *   1. trigger.channelSessionId：上次成功投递时记录的会话；仍指向该 agenda 模板则继续使用
  *   2. 扫描所有 session：寻找 effective.resolved.agenda === agendaId 的第一个匹配
  */
 export async function resolveAgendaDelivery(agendaId: string, _item: AgendaItem, trigger: AgendaTrigger): Promise<ChannelSessionRow | null> {
-    if (trigger.channelHint > 0) {
-        const hinted = await channelDataService.getSession(trigger.channelHint);
+    if (trigger.channelSessionId > 0) {
+        const hinted = await channelDataService.getSession(trigger.channelSessionId);
         if (hinted && await sessionUsesAgenda(hinted, agendaId)) return hinted;
     }
 
     const candidates = await database.findAll<ChannelSessionRow>(database.channelSession);
     for (const candidate of candidates) {
         if (await sessionUsesAgenda(candidate, agendaId)) {
-            await agendaStorePool.get(agendaId).updateTrigger(trigger.id, { channelHint: candidate.id });
-            trigger.channelHint = candidate.id;
+            await agendaStorePool.get(agendaId).updateTrigger(trigger.id, { channelSessionId: candidate.id });
+            trigger.channelSessionId = candidate.id;
             return candidate;
         }
     }

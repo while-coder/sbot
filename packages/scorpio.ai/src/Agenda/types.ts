@@ -151,6 +151,13 @@ interface TriggerSpecDelivery {
      * null 显式清空（回退到 content）。
      */
     message?: string | null;
+    /**
+     * 本条 trigger 投递的目标频道会话 id（per-trigger）。
+     * 缺省 / 0 = 触发时自动解析归属本 agenda 模板的会话。
+     * 由 admin 显式配置；优先级高于 batch 级的 args.channelSessionId。
+     * 不在 LLM 工具 schema 暴露（TriggerSpecSchema 为手写 zod，不含此字段）。
+     */
+    channelSessionId?: number;
 }
 
 /**
@@ -238,7 +245,7 @@ export interface AgendaCreateArgs {
     /** 来源标记。LLM 调用时一般不传，由 service 根据上下文写入（Tool / Sync）。 */
     source?: AgendaSource;
     /**
-     * 新建 trigger 写到 trigger.channelHint 的频道会话 id。
+     * 新建 trigger 写到 trigger.channelSessionId 的频道会话 id。
      * 调用方（tool / extractor / route）按上下文注入；缺省 = 0。
      * 不在 LLM 工具 schema 暴露。
      */
@@ -263,7 +270,7 @@ export interface AgendaUpdatePatch {
      */
     triggers?: AgendaTriggerSpec[];
     /**
-     * 调度变更（重建 triggers）时新 trigger.channelHint 用的频道会话 id。
+     * 调度变更（重建 triggers）时新 trigger.channelSessionId 用的频道会话 id。
      * 缺省 = 0。仅在传 triggers 时有意义；不在 LLM 工具 schema 暴露。
      */
     channelSessionId?: number;
@@ -365,8 +372,8 @@ export interface AgendaTrigger {
     action: SessionDeliveryMode;
     /** 投递文本，null 时由 fire 时回退到 item.content。 */
     message: string | null;
-    /** 投递通道（频道会话 id）。当前由 channelSessionId 注入。 */
-    channelHint: number;
+    /** 投递通道（频道会话 id）。新建/替换 trigger 时由调用方注入；0 = 触发时自动解析归属会话。 */
+    channelSessionId: number;
     /** 是否激活。disable 后 engine 不再调度这条；占位保留历史。 */
     enabled: boolean;
     /** 已成功触发次数。 */

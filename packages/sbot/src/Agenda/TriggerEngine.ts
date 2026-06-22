@@ -131,22 +131,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
             const scheduledAt = freshTrigger.nextFireAt ?? Date.now();
 
-            let delivered = false;
-            const delivery = await resolveAgendaDelivery(this.agendaId, item, freshTrigger);
-            try {
-                if (!delivery) throw new Error("no delivery session");
-                const message = this.buildMessage(item, freshTrigger);
-                const result = await triggerSession({
-                    targetId: delivery.id,
-                    message,
-                    mode: freshTrigger.action,
-                    tag: `Agenda trigger [${freshTrigger.id}]`,
-                });
-                delivered = result.ok;
-                if (!result.ok) logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed`);
-            } catch (e: any) {
-                logger.warn(`Agenda trigger [${freshTrigger.id}] failed: ${e?.message ?? String(e)}`);
-            }
+            const delivered = await this.deliver(item, freshTrigger);
 
             // 一次性 absolute 触发投递失败时延后重试，避免提醒在临时通道异常下永久丢失。
             // expr 在 absolute trigger 中是创建时写入的 ISO 字符串，重试不会改写它；
@@ -195,6 +180,50 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
             await this.advanceAfterFire(freshTrigger, item, scheduledAt);
         });
+    }
+
+    /**
+     * admin 手动触发：立即按 trigger.action 投递一次，**不改动触发器调度状态**——
+     * fireCount / nextFireAt / maxFires / enabled 均保持不变，也不记录 occurrence。
+     * 允许对已停用（enabled=false）的 trigger 触发，方便重测或补发已结束的提醒。
+     * 复用 executor 并发保护：若该 trigger 正在定时触发中则拒绝，避免重复投递。
+     * 返回投递结果；trigger / item 不存在时抛错。
+     */
+    async fireManual(triggerId: number): Promise<{ ok: boolean }> {
+        const found = await this.store.findTrigger(triggerId);
+        const trigger = found?.trigger;
+        const item = found?.data.item;
+        if (!trigger || !item) throw new Error(`Trigger ${triggerId} not found`);
+        let ok = false;
+        const ran = await this.executor.execute(triggerId, async () => {
+            ok = await this.deliver(item, trigger);
+        });
+        if (!ran) throw new Error(`Trigger ${triggerId} is currently firing`);
+        return { ok };
+    }
+
+    /**
+     * 解析投递目标并按 trigger.action 投递一次 message。
+     * 只负责"投出去"，不触碰任何调度/状态字段；fire() 与 fireManual() 共用。
+     * 返回是否投递成功（无会话 / 通道异常均记 warn 并返回 false）。
+     */
+    private async deliver(item: AgendaItem, trigger: AgendaTrigger): Promise<boolean> {
+        const delivery = await resolveAgendaDelivery(this.agendaId, item, trigger);
+        try {
+            if (!delivery) throw new Error("no delivery session");
+            const message = this.buildMessage(item, trigger);
+            const result = await triggerSession({
+                targetId: delivery.id,
+                message,
+                mode: trigger.action,
+                tag: `Agenda trigger [${trigger.id}]`,
+            });
+            if (!result.ok) logger.warn(`Agenda trigger [${trigger.id}] delivery failed`);
+            return result.ok;
+        } catch (e: any) {
+            logger.warn(`Agenda trigger [${trigger.id}] failed: ${e?.message ?? String(e)}`);
+            return false;
+        }
     }
 
     private parseAbsoluteExpr(expr: string): number | null {

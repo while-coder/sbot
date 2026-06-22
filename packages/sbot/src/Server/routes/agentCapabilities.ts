@@ -30,8 +30,9 @@ export function resolveAgentMcp(agentId: string): CapabilityItem[] {
     try { agent = config.getAgent(agentId); } catch { return []; }
     const mcp = agent?.mcp;
     const all = listGlobalMcps();
+    const exclude = new Set<string>(Array.isArray(agent?.mcpExclude) ? agent.mcpExclude : []);
     const globals = mcp === '*'
-        ? all
+        ? all.filter(m => !exclude.has(m.id))
         : ((mcp as string[]) || [])
             .map(id => all.find(m => m.id === id))
             .filter((m): m is NonNullable<typeof m> => !!m);
@@ -47,8 +48,9 @@ export function resolveAgentSkills(agentId: string): CapabilityItem[] {
     try { agent = config.getAgent(agentId); } catch { return []; }
     const skills = agent?.skills;
     const all = globalSkillService.getAllSkills();
+    const exclude = new Set<string>(Array.isArray(agent?.skillsExclude) ? agent.skillsExclude : []);
     const matched = skills === '*'
-        ? all
+        ? all.filter((s: any) => !exclude.has(s.name))
         : ((skills as string[]) || [])
             .map(n => all.find((s: any) => s.name === n))
             .filter((s): s is NonNullable<typeof s> => !!s);

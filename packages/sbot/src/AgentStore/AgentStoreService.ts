@@ -42,7 +42,7 @@ export class AgentStoreService {
 
   private _exportOne(id: string): AgentPackage {
     const agent = config.getAgent(id);
-    const { storeSource, mcp, skills, autoApproveTools, autoApproveAllTools, model, id: _id, ...agentFields } = agent as any;
+    const { storeSource, mcp, mcpExclude, skills, skillsExclude, autoApproveTools, autoApproveAllTools, model, id: _id, ...agentFields } = agent as any;
     return {
       id,
       name: agent.name ?? id,

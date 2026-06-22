@@ -64,7 +64,7 @@ export class SingleAgentService extends AgentServiceBase {
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
     protected toolOverflowDir: string;
-    /** 当前请求归属的 channel session db id；agenda tool 写新 trigger 的 channelHint
+    /** 当前请求归属的 channel session db id；agenda tool 写新 trigger 的 channelSessionId
      *  与 extractFromConversation 入队 pending job 的 channelSessionId 都用它。
      *  必传——caller（AgentRunner / ReActAgentService 子任务路径）务必把 T_ChannelSessionId 注册进容器。 */
     protected channelSessionId: number;

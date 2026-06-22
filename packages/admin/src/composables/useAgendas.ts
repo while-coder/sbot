@@ -35,7 +35,7 @@ export interface AgendaTrigger {
   expr: string
   action: AgendaTriggerAction
   message: string | null
-  channelHint: number
+  channelSessionId: number
   enabled: boolean
   fireCount: number
   maxFires: number
@@ -165,6 +165,18 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
+  async function fireTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
+    const { row, trigger } = payload
+    if (!await confirm(t('agenda.confirm_fire_trigger', { id: trigger.id }))) return
+    try {
+      const res = await apiFetch(`/api/agendas/triggers/${trigger.id}/fire`, 'POST', { agendaId: row.agendaId })
+      if (res.data?.ok) show(t('agenda.fire_trigger_ok'))
+      else show(t('agenda.fire_trigger_no_delivery'), 'error')
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+
   async function remove(row: AgendaRow) {
     if (!await confirm(t('agenda.confirm_delete', { id: row.item.id }), { danger: true })) return
     try {
@@ -191,5 +203,6 @@ export function useAgendas(opts: UseAgendasOptions) {
     cancel,
     remove,
     update,
+    fireTrigger,
   }
 }

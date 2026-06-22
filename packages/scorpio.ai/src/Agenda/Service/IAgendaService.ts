@@ -64,7 +64,7 @@ export interface IAgendaService {
     /**
      * 每轮对话结束后同步触发：把消息快照入队 SQLite，触发后台串行抽取。
      * 调用方不需要 await 抽取完成；本方法只负责同步入队并唤醒后台处理。
-     * channelSessionId 写到 pending job 行，drain 时回填到新 trigger 的 channelHint。
+     * channelSessionId 写到 pending job 行，drain 时回填到新 trigger 的 channelSessionId。
      */
     extractFromConversation(messages: ChatMessage[], channelSessionId: number): void;
 

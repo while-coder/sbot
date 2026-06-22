@@ -64,7 +64,7 @@ export class AgentFactory {
         if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
             const toolEntry = agentEntry as ToolAgentEntry;
             const workspaceSkillPath = options.disableWorkspaceSkills ? undefined : options.workPath;
-            await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath);
+            await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath, toolEntry.skillsExclude);
             await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude);
         }
 
@@ -110,6 +110,7 @@ export class AgentFactory {
         agentName: string,
         skills?: string[] | '*',
         workPath?: string,
+        skillsExclude?: string[],
     ): Promise<void> {
         container.registerWithArgs(ISkillService, SkillService, {
             [T_SkillSystemPromptTemplate]: loadPrompt('skills/system.txt'),
@@ -119,8 +120,17 @@ export class AgentFactory {
         });
         const skillService = container.resolve<SkillService>(ISkillService);
         if (skills === '*') {
-            for (const dir of Object.values(getSkillsDirsMap())) {
-                skillService.registerSkillsDir(dir);
+            const excludeSet = new Set(skillsExclude ?? []);
+            if (excludeSet.size === 0) {
+                for (const dir of Object.values(getSkillsDirsMap())) {
+                    skillService.registerSkillsDir(dir);
+                }
+            } else {
+                // 有排除项时逐个注册全局 skill，跳过被排除的（registerSkillsDir 是目录级，无法按名排除）
+                for (const skill of globalSkillService.getAllSkills()) {
+                    if (excludeSet.has(skill.name)) continue;
+                    skillService.registerSingleSkillDir(skill.path);
+                }
             }
         } else if (skills && skills.length > 0) {
             const allGlobalSkills = globalSkillService.getAllSkills();

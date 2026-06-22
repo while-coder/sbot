@@ -28,15 +28,40 @@ const useAllSkills     = ref(false)
 const origUseAll       = ref(false)
 const agentSkillNames  = ref<string[]>([])
 const selectedSkills   = ref<string[]>([])
+const skillsExclude    = ref<string[]>([])
+const origExclude      = ref<string[]>([])
 const skillSearch      = ref('')
 
 const skillsChanged = computed(() => {
   if (useAllSkills.value !== origUseAll.value) return true
-  if (useAllSkills.value) return false
+  if (useAllSkills.value) {
+    const a = [...skillsExclude.value].sort().join(',')
+    const b = [...origExclude.value].sort().join(',')
+    return a !== b
+  }
   const a = [...selectedSkills.value].sort().join(',')
   const b = [...agentSkillNames.value].sort().join(',')
   return a !== b
 })
+
+function isEnabled(name: string): boolean {
+  return useAllSkills.value
+    ? !skillsExclude.value.includes(name)
+    : selectedSkills.value.includes(name)
+}
+
+function toggleEnabled(name: string, enabled: boolean) {
+  if (useAllSkills.value) {
+    if (enabled) skillsExclude.value = skillsExclude.value.filter(n => n !== name)
+    else if (!skillsExclude.value.includes(name)) skillsExclude.value = [...skillsExclude.value, name]
+  } else {
+    if (enabled) {
+      if (!selectedSkills.value.includes(name)) selectedSkills.value = [...selectedSkills.value, name]
+    } else {
+      selectedSkills.value = selectedSkills.value.filter(n => n !== name)
+    }
+  }
+}
 const allGlobalSkills = computed(() => store.allSkills)
 const sources = computed(() => {
   const seen = new Set<string>()
@@ -71,7 +96,7 @@ const globalEmptyText = computed(() =>
 )
 
 function globalRowClass(row: SkillItem): string {
-  return selectedSkills.value.includes(row.name) ? 'is-checked' : ''
+  return isEnabled(row.name) ? 'is-checked' : ''
 }
 
 function apiBase() {
@@ -92,6 +117,9 @@ async function load() {
     const selectedFromApi: string[] = (agentRes.data?.globals || []).map((g: any) => g.name)
     agentSkillNames.value  = isAll ? [] : selectedFromApi
     selectedSkills.value   = isAll ? [] : [...selectedFromApi]
+    const rawExclude: string[] = Array.isArray((agent as any)?.skillsExclude) ? [...(agent as any).skillsExclude] : []
+    skillsExclude.value = rawExclude
+    origExclude.value   = [...rawExclude]
     const allSkills = skillsRes.data || []
     store.allSkills = allSkills
   } catch (e: any) {
@@ -103,15 +131,19 @@ async function saveGlobalSkills() {
   try {
     const existing = (store.settings.agents || {})[agentName.value] || {}
     const skillsValue = useAllSkills.value ? '*' : selectedSkills.value
+    const payload: any = { ...existing, skills: skillsValue }
+    if (useAllSkills.value && skillsExclude.value.length > 0) payload.skillsExclude = [...skillsExclude.value]
+    else delete payload.skillsExclude
     await apiFetch(
       `/api/agents/${encodeURIComponent(agentName.value)}`,
       'PUT',
-      { ...existing, skills: skillsValue },
+      payload,
     )
     const settingsRes = await apiFetch('/api/settings')
     Object.assign(store.settings, settingsRes.data)
     origUseAll.value = useAllSkills.value
     agentSkillNames.value = useAllSkills.value ? [] : [...selectedSkills.value]
+    origExclude.value = useAllSkills.value ? [...skillsExclude.value] : []
     show(t('common.saved'))
     emit('saved', agentName.value)
   } catch (e: any) {
@@ -150,6 +182,8 @@ function open(name: string) {
   skills.value        = []
   agentSkillNames.value = []
   selectedSkills.value  = []
+  skillsExclude.value   = []
+  origExclude.value     = []
   activeTab.value     = 'all'
   skillSearch.value   = ''
   visible.value       = true
@@ -189,11 +223,11 @@ defineExpose({ open })
         <template v-if="activeTab !== t('agents.skills_exclusive_tab')">
           <div class="picker-toolbar">
             <SCheckCard v-model="useAllSkills">{{ t('agents.use_all') }}</SCheckCard>
-            <SInput v-if="!useAllSkills" v-model="skillSearch" :placeholder="t('skills.search_placeholder')" size="sm" style="flex:1" />
-            <div v-else style="flex:1" />
+            <SInput v-model="skillSearch" :placeholder="t('skills.search_placeholder')" size="sm" style="flex:1" />
             <SButton type="primary" size="sm" :disabled="!skillsChanged" @click="saveGlobalSkills">{{ t('common.save') }}</SButton>
             <span v-if="skillsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
           </div>
+          <div v-if="useAllSkills" class="picker-hint">{{ t('agents.skills_exclude_hint') }}</div>
           <STable
             :columns="globalColumns"
             :rows="filteredGlobalSkills"
@@ -204,10 +238,8 @@ defineExpose({ open })
             <template #select="{ row }">
               <input
                 type="checkbox"
-                :value="row.name"
-                v-model="selectedSkills"
-                :disabled="useAllSkills"
-                :checked="useAllSkills || selectedSkills.includes(row.name)"
+                :checked="isEnabled(row.name)"
+                @change="toggleEnabled(row.name, ($event.target as HTMLInputElement).checked)"
               />
             </template>
             <template #name="{ row }">
@@ -276,6 +308,11 @@ defineExpose({ open })
   font-size: var(--sui-fs-sm);
   color: var(--sui-warning);
   white-space: nowrap;
+}
+.picker-hint {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+  margin: -8px 0 var(--sui-sp-3);
 }
 :deep(tr.is-checked > td) { background: var(--sui-bg-subtle); }
 :deep(input[type="checkbox"]) { cursor: pointer; width: 14px; height: 14px; }

@@ -66,10 +66,10 @@ export class AgendaStore implements IAgendaStore {
                     itemId         INTEGER NOT NULL,
                     kind           TEXT    NOT NULL,
                     expr           TEXT    NOT NULL,
-                    action         TEXT    NOT NULL,
-                    message        TEXT,
-                    channelHint    INTEGER NOT NULL,
-                    enabled        INTEGER NOT NULL,
+                    action           TEXT    NOT NULL,
+                    message          TEXT,
+                    channelSessionId INTEGER NOT NULL,
+                    enabled          INTEGER NOT NULL,
                     fireCount      INTEGER NOT NULL,
                     maxFires       INTEGER NOT NULL,
                     lastFiredAt    INTEGER,
@@ -103,6 +103,14 @@ export class AgendaStore implements IAgendaStore {
                 );
                 CREATE INDEX IF NOT EXISTS idx_agenda_pending_status_id ON agenda_pending_jobs (status, id);
             `);
+            // 迁移：旧库 triggers.channelHint 列重命名为 channelSessionId，与 AgendaTrigger 字段保持一致。
+            // CREATE TABLE IF NOT EXISTS 不会改既有表结构，故对旧库显式 ALTER 一次。
+            const triggerCols = this._db.prepare(`PRAGMA table_info(triggers)`).all() as Array<{ name: string }>;
+            const triggerColNames = new Set(triggerCols.map(c => c.name));
+            if (triggerColNames.has("channelHint") && !triggerColNames.has("channelSessionId")) {
+                this._db.exec(`ALTER TABLE triggers RENAME COLUMN channelHint TO channelSessionId`);
+            }
+
             // 启动 sweep：把上次进程崩溃留下的 'processing' 转回 'pending' 重新跑。
             // popPendingJob 用单条 UPDATE…RETURNING 把 job 标 'processing'，
             // 配合本 sweep 实现"崩溃恢复时不重复 LLM 调用 + 不丢 job"。
@@ -241,10 +249,10 @@ export class AgendaStore implements IAgendaStore {
             const row = { ...trigger, id: this.nextChildIdInDb("triggers") };
             this.db.prepare(`
                 INSERT INTO triggers (
-                    id, itemId, kind, expr, action, message, channelHint, enabled,
+                    id, itemId, kind, expr, action, message, channelSessionId, enabled,
                     fireCount, maxFires, lastFiredAt, nextFireAt, createdAt
                 ) VALUES (
-                    @id, @itemId, @kind, @expr, @action, @message, @channelHint, @enabled,
+                    @id, @itemId, @kind, @expr, @action, @message, @channelSessionId, @enabled,
                     @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @createdAt
                 )
             `).run({ ...row, enabled: row.enabled ? 1 : 0 });

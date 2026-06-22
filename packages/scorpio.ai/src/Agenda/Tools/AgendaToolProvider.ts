@@ -74,7 +74,7 @@ const TriggerSpecSchema = z.discriminatedUnion('kind', [
 
 export class AgendaToolProvider {
     /**
-     * channelSessionId 由调用方注入，会写到新建 trigger 的 channelHint。
+     * channelSessionId 由调用方注入，会写到新建 trigger 的 channelSessionId。
      * admin 路径调用（背景任务、route handler）传 0。
      */
     static getTools(agendaService: IAgendaService, channelSessionId: number): DynamicStructuredTool[] {

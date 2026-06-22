@@ -88,16 +88,24 @@ const mcpServersMap = ref<Record<string, McpItem[]>>({})
 function getTab(id: string): 'config' | 'skills' | 'mcp' { return activeTabs.value[id] ?? 'config' }
 function getSkills(id: string)  { return skillsMap.value[id]     ?? [] }
 function getGlobals(id: string) {
-  const skills = (store.settings.agents || {})[id]?.skills
-  if (skills === '*') return store.allSkills
+  const agent = (store.settings.agents || {})[id]
+  const skills = agent?.skills
+  if (skills === '*') {
+    const exclude = new Set<string>((agent as any)?.skillsExclude ?? [])
+    return store.allSkills.filter((s: SkillItem) => !exclude.has(s.name))
+  }
   const ids = new Set<string>(skills ?? [])
   return store.allSkills.filter((s: SkillItem) => ids.has(s.name))
 }
 function getMcpServers(id: string) { return mcpServersMap.value[id] ?? [] }
 
 function getMcpGlobals(id: string) {
-  const mcp = (store.settings.agents || {})[id]?.mcp
-  if (mcp === '*') return store.allMcps
+  const agent = (store.settings.agents || {})[id]
+  const mcp = agent?.mcp
+  if (mcp === '*') {
+    const exclude = new Set<string>((agent as any)?.mcpExclude ?? [])
+    return store.allMcps.filter((m: McpItem) => !exclude.has(m.id))
+  }
   const ids = new Set<string>(mcp ?? [])
   return store.allMcps.filter((m: McpItem) => ids.has(m.id))
 }

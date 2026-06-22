@@ -250,7 +250,7 @@ export class AgendaService implements IAgendaService {
                 action: patch.action ?? AgendaTriggerAction.Notify,
                 message: patch.message?.trim() || null,
             };
-            if (patch.channelSessionId !== undefined) fields.channelHint = patch.channelSessionId;
+            if (patch.channelSessionId !== undefined) fields.channelSessionId = patch.channelSessionId;
             const record = await this.agendaStore.updateTrigger(triggerId, fields);
             await this.agendaStore.updateItem(found.data.item.id, { updatedAt: now });
             await this.triggerEngine.reload(triggerId);
@@ -496,7 +496,8 @@ export class AgendaService implements IAgendaService {
             ...schedule,
             action: spec.action ?? AgendaTriggerAction.Notify,
             message: spec.message?.trim() || null,
-            channelHint: args.channelSessionId ?? 0,
+            // per-trigger 优先（admin 显式配置）；否则回退到 batch 级注入（tool / extractor 上下文会话）。
+            channelSessionId: spec.channelSessionId ?? args.channelSessionId ?? 0,
             enabled: true,
             fireCount: 0,
             lastFiredAt: null,
