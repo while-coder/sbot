@@ -1,4 +1,4 @@
-Discover channels, sessions, and users known to this bot. Reads from the bot's local config / database — no platform API permission required.
+Look up who/what this bot can send to: its channels, group chats (sessions), and users — and their ids. Call this whenever you need to send a message or file but only have a name (e.g. "发给张三 / 通知运维群 / send it to the ops channel") and not yet a numeric id. The id you get here is passed straight into channel_send. Reads from the bot's local config / database — no platform API permission required.
 
 Always returns ALL configured channels nested as <channels><channel>...</channel></channels>. The `type` parameter controls which children are emitted directly under each <channel>:
 

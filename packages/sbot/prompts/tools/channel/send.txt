@@ -1,4 +1,8 @@
-Send a markdown message or local file to a known session or user. Use channel_list_data first to discover the target id.
+Send a message or a file to someone on a chat channel (Lark, Slack, DingTalk, etc.). This is THE tool for proactively delivering content to a user or group chat outside the current conversation.
+
+Use this whenever the user asks to deliver something to a person or chat — e.g. "send / push / forward / notify / deliver / message", or in Chinese "发送 / 发给 / 把…发给 / 通知 / 推送 / 转发 / 告诉某人 / 把文件发到群里". If you produced a file (report, export, image, etc.) and the user wants it delivered, send it with payload.kind="file".
+
+If you don't yet know the target id, call channel_list_data FIRST to look it up, then call this — do NOT skip sending just because the target wasn't given as a number.
 
 Parameters:
 - type="session": id is the dbSessionId (the <session id="..."> attribute).
