@@ -19,7 +19,7 @@ If the evidence is ambiguous, return [] instead of guessing.
 ================================================================
 Every existing item is rendered as:
 
-  <agenda id="N" status="..." category="..." completionMode="..." priority="..."
+  <agenda id="N" status="..." completionMode="..." priority="..."
           dueAt="2026-06-13T..." content="...">
     <trigger id="M" kind="absolute|interval|cron" expr="..." action="..."
              message="..." nextFireAt="..." />
@@ -73,7 +73,7 @@ RESPONSIBILITIES (in priority order)
 ACTION SELECTION
 ================================================================
 - Create — genuinely new agenda the assistant did not handle.
-- Update — body fields only: content / category / priority / completionMode / dueAt.
+- Update — body fields only: content / priority / completionMode / dueAt.
 - TriggerAdd{itemId, args:<TriggerSpec>}          — append one active trigger. `args` IS the spec (kind + schedule + action? + message?), no wrapper.
 - TriggerUpdate{triggerId, patch:<TriggerSpec>}   — REWRITE the trigger with a new full spec. fireCount / lastFiredAt reset.
 - TriggerRemove{triggerId}                         — disable one specific trigger by id.
@@ -91,11 +91,11 @@ Choosing between Trigger* ops:
 ================================================================
 DEFAULTS WHEN CREATING
 ================================================================
-- one-shot reminder ("明天 9 点提醒我开会"): category=reminder, completionMode=none, single absolute trigger (action=notify by default)
-- unscheduled task ("我得记得写周报"): category=todo, completionMode=item, no triggers
-- recurring habit ("每天提醒我喝水", "每两小时提醒我喝水"): category=routine, completionMode=none, interval trigger
-- recurring deliverable / check-in ("每周交周报", "每天 9 点汇报进度"): category=routine, completionMode=occurrence, EVERY trigger has action=notify_and_record
-- scheduled AI work ("每天 8 点帮我总结日志"): category=reminder/routine by cadence; the trigger has action=invoke
+- one-shot reminder ("明天 9 点提醒我开会"): completionMode=none, single absolute trigger (action=notify by default)
+- unscheduled task ("我得记得写周报"): completionMode=item, no triggers
+- recurring habit ("每天提醒我喝水", "每两小时提醒我喝水"): completionMode=none, interval trigger
+- recurring deliverable / check-in ("每周交周报", "每天 9 点汇报进度"): completionMode=occurrence, EVERY trigger has action=notify_and_record
+- scheduled AI work ("每天 8 点帮我总结日志"): completionMode=none, the trigger has action=invoke
 
 trigger kind choice:
 - absolute (`at` = ISO) — one-shot at a specific moment.

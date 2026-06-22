@@ -1,7 +1,7 @@
 import { DWClient, EventAck, type DWClientDownStream, type EventAckData } from 'dingtalk-stream';
 import {
   IChannelService, ChannelSessionHandler, SessionService,
-  type ILogger, type MessageContent, type PersistedSession,
+  type ILogger, type MessageContent,
 } from 'channel.base';
 import { DingtalkSessionHandler, type DingtalkMessageArgs } from './DingtalkSessionHandler';
 import { DingtalkOpenApi } from './DingtalkOpenApi';
@@ -81,9 +81,9 @@ export class DingtalkService implements IChannelService {
    * 用持久化的会话 metadata 重建内存 sessions（重启后无需等入站消息即可主动发送）。
    * metadata 形如 { conversationType, senderStaffId? }；conversationId 即 sessionId。
    */
-  hydrateSessions(sessions: PersistedSession[]): void {
+  hydrateSessions(sessions: Record<string, Record<string, any>>): void {
     let count = 0;
-    for (const { sessionId, metadata } of sessions) {
+    for (const [sessionId, metadata] of Object.entries(sessions)) {
       const conversationType = metadata?.conversationType as DingtalkConversationType | undefined;
       if (conversationType !== DingtalkConversationType.Group && conversationType !== DingtalkConversationType.Single) continue;
       this.sessions.set(sessionId, {

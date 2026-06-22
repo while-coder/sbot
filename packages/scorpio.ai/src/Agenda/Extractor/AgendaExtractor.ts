@@ -7,7 +7,6 @@ import { renderConversation } from "../../Utils/conversationUtils";
 import { TimeUtils } from "../../Utils/TimeUtils";
 import { T_AgendaExtractorSystemPrompt } from "../../Core";
 import {
-    AgendaCategory,
     AgendaCompletionMode,
     AgendaPriority,
     AgendaTimeUnit,
@@ -54,7 +53,6 @@ const TriggerSpecSchema = z.discriminatedUnion('kind', [
 
 const CreateArgsSchema = z.object({
     content: z.string().describe('Canonical, self-contained description used as the default fire-time text. A clean noun-phrase or imperative title ("Submit weekly report", "喝水", "Build a web matching game (timer / levels / shuffle / hints)"); not a reply or a kickoff phrase like "Start by ...". Match the user\'s language.'),
-    category: z.enum(AgendaCategory).optional(),
     priority: z.enum(AgendaPriority).optional(),
     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; each element carries its own action/message. Omit or [] for a plain todo with no time.'),
     dueAt: z.string().optional(),
@@ -63,7 +61,6 @@ const CreateArgsSchema = z.object({
 
 const UpdatePatchSchema = z.object({
     content: z.string().optional(),
-    category: z.enum(AgendaCategory).optional(),
     priority: z.enum(AgendaPriority).optional(),
     completionMode: z.enum(AgendaCompletionMode).optional(),
     dueAt: z.string().nullable().optional(),

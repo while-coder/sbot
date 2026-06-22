@@ -151,9 +151,11 @@ export class ChannelManager {
                     const { dbUserId, dbSessionId } = await doInitSession(channelId, initCtx);
                     return { channelId, userId: initCtx.userId, sessionId: initCtx.sessionId, dbUserId, dbSessionId };
                 },
-                loadSessions: async () => {
+                loadSessionMetadata: async () => {
                     const rows = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { channelId } });
-                    return rows.map(r => ({ sessionId: r.sessionId, metadata: parseSessionMetadata(r.metadata) }));
+                    const result: Record<string, Record<string, any>> = {};
+                    for (const r of rows) result[r.sessionId] = parseSessionMetadata(r.metadata);
+                    return result;
                 },
                 onReceiveMessage: async (session, query, args) =>
                     sessionManager.onReceiveChannelMessage(query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),

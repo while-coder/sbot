@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store, applyMcpList } from '@/shared/store'
 import { useToast } from 'sbot-ui'
-import { fetchLatestRelease, compareSemver, GITHUB_REPO_URL, GITHUB_RELEASES_URL } from 'sbot.commons'
+import { fetchLatestRelease, compareSemver, GITHUB_REPO_URL, GITHUB_RELEASES_URL, DOCS_URL, DOCS_ZH_URL } from 'sbot.commons'
 import { useResponsive } from '../composables/useResponsive'
 import { saveLocale } from '@/i18n'
 
@@ -235,9 +235,7 @@ function onSystemThemeChange() {
 }
 
 // Docs URL
-const docsUrl = computed(() => locale.value === 'zh'
-  ? `${GITHUB_REPO_URL}/blob/main/README.zh.md`
-  : `${GITHUB_REPO_URL}/blob/main/README.md`)
+const docsUrl = computed(() => locale.value === 'zh' ? DOCS_ZH_URL : DOCS_URL)
 
 async function checkUpdate(currentVersion: string) {
   const data = await fetchLatestRelease()

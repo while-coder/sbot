@@ -3,7 +3,6 @@ import { T_AgendaToolDescs } from "../../Core";
 import { ILoggerService, type ILogger } from "../../Logger";
 import type { ChatMessage } from "../../Saver";
 import {
-    AgendaCategory,
     AgendaCompletionMode,
     AgendaOccurrenceStatus,
     AgendaPriority,
@@ -114,8 +113,7 @@ export class AgendaService implements IAgendaService {
         const content = args.content?.trim();
         if (!content) throw new Error("content is required");
         const now = Date.now();
-        const category = args.category ?? this.inferCategory(args);
-        const completionMode = args.completionMode ?? this.inferCompletionMode(category);
+        const completionMode = args.completionMode ?? this.inferCompletionMode(args);
         const dueAt = this.inferDueAt(args, now);
 
         // findNearDuplicate + createItem + appendTrigger 必须原子，否则 tool 路径
@@ -129,7 +127,6 @@ export class AgendaService implements IAgendaService {
                 content,
                 status: AgendaStatus.Pending,
                 priority: args.priority ?? AgendaPriority.Normal,
-                category,
                 completionMode,
                 dueAt,
                 source: args.source ?? AgendaSource.Tool,
@@ -177,7 +174,6 @@ export class AgendaService implements IAgendaService {
             const replacementSpecs = patch.triggers;
             const fields: Partial<AgendaItem> = { updatedAt: now };
             if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
-            if (patch.category != null) fields.category = patch.category;
             if (patch.priority != null) fields.priority = patch.priority;
             if (patch.completionMode != null) fields.completionMode = patch.completionMode;
             if (patch.dueAt !== undefined) {
@@ -194,7 +190,6 @@ export class AgendaService implements IAgendaService {
             if (replacementSpecs !== undefined) {
                 const triggers = await this.createTriggersIfNeeded(updatedItem, {
                     content: updatedItem.content,
-                    category: updatedItem.category,
                     priority: updatedItem.priority,
                     completionMode: updatedItem.completionMode,
                     triggers: replacementSpecs,
@@ -218,7 +213,6 @@ export class AgendaService implements IAgendaService {
             const now = Date.now();
             const trigger = await this.createTrigger(item, {
                 content: item.content,
-                category: item.category,
                 priority: item.priority,
                 completionMode: item.completionMode,
                 triggers: [args],
@@ -280,7 +274,6 @@ export class AgendaService implements IAgendaService {
             const now = Date.now();
             const triggers = await this.createTriggersIfNeeded(item, {
                 content: item.content,
-                category: item.category,
                 priority: item.priority,
                 completionMode: item.completionMode,
                 triggers: args.triggers,
@@ -538,16 +531,13 @@ export class AgendaService implements IAgendaService {
         return count != null && count > 0 ? Math.floor(count) : 0;
     }
 
-    private inferCategory(args: AgendaCreateArgs): AgendaCategory {
-        // category 只表达"时间形态"。"是否 AI 处理"由 trigger.action 独立承担（per-spec）。
-        const specs = args.triggers ?? [];
-        if (specs.some(spec => spec.kind === AgendaTriggerKind.Interval || spec.kind === AgendaTriggerKind.Cron)) return AgendaCategory.Routine;
-        if (specs.some(spec => spec.kind === AgendaTriggerKind.Absolute)) return AgendaCategory.Reminder;
-        return AgendaCategory.Todo;
-    }
-
-    private inferCompletionMode(category: AgendaCategory): AgendaCompletionMode {
-        return category === AgendaCategory.Todo ? AgendaCompletionMode.Item : AgendaCompletionMode.None;
+    /**
+     * 推断默认完成方式：无 trigger（纯 Todo）→ Item（一次性完成关整条）；
+     * 有 trigger（Reminder / Routine）→ None（触发耗尽后自动关）。
+     * Occurrence（打卡）不在此推断，只能由调用方显式指定。
+     */
+    private inferCompletionMode(args: AgendaCreateArgs): AgendaCompletionMode {
+        return (args.triggers?.length ?? 0) > 0 ? AgendaCompletionMode.None : AgendaCompletionMode.Item;
     }
 
     private inferDueAt(args: AgendaCreateArgs, now: number): number | null {
@@ -614,7 +604,6 @@ export class AgendaService implements IAgendaService {
         const status = filter?.status ?? AgendaStatus.Pending;
         const item = record.item;
         if (status !== 'all' && item.status !== status) return false;
-        if (filter?.category && item.category !== filter.category) return false;
         if (filter?.priority && item.priority !== filter.priority) return false;
         return true;
     }

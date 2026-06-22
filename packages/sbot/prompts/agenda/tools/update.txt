@@ -1,4 +1,4 @@
-Update an agenda item's BODY fields: content / category / priority / completionMode / dueAt.
+Update an agenda item's BODY fields: content / priority / completionMode / dueAt.
 
 NOT FOR: trigger schedules → agenda_trigger. Marking done → agenda_complete. Terminating → agenda_cancel.
 

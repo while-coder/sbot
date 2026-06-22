@@ -36,7 +36,7 @@ export const dingtalkPlugin: ChannelPlugin = {
   },
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
-    const { config, logger, filterEvent, initSession, loadSessions, onReceiveMessage } = ctx;
+    const { config, logger, filterEvent, initSession, loadSessionMetadata, onReceiveMessage } = ctx;
 
     if (!config.clientId?.trim() || !config.clientSecret?.trim()) return undefined;
 
@@ -67,7 +67,7 @@ export const dingtalkPlugin: ChannelPlugin = {
         });
       },
     });
-    service.hydrateSessions(await loadSessions());
+    service.hydrateSessions(await loadSessionMetadata());
     await service.start();
     return service;
   },

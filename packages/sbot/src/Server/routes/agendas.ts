@@ -1,6 +1,5 @@
 import express from 'express';
 import {
-    AgendaCategory,
     AgendaPriority,
     AgendaService,
     AgendaStatus,
@@ -76,7 +75,6 @@ export class AgendaRoutes {
             const channelSessionId = num(body.channelSessionId) ?? 0;
             return withAgendaService(agendaId, service => service.create({
                 content: String(body.content ?? ''),
-                category: body.category,
                 priority: body.priority,
                 triggers: body.triggers,
                 dueAt: body.dueAt,
@@ -124,7 +122,6 @@ export class AgendaRoutes {
     private parseFilter(query: any): AgendaListFilter {
         const status = this.parseStatus(query.status);
         const filter: AgendaListFilter = { status };
-        if (query.category && Object.values(AgendaCategory).includes(query.category)) filter.category = query.category as AgendaCategory;
         if (query.priority && Object.values(AgendaPriority).includes(query.priority)) filter.priority = query.priority as AgendaPriority;
         const limit = num(query.limit);
         if (limit && limit > 0) filter.limit = limit;

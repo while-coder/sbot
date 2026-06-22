@@ -82,7 +82,6 @@ export function formatAgendaXml(record: AgendaRecord): string {
     const headParts = [
         `id="${item.id}"`,
         `status="${item.status}"`,
-        `category="${item.category}"`,
         `completionMode="${item.completionMode}"`,
         `priority="${item.priority}"`,
     ];

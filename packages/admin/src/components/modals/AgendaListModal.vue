@@ -14,7 +14,6 @@ const sessionLabel = ref('')
 const {
   loading,
   statusFilter,
-  categoryFilter,
   sortedAgendas,
   pendingCount,
   dueCount,
@@ -40,7 +39,7 @@ async function openByAgendaId(agendaId: string | null | undefined, label?: strin
   if (agendaIdRef.value) await load()
 }
 
-watch([statusFilter, categoryFilter], () => {
+watch(statusFilter, () => {
   if (visible.value && agendaIdRef.value) load()
 })
 
@@ -50,7 +49,6 @@ defineExpose({ openByAgendaId })
 <template>
   <SModal v-model:visible="visible" :title="title" width="xl">
     <AgendaBoard
-      v-model:category-filter="categoryFilter"
       v-model:status-filter="statusFilter"
       :items="sortedAgendas"
       :loading="loading"

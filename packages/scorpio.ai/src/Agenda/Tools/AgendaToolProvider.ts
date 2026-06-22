@@ -1,7 +1,6 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
-    AgendaCategory,
     AgendaCompletionMode,
     AgendaPriority,
     AgendaStatus,
@@ -85,7 +84,6 @@ export class AgendaToolProvider {
                 description: descs.create,
                 schema: z.object({
                     content: z.string().describe('Self-contained title. Match user language.'),
-                    category: z.enum(AgendaCategory).optional().describe('Override category inference.'),
                     priority: z.enum(AgendaPriority).optional().describe('Default normal. high = urgent; low = casual.'),
                     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; omit / [] = plain todo.'),
                     dueAt: z.string().optional().describe('ISO deadline. Pure metadata — does NOT auto-create a trigger (agenda_wiki §3).'),
@@ -109,7 +107,6 @@ export class AgendaToolProvider {
                 description: descs.list,
                 schema: z.object({
                     status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, 'all']).optional().describe('Default pending. "all" = no filter.'),
-                    category: z.enum(AgendaCategory).optional(),
                     priority: z.enum(AgendaPriority).optional(),
                     limit: z.number().int().positive().optional().describe(`Default ${DEFAULT_LIST_LIMIT}.`),
                 }),
@@ -127,7 +124,6 @@ export class AgendaToolProvider {
                 schema: z.object({
                     id: z.number().describe('Item id.'),
                     content: z.string().optional(),
-                    category: z.enum(AgendaCategory).optional(),
                     priority: z.enum(AgendaPriority).optional(),
                     completionMode: z.enum(AgendaCompletionMode).optional(),
                     dueAt: z.string().nullable().optional().describe('ISO or null. Does NOT retime triggers (agenda_wiki §3).'),

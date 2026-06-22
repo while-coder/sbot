@@ -24,24 +24,8 @@ export enum AgendaPriority {
 }
 
 /**
- * 形态分类。仅表达"时间形态"，与"是否 AI 处理"无关——后者交给 trigger.action（Invoke/Notify/Send）。
- * 由 AgendaService.inferCategory 根据时间字段推断：
- * - 有 every/cron → Routine
- * - 有 at/after  → Reminder
- * - 都没有       → Todo
- */
-export enum AgendaCategory {
-    /** 普通待办，无时间。LLM 说"我今天要写周报" → Todo。 */
-    Todo = 'todo',
-    /** 一次性。LLM 说"明天 9 点提醒我开会"或"明天 9 点帮我总结日志" → Reminder（区别在 action）。 */
-    Reminder = 'reminder',
-    /** 周期任务。LLM 说"每天提醒我喝水"或"每天 8 点帮我总结日志" → Routine（区别在 action）。 */
-    Routine = 'routine',
-}
-
-/**
  * 完成方式。决定 complete() 工具的行为以及 trigger 触发完是否自动 Done 主体。
- * 由 AgendaService.inferCompletionMode 推断：Todo → Item，其余 → None。
+ * 由 AgendaService.inferCompletionMode 推断：无 trigger → Item，有 trigger → None。
  */
 export enum AgendaCompletionMode {
     /**
@@ -219,8 +203,6 @@ export type AgendaTriggerSpec =
 export interface AgendaCreateArgs {
     /** 主内容。LLM 说"提醒我喝水" → "喝水"。trim 后非空，否则抛错。 */
     content: string;
-    /** 显式类别。一般省略，由系统根据 trigger.kind 自动推断；显式传可覆盖。 */
-    category?: AgendaCategory;
     /** 优先级。默认 Normal。 */
     priority?: AgendaPriority;
     /**
@@ -256,7 +238,6 @@ export interface AgendaCreateArgs {
 export interface AgendaUpdatePatch {
     /** 改内容。LLM 说"把 #3 改成 '交月报'" → content = "交月报"。 */
     content?: string;
-    category?: AgendaCategory;
     priority?: AgendaPriority;
     completionMode?: AgendaCompletionMode;
     /**
@@ -300,8 +281,6 @@ export interface AgendaTriggerReplaceAllArgs {
 export interface AgendaListFilter {
     /** 状态过滤。'all' = 不限。缺省 = Pending。 */
     status?: AgendaStatus | 'all';
-    /** 仅返回某类别。 */
-    category?: AgendaCategory;
     /** 仅返回某优先级。 */
     priority?: AgendaPriority;
     /** 上限条数。缺省 50，下限 1。 */
@@ -333,7 +312,6 @@ export interface AgendaItem {
     content: string;
     status: AgendaStatus;
     priority: AgendaPriority;
-    category: AgendaCategory;
     completionMode: AgendaCompletionMode;
     /**
      * 截止时间戳（毫秒）。写入规则（优先级从高到低）：

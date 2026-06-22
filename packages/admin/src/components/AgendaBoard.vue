@@ -2,11 +2,10 @@
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SBadge, SButton, SEntityList, SFormItem, SInput, SModal, SSelect, STextarea } from 'sbot-ui'
-import { apiFetch } from '@/shared/api'
+import SessionSelect from '@/components/SessionSelect.vue'
 import {
   firstNextFire,
   isOverdue,
-  type AgendaCategory,
   type AgendaCompletionMode,
   type AgendaItem,
   type AgendaOccurrence,
@@ -18,7 +17,6 @@ import {
   type AgendaTrigger,
   type AgendaTriggerAction,
   type AgendaTriggerKind,
-  type AgendaCategoryFilter,
 } from '@/composables/useAgendas'
 
 const props = withDefaults(defineProps<{
@@ -28,7 +26,6 @@ const props = withDefaults(defineProps<{
   dueCount: number
   cancelledCount: number
   triggerCount: number
-  categoryFilter: AgendaCategoryFilter
   statusFilter: AgendaStatusFilter
   showProfile?: boolean
   compact?: boolean
@@ -38,7 +35,6 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  (e: 'update:categoryFilter', value: AgendaCategoryFilter): void
   (e: 'update:statusFilter', value: AgendaStatusFilter): void
   (e: 'refresh'): void
   (e: 'complete', row: AgendaRow): void
@@ -49,13 +45,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-
-const categoryTabs: Array<{ value: AgendaCategoryFilter; label: string }> = [
-  { value: 'all', label: 'agenda.view_all' },
-  { value: 'todo', label: 'agenda.category_todo' },
-  { value: 'reminder', label: 'agenda.category_reminder' },
-  { value: 'routine', label: 'agenda.category_routine' },
-]
 
 const visibleCount = computed(() => props.items.length)
 const profileCount = computed(() => new Set(props.items.map(row => row.agendaId)).size)
@@ -72,12 +61,6 @@ function statusVariant(s: AgendaStatus): 'success' | 'warning' | 'neutral' {
   return 'neutral'
 }
 
-function categoryVariant(c: AgendaCategory): 'success' | 'info' | 'warning' | 'neutral' {
-  if (c === 'routine') return 'success'
-  if (c === 'reminder') return 'warning'
-  return 'neutral'
-}
-
 function occurrenceVariant(s: AgendaOccurrenceStatus): 'success' | 'warning' | 'danger' | 'neutral' {
   if (s === 'done') return 'success'
   if (s === 'pending') return 'warning'
@@ -87,7 +70,6 @@ function occurrenceVariant(s: AgendaOccurrenceStatus): 'success' | 'warning' | '
 
 function priorityLabel(p: AgendaPriority): string { return t(`agenda.priority_${p}`) }
 function statusLabel(s: AgendaStatus): string { return t(`agenda.status_${s}`) }
-function categoryLabel(c: AgendaCategory): string { return t(`agenda.category_${c}`) }
 function sourceLabel(s: AgendaItem['source']): string { return t(`agenda.source_${s}`) }
 function completionModeLabel(m: AgendaItem['completionMode']): string { return t(`agenda.completion_${m}`) }
 function triggerKindLabel(trigger: AgendaTrigger): string { return t(`agenda.trigger_${trigger.kind}`) }
@@ -116,13 +98,12 @@ interface TriggerDraft {
   // shared delivery
   action: AgendaTriggerAction
   message: string
-  /** 投递目标频道会话 db id；'' = 自动解析归属会话。 */
-  channelSessionId: string
+  /** 投递目标频道会话 db id；0 = 自动解析归属会话。 */
+  channelSessionId: number
 }
 
 interface EditForm {
   content: string
-  category: AgendaCategory
   priority: AgendaPriority
   completionMode: AgendaCompletionMode
   dueAt: string
@@ -133,49 +114,12 @@ const showEdit = ref(false)
 const editingRow = ref<AgendaRow | null>(null)
 const editForm = reactive<EditForm>({
   content: '',
-  category: 'todo',
   priority: 'normal',
   completionMode: 'item',
   dueAt: '',
   triggers: [],
 })
 const triggersDirty = ref(false)
-
-interface SessionOption { id: number; label: string; agenda: string | null }
-const sessionOptions = ref<SessionOption[]>([])
-const sessionsLoaded = ref(false)
-
-/** 拉取频道会话列表，供投递会话下拉框使用。仅首次打开编辑时加载一次。 */
-async function loadSessionOptions(): Promise<void> {
-  if (sessionsLoaded.value) return
-  sessionsLoaded.value = true
-  try {
-    const res = await apiFetch('/api/channel-sessions')
-    sessionOptions.value = (res.data || []).map((s: any) => ({
-      id: s.id,
-      agenda: s.agenda ?? null,
-      label: `#${s.id} ${s.sessionName || s.autoSessionName || s.sessionId || ''}`.trim(),
-    }))
-  } catch {
-    sessionsLoaded.value = false  // 允许下次重试
-    sessionOptions.value = []
-  }
-}
-
-/** 优先列出绑定到当前事项模板的会话；没有匹配时退回全部，避免下拉为空无从选择。 */
-const editSessionOptions = computed<SessionOption[]>(() => {
-  const agendaId = editingRow.value?.agendaId
-  if (!agendaId) return sessionOptions.value
-  const matched = sessionOptions.value.filter(s => s.agenda === agendaId)
-  return matched.length ? matched : sessionOptions.value
-})
-
-/** 当前草稿选中的会话若已不在选项中（会话被删/未绑定），补一条占位避免值丢失。 */
-function draftSessionOptions(draft: TriggerDraft): SessionOption[] {
-  const opts = editSessionOptions.value
-  if (!draft.channelSessionId || opts.some(o => String(o.id) === draft.channelSessionId)) return opts
-  return [{ id: Number(draft.channelSessionId), agenda: null, label: `#${draft.channelSessionId}` }, ...opts]
-}
 
 function pad2(n: number): string { return String(n).padStart(2, '0') }
 function tsToLocalInput(ts: number): string {
@@ -216,7 +160,7 @@ function triggerToDraft(t: AgendaTrigger): TriggerDraft {
     count: t.maxFires > 0 ? String(t.maxFires) : '',
     action: t.action,
     message: t.message ?? '',
-    channelSessionId: t.channelSessionId > 0 ? String(t.channelSessionId) : '',
+    channelSessionId: t.channelSessionId > 0 ? t.channelSessionId : 0,
   }
   if (t.kind === 'absolute') {
     base.at = tsToLocalInput(new Date(t.expr).getTime())
@@ -245,17 +189,16 @@ function emptyDraft(): TriggerDraft {
     count: '',
     action: 'notify',
     message: '',
-    channelSessionId: '',
+    channelSessionId: 0,
   }
 }
 
 function draftToSpec(d: TriggerDraft): Record<string, unknown> | null {
-  const sid = d.channelSessionId.trim() ? Math.floor(Number(d.channelSessionId)) : 0
   const base: Record<string, unknown> = {
     kind: d.kind,
     action: d.action,
     message: d.message.trim() ? d.message.trim() : null,
-    channelSessionId: Number.isFinite(sid) && sid > 0 ? sid : 0,
+    channelSessionId: d.channelSessionId > 0 ? d.channelSessionId : 0,
   }
   if (d.kind === 'absolute') {
     const iso = localInputToIso(d.at)
@@ -298,14 +241,12 @@ const editTriggerError = computed<string | null>(() => {
 function openEdit(row: AgendaRow): void {
   editingRow.value = row
   editForm.content = row.item.content
-  editForm.category = row.item.category
   editForm.priority = row.item.priority
   editForm.completionMode = row.item.completionMode
   editForm.dueAt = row.item.dueAt ? tsToLocalInput(row.item.dueAt) : ''
   editForm.triggers = row.triggers.filter(t => t.enabled).map(triggerToDraft)
   triggersDirty.value = false
   showEdit.value = true
-  void loadSessionOptions()
 }
 
 function clearDueAt(): void { editForm.dueAt = '' }
@@ -330,7 +271,6 @@ function submitEdit(): void {
   if (editTriggerError.value) return
   const patch: Record<string, unknown> = {
     content,
-    category: editForm.category,
     priority: editForm.priority,
     completionMode: editForm.completionMode,
     dueAt: editForm.dueAt ? localInputToIso(editForm.dueAt) : null,
@@ -401,18 +341,6 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
     </section>
 
     <section class="agenda-controls" aria-label="Agenda controls">
-      <div class="agenda-viewbar" aria-label="Agenda category">
-        <button
-          v-for="option in categoryTabs"
-          :key="option.value"
-          type="button"
-          class="agenda-view-tab"
-          :class="{ 'agenda-view-tab--active': categoryFilter === option.value }"
-          @click="emit('update:categoryFilter', option.value)"
-        >
-          {{ t(option.label) }}
-        </button>
-      </div>
       <div class="agenda-filters">
         <SSelect :model-value="statusFilter" size="sm" class="agenda-status-select" @update:model-value="v => emit('update:statusFilter', v as AgendaStatusFilter)">
           <option value="pending">{{ t('agenda.filter_pending') }}</option>
@@ -439,7 +367,6 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
           :class="{ 'agenda-row__content--done': row.item.status !== 'pending' }"
         >{{ row.item.content }}</span>
         <SBadge :variant="statusVariant(row.item.status)" size="xs">{{ statusLabel(row.item.status) }}</SBadge>
-        <SBadge :variant="categoryVariant(row.item.category)" size="xs">{{ categoryLabel(row.item.category) }}</SBadge>
         <SBadge v-if="row.item.priority !== 'normal'" :variant="priorityVariant(row.item.priority)" size="xs">{{ priorityLabel(row.item.priority) }}</SBadge>
         <SBadge v-if="isOverdue(row)" variant="danger" size="xs">{{ t('agenda.overdue') }}</SBadge>
       </template>
@@ -587,13 +514,6 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
       <SFormItem :label="t('agenda.edit_content') + ' *'">
         <STextarea v-model="editForm.content" :placeholder="t('agenda.edit_content_placeholder')" :rows="3" />
       </SFormItem>
-      <SFormItem :label="t('agenda.category_col')">
-        <SSelect v-model="editForm.category">
-          <option value="todo">{{ t('agenda.category_todo') }}</option>
-          <option value="reminder">{{ t('agenda.category_reminder') }}</option>
-          <option value="routine">{{ t('agenda.category_routine') }}</option>
-        </SSelect>
-      </SFormItem>
       <SFormItem :label="t('agenda.priority_col')">
         <SSelect v-model="editForm.priority">
           <option value="low">{{ t('agenda.priority_low') }}</option>
@@ -711,10 +631,12 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
             />
           </SFormItem>
           <SFormItem :label="t('agenda.edit_channel_session')" :hint="t('agenda.edit_channel_session_hint')">
-            <SSelect v-model="draft.channelSessionId" @update:model-value="markTriggersDirty">
-              <option value="">{{ t('agenda.edit_channel_session_auto') }}</option>
-              <option v-for="opt in draftSessionOptions(draft)" :key="opt.id" :value="String(opt.id)">{{ opt.label }}</option>
-            </SSelect>
+            <SessionSelect
+              :model-value="draft.channelSessionId || null"
+              :agenda="editingRow?.agendaId"
+              :empty-label="t('agenda.edit_channel_session_auto')"
+              @update:model-value="(v: number | null) => { draft.channelSessionId = v ?? 0; markTriggersDirty() }"
+            />
           </SFormItem>
         </li>
       </ul>

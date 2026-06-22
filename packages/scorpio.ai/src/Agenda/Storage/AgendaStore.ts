@@ -53,7 +53,6 @@ export class AgendaStore implements IAgendaStore {
                     content             TEXT    NOT NULL,
                     status              TEXT    NOT NULL,
                     priority            TEXT    NOT NULL,
-                    category            TEXT    NOT NULL,
                     completionMode      TEXT    NOT NULL,
                     dueAt               INTEGER,
                     source              TEXT    NOT NULL,
@@ -111,6 +110,13 @@ export class AgendaStore implements IAgendaStore {
                 this._db.exec(`ALTER TABLE triggers RENAME COLUMN channelHint TO channelSessionId`);
             }
 
+            // 迁移：category 字段已废弃（完成方式改为直接由 triggers 推断），旧库的 NOT NULL 列
+            // 会让不再写 category 的 INSERT 失败，必须 DROP。DROP COLUMN 需 SQLite 3.35+。
+            const itemCols = this._db.prepare(`PRAGMA table_info(items)`).all() as Array<{ name: string }>;
+            if (itemCols.some(c => c.name === "category")) {
+                this._db.exec(`ALTER TABLE items DROP COLUMN category`);
+            }
+
             // 启动 sweep：把上次进程崩溃留下的 'processing' 转回 'pending' 重新跑。
             // popPendingJob 用单条 UPDATE…RETURNING 把 job 标 'processing'，
             // 配合本 sweep 实现"崩溃恢复时不重复 LLM 调用 + 不丢 job"。
@@ -166,10 +172,10 @@ export class AgendaStore implements IAgendaStore {
     private insertItem(item: Omit<AgendaItem, "id">): number {
         const result = this.db.prepare(`
             INSERT INTO items (
-                content, status, priority, category, completionMode,
+                content, status, priority, completionMode,
                 dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
-                @content, @status, @priority, @category, @completionMode,
+                @content, @status, @priority, @completionMode,
                 @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
         `).run(item);

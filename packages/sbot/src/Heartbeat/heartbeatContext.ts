@@ -25,7 +25,7 @@ async function buildAgendaContext(agendaId: string | null): Promise<string> {
             const due = item.dueAt ? ` due=${TimeUtils.formatWhen(item.dueAt)}` : "";
             const next = firstEnabledNextFire(r.triggers);
             const nextText = next ? ` next=${TimeUtils.formatWhen(next)}` : "";
-            return `#${item.id} [${item.priority}/${item.category}] ${item.content}${due}${nextText}`;
+            return `#${item.id} [${item.priority}] ${item.content}${due}${nextText}`;
         });
         return `${pending.length} pending item(s):\n${lines.join("\n")}`;
     } catch (err: any) {

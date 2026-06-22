@@ -5,13 +5,11 @@ import { useConfirm, useToast } from 'sbot-ui'
 
 export type AgendaStatus = 'pending' | 'done' | 'cancelled'
 export type AgendaPriority = 'low' | 'normal' | 'high'
-export type AgendaCategory = 'todo' | 'reminder' | 'routine'
 export type AgendaCompletionMode = 'none' | 'item' | 'occurrence'
 export type AgendaSource = 'user' | 'tool' | 'sync' | 'rule'
 export type AgendaTriggerKind = 'absolute' | 'interval' | 'cron'
 export type AgendaTriggerAction = 'notify' | 'notify_and_record' | 'invoke'
 export type AgendaOccurrenceStatus = 'pending' | 'done' | 'cancelled' | 'missed'
-export type AgendaCategoryFilter = AgendaCategory | 'all'
 export type AgendaStatusFilter = AgendaStatus | 'all'
 
 export interface AgendaItem {
@@ -19,7 +17,6 @@ export interface AgendaItem {
   content: string
   status: AgendaStatus
   priority: AgendaPriority
-  category: AgendaCategory
   completionMode: AgendaCompletionMode
   dueAt: number | null
   source: AgendaSource
@@ -102,7 +99,6 @@ export function useAgendas(opts: UseAgendasOptions) {
   const agendas = ref<AgendaRow[]>([])
   const loading = ref(false)
   const statusFilter = ref<AgendaStatusFilter>('pending')
-  const categoryFilter = ref<AgendaCategoryFilter>('all')
   const sortedAgendas = computed(() => sortAgendas(agendas.value))
   const pendingCount = computed(() => agendas.value.filter(x => x.item.status === 'pending').length)
   const dueCount = computed(() => agendas.value.filter(x => isOverdue(x)).length)
@@ -120,7 +116,6 @@ export function useAgendas(opts: UseAgendasOptions) {
       const parts = [
         base,
         `status=${encodeURIComponent(statusFilter.value)}`,
-        categoryFilter.value !== 'all' ? `category=${encodeURIComponent(categoryFilter.value)}` : '',
         `limit=${encodeURIComponent(String(opts.limit ?? 500))}`,
       ].filter(Boolean)
       const res = await apiFetch(`/api/agendas?${parts.join('&')}`)
@@ -192,7 +187,6 @@ export function useAgendas(opts: UseAgendasOptions) {
     agendas,
     loading,
     statusFilter,
-    categoryFilter,
     sortedAgendas,
     pendingCount,
     dueCount,

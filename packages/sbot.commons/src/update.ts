@@ -4,7 +4,11 @@ export const DOCKER_IMAGE = 'qingfeng346/sbot'
 export const DOCKER_URL = `https://hub.docker.com/r/${DOCKER_IMAGE}`
 export const NPM_LATEST_API = `https://registry.npmjs.org/${NPM_PACKAGE}/latest`
 export const GITHUB_REPO = 'while-coder/sbot'
+const [GITHUB_OWNER, GITHUB_REPO_NAME] = GITHUB_REPO.split('/')
 export const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`
+/** GitHub Pages docs site (derived from GITHUB_REPO; update GITHUB_REPO if the repo moves). */
+export const DOCS_URL = `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO_NAME}/`
+export const DOCS_ZH_URL = `${DOCS_URL}zh/`
 export const GITHUB_ISSUES_URL = `https://github.com/${GITHUB_REPO}/issues/new`
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`
 export const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`

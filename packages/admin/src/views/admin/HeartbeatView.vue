@@ -6,6 +6,7 @@ import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBad
 import type { STableColumn } from 'sbot-ui'
 import { store } from '@/shared/store'
 import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
+import SessionSelect from '@/components/SessionSelect.vue'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -44,11 +45,6 @@ interface ChannelSessionOption {
   sessionName: string
   autoSessionName: string
   agentId?: string | null
-}
-
-interface ChannelGroup {
-  channelName: string
-  sessions: ChannelSessionOption[]
 }
 
 const TIMEZONE_OPTIONS = [
@@ -100,22 +96,6 @@ function intervalLabel(minutes: number): string {
 
 const heartbeats = ref<HeartbeatItem[]>([])
 const channelSessions = ref<ChannelSessionOption[]>([])
-
-const groupedSessions = computed(() => {
-  const channels = store.settings.channels
-  const map = new Map<string, ChannelSessionOption[]>()
-  for (const s of channelSessions.value) {
-    if (!channels?.[s.channelId]) continue
-    const list = map.get(s.channelId) || []
-    list.push(s)
-    map.set(s.channelId, list)
-  }
-  const groups: ChannelGroup[] = []
-  for (const [id, sessions] of map) {
-    groups.push({ channelName: channels![id].name, sessions })
-  }
-  return groups
-})
 
 const agendaOptions = computed(() =>
   Object.entries(store.settings.agendaProfiles || {}).map(([id, p]: [string, any]) => ({ id, label: p?.name || id }))
@@ -465,14 +445,7 @@ onMounted(async () => {
       </template>
 
       <SFormItem :label="t('heartbeats.sessionId') + ' *'" :hint="t('heartbeats.sessionId_hint')">
-        <SSelect :model-value="form.sessionId ?? ''" @update:model-value="form.sessionId = $event === '' ? null : Number($event)">
-          <option value="" disabled>--</option>
-          <optgroup v-for="g in groupedSessions" :key="g.channelName" :label="g.channelName">
-            <option v-for="s in g.sessions" :key="s.id" :value="s.id">
-              {{ s.sessionName || s.autoSessionName || s.sessionId }}
-            </option>
-          </optgroup>
-        </SSelect>
+        <SessionSelect v-model="form.sessionId" empty-disabled />
       </SFormItem>
       <SFormItem>
         <label class="checkbox-label">

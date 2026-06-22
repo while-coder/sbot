@@ -273,7 +273,6 @@ export {
   AGENDA_CANCEL_TOOL_NAME,
   AgendaStatus,
   AgendaPriority,
-  AgendaCategory,
   AgendaCompletionMode,
   AgendaSource,
   AgendaTriggerKind,
