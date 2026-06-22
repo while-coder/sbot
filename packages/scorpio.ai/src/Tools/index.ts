@@ -25,9 +25,18 @@ export {
 export {
     createTaskTool,
     TASK_TOOL_NAME,
+    TaskContextMode,
     type TaskToolParams,
     type RunTaskFn,
 } from './TaskTool';
+
+export {
+    createListTasksTool,
+    LIST_TASKS_TOOL_NAME,
+    TaskStatus,
+    type TaskInfo,
+    type GetTasksFn,
+} from './ListTasksTool';
 
 export {
     runProgram,
