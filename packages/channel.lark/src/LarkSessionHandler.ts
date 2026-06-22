@@ -247,11 +247,11 @@ Returns a map of question label → answer (string for radio/input, string[] for
         createAskTool((params: AskToolParams) => this.executeAsk(params), LarkSessionHandler.ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
         new DynamicStructuredTool({
             name: '_get_message_history',
-            description: 'Retrieve message history from the current Lark chat in reverse chronological order (newest first). To paginate older messages, pass the previous response\'s "oldest_time" attribute as the next call\'s "end_time".',
+            description: 'Retrieve message history from the current Lark chat in reverse chronological order (newest first). To paginate older messages, pass the last (oldest) message\'s "time" as the next call\'s "end_time".',
             schema: z.object({
                 limit: z.number().optional().describe('Max number of messages to retrieve (default 20).'),
                 start_time: z.string().optional().describe('Only messages after this Unix timestamp in seconds (e.g. "1700000000").'),
-                end_time: z.string().optional().describe('Only messages before this Unix timestamp in seconds. Pass the previous response\'s "oldest_time" to fetch older messages.'),
+                end_time: z.string().optional().describe('Only messages before this Unix timestamp in seconds. Pass the last (oldest) message\'s "time" to fetch older messages.'),
                 self_only: z.boolean().optional().describe('If true, only return messages sent by the current user.'),
             }),
             func: async ({ limit, start_time, end_time, self_only }) => {
@@ -262,10 +262,9 @@ Returns a map of question label → answer (string for radio/input, string[] for
                     filter: self_only ? (m) => m.sender?.id === userOpenId : undefined,
                 });
                 const lines = items.map((m) =>
-                    `<message id="${m.message_id}" sender="${m.sender_id}" time="${m.create_time}">${m.content}</message>`
+                    `<message sender="${m.sender_name}" time="${m.create_time}">${m.content}</message>`
                 );
-                const oldestTime = items.length > 0 ? items[items.length - 1].create_time : '';
-                return `<message-history count="${items.length}" has_more="${hasMore}" oldest_time="${oldestTime}">\n${lines.join('\n')}\n</message-history>`;
+                return `<message-history count="${items.length}" has_more="${hasMore}">\n${lines.join('\n')}\n</message-history>`;
             },
         }),
     ];

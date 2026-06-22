@@ -92,6 +92,7 @@ export interface LarkHistoryMessage {
   message_id: string;
   msg_type: string;
   sender_id: string;
+  sender_name: string;
   create_time: string;
   content: MessageContent;
 }
@@ -353,6 +354,17 @@ export class LarkService implements IChannelService {
     const limit = options?.limit ?? 20;
     let currentPage: any;
     let currentItem: any;
+    // 临时缓存发送者展示名，避免同一批历史消息重复查询用户信息。
+    const nameCache = new Map<string, string>();
+    const resolveName = async (userId: string, userIdType?: LarkUserIdType): Promise<string> => {
+      if (!userId) return '';
+      const cached = nameCache.get(userId);
+      if (cached != null) return cached;
+      const info = await this.getUserInfo(userId, userIdType);
+      const name = info?.name ?? info?.nickname ?? info?.en_name ?? userId;
+      nameCache.set(userId, name);
+      return name;
+    };
     try {
       const iter = await this.larkClient.im.v1.message.listWithIterator({
         params: {
@@ -373,10 +385,12 @@ export class LarkService implements IChannelService {
           if (options?.filter && !options.filter(item)) continue;
           const content = await this.parseMessageContent(item.message_id ?? '', item.msg_type ?? '', item.body?.content ?? '', item.mentions, true);
           if (content == null) continue;
+          const senderId = item.sender?.id ?? '';
           items.push({
             message_id: item.message_id ?? '',
             msg_type: item.msg_type ?? '',
-            sender_id: item.sender?.id ?? '',
+            sender_id: senderId,
+            sender_name: await resolveName(senderId, item.sender?.id_type as LarkUserIdType | undefined),
             create_time: item.create_time ?? '',
             content,
           });
