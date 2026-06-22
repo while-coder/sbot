@@ -15,6 +15,20 @@ import SessionDataConfigEditor, { type DataConfigValue } from '@/components/Sess
 const { t } = useI18n()
 const { confirm } = useConfirm()
 
+// Render a field description as a hint, turning explicit http(s) URLs into clickable links.
+// Escapes first, then only injects anchors for matched URLs — safe against HTML in descriptions.
+function linkifyHint(text: string): string {
+  const esc = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+  return esc.replace(
+    /(https?:\/\/[^\s）)，。、]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+  )
+}
+
 interface PluginInfo {
   type: string
   label: string
@@ -876,7 +890,7 @@ async function refresh() {
                   <span v-if="field.description && !actionState[key]?.qrUrl" class="qr-msg qr-msg-muted">{{ field.description }}</span>
                 </div>
               </SFormItem>
-              <SFormItem v-else :label="field.label + (field.required ? ' *' : '')" :hint="field.type === 'boolean' ? '' : field.description">
+              <SFormItem v-else :label="field.label + (field.required ? ' *' : '')">
                 <SSelect v-if="field.type === 'select'" v-model="form.config[key]">
                   <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </SSelect>
@@ -890,6 +904,9 @@ async function refresh() {
                   <button type="button" class="apikey-toggle" @click="passwordVisible[key] = !passwordVisible[key]" :title="passwordVisible[key] ? t('common.hide') : t('common.show')">{{ passwordVisible[key] ? t('common.hide') : t('common.show') }}</button>
                 </div>
                 <SInput v-else v-model="form.config[key]" :placeholder="field.description || ''" />
+                <template v-if="field.type !== 'boolean' && field.description" #hint>
+                  <span v-html="linkifyHint(field.description || '')"></span>
+                </template>
               </SFormItem>
             </template>
           </SFormSection>

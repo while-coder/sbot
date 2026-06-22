@@ -189,7 +189,17 @@ OneBot 是 [NapCat](https://napneko.github.io/)、[Lagrange](https://lagrangedev
 | 字段 | 说明 |
 |-------|-------------|
 | 小米 ID | 小米账号 ID |
-| 密码 | 小米账号密码 |
+| 登录方式 | `passToken`（推荐，通过 **sbox** 获取），或小米账号密码 |
+| 密码 / passToken | 与所选登录方式对应的凭据 |
+| 登录设备 ID | 可选，PassportSDK 的 `deviceId`，通过 **sbox** 获取 |
 | 设备名称 | 目标设备名（需与账号下的设备一致） |
 
 2. 机器人登录到小米云，监听设备上的语音消息，并通过音箱 TTS 回复
+
+::: tip 通过 sbox 获取 `passToken` 与 `deviceId`
+小米账号在服务器上常因风控 / 二次验证导致密码登录失败，推荐用桌面工具箱 **sbox** 登录一次，再把它提取出的凭据填入上面的字段：
+
+1. 从 [releases 页面](https://github.com/while-coder/sbox/releases/latest) 下载 **sbox** 并启动。
+2. 打开 **小爱登录** 工具，在弹出窗口中完成小米账号登录。
+3. sbox 会列出你的设备并显示 `passToken` 和 `deviceId`，复制填入上面的渠道字段即可。
+:::

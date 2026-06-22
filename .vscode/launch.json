@@ -59,13 +59,6 @@
     {
       "type": "node-terminal",
       "request": "launch",
-      "name": "Launch helper",
-      "command": "pnpm dev",
-      "cwd": "${workspaceFolder}/packages/helper"
-    },
-    {
-      "type": "node-terminal",
-      "request": "launch",
       "name": "Launch app",
       "command": "pnpm dev",
       "cwd": "${workspaceFolder}/packages/app"

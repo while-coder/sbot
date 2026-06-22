@@ -35,7 +35,7 @@ export const xiaoaiPlugin: ChannelPlugin = {
       type: ConfigFieldType.Select,
       required: true,
       default: XiaoaiAuthMode.PassToken,
-      description: '推荐使用辅助工具导出的 passToken',
+      description: '推荐使用 sbox 导出的 passToken，下载：https://github.com/while-coder/sbox/releases',
       options: [
         { label: 'passToken（推荐）', value: XiaoaiAuthMode.PassToken },
         { label: '密码', value: XiaoaiAuthMode.Password },
@@ -45,12 +45,12 @@ export const xiaoaiPlugin: ChannelPlugin = {
       label: '密码 / passToken',
       type: ConfigFieldType.Password,
       required: true,
-      description: '按登录方式填写小米账号密码或辅助工具导出的 passToken',
+      description: '按登录方式填写小米账号密码，或用 sbox 导出的 passToken',
     },
     loginDeviceId: {
       label: '登录设备 ID',
       type: ConfigFieldType.String,
-      description: 'PassportSDK deviceId，由辅助工具一并导出；留空则随机生成',
+      description: 'PassportSDK deviceId，由 sbox 一并导出；留空则随机生成',
     },
     deviceName: {
       label: '音箱名称',

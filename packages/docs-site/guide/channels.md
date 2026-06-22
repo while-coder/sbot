@@ -106,9 +106,17 @@ Talk to your XiaoAi smart speaker as a sbot channel.
 | Field | Description |
 |-------|-------------|
 | 小米 ID | Your Mi account ID |
-| 登录方式 | `passToken` from the helper tool, or Mi account password |
+| 登录方式 | `passToken` (recommended, obtained via **sbox**), or Mi account password |
 | 密码 / passToken | The credential matching the selected login mode |
-| 登录设备 ID | Optional PassportSDK `deviceId` from the helper tool |
+| 登录设备 ID | Optional PassportSDK `deviceId`, obtained via **sbox** |
 | 音箱名称 | Target speaker name (matches a device in your Mi account) |
 
 2. The bot logs in to Mi Cloud, listens for voice messages on the device, and replies via TTS through the speaker
+
+::: tip Getting `passToken` and `deviceId` with sbox
+Mi accounts often reject server-side password login (risk control / 2FA), so the recommended path is to log in once with **sbox** — a desktop helper toolbox — and copy the credentials it extracts:
+
+1. Download **sbox** from the [releases page](https://github.com/while-coder/sbox/releases/latest) and launch it.
+2. Open the **XiaoAI Login** tool and complete the Mi account login in the popup window.
+3. sbox lists your devices and shows the `passToken` and `deviceId` — copy them into the channel fields above.
+:::

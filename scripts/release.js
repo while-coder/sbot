@@ -10,11 +10,6 @@ const TARGETS = {
     pkgJson: 'packages/app/package.json',
     companionPkgJsons: ['packages/vscode-extension/package.json'],
   },
-  helper: {
-    tagPrefix: 'helper-v',
-    tauriConf: 'packages/helper/src-tauri/tauri.conf.json',
-    pkgJson: 'packages/helper/package.json',
-  },
   sbot: {
     tagPrefix: 'sbot-v',
     pkgJson: 'packages/sbot/package.json',
@@ -197,7 +192,7 @@ function main() {
   run('git push');
   run(`git push origin "${tag}"`);
 
-  const workflowName = { app: 'Release App', helper: 'Release Helper', sbot: 'Release sbot' }[target] || `Release ${target}`;
+  const workflowName = { app: 'Release App', sbot: 'Release sbot' }[target] || `Release ${target}`;
   console.log('');
   console.log(`✓ pushed tag ${tag} — workflow "${workflowName}" triggered`);
 }

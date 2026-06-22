@@ -35,14 +35,8 @@
     "debug:app:ios": "pnpm run assets && pnpm --filter @sbot/app run ios:dev",
     "build:app:ios": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run ios:build",
 
-    "debug:helper": "pnpm --filter @sbot/helper run dev",
-    "build:helper:macos": "pnpm --filter @sbot/helper run macos:build",
-    "build:helper:windows": "pnpm --filter @sbot/helper run windows:build",
-    "build:helper:linux": "pnpm --filter @sbot/helper run linux:build",
-
     "release:sbot": "node scripts/release.js sbot",
     "release:app": "node scripts/release.js app",
-    "release:helper": "node scripts/release.js helper",
 
     "debug:docs": "pnpm --filter sbot-docs run dev",
     "build:docs": "pnpm --filter sbot-docs run build",
