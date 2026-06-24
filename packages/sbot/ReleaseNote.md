@@ -2,25 +2,26 @@ This release includes the following main changes:
 
 ### Added
 
-1. Added the Agenda system, a unified replacement for the previous Scheduler and Todo features. You can create, list, update, complete, cancel, and manually trigger agendas, with editing supported in both the chat and the management page.
-2. Added Smart Heartbeat. The AI decides whether the current moment is appropriate to reach out, instead of sending on a fixed interval.
-3. Added hybrid search for notes, combining keyword and semantic retrieval for more accurate results.
-4. Added a Settings API and a Memories management API in the web UI.
+1. Added `sbot update`, which updates sbot to the latest version and stops the running service first when needed.
+2. Added more built-in chat commands, including `/status`, `/workpath`, `/agent`, `/autoapprove`, `/tokens`, `/version`, and `/history`.
+3. Added richer Agenda trigger controls: fire a trigger manually, delete a trigger, choose the delivery session per trigger, and mark routines as per-fire check-ins.
+4. Added DingTalk file sending, plus session recovery from saved metadata so proactive messages can still be delivered after a restart.
+5. Added ReAct sub-task tracking with task listing, resumable task state, optional parent-context injection, and nested-depth protection.
+6. Added Agent management helpers for reference counts, unused-Agent hints, skill exclusions in "use all" mode, and generated sub-agent capability descriptions.
 
 ### Improved
 
-1. Reworked the Memory system with a new storage and service architecture, more reliable writes, automatic retry on failure, and clearer reader/writer prompts.
-2. Switched the dependency injection container to synchronous initialization for faster and more predictable startup.
-3. Improved the Heartbeat module with throttling and a shared context builder, reducing redundant triggers.
-4. Improved the Web fetch tool with better content extraction and error handling.
-5. Improved time handling by consolidating time utilities and removing the explicit time-zone field from agendas.
-6. Improved channel data sync flow and error reporting.
-7. Slimmed down the agenda prompts and tools for clearer model behavior and lower token usage.
+1. Improved channel send/list guidance so the AI can look up a person or group by name before sending messages or files.
+2. Improved Lark message history with sender names and clearer pagination instructions.
+3. Improved generated-file delivery links so files saved in nested working-directory paths can be shared correctly.
+4. Simplified Agenda concepts by replacing category/completion-mode combinations with a clearer check-in switch.
+5. Slimmed down release tooling by removing the old helper package flow and pointing XiaoAI credential setup to sbox.
 
 ### Fixed
 
-1. Fixed several agenda synchronization issues, including incorrect state after edits and missed triggers.
-2. Fixed inconsistent "current time" / "today's date" reported in tool calls.
-3. Fixed image resize edge cases when handling large or non-standard inputs.
-4. Fixed channel prompt loading in some configurations.
-5. Fixed the built-in Web channel being reloaded after saving channel settings, which dropped in-progress chat connections.
+1. Fixed Agenda trigger startup and reload races that could drop schedules or cause duplicate firing.
+2. Fixed multi-trigger Agenda items being marked done too early; an item now completes only after all active triggers are exhausted.
+3. Fixed Agenda delivery target storage and channel session metadata, improving reminder and proactive-message delivery after restarts.
+4. Fixed Windows command execution and process cleanup sometimes opening a console window.
+5. Fixed built-in command results being treated as ordinary AI replies in chat.
+6. Fixed embedded-client file downloads and terminal connections in environments where direct browser links or sockets are unavailable.
