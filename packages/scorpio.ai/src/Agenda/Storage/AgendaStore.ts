@@ -6,7 +6,7 @@ import path from "path";
 import { inject } from "scorpio.di";
 import { T_AgendaDbPath } from "../../Core";
 import type { ChatMessage } from "../../Saver";
-import { ERROR_MESSAGE_MAX_LEN, PENDING_JOB_LIST_HARD_CAP } from "../limits";
+import { ERROR_MESSAGE_MAX_LEN, MAX_OCCURRENCES_PER_ITEM, PENDING_JOB_LIST_HARD_CAP } from "../limits";
 import {
     AgendaPendingJobType,
     type AgendaPendingJobStatus,
@@ -53,7 +53,7 @@ export class AgendaStore implements IAgendaStore {
                     content             TEXT    NOT NULL,
                     status              TEXT    NOT NULL,
                     priority            TEXT    NOT NULL,
-                    completionMode      TEXT    NOT NULL,
+                    requiresCheckIn     INTEGER NOT NULL DEFAULT 0,
                     dueAt               INTEGER,
                     source              TEXT    NOT NULL,
                     createdAt           INTEGER NOT NULL,
@@ -117,6 +117,18 @@ export class AgendaStore implements IAgendaStore {
                 this._db.exec(`ALTER TABLE items DROP COLUMN category`);
             }
 
+            // 迁移：完成方式由三值枚举 completionMode(none/item/occurrence) 收敛为布尔 requiresCheckIn。
+            // none/item 行为完全由"是否有 trigger"决定，合并为 requiresCheckIn=0；只有 occurrence（打卡）→ 1。
+            // 旧库：补列 → 按旧值回填 → 删旧列。ADD COLUMN NOT NULL 需带 DEFAULT；DROP COLUMN 需 SQLite 3.35+。
+            const itemColNames = new Set(itemCols.map(c => c.name));
+            if (itemColNames.has("completionMode") && !itemColNames.has("requiresCheckIn")) {
+                this._db.exec(`
+                    ALTER TABLE items ADD COLUMN requiresCheckIn INTEGER NOT NULL DEFAULT 0;
+                    UPDATE items SET requiresCheckIn = CASE WHEN completionMode = 'occurrence' THEN 1 ELSE 0 END;
+                    ALTER TABLE items DROP COLUMN completionMode;
+                `);
+            }
+
             // 迁移：trigger.message 现为必填，fire 时不再回退到 item.content。
             // 旧库里 message 为 NULL/空的行回填为所属 item 的 content，保持历史投递文案不变。
             this._db.exec(`
@@ -169,24 +181,26 @@ export class AgendaStore implements IAgendaStore {
     }
 
     private buildAgendaRecord(item: AgendaItem): AgendaRecord {
+        // requiresCheckIn 在 SQLite 里以 0/1 存储，回读时统一转回布尔。
+        const normalizedItem: AgendaItem = { ...item, requiresCheckIn: Boolean((item as any).requiresCheckIn) };
         const triggers = (this.db.prepare("SELECT * FROM triggers WHERE itemId = ? ORDER BY id").all(item.id) as any[]).map(row => ({
             ...row,
             enabled: Boolean(row.enabled),
         })) as AgendaTrigger[];
         const occurrences = this.db.prepare("SELECT * FROM occurrences WHERE itemId = ? ORDER BY scheduledAt, id").all(item.id) as AgendaOccurrence[];
-        return { item, triggers, occurrences };
+        return { item: normalizedItem, triggers, occurrences };
     }
 
     private insertItem(item: Omit<AgendaItem, "id">): number {
         const result = this.db.prepare(`
             INSERT INTO items (
-                content, status, priority, completionMode,
+                content, status, priority, requiresCheckIn,
                 dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
-                @content, @status, @priority, @completionMode,
+                @content, @status, @priority, @requiresCheckIn,
                 @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
-        `).run(item);
+        `).run({ ...item, requiresCheckIn: item.requiresCheckIn ? 1 : 0 });
         return Number(result.lastInsertRowid);
     }
 
@@ -227,7 +241,7 @@ export class AgendaStore implements IAgendaStore {
     async updateItem(itemId: number, fields: Partial<AgendaItem>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return null;
-            this.updateById("items", itemId, fields);
+            this.updateById("items", itemId, fields, new Set(["requiresCheckIn"]));
             return this.readAgendaRecordFromDb(itemId);
         });
     }
@@ -282,6 +296,19 @@ export class AgendaStore implements IAgendaStore {
                 INSERT INTO occurrences (id, itemId, scheduledAt, status, doneAt)
                 VALUES (@id, @itemId, @scheduledAt, @status, @doneAt)
             `).run(row);
+            // 裁剪到 MAX_OCCURRENCES_PER_ITEM 条，防止无限累积。
+            // 优先删 done（已结案、价值最低）：保留排序里 pending/missed 排前、done 排后，同级按 scheduledAt 取新。
+            // 即超额时先丢最旧的 done；只有 pending/missed 自身就超额时，才会裁掉其中最旧的。
+            this.db.prepare(`
+                DELETE FROM occurrences
+                 WHERE itemId = @itemId
+                   AND id NOT IN (
+                       SELECT id FROM occurrences
+                        WHERE itemId = @itemId
+                        ORDER BY (CASE WHEN status = 'done' THEN 1 ELSE 0 END), scheduledAt DESC, id DESC
+                        LIMIT @limit
+                   )
+            `).run({ itemId, limit: MAX_OCCURRENCES_PER_ITEM });
             return row;
         });
     }

@@ -7,7 +7,7 @@
 export enum AgendaStatus {
     /** 待处理。新建后的默认状态，trigger 仍会按计划触发。 */
     Pending = 'pending',
-    /** 已完成。complete() 调用后写入；非 Occurrence 模式下意味着不再触发。 */
+    /** 已完成。complete() 调用后写入；非打卡（requiresCheckIn=false）条目下意味着不再触发。 */
     Done = 'done',
     /** 已取消。cancel() 调用后写入；trigger 全部 disable。 */
     Cancelled = 'cancelled',
@@ -21,27 +21,6 @@ export enum AgendaPriority {
     Low = 'low',
     Normal = 'normal',
     High = 'high',
-}
-
-/**
- * 完成方式。决定 complete() 工具的行为以及 trigger 触发完是否自动 Done 主体。
- * 由 AgendaService.inferCompletionMode 推断：无 trigger → Item，有 trigger → None。
- */
-export enum AgendaCompletionMode {
-    /**
-     * 不需要手动完成。Reminder/Routine 的默认值。
-     * absolute trigger 触发完后系统自动把主体置 Done；周期任务则随 maxFires 耗尽自动 Done。
-     */
-    None = 'none',
-    /**
-     * 整条一次性完成。Todo 的默认值。complete() 把主体置 Done，所有 trigger disable。
-     */
-    Item = 'item',
-    /**
-     * 每次触发产生一个 occurrence；complete() 只关闭最早的 pending occurrence，主体保留 Pending。
-     * 适合"每日喝水打卡"这种"今日完成 ≠ 整条完成"的场景。
-     */
-    Occurrence = 'occurrence',
 }
 
 /**
@@ -79,15 +58,13 @@ import { SessionDeliveryMode } from "../Trigger";
 export { SessionDeliveryMode as AgendaTriggerAction };
 
 /**
- * Occurrence 状态。仅 Occurrence 完成模式下使用。
+ * Occurrence 状态。仅打卡（requiresCheckIn=true）条目下使用。
  */
 export enum AgendaOccurrenceStatus {
     /** 已生成但未确认完成。 */
     Pending = 'pending',
     /** 已完成。 */
     Done = 'done',
-    /** 已取消（用户主动放弃这一次）。 */
-    Cancelled = 'cancelled',
     /**
      * 已错过：本次触发后用户在下次触发到来前没 complete，由 TriggerEngine 在生成新一条 pending
      * 时把上一条 pending 标记为 missed。doneAt 记录被标记的时刻（≈下次触发时刻）。
@@ -213,8 +190,12 @@ export interface AgendaCreateArgs {
      * - 省略或 [] = 纯 Todo（无调度）
      */
     triggers?: AgendaTriggerSpec[];
-    /** 显式完成模式。一般省略，由系统按 category 推断。 */
-    completionMode?: AgendaCompletionMode;
+    /**
+     * 是否为「打卡」条目（每次触发产生一个 occurrence，complete() 只关一条，主体保留 Pending）。
+     * 一般省略（默认 false：触发耗尽自动 Done，或无 trigger 时由 complete() 整条关闭）；
+     * 仅"每日喝水/每周交周报"这类逐次打卡场景需显式传 true。
+     */
+    requiresCheckIn?: boolean;
     /**
      * 截止时刻（ISO 字符串）。仅作为「目标完成时刻」的语义字段：
      * - 用作 findNearDuplicate 去重 key（content + dueAt 一致视为重复）
@@ -240,7 +221,8 @@ export interface AgendaUpdatePatch {
     /** 改内容。LLM 说"把 #3 改成 '交月报'" → content = "交月报"。 */
     content?: string;
     priority?: AgendaPriority;
-    completionMode?: AgendaCompletionMode;
+    /** 改打卡开关。详见 AgendaCreateArgs.requiresCheckIn。 */
+    requiresCheckIn?: boolean;
     /**
      * 显式改 dueAt（ISO 字符串或 null 清空）。
      * 不传时若发生调度变更，dueAt 由新 triggers 推导。
@@ -313,7 +295,11 @@ export interface AgendaItem {
     content: string;
     status: AgendaStatus;
     priority: AgendaPriority;
-    completionMode: AgendaCompletionMode;
+    /**
+     * 是否为「打卡」条目。true = 每次触发 append 一个 occurrence，complete() 只关最早的一条，
+     * 主体保留 Pending；false = 普通条目（有 trigger 时触发耗尽自动 Done，无 trigger 时由 complete() 整条关闭）。
+     */
+    requiresCheckIn: boolean;
     /**
      * 截止时间戳（毫秒）。写入规则（优先级从高到低）：
      * - args.dueAt 显式传 → 用它
@@ -375,7 +361,7 @@ export interface AgendaTrigger {
 }
 
 /**
- * 一次"打卡实例"。仅 Occurrence 完成模式下，trigger 每次触发都会 append 一条。
+ * 一次"打卡实例"。仅打卡（requiresCheckIn=true）条目下，trigger 每次触发都会 append 一条。
  * 用于支持"每日喝水"这种"完成单次而非整条"的语义。
  */
 export interface AgendaOccurrence {
@@ -395,6 +381,6 @@ export interface AgendaOccurrence {
 export interface AgendaRecord {
     item: AgendaItem;
     triggers: AgendaTrigger[];
-    /** 仅 Occurrence 模式才会被填充；其他模式恒为空数组。 */
+    /** 仅打卡（requiresCheckIn=true）条目才会被填充；普通条目恒为空数组。 */
     occurrences: AgendaOccurrence[];
 }

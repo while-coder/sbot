@@ -1,5 +1,4 @@
 import {
-    AgendaCompletionMode,
     AgendaOccurrenceStatus,
     AgendaStatus,
     AgendaTriggerKind,
@@ -165,7 +164,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
             // 仅在投递成功时记录 occurrence，避免失败积累虚假 pending 条目。
             // 新增 pending 前，把上一轮还挂着的 pending 标为 missed——
             // 语义：下一次提醒来了 = 上一次错过了。doneAt = scheduledAt（本次触发时刻）。
-            if (delivered && item.completionMode === AgendaCompletionMode.Occurrence) {
+            if (delivered && item.requiresCheckIn) {
                 const missedIds = await this.store.markPendingOccurrencesMissed(item.id, scheduledAt);
                 if (missedIds.length > 0) {
                     logger.info(`Agenda item [${item.id}] marked ${missedIds.length} pending occurrence(s) as missed`);
@@ -252,12 +251,21 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
             enabled,
         });
 
-        if (item.completionMode === AgendaCompletionMode.None && !enabled) {
-            await this.store.updateItem(item.id, {
-                status: AgendaStatus.Done,
-                doneAt: now,
-                updatedAt: now,
-            });
+        // 自动置 Done 的条件：本 item 的**所有** trigger 都已耗尽（无任何 enabled 的）。
+        // 只有当前这条耗尽还不够——多 trigger 时其它条可能仍在循环/未到 max。
+        // updateTrigger 上面已把当前条的 enabled 落库，这里 findItem 取到的就是最新状态。
+        // 无限循环的 trigger 永远 enabled → item 永不自动 Done；纯 Todo（无 trigger）走不到这里，仍由 complete() 手动关。
+        // 与 requiresCheckIn（打卡）无关——后者只管 occurrence 子系统。
+        if (!enabled) {
+            const record = await this.store.findItem(item.id);
+            const anyActive = record?.triggers.some(t => t.enabled) ?? false;
+            if (!anyActive) {
+                await this.store.updateItem(item.id, {
+                    status: AgendaStatus.Done,
+                    doneAt: now,
+                    updatedAt: now,
+                });
+            }
         }
 
         if (enabled && nextFireAt) this.schedule(trigger.id, nextFireAt);

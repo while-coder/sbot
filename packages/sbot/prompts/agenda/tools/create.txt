@@ -1,5 +1,5 @@
 Create an agenda item — todo, reminder, schedule, routine, or future automation.
 
-Trigger phrases: "remember / remind me later / schedule / every day". Trust dedup: "already exists" = success; do NOT pre-call agenda_list. `triggers` is an array; omit completionMode / priority unless overriding inference.
+Trigger phrases: "remember / remind me later / schedule / every day". Trust dedup: "already exists" = success; do NOT pre-call agenda_list. `triggers` is an array; omit requiresCheckIn / priority unless this is a per-fire check-in routine (§4).
 
 Edge cases (occurrence routines, multi-trigger, dueAt vs trigger, action choice) → agenda_wiki.

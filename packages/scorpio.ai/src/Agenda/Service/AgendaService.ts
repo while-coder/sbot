@@ -3,7 +3,6 @@ import { T_AgendaToolDescs } from "../../Core";
 import { ILoggerService, type ILogger } from "../../Logger";
 import type { ChatMessage } from "../../Saver";
 import {
-    AgendaCompletionMode,
     AgendaOccurrenceStatus,
     AgendaPriority,
     AgendaSource,
@@ -113,7 +112,7 @@ export class AgendaService implements IAgendaService {
         const content = args.content?.trim();
         if (!content) throw new Error("content is required");
         const now = Date.now();
-        const completionMode = args.completionMode ?? this.inferCompletionMode(args);
+        const requiresCheckIn = args.requiresCheckIn ?? false;
         const dueAt = this.inferDueAt(args, now);
 
         // findNearDuplicate + createItem + appendTrigger 必须原子，否则 tool 路径
@@ -127,7 +126,7 @@ export class AgendaService implements IAgendaService {
                 content,
                 status: AgendaStatus.Pending,
                 priority: args.priority ?? AgendaPriority.Normal,
-                completionMode,
+                requiresCheckIn,
                 dueAt,
                 source: args.source ?? AgendaSource.Tool,
                 createdAt: now,
@@ -175,7 +174,7 @@ export class AgendaService implements IAgendaService {
             const fields: Partial<AgendaItem> = { updatedAt: now };
             if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
             if (patch.priority != null) fields.priority = patch.priority;
-            if (patch.completionMode != null) fields.completionMode = patch.completionMode;
+            if (patch.requiresCheckIn != null) fields.requiresCheckIn = patch.requiresCheckIn;
             if (patch.dueAt !== undefined) {
                 fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
             } else if (replacementSpecs !== undefined) {
@@ -191,7 +190,6 @@ export class AgendaService implements IAgendaService {
                 const triggers = await this.createTriggersIfNeeded(updatedItem, {
                     content: updatedItem.content,
                     priority: updatedItem.priority,
-                    completionMode: updatedItem.completionMode,
                     triggers: replacementSpecs,
                     channelSessionId: patch.channelSessionId,
                 }, now);
@@ -214,7 +212,6 @@ export class AgendaService implements IAgendaService {
             const trigger = await this.createTrigger(item, {
                 content: item.content,
                 priority: item.priority,
-                completionMode: item.completionMode,
                 triggers: [args],
                 channelSessionId: args.channelSessionId,
             }, args, now);
@@ -275,8 +272,7 @@ export class AgendaService implements IAgendaService {
             const triggers = await this.createTriggersIfNeeded(item, {
                 content: item.content,
                 priority: item.priority,
-                completionMode: item.completionMode,
-                triggers: args.triggers,
+                triggers:args.triggers,
                 channelSessionId: args.channelSessionId,
             }, now);
             // 非空替换但全部无效时，不破坏现有调度；空数组是显式清空 active triggers。
@@ -293,23 +289,24 @@ export class AgendaService implements IAgendaService {
     }
 
     async complete(id: number, at?: string): Promise<AgendaCompleteResult | null> {
-        // Occurrence 模式有真实 race：两个并发 caller 各自 pickOccurrenceForComplete 拿到
+        // 打卡条目关一条 occurrence 有真实 race：两个并发 caller 各自 pickOccurrenceForComplete 拿到
         // 同一条最早 pending occurrence，都标 Done，第二条 doneAt 覆盖第一条——返回值不准。
-        // 整段包进 runExclusive 让 pick + update 原子化。非 Occurrence 路径同样进锁
+        // 整段包进 runExclusive 让 pick + update 原子化。普通条目路径同样进锁
         // （updateItem + disableItemTriggers 跨方法），并发也安全。
         return this.agendaStore.runExclusive(async () => {
             const item = await this.loadItem(id);
             if (!item) return null;
             const now = Date.now();
-            // Occurrence 模式：只消费一条 occurrence，不影响 routine 主体。
+
+            // 打卡条目：只能完成"本次"——关一条 occurrence，主体永远保持 Pending，调用方无法整条 Done。
             // - 不传 at: 关最早的 pending（普通打卡语义；补办场景必须显式传 at）
             // - 传 at: 在 pending + missed 中找 scheduledAt 最接近 at 的（支持补办过去 missed）
-            // 用户若要终止整条 routine，应使用 cancel。
-            if (item.completionMode === AgendaCompletionMode.Occurrence) {
+            // 要终止整条 routine 应使用 cancel；整条 Done 只由调度耗尽(auto)或后台手动触发。
+            if (item.requiresCheckIn) {
                 const target = await this.pickOccurrenceForComplete(id, at);
-                // 注意：target 是引用 record.occurrences 数组里的对象，未经 updateOccurrence 修改，
-                // 因此返回时它的 status/doneAt 仍是"关闭前"的快照——这是给调用方诊断用的。
                 if (target) {
+                    // 注意：target 是引用 record.occurrences 里的对象，未经 updateOccurrence 修改，
+                    // 因此返回时它的 status/doneAt 仍是"关闭前"的快照——给调用方诊断用。
                     await this.agendaStore.updateOccurrence(target.id, {
                         status: AgendaOccurrenceStatus.Done,
                         doneAt: now,
@@ -318,8 +315,10 @@ export class AgendaService implements IAgendaService {
                     this.logger?.info(`Agenda complete(#${id}${at ? `, at=${at}` : ''}): no matching occurrence`);
                 }
                 const record = await this.agendaStore.findItem(id);
-                return record ? { record, closedOccurrence: target ?? null } : null;
+                return record ? { record, closedOccurrence: target ?? null, itemCompleted: false } : null;
             }
+
+            // 普通条目：完成 = 整条置 Done 并停掉所有 trigger。
             await this.agendaStore.updateItem(id, {
                 status: AgendaStatus.Done,
                 doneAt: now,
@@ -327,7 +326,7 @@ export class AgendaService implements IAgendaService {
             });
             await this.disableItemTriggers(id, []);
             const record = await this.agendaStore.findItem(id);
-            return record ? { record, closedOccurrence: null } : null;
+            return record ? { record, closedOccurrence: null, itemCompleted: true } : null;
         });
     }
 
@@ -529,15 +528,6 @@ export class AgendaService implements IAgendaService {
     /** 把外部传入的 count 规范化到 trigger.maxFires：>0 → floor，其他 → 0（无限）。 */
     private static coerceCount(count: number | undefined): number {
         return count != null && count > 0 ? Math.floor(count) : 0;
-    }
-
-    /**
-     * 推断默认完成方式：无 trigger（纯 Todo）→ Item（一次性完成关整条）；
-     * 有 trigger（Reminder / Routine）→ None（触发耗尽后自动关）。
-     * Occurrence（打卡）不在此推断，只能由调用方显式指定。
-     */
-    private inferCompletionMode(args: AgendaCreateArgs): AgendaCompletionMode {
-        return (args.triggers?.length ?? 0) > 0 ? AgendaCompletionMode.None : AgendaCompletionMode.Item;
     }
 
     private inferDueAt(args: AgendaCreateArgs, now: number): number | null {

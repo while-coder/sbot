@@ -7,7 +7,6 @@ import { renderConversation } from "../../Utils/conversationUtils";
 import { TimeUtils } from "../../Utils/TimeUtils";
 import { T_AgendaExtractorSystemPrompt } from "../../Core";
 import {
-    AgendaCompletionMode,
     AgendaPriority,
     AgendaTimeUnit,
     AgendaTriggerAction,
@@ -56,13 +55,13 @@ const CreateArgsSchema = z.object({
     priority: z.enum(AgendaPriority).optional(),
     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; each element carries its own action/message. Omit or [] for a plain todo with no time.'),
     dueAt: z.string().optional(),
-    completionMode: z.enum(AgendaCompletionMode).optional(),
+    requiresCheckIn: z.boolean().optional(),
 });
 
 const UpdatePatchSchema = z.object({
     content: z.string().optional(),
     priority: z.enum(AgendaPriority).optional(),
-    completionMode: z.enum(AgendaCompletionMode).optional(),
+    requiresCheckIn: z.boolean().optional(),
     dueAt: z.string().nullable().optional(),
 });
 

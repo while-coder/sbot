@@ -1,5 +1,6 @@
-Mark an agenda item done (or close ONE occurrence of a routine).
+User reports doing something ("做了 / 完成了 / 交了 / 喝了 / 打卡 / done").
 
-Occurrence routines: closes ONE instance, NOT the whole routine — to stop the routine, use agenda_cancel. Pass `at` (ISO) when the user pinpoints a specific past time (incl. backfilling missed ones); omit for plain "I just did it".
+Plain todo / reminder → marks the whole item done.
+Check-in routine → closes ONE instance only; the routine keeps running and you CANNOT finish it as a whole (to stop it, use agenda_cancel). Pass `at` (ISO) when the user pinpoints a specific past time (incl. backfilling a missed one); omit for a plain "just did it".
 
 Lifecycle rules and `at` examples → agenda_wiki.

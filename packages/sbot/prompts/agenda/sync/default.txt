@@ -19,7 +19,7 @@ If the evidence is ambiguous, return [] instead of guessing.
 ================================================================
 Every existing item is rendered as:
 
-  <agenda id="N" status="..." completionMode="..." priority="..."
+  <agenda id="N" status="..." requiresCheckIn="..." priority="..."
           dueAt="2026-06-13T..." content="...">
     <trigger id="M" kind="absolute|interval|cron" expr="..." action="..."
              message="..." nextFireAt="..." />
@@ -28,7 +28,7 @@ Every existing item is rendered as:
   </agenda>
 
 Only ENABLED triggers are listed (disabled triggers are history; do not try to operate on them).
-For occurrence routines, ALL pending+missed occurrences are listed; only the latest 10 done/cancelled are kept.
+For occurrence routines, ALL pending+missed occurrences are listed; only the latest 10 done are kept.
 
 `expr` semantics depend on `kind`:
 - kind=absolute → ISO datetime string (the single fire moment)
@@ -61,7 +61,7 @@ RESPONSIBILITIES (in priority order)
    - Use TriggerReplaceAll when the user described the final complete reminder list, or when normalizing several conflicting active triggers.
    - Improve weak content/message wording when the conversation provides a clearer title or fire-time instruction.
 
-3. HANDLE OCCURRENCE ROUTINES (look for `completionMode="occurrence"` on the <agenda>).
+3. HANDLE OCCURRENCE ROUTINES (look for `requiresCheckIn="true"` on the <agenda>).
    These are routines where each fire is a separate instance the user must check off.
    - When the user gives a check-in / 汇报 / 打卡 / 完成了今天/这次, emit Complete{id}.
      The backend closes the earliest pending instance; the routine itself stays Pending and keeps firing.
@@ -73,7 +73,7 @@ RESPONSIBILITIES (in priority order)
 ACTION SELECTION
 ================================================================
 - Create — genuinely new agenda the assistant did not handle.
-- Update — body fields only: content / priority / completionMode / dueAt.
+- Update — body fields only: content / priority / requiresCheckIn / dueAt.
 - TriggerAdd{itemId, args:<TriggerSpec>}          — append one active trigger. `args` IS the spec (kind + schedule + action? + message?), no wrapper.
 - TriggerUpdate{triggerId, patch:<TriggerSpec>}   — REWRITE the trigger with a new full spec. fireCount / lastFiredAt reset.
 - TriggerRemove{triggerId}                         — disable one specific trigger by id.
@@ -91,11 +91,11 @@ Choosing between Trigger* ops:
 ================================================================
 DEFAULTS WHEN CREATING
 ================================================================
-- one-shot reminder ("明天 9 点提醒我开会"): completionMode=none, single absolute trigger (action=notify by default)
-- unscheduled task ("我得记得写周报"): completionMode=item, no triggers
-- recurring habit ("每天提醒我喝水", "每两小时提醒我喝水"): completionMode=none, interval trigger
-- recurring deliverable / check-in ("每周交周报", "每天 9 点汇报进度"): completionMode=occurrence, EVERY trigger has action=notify_and_record
-- scheduled AI work ("每天 8 点帮我总结日志"): completionMode=none, the trigger has action=invoke
+- one-shot reminder ("明天 9 点提醒我开会"): omit requiresCheckIn, single absolute trigger (action=notify by default) — auto-closes after it fires
+- unscheduled task ("我得记得写周报"): omit requiresCheckIn, no triggers — stays pending until user completes it
+- recurring habit ("每天提醒我喝水", "每两小时提醒我喝水"): omit requiresCheckIn, interval trigger
+- recurring deliverable / check-in ("每周交周报", "每天 9 点汇报进度"): requiresCheckIn=true, EVERY trigger has action=notify_and_record
+- scheduled AI work ("每天 8 点帮我总结日志"): omit requiresCheckIn, the trigger has action=invoke
 
 trigger kind choice:
 - absolute (`at` = ISO) — one-shot at a specific moment.
@@ -105,23 +105,24 @@ trigger kind choice:
 ================================================================
 FIELD DISCIPLINE
 ================================================================
-content — canonical, self-contained title. Used as the default fire-time text.
+content — canonical, self-contained title of the item.
 - Reads well alone: a clean noun-phrase or imperative ("Submit weekly report", "喝水", "Build a web matching game (timer / levels / shuffle / hints)").
 - Do NOT phrase as a reply, kickoff sentence ("Start by …"), or a question.
 - Match the user's language.
+- content is NOT delivered on fire — it's the title shown in lists. The fire-time text is each trigger's own `message`.
 
-trigger.message — OPTIONAL override of the fire-time text. Default = content (omit this field on the trigger).
-Only set it when fire-time text genuinely needs to differ from content:
+trigger.message — REQUIRED on EVERY trigger: the exact text delivered when that trigger fires. There is NO fallback to content.
+- If the user gave no special wording, just restate content as the reminder (content "喝水" → message "喝水").
+- Tailor it when fire-time text should differ from the title:
   * notify / notify_and_record: friendlier reminder tone (content "Submit weekly report" → message "记得交周报啦！")
   * invoke: a fuller instruction the AI must act on (content "分析昨日日志" → message "请分析昨天的 nginx 日志，找出 5xx 异常并给出简报")
-Do NOT paraphrase content; if you would just restate the same idea, omit it.
 
 ================================================================
 EXAMPLES
 ================================================================
-- "今天的水喝完了" against <agenda id="N" completionMode="occurrence" content="喝水">
+- "今天的水喝完了" against <agenda id="N" requiresCheckIn="true" content="喝水">
   → Complete{id:N}
-- "已交" right after "[AI] 要交周报了" against <agenda id="N" completionMode="occurrence" content="交周报">
+- "已交" right after "[AI] 要交周报了" against <agenda id="N" requiresCheckIn="true" content="交周报">
   → Complete{id:N}
 - "周一忘了交周报，现在补一下" against an occurrence routine listing <occurrence scheduledAt="<that monday>" status="missed" />
   → Complete{id:N, at:"<that monday ISO>"}

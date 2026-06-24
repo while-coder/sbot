@@ -1,7 +1,6 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
-    AgendaCompletionMode,
     AgendaPriority,
     AgendaStatus,
     AgendaTimeUnit,
@@ -87,7 +86,7 @@ export class AgendaToolProvider {
                     priority: z.enum(AgendaPriority).optional().describe('Default normal. high = urgent; low = casual.'),
                     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; omit / [] = plain todo.'),
                     dueAt: z.string().optional().describe('ISO deadline. Pure metadata — does NOT auto-create a trigger (agenda_wiki §3).'),
-                    completionMode: z.enum(AgendaCompletionMode).optional().describe('Override inference. occurrence = per-fire check-in (agenda_wiki §4).'),
+                    requiresCheckIn: z.boolean().optional().describe('true = per-fire check-in routine; each fire creates an occurrence the user closes individually (agenda_wiki §4). Omit for normal items.'),
                 }),
                 func: async (args: AgendaCreateArgs) => {
                     try {
@@ -125,7 +124,7 @@ export class AgendaToolProvider {
                     id: z.number().describe('Item id.'),
                     content: z.string().optional(),
                     priority: z.enum(AgendaPriority).optional(),
-                    completionMode: z.enum(AgendaCompletionMode).optional(),
+                    requiresCheckIn: z.boolean().optional().describe('Toggle per-fire check-in (occurrence) mode. See agenda_wiki §4.'),
                     dueAt: z.string().nullable().optional().describe('ISO or null. Does NOT retime triggers (agenda_wiki §3).'),
                 }),
                 func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {
@@ -190,9 +189,9 @@ export class AgendaToolProvider {
                     try {
                         const result = await agendaService.complete(id, at);
                         if (!result) return `Agenda #${id} not found.`;
-                        const { record, closedOccurrence } = result;
+                        const { record, closedOccurrence, itemCompleted } = result;
                         const head = `agenda #${record.item.id}: ${record.item.content}`;
-                        if (record.item.completionMode !== AgendaCompletionMode.Occurrence) {
+                        if (itemCompleted) {
                             return `Completed ${head}`;
                         }
                         if (!closedOccurrence) {

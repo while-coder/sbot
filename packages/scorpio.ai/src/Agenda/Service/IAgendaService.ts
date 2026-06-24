@@ -13,15 +13,17 @@ import type {
 } from "../types";
 
 /**
- * complete() 的返回值。
- * - record: 关闭后整条 agenda 的最新快照
- * - closedOccurrence: 仅 Occurrence 模式有意义；本次实际关闭的实例，**保留关闭前的 status/doneAt**
- *   方便调用方报告"实际关了哪一条、关之前是 pending 还是 missed"
- *   null = 非 occurrence 模式，或 occurrence 模式下没找到匹配
+ * complete() 的返回值。三种结果互斥，调用方据此报告，无需回看 item 上的任何标志：
+ * - itemCompleted=true：整条被置 Done（closedOccurrence 必为 null）。
+ * - closedOccurrence!=null：关闭了一条打卡实例，主体保留 Pending（itemCompleted=false）。
+ *   该实例**保留关闭前的 status/doneAt**，方便报告"关了哪一条、关之前是 pending 还是 missed"。
+ * - 两者皆空：打卡条目但没找到可关闭的实例（无 pending/匹配的 occurrence）。
  */
 export interface AgendaCompleteResult {
     record: AgendaRecord;
     closedOccurrence: AgendaOccurrence | null;
+    /** 本次是否把整条 item 置为 Done。 */
+    itemCompleted: boolean;
 }
 
 export interface AgendaToolDescs {
@@ -46,10 +48,12 @@ export interface IAgendaService {
     removeTrigger(triggerId: number): Promise<AgendaRecord | null>;
     replaceTriggers(itemId: number, args: AgendaTriggerReplaceAllArgs): Promise<AgendaRecord | null>;
     /**
-     * 关一条 agenda。Occurrence 模式下可选 `at` 指定要关哪一次实例：
-     * - 不传 at → 关最早的 pending（普通打卡语义）
-     * - 传 at  → 在 pending + missed 中找 scheduledAt 最接近 at 的那条（支持补办）
-     * 返回 null = item 不存在；否则返回 { record, closedOccurrence }，详见 AgendaCompleteResult。
+     * 完成一条 agenda。行为由条目类型决定，调用方（含 LLM）无法整条 Done 一个打卡条目：
+     * - 打卡条目（requiresCheckIn）：只关一条 occurrence（完成本次），主体永远保持 Pending。
+     *   `at` 指定要关哪一次：不传关最早 pending；传则在 pending+missed 里找 scheduledAt 最接近的（支持补办）。
+     *   要结束整条 routine 用 cancel；整条 Done 只由调度耗尽(auto)或后台手动触发。
+     * - 普通条目（todo / reminder，无 occurrence）：整条置 Done 并 disable 所有 trigger。
+     * 返回 null = item 不存在；否则返回 AgendaCompleteResult（itemCompleted / closedOccurrence 互斥说明结果）。
      */
     complete(id: number, at?: string): Promise<AgendaCompleteResult | null>;
     cancel(id: number): Promise<AgendaRecord | null>;

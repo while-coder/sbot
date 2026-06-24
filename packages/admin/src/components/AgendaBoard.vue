@@ -6,7 +6,6 @@ import SessionSelect from '@/components/SessionSelect.vue'
 import {
   firstNextFire,
   isOverdue,
-  type AgendaCompletionMode,
   type AgendaItem,
   type AgendaOccurrence,
   type AgendaOccurrenceStatus,
@@ -71,7 +70,7 @@ function occurrenceVariant(s: AgendaOccurrenceStatus): 'success' | 'warning' | '
 function priorityLabel(p: AgendaPriority): string { return t(`agenda.priority_${p}`) }
 function statusLabel(s: AgendaStatus): string { return t(`agenda.status_${s}`) }
 function sourceLabel(s: AgendaItem['source']): string { return t(`agenda.source_${s}`) }
-function completionModeLabel(m: AgendaItem['completionMode']): string { return t(`agenda.completion_${m}`) }
+function checkInLabel(requiresCheckIn: AgendaItem['requiresCheckIn']): string { return t(requiresCheckIn ? 'agenda.check_in_on' : 'agenda.check_in_off') }
 function triggerKindLabel(trigger: AgendaTrigger): string { return t(`agenda.trigger_${trigger.kind}`) }
 function triggerActionLabel(trigger: AgendaTrigger): string { return t(`agenda.action_${trigger.action}`) }
 function occurrenceStatusLabel(o: AgendaOccurrence): string { return t(`agenda.occurrence_${o.status}`) }
@@ -105,7 +104,7 @@ interface TriggerDraft {
 interface EditForm {
   content: string
   priority: AgendaPriority
-  completionMode: AgendaCompletionMode
+  requiresCheckIn: boolean
   dueAt: string
   triggers: TriggerDraft[]
 }
@@ -115,7 +114,7 @@ const editingRow = ref<AgendaRow | null>(null)
 const editForm = reactive<EditForm>({
   content: '',
   priority: 'normal',
-  completionMode: 'item',
+  requiresCheckIn: false,
   dueAt: '',
   triggers: [],
 })
@@ -242,7 +241,7 @@ function openEdit(row: AgendaRow): void {
   editingRow.value = row
   editForm.content = row.item.content
   editForm.priority = row.item.priority
-  editForm.completionMode = row.item.completionMode
+  editForm.requiresCheckIn = row.item.requiresCheckIn
   editForm.dueAt = row.item.dueAt ? tsToLocalInput(row.item.dueAt) : ''
   editForm.triggers = row.triggers.filter(t => t.enabled).map(triggerToDraft)
   triggersDirty.value = false
@@ -272,7 +271,7 @@ function submitEdit(): void {
   const patch: Record<string, unknown> = {
     content,
     priority: editForm.priority,
-    completionMode: editForm.completionMode,
+    requiresCheckIn: editForm.requiresCheckIn,
     dueAt: editForm.dueAt ? localInputToIso(editForm.dueAt) : null,
   }
   if (triggersDirty.value) {
@@ -390,7 +389,7 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
       <template #meta="{ item: row }">
         <span v-if="showProfile" class="agenda-meta-chip mono">{{ t('agenda.profile_col') }}: {{ row.agendaId.slice(0, 8) }}</span>
         <span class="agenda-meta-chip">{{ t('agenda.source_col') }}: {{ sourceLabel(row.item.source) }}</span>
-        <span class="agenda-meta-chip">{{ t('agenda.completion_col') }}: {{ completionModeLabel(row.item.completionMode) }}</span>
+        <span v-if="row.item.requiresCheckIn" class="agenda-meta-chip">{{ t('agenda.check_in_col') }}: {{ checkInLabel(row.item.requiresCheckIn) }}</span>
         <span v-if="row.triggers.length" class="agenda-meta-chip blue">
           {{ t('agenda.triggers_col') }}: {{ activeTriggers(row) }}/{{ row.triggers.length }}
         </span>
@@ -485,7 +484,6 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
                 <SBadge v-if="countOcc(row, 'pending')" variant="warning" size="xs">{{ t('agenda.occurrence_pending') }} {{ countOcc(row, 'pending') }}</SBadge>
                 <SBadge v-if="countOcc(row, 'missed')" variant="danger" size="xs">{{ t('agenda.occurrence_missed') }} {{ countOcc(row, 'missed') }}</SBadge>
                 <SBadge v-if="countOcc(row, 'done')" variant="success" size="xs">{{ t('agenda.occurrence_done') }} {{ countOcc(row, 'done') }}</SBadge>
-                <SBadge v-if="countOcc(row, 'cancelled')" variant="neutral" size="xs">{{ t('agenda.occurrence_cancelled') }} {{ countOcc(row, 'cancelled') }}</SBadge>
               </span>
             </div>
             <p class="agenda-sub-hint">{{ t('agenda.occurrence_hint') }}</p>
@@ -496,7 +494,6 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
                 class="agenda-occurrence-row"
                 :class="{
                   'agenda-occurrence-row--done': occ.status === 'done',
-                  'agenda-occurrence-row--cancelled': occ.status === 'cancelled',
                   'agenda-occurrence-row--missed': occ.status === 'missed',
                 }"
               >
@@ -521,12 +518,11 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
           <option value="high">{{ t('agenda.priority_high') }}</option>
         </SSelect>
       </SFormItem>
-      <SFormItem :label="t('agenda.completion_col')">
-        <SSelect v-model="editForm.completionMode">
-          <option value="none">{{ t('agenda.completion_none') }}</option>
-          <option value="item">{{ t('agenda.completion_item') }}</option>
-          <option value="occurrence">{{ t('agenda.completion_occurrence') }}</option>
-        </SSelect>
+      <SFormItem :label="t('agenda.check_in_col')" :hint="t('agenda.check_in_hint')">
+        <label class="agenda-check-in-toggle">
+          <input v-model="editForm.requiresCheckIn" type="checkbox" />
+          <span>{{ t('agenda.check_in_label') }}</span>
+        </label>
       </SFormItem>
       <SFormItem :label="t('agenda.edit_due_at')" :hint="t('agenda.edit_due_at_hint')">
         <div class="agenda-edit-due">

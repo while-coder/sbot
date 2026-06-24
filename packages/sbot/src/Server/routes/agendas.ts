@@ -78,7 +78,7 @@ export class AgendaRoutes {
                 priority: body.priority,
                 triggers: body.triggers,
                 dueAt: body.dueAt,
-                completionMode: body.completionMode,
+                requiresCheckIn: body.requiresCheckIn,
                 channelSessionId,
             }));
         }));

@@ -5,11 +5,10 @@ import { useConfirm, useToast } from 'sbot-ui'
 
 export type AgendaStatus = 'pending' | 'done' | 'cancelled'
 export type AgendaPriority = 'low' | 'normal' | 'high'
-export type AgendaCompletionMode = 'none' | 'item' | 'occurrence'
 export type AgendaSource = 'user' | 'tool' | 'sync' | 'rule'
 export type AgendaTriggerKind = 'absolute' | 'interval' | 'cron'
 export type AgendaTriggerAction = 'notify' | 'notify_and_record' | 'invoke'
-export type AgendaOccurrenceStatus = 'pending' | 'done' | 'cancelled' | 'missed'
+export type AgendaOccurrenceStatus = 'pending' | 'done' | 'missed'
 export type AgendaStatusFilter = AgendaStatus | 'all'
 
 export interface AgendaItem {
@@ -17,7 +16,7 @@ export interface AgendaItem {
   content: string
   status: AgendaStatus
   priority: AgendaPriority
-  completionMode: AgendaCompletionMode
+  requiresCheckIn: boolean
   dueAt: number | null
   source: AgendaSource
   createdAt: number

@@ -1,7 +1,6 @@
 import { TimeUtils } from "../Utils/TimeUtils";
 import { OCC_DISPLAY_LIMIT } from "./limits";
 import {
-    AgendaCompletionMode,
     AgendaOccurrenceStatus,
     type AgendaOccurrence,
     type AgendaRecord,
@@ -15,7 +14,7 @@ import {
  * - 暴露 triggerId / occurrenceId，让 LLM 能精确引用——TriggerUpdate / TriggerRemove / Complete{at} 才有可操作 id。
  * - 每条 trigger 的 kind/expr/action/message/nextFireAt 都列出，sync 改 9:00 那条就能定位。
  * - 只列 enabled trigger（disabled 是历史，sync 操作 active 调度，列了反而易误改）。
- * - Occurrence 只在 completionMode=occurrence 时输出；pending / missed 全量列，done / cancelled 截最近 N 条。
+ * - Occurrence 只在 requiresCheckIn=true 时输出；pending / missed 全量列，done 截最近 N 条。
  */
 
 /** XML 属性值转义。同时套上引号。 */
@@ -44,23 +43,18 @@ function renderTrigger(t: AgendaTrigger): string {
     return `  <trigger ${parts.join(' ')} />`;
 }
 
-/** 选择要渲染的 occurrence：pending+missed 全量，done+cancelled 最近 OCC_DISPLAY_LIMIT 条。返回按 scheduledAt 升序。 */
+/** 选择要渲染的 occurrence：pending+missed 全量，done 最近 OCC_DISPLAY_LIMIT 条。返回按 scheduledAt 升序。 */
 function selectOccurrences(all: AgendaOccurrence[]): AgendaOccurrence[] {
     const pending: AgendaOccurrence[] = [];
     const missed: AgendaOccurrence[] = [];
-    const doneTail: AgendaOccurrence[] = [];
-    const cancelledTail: AgendaOccurrence[] = [];
     const doneAll: AgendaOccurrence[] = [];
-    const cancelledAll: AgendaOccurrence[] = [];
     for (const o of all) {
         if (o.status === AgendaOccurrenceStatus.Pending) pending.push(o);
         else if (o.status === AgendaOccurrenceStatus.Missed) missed.push(o);
         else if (o.status === AgendaOccurrenceStatus.Done) doneAll.push(o);
-        else if (o.status === AgendaOccurrenceStatus.Cancelled) cancelledAll.push(o);
     }
-    doneTail.push(...[...doneAll].sort((a, b) => b.scheduledAt - a.scheduledAt).slice(0, OCC_DISPLAY_LIMIT));
-    cancelledTail.push(...[...cancelledAll].sort((a, b) => b.scheduledAt - a.scheduledAt).slice(0, OCC_DISPLAY_LIMIT));
-    return [...pending, ...missed, ...doneTail, ...cancelledTail].sort((a, b) => a.scheduledAt - b.scheduledAt);
+    const doneTail = [...doneAll].sort((a, b) => b.scheduledAt - a.scheduledAt).slice(0, OCC_DISPLAY_LIMIT);
+    return [...pending, ...missed, ...doneTail].sort((a, b) => a.scheduledAt - b.scheduledAt);
 }
 
 function renderOccurrence(o: AgendaOccurrence): string {
@@ -82,7 +76,7 @@ export function formatAgendaXml(record: AgendaRecord): string {
     const headParts = [
         `id="${item.id}"`,
         `status="${item.status}"`,
-        `completionMode="${item.completionMode}"`,
+        `requiresCheckIn="${item.requiresCheckIn}"`,
         `priority="${item.priority}"`,
     ];
     if (item.dueAt) headParts.push(`dueAt="${TimeUtils.formatIsoMinute(item.dueAt)}"`);
@@ -92,13 +86,13 @@ export function formatAgendaXml(record: AgendaRecord): string {
     const triggerLines = activeTriggers.map(renderTrigger);
 
     let occurrenceLines: string[] = [];
-    if (item.completionMode === AgendaCompletionMode.Occurrence && record.occurrences.length > 0) {
+    if (record.occurrences.length > 0) {
         const total = record.occurrences.length;
         const picked = selectOccurrences(record.occurrences);
         occurrenceLines = picked.map(renderOccurrence);
         const omitted = total - picked.length;
         if (omitted > 0) {
-            occurrenceLines.push(`  <!-- ${omitted} earlier done/cancelled occurrences omitted -->`);
+            occurrenceLines.push(`  <!-- ${omitted} earlier done occurrences omitted -->`);
         }
     }
 
