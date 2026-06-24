@@ -354,6 +354,16 @@ export class AgendaStore implements IAgendaStore {
         });
     }
 
+    async deleteTrigger(triggerId: number): Promise<AgendaRecord | null> {
+        return this.withLock(async () => {
+            if (!existsSync(this.dbPath)) return null;
+            const itemId = this.lookupItemIdForChild("triggers", triggerId);
+            if (itemId == null) return null;
+            this.db.prepare("DELETE FROM triggers WHERE id = ?").run(triggerId);
+            return this.readAgendaRecordFromDb(itemId);
+        });
+    }
+
     async deleteAll(): Promise<number[]> {
         return this.withLock(async () => {
             const records = await this.listItems();

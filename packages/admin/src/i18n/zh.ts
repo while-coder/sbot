@@ -644,6 +644,8 @@ export default {
     confirm_fire_trigger: '确定立即手动触发 #{id} 吗？将按其动作投递一次，不影响调度。',
     fire_trigger_ok: '已手动触发投递',
     fire_trigger_no_delivery: '触发失败：未找到投递会话或通道异常',
+    delete_trigger_hint: '物理删除该触发器（含已停用的审计留痕条目），不可撤销。',
+    confirm_delete_trigger: '删除触发器 #{id}？该操作不可撤销。',
     unit_minute: '分钟',
     unit_hour: '小时',
     unit_day: '天',

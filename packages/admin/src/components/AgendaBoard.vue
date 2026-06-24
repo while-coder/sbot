@@ -41,6 +41,7 @@ const emit = defineEmits<{
   (e: 'remove', row: AgendaRow): void
   (e: 'update', payload: { row: AgendaRow; patch: Record<string, unknown> }): void
   (e: 'fire-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
+  (e: 'remove-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
 }>()
 
 const { t } = useI18n()
@@ -454,6 +455,13 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
                     :title="t('agenda.fire_trigger_hint')"
                     @click="emit('fire-trigger', { row, trigger })"
                   >⚡ {{ t('agenda.fire_trigger') }}</SButton>
+                  <SButton
+                    type="danger"
+                    size="sm"
+                    class="agenda-trigger-del"
+                    :title="t('agenda.delete_trigger_hint')"
+                    @click="emit('remove-trigger', { row, trigger })"
+                  >🗑 {{ t('common.delete') }}</SButton>
                 </div>
                 <dl class="agenda-trigger-grid">
                   <div>
@@ -891,6 +899,7 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
   overflow-wrap: anywhere;
 }
 .agenda-trigger-fire { margin-left: auto; flex-shrink: 0; }
+.agenda-trigger-del { flex-shrink: 0; }
 .agenda-trigger-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

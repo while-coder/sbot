@@ -3,15 +3,21 @@ vars:
   timezone: 时区 (如 Asia/Shanghai)
   os: 操作系统 (如 Linux 5.15.0 linux)
   assetsDir: 资源文件目录绝对路径
-  httpUrl: HTTP 服务基础 URL
   workPath: Agent 工作目录绝对路径
+  workUrl: 工作目录对外访问 URL 前缀 (workPath 不在 assets 下时为空)
 
 ---
 <environment>
   <timezone>{timezone}</timezone>
   <os>{os}</os>
   <paths>
-    <assets dir="{assetsDir}" url="{httpUrl}/assets/&lt;filename&gt;">IMPORTANT: This is the ONLY way to deliver files to users. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), you MUST save it to this directory and share the URL above. Never send raw file content inline, never use any other path or method.</assets>
-    <working-directory dir="{workPath}">This is your primary workspace. By default, scope all file operations — both read and write — to this directory. Accessing or modifying files outside this directory is permitted only when the user explicitly requests it or the task cannot be completed otherwise. Always prefer operating within this directory first.</working-directory>
+    <working-directory dir="{workPath}" url="{workUrl}">This is your primary workspace. By default, scope all file operations — both read and write — to this directory. Accessing or modifying files outside this directory is permitted only when the user explicitly requests it or the task cannot be completed otherwise. Always prefer operating within this directory first.
+
+IMPORTANT — delivering files to users: saving a file into this directory is the ONLY way to deliver it. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), save it here and give the user its download URL. Never send raw file content inline, never invent any other path or method.
+
+To build that URL, take the file's path RELATIVE to this directory and append it to this directory's `url` (above), joined with "/". This works for any nesting depth. Examples (assuming url="{workUrl}"):
+  - saved "report.pdf"      → {workUrl}/report.pdf
+  - saved "img/chart.png"   → {workUrl}/img/chart.png
+Do NOT drop or guess intermediate path segments — copy the relative path exactly as you wrote the file. If `url` is empty, this workspace is not publicly served, so no download link is available.</working-directory>
   </paths>
 </environment>

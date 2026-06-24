@@ -25,6 +25,7 @@ const {
   remove,
   update,
   fireTrigger,
+  removeTrigger,
 } = useAgendas({
   buildQuery: () => agendaIdRef.value ? `agendaId=${encodeURIComponent(agendaIdRef.value)}` : null,
   limit: 300,
@@ -64,6 +65,7 @@ defineExpose({ openByAgendaId })
       @remove="remove"
       @update="update"
       @fire-trigger="fireTrigger"
+      @remove-trigger="removeTrigger"
     />
   </SModal>
 </template>

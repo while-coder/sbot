@@ -264,6 +264,18 @@ export class AgendaService implements IAgendaService {
         });
     }
 
+    async deleteTrigger(triggerId: number): Promise<AgendaRecord | null> {
+        return this.agendaStore.runExclusive(async () => {
+            const found = await this.agendaStore.findTrigger(triggerId);
+            if (!found) return null;
+            const now = Date.now();
+            const record = await this.agendaStore.deleteTrigger(triggerId);
+            await this.agendaStore.updateItem(found.data.item.id, { updatedAt: now });
+            this.triggerEngine.cancel(triggerId);
+            return record;
+        });
+    }
+
     async replaceTriggers(itemId: number, args: AgendaTriggerReplaceAllArgs): Promise<AgendaRecord | null> {
         return this.agendaStore.runExclusive(async () => {
             const item = await this.loadItem(itemId);

@@ -51,6 +51,8 @@ export interface IAgendaStore {
      */
     markPendingOccurrencesMissed(itemId: number, missedAt: number): Promise<number[]>;
     deleteItem(itemId: number): Promise<AgendaRecord | null>;
+    /** 物理删除单条 trigger（与软停用 updateTrigger 区分），返回所属 item 的最新记录；不存在返回 null。 */
+    deleteTrigger(triggerId: number): Promise<AgendaRecord | null>;
     deleteAll(): Promise<number[]>;
 
     /**

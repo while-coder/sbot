@@ -46,6 +46,11 @@ export interface IAgendaService {
     addTrigger(itemId: number, args: AgendaTriggerCreateArgs): Promise<AgendaRecord | null>;
     updateTrigger(triggerId: number, patch: AgendaTriggerUpdatePatch): Promise<AgendaRecord | null>;
     removeTrigger(triggerId: number): Promise<AgendaRecord | null>;
+    /**
+     * 物理删除单条 trigger（区别于 removeTrigger 的软停用），并撤掉其内存 timer。
+     * 返回所属 item 的最新记录；trigger 不存在返回 null。仅 admin 路径用。
+     */
+    deleteTrigger(triggerId: number): Promise<AgendaRecord | null>;
     replaceTriggers(itemId: number, args: AgendaTriggerReplaceAllArgs): Promise<AgendaRecord | null>;
     /**
      * 完成一条 agenda。行为由条目类型决定，调用方（含 LLM）无法整条 Done 一个打卡条目：

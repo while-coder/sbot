@@ -1,4 +1,5 @@
 import os from 'os';
+import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { type StructuredToolInterface } from '@langchain/core/tools';
 import {
@@ -85,6 +86,13 @@ export class AgentRunner {
         const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
         if (!existsSync(workPath)) mkdirSync(workPath, { recursive: true });
 
+        // 工作目录对外可访问的 URL 前缀：仅当 workPath 位于 assetsDir 之下时才有。
+        // 文件存进工作目录后，其链接 = workUrl + '/' + 文件相对工作目录的路径（任意层级）。
+        const relToAssets = path.relative(assetsDir, workPath);
+        const workUrl = relToAssets && !relToAssets.startsWith('..') && !path.isAbsolute(relToAssets)
+            ? `${httpUrl}/assets/${relToAssets.split(path.sep).join('/')}`
+            : '';
+
         /** 静态 system prompts（可缓存）：instruction → environment → channel */
         const extraPrompts: string[] = [
             loadPrompt('system/instruction.txt'),
@@ -92,8 +100,8 @@ export class AgentRunner {
                 timezone,
                 os: `${os.type()} ${os.release()} (${os.platform()})`,
                 assetsDir,
-                httpUrl,
                 workPath,
+                workUrl,
             }),
             ...(channelPrompt?.trim() ? [channelPrompt] : []),
         ];

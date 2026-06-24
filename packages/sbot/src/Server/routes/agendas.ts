@@ -107,6 +107,18 @@ export class AgendaRoutes {
             return { triggerId, ...result };
         }));
 
+        // 物理删除某条 trigger（含已停用的审计留痕条目），并撤掉其内存 timer。
+        app.delete('/api/agendas/triggers/:triggerId', api(async req => {
+            const triggerId = Number(req.params.triggerId);
+            if (!Number.isInteger(triggerId) || triggerId <= 0) throwBad('Invalid triggerId');
+            const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
+            return withAgendaService(agendaId, async service => {
+                const record = await service.deleteTrigger(triggerId);
+                if (!record) throwBad('Trigger not found');
+                return { triggerId };
+            });
+        }));
+
         app.delete('/api/agendas/:id', api(async req => {
             const id = Number(req.params.id);
             if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');

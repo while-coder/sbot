@@ -644,6 +644,8 @@ export default {
     confirm_fire_trigger: 'Manually fire #{id} now? It will deliver once using its action, without affecting the schedule.',
     fire_trigger_ok: 'Manual trigger delivered',
     fire_trigger_no_delivery: 'Fire failed: no delivery session or channel error',
+    delete_trigger_hint: 'Permanently delete this trigger (including disabled audit entries). Cannot be undone.',
+    confirm_delete_trigger: 'Delete trigger #{id}? This cannot be undone.',
     unit_minute: 'minute(s)',
     unit_hour: 'hour(s)',
     unit_day: 'day(s)',

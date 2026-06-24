@@ -182,6 +182,18 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
+  async function removeTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
+    const { row, trigger } = payload
+    if (!await confirm(t('agenda.confirm_delete_trigger', { id: trigger.id }), { danger: true })) return
+    try {
+      await apiFetch(`/api/agendas/triggers/${trigger.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
+      show(t('common.deleted'))
+      await load()
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+
   return {
     agendas,
     loading,
@@ -197,5 +209,6 @@ export function useAgendas(opts: UseAgendasOptions) {
     remove,
     update,
     fireTrigger,
+    removeTrigger,
   }
 }
