@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store, applyMcpList } from '@/shared/store'
@@ -68,6 +68,40 @@ const filteredAgentRows = computed<AgentRow[]>(() => {
   })
 })
 const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
+
+// ── Agent 引用情况（频道 / 会话档案 / 父智能体），方便清理无用资源 ──
+interface ProfileLite { id: number; name: string; agentId: string | null; sessionCount?: number }
+const profilesList = ref<ProfileLite[]>([])
+
+async function loadProfiles() {
+  try {
+    const res = await apiFetch('/api/session-profiles')
+    profilesList.value = (res.data || []) as ProfileLite[]
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+onMounted(loadProfiles)
+
+interface AgentRefs {
+  channels: { id: string; name: string }[]
+  profiles: { id: number; name: string; sessionCount: number }[]
+  parents:  { id: string; name: string }[]
+  total: number
+}
+function agentRefs(id: string): AgentRefs {
+  const channels = Object.entries(store.settings.channels || {})
+    .filter(([, c]) => (c as any)?.agent === id)
+    .map(([cid, c]) => ({ id: cid, name: (c as any).name || cid }))
+  const profiles = profilesList.value
+    .filter(p => p.agentId === id)
+    .map(p => ({ id: p.id, name: p.name || String(p.id), sessionCount: p.sessionCount ?? 0 }))
+  const parents = Object.entries(store.settings.agents || {})
+    .filter(([, a]) => Array.isArray((a as any)?.agents) && (a as any).agents.some((s: any) => s.id === id))
+    .map(([pid, a]) => ({ id: pid, name: (a as any).name || pid }))
+  return { channels, profiles, parents, total: channels.length + profiles.length + parents.length }
+}
 
 const columns = computed<STableColumn[]>(() => [
   { key: 'name',  label: t('agents.name_col'),  primary: true, ellipsis: true },
@@ -267,9 +301,10 @@ async function refresh() {
     applyMcpList(mcpRes.data || [])
     const skillRes = await apiFetch('/api/skills')
     store.allSkills = skillRes.data || []
-    await Promise.all(
-      expandedIds.value.flatMap(id => [loadSkills(id), loadMcp(id)])
-    )
+    await Promise.all([
+      loadProfiles(),
+      ...expandedIds.value.flatMap(id => [loadSkills(id), loadMcp(id)]),
+    ])
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -396,6 +431,8 @@ async function saveMcpParams() {
           <span v-if="row.skills === '*'" class="config-badge config-badge-info">{{ t('agents.tab_skills') }} *</span>
           <span v-if="row.mcp === '*'" class="config-badge config-badge-info">{{ t('agents.tab_tools') }} *</span>
           <span v-if="row.autoApproveAllTools" class="config-badge config-badge-warn">{{ t('agents.auto_approve_all_tools') }}</span>
+          <span v-if="agentRefs(row.id).total === 0" class="config-badge config-badge-unused">{{ t('agents.ref_unused') }}</span>
+          <span v-else class="config-badge config-badge-ref">{{ t('agents.ref_count', { n: agentRefs(row.id).total }) }}</span>
           <span
             v-for="tag in (row.tags || [])"
             :key="tag"
@@ -474,6 +511,27 @@ async function saveMcpParams() {
                     </SInfoRow>
                   </template>
                 </SInfoTable>
+              </SCard>
+
+              <SCard :title="t('agents.references')" class="agent-info-card">
+                <template v-if="agentRefs(row.id).total === 0">
+                  <div class="ref-empty">{{ t('agents.ref_unused_hint') }}</div>
+                </template>
+                <template v-else>
+                  <SInfoTable variant="compact" label-width="140px">
+                    <SInfoRow v-if="agentRefs(row.id).channels.length" :label="t('agents.ref_channels')">
+                      <span v-for="c in agentRefs(row.id).channels" :key="c.id" class="ref-chip">{{ c.name }}</span>
+                    </SInfoRow>
+                    <SInfoRow v-if="agentRefs(row.id).profiles.length" :label="t('agents.ref_profiles')">
+                      <span v-for="p in agentRefs(row.id).profiles" :key="p.id" class="ref-chip">
+                        {{ p.name }}<span v-if="p.sessionCount" class="ref-chip-sub">{{ t('agents.ref_profile_sessions', { n: p.sessionCount }) }}</span>
+                      </span>
+                    </SInfoRow>
+                    <SInfoRow v-if="agentRefs(row.id).parents.length" :label="t('agents.ref_parents')">
+                      <span v-for="p in agentRefs(row.id).parents" :key="p.id" class="ref-chip">{{ p.name }}</span>
+                    </SInfoRow>
+                  </SInfoTable>
+                </template>
               </SCard>
 
               <SCard v-if="row.systemPrompt" :title="t('agents.system_prompt')" class="agent-info-card">
@@ -618,6 +676,28 @@ async function saveMcpParams() {
 .config-badge-warn { background: #fef3c7; color: #b45309; }
 .config-badge-tag { background: #f1f5f9; color: #475569; }
 .config-badge-tag-active { background: #1f2937; color: #f9fafb; }
+.config-badge-ref { background: #dcfce7; color: #15803d; }
+.config-badge-unused { background: #fee2e2; color: #b91c1c; }
+
+.ref-empty {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg-muted);
+}
+.ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--sui-bg-hover);
+  color: var(--sui-fg);
+  font-size: var(--sui-fs-sm);
+  padding: 1px 8px;
+  border-radius: var(--sui-radius-sm);
+  margin: 2px 6px 2px 0;
+}
+.ref-chip-sub {
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-xs);
+}
 
 .agents-tag-filter {
   display: flex;
@@ -782,5 +862,7 @@ html[data-theme="dark"] .config-badge-info { background: #1e3a5f; color: #93c5fd
 html[data-theme="dark"] .config-badge-warn { background: #422006; color: #fcd34d; }
 html[data-theme="dark"] .config-badge-tag { background: #334155; color: #cbd5e1; }
 html[data-theme="dark"] .config-badge-tag-active { background: #e5e7eb; color: #1f2937; }
+html[data-theme="dark"] .config-badge-ref { background: #14432a; color: #86efac; }
+html[data-theme="dark"] .config-badge-unused { background: #4c1d1d; color: #fca5a5; }
 html[data-theme="dark"] .acp-command { color: #5eead4; }
 </style>

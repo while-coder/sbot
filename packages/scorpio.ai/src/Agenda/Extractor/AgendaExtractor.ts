@@ -23,7 +23,7 @@ const RelativeTimeSchema = z.object({
 });
 
 const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('Per-trigger delivery mode. notify (default), notify_and_record (REQUIRED for occurrence routines), invoke.');
-const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact wording delivered when this trigger fires. No fallback to item.content; if there is no special wording, restate the content as the reminder (e.g. "喝水").');
+const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact words delivered WHEN this trigger fires, phrased as a present-moment ping ("Time to drink water"), NOT as a request to set a reminder ("remind me to drink water in 2 min" ✗). No fallback to content; if there is no special wording, restate the content. Recorded fires re-enter the conversation, so request-like wording can make this very sync create a duplicate agenda.');
 
 const TriggerSpecSchema = z.discriminatedUnion('kind', [
     z.object({
@@ -51,7 +51,7 @@ const TriggerSpecSchema = z.discriminatedUnion('kind', [
 ]);
 
 const CreateArgsSchema = z.object({
-    content: z.string().describe('Canonical, self-contained description / title. A clean noun-phrase or imperative title ("Submit weekly report", "喝水", "Build a web matching game (timer / levels / shuffle / hints)"); not a reply or a kickoff phrase like "Start by ...". Match the user\'s language. Note: each trigger now carries its own required message — content is no longer used as the fire-time fallback.'),
+    content: z.string().describe('Canonical, self-contained title. A clean noun-phrase or imperative ("Submit weekly report", "Drink water", "Build a web matching game (timer / levels / shuffle / hints)"); not a reply or a kickoff phrase like "Start by ...". Do NOT bake relative time or schedule into the title ("remind me to drink water in 2 min" ✗ → "Drink water"); timing belongs in triggers. Match the user\'s language. Note: each trigger carries its own required message — content is not the fire-time fallback.'),
     priority: z.enum(AgendaPriority).optional(),
     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; each element carries its own action/message. Omit or [] for a plain todo with no time.'),
     dueAt: z.string().optional(),
@@ -76,7 +76,7 @@ const AgendaExtractSchema = z.object({
         z.object({
             type: z.literal(AgendaActionType.Complete),
             id: z.number(),
-            at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Use it when the user references a past time — including backfilling missed instances. Omit for plain "现在/just now" check-ins.'),
+            at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Use it when the user references a past time — including backfilling missed instances. Omit for a plain "just now" check-in.'),
         }),
         z.object({ type: z.literal(AgendaActionType.Cancel), id: z.number() }),
         z.object({ type: z.literal(AgendaActionType.TriggerAdd), itemId: z.number(), args: TriggerSpecSchema }),

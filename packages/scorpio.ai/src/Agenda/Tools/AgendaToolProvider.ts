@@ -13,6 +13,7 @@ import {
     type AgendaUpdatePatch,
 } from "../types";
 import { IAgendaService } from "../Service/IAgendaService";
+import { formatAgendaXml } from "../format";
 import { TimeUtils } from "../../Utils/TimeUtils";
 import { DEFAULT_LIST_LIMIT } from "../limits";
 
@@ -38,9 +39,9 @@ const RelativeTimeSchema = z.object({
     unit: z.enum(AgendaTimeUnit).describe('minute / hour / day / week.'),
 });
 
-const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default, 纯文字提醒) / notify_and_record (occurrence routine) / invoke (AI 在触发时主动产出，如"帮我生成/总结/写/整理"). Details → agenda_wiki §8.');
+const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default, plain-text reminder) / notify_and_record (occurrence routine) / invoke (AI actively produces at fire time, e.g. "generate/summarize/write/organize for me"). Details → agenda_wiki §8.');
 
-const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact wording delivered when this trigger fires. No fallback to item.content; if the user gave no special wording, restate the content as the reminder (e.g. "喝水").');
+const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact words delivered WHEN this trigger fires, phrased as a present-moment ping ("Time to drink water"), NOT as a request to set a reminder ("remind me to drink water in 2 min" ✗). No fallback to content; if no special wording, restate content. Recorded fires re-enter the conversation, so request-like wording can make the post-turn sync create a duplicate agenda.');
 
 const StartAtSchema = z.string().optional().describe('ISO of FIRST fire; omit for default.');
 const CountSchema = z.number().int().positive().optional().describe('Total fire count; omit for unlimited.');
@@ -82,7 +83,7 @@ export class AgendaToolProvider {
                 name: AGENDA_CREATE_TOOL_NAME,
                 description: descs.create,
                 schema: z.object({
-                    content: z.string().describe('Self-contained title. Match user language.'),
+                    content: z.string().describe('Self-contained title, match user language. Just the thing itself ("Drink water" / "Submit weekly report") — do NOT bake in relative time or schedule ("remind me to drink water in 2 min" ✗); timing lives in triggers.'),
                     priority: z.enum(AgendaPriority).optional().describe('Default normal. high = urgent; low = casual.'),
                     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; omit / [] = plain todo.'),
                     dueAt: z.string().optional().describe('ISO deadline. Pure metadata — does NOT auto-create a trigger (agenda_wiki §3).'),
@@ -95,7 +96,9 @@ export class AgendaToolProvider {
                         if (result.existed) {
                             return `Agenda #${item.id} already exists: ${item.content}\nNo new agenda item was created.`;
                         }
-                        return `Created agenda #${item.id}: ${item.content}\n\n${await agendaService.formatForLLM({ status: 'all', limit: 1 })}`;
+                        // 直接渲染刚创建的这条（含 trigger id），不要用全局 list+limit:1——
+                        // 那会按排序返回"最靠前"的一条，未必是新建的这条。
+                        return `Created agenda #${item.id}: ${item.content}\n\n${formatAgendaXml(result.item)}`;
                     } catch (e: any) {
                         return `Failed to create agenda item: ${e.message}`;
                     }

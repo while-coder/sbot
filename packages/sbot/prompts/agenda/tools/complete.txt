@@ -1,4 +1,4 @@
-User reports doing something ("做了 / 完成了 / 交了 / 喝了 / 打卡 / done").
+User reports doing something ("did it / done / finished / submitted / checked in").
 
 Plain todo / reminder → marks the whole item done.
 Check-in routine → closes ONE instance only; the routine keeps running and you CANNOT finish it as a whole (to stop it, use agenda_cancel). Pass `at` (ISO) when the user pinpoints a specific past time (incl. backfilling a missed one); omit for a plain "just did it".
