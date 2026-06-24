@@ -44,6 +44,7 @@ sbot port 3000
 | `sbot port <port>` | 仅修改并保存端口，不启动服务 |
 | `sbot stop` | 关闭正在运行的服务 |
 | `sbot status` | 查看运行状态、端口、自启动、版本、配置目录 |
+| `sbot update` | 更新到最新版本（若服务运行中会先停止） |
 | `sbot -v` / `--version` | 查看版本并检查更新 |
 | `sbot startup enable` | 开启开机自启动 |
 | `sbot startup disable` | 取消开机自启动 |

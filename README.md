@@ -45,6 +45,7 @@ Full command reference:
 | `sbot port <port>` | Save the port without starting |
 | `sbot stop` | Stop the running service |
 | `sbot status` | Show running state, port, auto-start, version, config directory |
+| `sbot update` | Update to the latest version (stops the service first if running) |
 | `sbot -v` / `--version` | Show version and check for updates |
 | `sbot startup enable` | Enable launch at boot |
 | `sbot startup disable` | Disable launch at boot |

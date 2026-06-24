@@ -3,19 +3,9 @@ import * as fs from "fs";
 if (fs.existsSync(__filename + ".map")) process.setSourceMapsEnabled?.(true);
 import { Command } from "commander";
 import { spawn, execSync } from "child_process";
-import http from "http";
-import { fetchLatestRelease, compareSemver, NPM_PACKAGE } from "sbot.commons";
-import { enableAutoStart, disableAutoStart, isAutoStartEnabled } from "./Core/AutoStart";
+import { fetchLatestRelease, compareSemver } from "sbot.commons";
 import { config } from "./Core/Config";
-
-function applyPort(portStr: string, onInvalid: (msg: string) => void): void {
-    const port = Number(portStr);
-    if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
-        onInvalid(`Invalid port: ${portStr}`);
-        return;
-    }
-    config.setHttpPort(port);
-}
+import { registerCommands, applyPort } from "./Cli/commands";
 
 const program = new Command();
 program
@@ -25,114 +15,7 @@ program
     .option('-p, --port <port>', 'HTTP server port')
     .option('-d, --daemon', '后台运行');
 
-// 关闭服务命令
-program
-    .command('stop')
-    .description('关闭正在运行的 sbot 服务')
-    .action(async () => {
-        const port = config.getHttpPort();
-        try {
-            const req = http.request(`http://localhost:${port}/api/shutdown`, { method: 'POST' }, (res) => {
-                if (res.statusCode === 200) {
-                    console.log('sbot 服务正在关闭...');
-                } else {
-                    console.error(`关闭失败，HTTP 状态码: ${res.statusCode}`);
-                    process.exit(1);
-                }
-            });
-            req.on('error', () => {
-                console.error('sbot 服务未运行');
-                process.exit(1);
-            });
-            req.setTimeout(5000, () => {
-                req.destroy();
-                console.error('请求超时，服务可能未运行');
-                process.exit(1);
-            });
-            req.end();
-        } catch {
-            console.error('sbot 服务未运行');
-            process.exit(1);
-        }
-    });
-
-// 设置端口命令：修改并保存端口，不启动服务
-program
-    .command('port <port>')
-    .description('设置 HTTP 服务端口并保存')
-    .action((portStr: string) => {
-        applyPort(portStr, msg => { console.error(msg); process.exit(1); });
-        console.log(`Port updated to ${portStr}`);
-    });
-
-// 查看状态
-program
-    .command('status')
-    .description('查看 sbot 运行状态')
-    .action(async () => {
-        const port = config.getHttpPort();
-        const [running, release] = await Promise.all([
-            new Promise<boolean>(resolve => {
-                const req = http.get(`http://localhost:${port}/`, () => resolve(true));
-                req.on('error', () => resolve(false));
-                req.setTimeout(2000, () => { req.destroy(); resolve(false); });
-            }),
-            fetchLatestRelease(),
-        ]);
-        const startup = isAutoStartEnabled();
-        const currentVer = config.pkg.version;
-        let versionInfo = currentVer;
-        if (release && compareSemver(currentVer, release.tag) < 0) {
-            versionInfo += ` (最新版: ${release.tag}, 可通过 npm install -g ${NPM_PACKAGE}@latest 升级)`;
-        } else if (release) {
-            versionInfo += ` (已是最新)`;
-        }
-        console.log(`sbot 状态:`);
-        console.log(`  运行状态: ${running ? '运行中' : '未运行'}`);
-        console.log(`  HTTP 端口: ${port}`);
-        console.log(`  开机自启动: ${startup ? '已开启' : '未开启'}`);
-        console.log(`  版本: ${versionInfo}`);
-        console.log(`  配置目录: ${config.getConfigPath('.')}`);
-    });
-
-// 开机启动
-program
-    .command('startup')
-    .description('管理开机自启动')
-    .addCommand(
-        new Command('enable')
-            .description('开启开机自启动')
-            .action(() => {
-                try {
-                    enableAutoStart();
-                    console.log('已开启开机自启动');
-                } catch (e: any) {
-                    console.error(`开启失败: ${e.message}`);
-                    process.exit(1);
-                }
-            }),
-    )
-    .addCommand(
-        new Command('disable')
-            .description('取消开机自启动')
-            .action(() => {
-                try {
-                    disableAutoStart();
-                    console.log('已取消开机自启动');
-                } catch (e: any) {
-                    console.error(`取消失败: ${e.message}`);
-                    process.exit(1);
-                }
-            }),
-    )
-    .addCommand(
-        new Command('status')
-            .description('查看开机自启动状态')
-            .action(() => {
-                const enabled = isAutoStartEnabled();
-                console.log(`开机自启动: ${enabled ? '已开启' : '未开启'}`);
-            }),
-    );
+registerCommands(program);
 
 // 默认行为：启动服务
 program
@@ -143,7 +26,7 @@ program
             try {
                 const release = await fetchLatestRelease();
                 if (release && compareSemver(currentVer, release.tag) < 0) {
-                    console.log(`最新版: ${release.tag}, 可通过 npm install -g ${NPM_PACKAGE}@latest 升级`);
+                    console.log(`最新版: ${release.tag}, 可通过 sbot update 升级`);
                 } else if (release) {
                     console.log('已是最新版本');
                 }
