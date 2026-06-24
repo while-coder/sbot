@@ -130,11 +130,12 @@ interface TriggerSpecDelivery {
      */
     action?: SessionDeliveryMode;
     /**
-     * 触发时投递的消息文本。缺省 = item.content。
-     * LLM 说"每天 9 点用'记得交周报'提醒我" → message = "记得交周报"。
-     * null 显式清空（回退到 content）。
+     * 触发时投递的消息文本。必传：每条 trigger 都要显式给出投递文案，
+     * 不再回退到 item.content。
+     * LLM 说"每天 9 点用'记得交周报'提醒我" → message = "记得交周报"；
+     * 没有特别指定时也应复述 content 作为提醒语（如 message = "喝水"）。
      */
-    message?: string | null;
+    message: string;
     /**
      * 本条 trigger 投递的目标频道会话 id（per-trigger）。
      * 缺省 / 0 = 触发时自动解析归属本 agenda 模板的会话。
@@ -348,8 +349,8 @@ export interface AgendaTrigger {
      */
     expr: string;
     action: SessionDeliveryMode;
-    /** 投递文本，null 时由 fire 时回退到 item.content。 */
-    message: string | null;
+    /** 投递文本。每条 trigger 必带，不再回退到 item.content。 */
+    message: string;
     /** 投递通道（频道会话 id）。新建/替换 trigger 时由调用方注入；0 = 触发时自动解析归属会话。 */
     channelSessionId: number;
     /** 是否激活。disable 后 engine 不再调度这条；占位保留历史。 */

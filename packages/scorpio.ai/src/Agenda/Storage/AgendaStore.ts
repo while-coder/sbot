@@ -117,6 +117,14 @@ export class AgendaStore implements IAgendaStore {
                 this._db.exec(`ALTER TABLE items DROP COLUMN category`);
             }
 
+            // 迁移：trigger.message 现为必填，fire 时不再回退到 item.content。
+            // 旧库里 message 为 NULL/空的行回填为所属 item 的 content，保持历史投递文案不变。
+            this._db.exec(`
+                UPDATE triggers
+                   SET message = (SELECT content FROM items WHERE items.id = triggers.itemId)
+                 WHERE message IS NULL OR message = ''
+            `);
+
             // 启动 sweep：把上次进程崩溃留下的 'processing' 转回 'pending' 重新跑。
             // popPendingJob 用单条 UPDATE…RETURNING 把 job 标 'processing'，
             // 配合本 sweep 实现"崩溃恢复时不重复 LLM 调用 + 不丢 job"。

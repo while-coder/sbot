@@ -211,10 +211,9 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         const delivery = await resolveAgendaDelivery(this.agendaId, item, trigger);
         try {
             if (!delivery) throw new Error("no delivery session");
-            const message = this.buildMessage(item, trigger);
             const result = await triggerSession({
                 targetId: delivery.id,
-                message,
+                message: trigger.message,
                 mode: trigger.action,
                 tag: `Agenda trigger [${trigger.id}]`,
             });
@@ -229,10 +228,6 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     private parseAbsoluteExpr(expr: string): number | null {
         try { return TimeUtils.parseAt(expr); }
         catch { return null; }
-    }
-
-    private buildMessage(item: AgendaItem, trigger: AgendaTrigger): string {
-        return trigger.message || item.content;
     }
 
     private async markMissed(trigger: AgendaTrigger, scheduledAt: number): Promise<void> {

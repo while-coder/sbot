@@ -152,6 +152,9 @@ export class ReActAgentService extends SingleAgentService {
         if (this.noteServices.length > 0) subContainer.registerInstance(INoteService, this.noteServices);
         if (this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
+        // 故意不透传 memory / agenda：抽取（extractFromConversation）无条件随 service 触发，
+        // 而子 agent 的 Human 消息是编排者合成的 task 指令、非真实用户输入，抽取会污染记忆/日程。
+        // 真实用户内容由编排者自身 turn 末尾统一抽取，子任务无需重复参与。
 
         agentService = await this.agentFactory(agentId, subContainer);
 

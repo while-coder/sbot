@@ -24,7 +24,7 @@ const RelativeTimeSchema = z.object({
 });
 
 const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('Per-trigger delivery mode. notify (default), notify_and_record (REQUIRED for occurrence routines), invoke.');
-const MessageSchema = z.string().nullable().optional().describe('Per-trigger fire-time text override. Default = item.content. null clears.');
+const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact wording delivered when this trigger fires. No fallback to item.content; if there is no special wording, restate the content as the reminder (e.g. "喝水").');
 
 const TriggerSpecSchema = z.discriminatedUnion('kind', [
     z.object({
@@ -52,7 +52,7 @@ const TriggerSpecSchema = z.discriminatedUnion('kind', [
 ]);
 
 const CreateArgsSchema = z.object({
-    content: z.string().describe('Canonical, self-contained description used as the default fire-time text. A clean noun-phrase or imperative title ("Submit weekly report", "喝水", "Build a web matching game (timer / levels / shuffle / hints)"); not a reply or a kickoff phrase like "Start by ...". Match the user\'s language.'),
+    content: z.string().describe('Canonical, self-contained description / title. A clean noun-phrase or imperative title ("Submit weekly report", "喝水", "Build a web matching game (timer / levels / shuffle / hints)"); not a reply or a kickoff phrase like "Start by ...". Match the user\'s language. Note: each trigger now carries its own required message — content is no longer used as the fire-time fallback.'),
     priority: z.enum(AgendaPriority).optional(),
     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; each element carries its own action/message. Omit or [] for a plain todo with no time.'),
     dueAt: z.string().optional(),

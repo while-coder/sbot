@@ -41,7 +41,7 @@ const RelativeTimeSchema = z.object({
 
 const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default, 纯文字提醒) / notify_and_record (occurrence routine) / invoke (AI 在触发时主动产出，如"帮我生成/总结/写/整理"). Details → agenda_wiki §8.');
 
-const MessageSchema = z.string().nullable().optional().describe('Per-trigger fire-time text override; default = item.content. null clears.');
+const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact wording delivered when this trigger fires. No fallback to item.content; if the user gave no special wording, restate the content as the reminder (e.g. "喝水").');
 
 const StartAtSchema = z.string().optional().describe('ISO of FIRST fire; omit for default.');
 const CountSchema = z.number().int().positive().optional().describe('Total fire count; omit for unlimited.');
