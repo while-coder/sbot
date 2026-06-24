@@ -3,7 +3,7 @@
 ### 新增
 
 1. 新增 `sbot update` 命令，可更新到最新版本；如果服务正在运行，会先停止服务再升级。
-2. 聊天内新增更多内置命令，包括 `/status`、`/workpath`、`/agent`、`/autoapprove`、`/tokens`、`/version`、`/history`。
+2. 聊天内新增更多内置命令，包括 `/status`、`/workpath`、`/agent`、`/saver`、`/note`、`/wiki`、`/memory`、`/agenda`、`/autoapprove`、`/tokens`、`/version`、`/history`。
 3. Agenda 触发器新增更完整的管理能力：手动触发、删除触发器、为单个触发器选择投递会话，以及逐次打卡模式。
 4. 钉钉渠道新增文件发送，并支持从已保存的会话信息恢复投递目标，重启后也能继续主动发送。
 5. ReAct 多 Agent 新增子任务追踪：可查看任务列表、续接任务状态、按需注入主对话上下文，并限制过深嵌套。

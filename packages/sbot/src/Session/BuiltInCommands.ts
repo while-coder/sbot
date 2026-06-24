@@ -56,6 +56,13 @@ function mdEnabled(value: boolean): string {
     return value ? '启用' : '停用';
 }
 
+function mdModelName(id: string | null | undefined): string {
+    if (!id) return '(未配置)';
+    const model = config.settings.models?.[id];
+    if (!model) return `${mdCode(id)}（模型配置不存在）`;
+    return mdText(model.name || model.model || id);
+}
+
 function mdConfiguredRef(id: string, name?: string): string {
     return name ? mdNamedRef(id, name) : `${mdCode(id)}（配置不存在）`;
 }
@@ -656,7 +663,7 @@ export class MemoryCommand implements ICommand {
                 .sort(([a], [b]) => a.localeCompare(b));
             if (profiles.length === 0) return mdTitle('没有可用的 Memory Profile');
             return `${mdTitle('可用 Memory Profile')}\n` + profiles
-                .map(([id, p]) => `- ${mdNamedRef(id, p.name)} · ${mdEnabled(p.enabled)} · writer ${mdCode(p.writerModel)}`)
+                .map(([id, p]) => `- ${mdNamedRef(id, p.name)} · ${mdEnabled(p.enabled)} · writer ${mdModelName(p.writerModel)}`)
                 .join('\n');
         }
 
@@ -666,7 +673,7 @@ export class MemoryCommand implements ICommand {
             const p = resolved.memory ? config.getMemoryProfile(resolved.memory) : undefined;
             const channel = config.getChannel(eff.session.channelId);
             const current = resolved.memory
-                ? `${mdNamedRef(resolved.memory, p?.name)}${p ? ` · ${mdEnabled(p.enabled)}` : '（配置不存在）'}`
+                ? `${mdNamedRef(resolved.memory, p?.name)}${p ? ` · ${mdEnabled(p.enabled)} · writer ${mdModelName(p.writerModel)}` : '（配置不存在）'}`
                 : cur;
             return [
                 mdTitle('当前 Memory Profile'),
@@ -718,7 +725,7 @@ export class AgendaCommand implements ICommand {
             if (profiles.length === 0) return mdTitle('没有可用的 Agenda Profile');
             return `${mdTitle('可用 Agenda Profile')}\n` + profiles
                 .map(([id, p]) => {
-                    const sync = p.syncModel ? `sync ${mdCode(p.syncModel)}` : 'sync 未配置';
+                    const sync = p.syncModel ? `sync ${mdModelName(p.syncModel)}` : 'sync 未配置';
                     return `- ${mdNamedRef(id, p.name)} · ${mdEnabled(p.enabled)} · ${sync}`;
                 })
                 .join('\n');
@@ -730,7 +737,7 @@ export class AgendaCommand implements ICommand {
             const p = resolved.agenda ? config.getAgendaProfile(resolved.agenda) : undefined;
             const channel = config.getChannel(eff.session.channelId);
             const current = resolved.agenda
-                ? `${mdNamedRef(resolved.agenda, p?.name)}${p ? ` · ${mdEnabled(p.enabled)}` : '（配置不存在）'}`
+                ? `${mdNamedRef(resolved.agenda, p?.name)}${p ? ` · ${mdEnabled(p.enabled)} · ${p.syncModel ? `sync ${mdModelName(p.syncModel)}` : 'sync 未配置'}` : '（配置不存在）'}`
                 : cur;
             return [
                 mdTitle('当前 Agenda Profile'),

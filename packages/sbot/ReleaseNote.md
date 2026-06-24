@@ -3,7 +3,7 @@ This release includes the following main changes:
 ### Added
 
 1. Added `sbot update`, which updates sbot to the latest version and stops the running service first when needed.
-2. Added more built-in chat commands, including `/status`, `/workpath`, `/agent`, `/autoapprove`, `/tokens`, `/version`, and `/history`.
+2. Added more built-in chat commands, including `/status`, `/workpath`, `/agent`, `/saver`, `/note`, `/wiki`, `/memory`, `/agenda`, `/autoapprove`, `/tokens`, `/version`, and `/history`.
 3. Added richer Agenda trigger controls: fire a trigger manually, delete a trigger, choose the delivery session per trigger, and mark routines as per-fire check-ins.
 4. Added DingTalk file sending, plus session recovery from saved metadata so proactive messages can still be delivered after a restart.
 5. Added ReAct sub-task tracking with task listing, resumable task state, optional parent-context injection, and nested-depth protection.
