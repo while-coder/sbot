@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "test": "pnpm -r --if-present run test",
     "build:core": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.ai run build && pnpm --filter sbot.plugin run build && pnpm --filter sbot.commons run build",
     "build:wiki": "pnpm --filter wiki.base run build && pnpm --filter wiki.local run build && pnpm --filter wiki.gdrive run build",
     "build:channel": "pnpm --filter channel.base run build && pnpm --filter channel.lark run build && pnpm --filter channel.slack run build && pnpm --filter channel.wecom run build && pnpm --filter channel.wechat run build && pnpm --filter channel.onebot run build && pnpm --filter channel.xiaoai run build && pnpm --filter channel.dingtalk run build && pnpm --filter channel.qq run build",

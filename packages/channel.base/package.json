@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rimraf dist && tsc -b --force"
+    "build": "rimraf dist && tsc -b --force",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@langchain/core": "catalog:",
