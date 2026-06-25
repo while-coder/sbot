@@ -43,17 +43,24 @@ export interface SessionInfo {
 }
 
 // ── Internal pending interaction types ──
+//
+// 审批/询问统一进一条 FIFO 交互队列：同一时刻只有队首 entry 处于 active（展示给用户）。
+// 这样主 agent 与子 agent（共享同一 session 的 callback.executeTool）并发触发的审批/询问
+// 会被串行化，用户逐个点击；批准/回答后立即提升下一个队首。计时从“成为 active（展示）”起算。
 
 enum PendingType { Approval = 'approval', Ask = 'ask' }
 
 interface PendingApprovalEntry {
     type: PendingType.Approval;
     id: string;
-    startedAt: Date;
-    timeoutAt: number;          // 0 表示无超时
+    startedAt: Date;            // 成为 active 的时刻（展示才计）
+    timeoutMs: number;          // 0 表示无超时
+    timeoutAt: number;          // active 后才设；0 表示未计时/无超时
     timeoutValue: ToolApproval;
     timer?: ReturnType<typeof setTimeout>;
     resolve: (approval: ToolApproval) => void;
+    /** 成为队首 active 时触发（推 UI）。入队但未展示时不调用。 */
+    onActivate?: (id: string, remainSec: number) => void;
     tool: ChatToolCall;
 }
 
@@ -61,9 +68,12 @@ interface PendingAskEntry {
     type: PendingType.Ask;
     id: string;
     startedAt: Date;
-    timeoutAt: number;          // 0 表示无超时
+    timeoutMs: number;
+    timeoutAt: number;
+    timeoutMessage: string;
     timer?: ReturnType<typeof setTimeout>;
     resolve: (result: AskResponse | string) => void;
+    onActivate?: (id: string, remainSec: number) => void;
     title?: string;
     questions: AskToolParams['questions'];
 }
@@ -82,7 +92,12 @@ export abstract class SessionService extends MessageDispatcher {
     get signal(): AbortSignal { return this.controller.signal; }
     settings: SessionSettings = {};
     private settingsPath?: string;
-    private pending: PendingEntry | null = null;
+    /** 当前展示给用户的交互（队首）；同一时刻最多一个。 */
+    private active: PendingEntry | null = null;
+    /** 等待展示的交互，FIFO。 */
+    private queue: PendingEntry[] = [];
+    /** 单调递增序号，保证并发入队时 id 唯一（Date.now() 同毫秒会撞）。 */
+    private seq = 0;
 
     constructor(threadId: string, settingsPath?: string) {
         super();
@@ -106,13 +121,13 @@ export abstract class SessionService extends MessageDispatcher {
     // ── Status ──
 
     private _syncStatus(): void {
-        if (!this.pending) this.status = SessionStatus.Thinking;
-        else if (this.pending.type === PendingType.Approval) this.status = SessionStatus.WaitingApproval;
+        if (!this.active) this.status = SessionStatus.Thinking;
+        else if (this.active.type === PendingType.Approval) this.status = SessionStatus.WaitingApproval;
         else this.status = SessionStatus.WaitingAsk;
     }
 
     getInfo(): SessionInfo {
-        const p = this.pending;
+        const p = this.active;
         const computeRemainSec = (timeoutAt: number): number =>
             timeoutAt > 0 ? Math.max(0, Math.ceil((timeoutAt - Date.now()) / 1000)) : 0;
         return {
@@ -136,121 +151,161 @@ export abstract class SessionService extends MessageDispatcher {
         };
     }
 
+    // ── Queue scheduling ──
+
+    /** 把队首提升为 active：开始计时（展示才计）并推 UI。已有 active 时不动。 */
+    private _activateNext(): void {
+        if (this.active) return;
+        const next = this.queue.shift();
+        if (!next) { this._syncStatus(); return; }
+        this.active = next;
+        next.startedAt = new Date();
+        if (next.timeoutMs > 0) {
+            next.timeoutAt = Date.now() + next.timeoutMs;
+            next.timer = setTimeout(() => this._onTimeout(next), next.timeoutMs);
+        }
+        this._syncStatus();
+        const remainSec = next.timeoutMs > 0 ? Math.floor(next.timeoutMs / 1000) : 0;
+        // microtask 化：默认 channel 的 enterApproval 会同步 resolve，避免 activate→resolve→activate 同步递归爆栈
+        queueMicrotask(() => { try { next.onActivate?.(next.id, remainSec); } catch {} });
+    }
+
+    private _onTimeout(entry: PendingEntry): void {
+        if (this.active?.id !== entry.id) return;
+        clearTimeout(entry.timer);
+        this.active = null;
+        if (entry.type === PendingType.Approval) entry.resolve(entry.timeoutValue);
+        else entry.resolve(entry.timeoutMessage);
+        this._activateNext();
+    }
+
+    /** 从 active 或队列中按 id 取出一个 entry（并清掉其 timer / active 引用）。 */
+    private _take(id: string, type: PendingType): PendingEntry | null {
+        if (this.active && this.active.id === id && this.active.type === type) {
+            const e = this.active;
+            clearTimeout(e.timer);
+            this.active = null;
+            return e;
+        }
+        const idx = this.queue.findIndex(e => e.id === id && e.type === type);
+        if (idx >= 0) {
+            const [e] = this.queue.splice(idx, 1);
+            clearTimeout(e.timer);
+            return e;
+        }
+        return null;
+    }
+
     // ── Approval ──
 
-    enterApproval(toolCall: ChatToolCall, timeoutMs: number, timeoutValue: ToolApproval): { id: string; promise: Promise<ToolApproval> } {
-        this.cancelPending();
-        const id = `tc-${Date.now()}`;
+    enterApproval(
+        toolCall: ChatToolCall,
+        timeoutMs: number,
+        timeoutValue: ToolApproval,
+        onActivate?: (id: string, remainSec: number) => void,
+    ): { id: string; promise: Promise<ToolApproval> } {
+        const id = `tc-${Date.now()}-${++this.seq}`;
         let resolve!: (approval: ToolApproval) => void;
         const promise = new Promise<ToolApproval>((res) => { resolve = res; });
-        const timer = timeoutMs > 0 ? setTimeout(() => {
-            if (this.pending?.id === id) {
-                this.pending = null;
-                this._syncStatus();
-            }
-            resolve(timeoutValue);
-        }, timeoutMs) : undefined;
-        const timeoutAt = timeoutMs > 0 ? Date.now() + timeoutMs : 0;
-        this.pending = { type: PendingType.Approval, id, tool: toolCall, startedAt: new Date(), timeoutAt, timeoutValue, resolve, timer };
-        this._syncStatus();
+        const entry: PendingApprovalEntry = {
+            type: PendingType.Approval, id, tool: toolCall,
+            startedAt: new Date(), timeoutMs, timeoutAt: 0, timeoutValue, resolve, onActivate,
+        };
+        this.queue.push(entry);
+        this._activateNext();
         return { id, promise };
     }
 
     exitApproval(id: string, approval: ToolApproval): boolean {
-        const p = this.pending;
-        if (!p || p.type !== PendingType.Approval || p.id !== id) return false;
-        clearTimeout(p.timer);
-        this.pending = null;
-        this._syncStatus();
-        p.resolve(approval);
+        const e = this._take(id, PendingType.Approval);
+        if (!e) return false;
+        (e as PendingApprovalEntry).resolve(approval);
+        this._activateNext();
         return true;
     }
 
     exitAllApprovals(): void {
-        const p = this.pending;
-        if (p?.type === PendingType.Approval) {
-            clearTimeout(p.timer);
-            this.pending = null;
-            this._syncStatus();
-            p.resolve(ToolApproval.Deny);
-        }
+        const entries = [this.active, ...this.queue]
+            .filter((e): e is PendingApprovalEntry => e?.type === PendingType.Approval);
+        for (const e of entries) this._take(e.id, PendingType.Approval);
+        for (const e of entries) e.resolve(ToolApproval.Deny);
+        this._activateNext();
     }
 
     // ── Ask ──
 
-    enterAsk(params: AskToolParams, timeoutMs: number, timeoutMessage: string): { id: string; promise: Promise<AskResponse> } {
-        this.cancelPending();
-        const id = `ask-${Date.now()}`;
+    enterAsk(
+        params: AskToolParams,
+        timeoutMs: number,
+        timeoutMessage: string,
+        onActivate?: (id: string, remainSec: number) => void,
+    ): { id: string; promise: Promise<AskResponse> } {
+        const id = `ask-${Date.now()}-${++this.seq}`;
         let resolve!: (result: AskResponse | string) => void;
         const promise = new Promise<AskResponse>((res, rej) => {
             resolve = (result) => typeof result === 'string' ? rej(new Error(result)) : res(result);
         });
-        const timer = timeoutMs > 0 ? setTimeout(() => {
-            if (this.pending?.id === id) {
-                this.pending = null;
-                this._syncStatus();
-            }
-            resolve(timeoutMessage);
-        }, timeoutMs) : undefined;
-        const timeoutAt = timeoutMs > 0 ? Date.now() + timeoutMs : 0;
-        this.pending = { type: PendingType.Ask, id, title: params.title, questions: params.questions, startedAt: new Date(), timeoutAt, resolve, timer };
-        this._syncStatus();
+        const entry: PendingAskEntry = {
+            type: PendingType.Ask, id, title: params.title, questions: params.questions,
+            startedAt: new Date(), timeoutMs, timeoutAt: 0, timeoutMessage, resolve, onActivate,
+        };
+        this.queue.push(entry);
+        this._activateNext();
         return { id, promise };
     }
 
     exitAsk(id: string, result: Record<string, string | string[] | boolean | undefined> | string): boolean {
-        const p = this.pending;
-        if (!p || p.type !== PendingType.Ask || p.id !== id) return false;
-        clearTimeout(p.timer);
-        this.pending = null;
-        this._syncStatus();
+        const e = this._take(id, PendingType.Ask);
+        if (!e) return false;
+        const entry = e as PendingAskEntry;
         if (typeof result === 'string') {
-            p.resolve(result);
+            entry.resolve(result);
         } else {
             const labeledAnswers: AskResponse = {};
-            for (let i = 0; i < p.questions.length; i++) {
-                const q = p.questions[i];
+            for (let i = 0; i < entry.questions.length; i++) {
+                const q = entry.questions[i];
                 const raw = result[String(i)];
                 if (raw !== undefined) {
                     labeledAnswers[q.label] = raw as string | string[];
                 }
             }
-            p.resolve(labeledAnswers);
+            entry.resolve(labeledAnswers);
         }
+        this._activateNext();
         return true;
     }
 
     exitAllAsks(message: string): void {
-        const p = this.pending;
-        if (p?.type === PendingType.Ask) {
-            clearTimeout(p.timer);
-            this.pending = null;
-            this._syncStatus();
-            p.resolve(message);
-        }
+        const entries = [this.active, ...this.queue]
+            .filter((e): e is PendingAskEntry => e?.type === PendingType.Ask);
+        for (const e of entries) this._take(e.id, PendingType.Ask);
+        for (const e of entries) e.resolve(message);
+        this._activateNext();
     }
 
     // ── Cleanup ──
 
-    /** Cancel any pending approval or ask. */
-    private cancelPending(): void {
-        const p = this.pending;
-        if (!p) return;
-        clearTimeout(p.timer);
-        this.pending = null;
-        if (p.type === PendingType.Approval) p.resolve(ToolApproval.Deny);
-        else p.resolve('Cancelled by new interaction');
+    /** 取消所有 pending（active + 队列）：审批 Deny、询问按取消处理。 */
+    private cancelAll(): void {
+        const all = [this.active, ...this.queue].filter((e): e is PendingEntry => !!e);
+        this.active = null;
+        this.queue = [];
+        for (const e of all) {
+            clearTimeout(e.timer);
+            if (e.type === PendingType.Approval) e.resolve(ToolApproval.Deny);
+            else e.resolve('Cancelled by new interaction');
+        }
         this._syncStatus();
     }
 
     /** Cancel the session and prepare a fresh signal for the next cycle. */
     abort(): void {
-        this.cancelPending();
+        this.cancelAll();
         this.controller.abort();
         this.controller = new AbortController();
     }
 
     cleanup(): void {
-        this.cancelPending();
+        this.cancelAll();
     }
 }

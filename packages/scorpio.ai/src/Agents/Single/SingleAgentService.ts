@@ -13,7 +13,7 @@ import { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKEN
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
-import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, MessageRole, type TokenUsage } from "../AgentServiceBase";
+import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, ChatToolCall, MessageRole, type TokenUsage } from "../AgentServiceBase";
 import { ContentPartType, type MessageContent, type ContentPart } from "../../Saver/IAgentSaverService";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 
@@ -27,6 +27,25 @@ export {
     AgentCancelledError,
     type TokenUsage,
 } from "../AgentServiceBase";
+
+/** 同一轮内并发执行已批准工具的上限，防止免审批工具（如一轮多个 read）瞬间全部涌入。 */
+const PARALLEL_TOOL_LIMIT = 5;
+
+/** 轻量信号量：release 时若有等待者直接转交名额（不回加 permits），避免 off-by-one。 */
+class Semaphore {
+    private permits: number;
+    private waiters: Array<() => void> = [];
+    constructor(n: number) { this.permits = n; }
+    async acquire(): Promise<void> {
+        if (this.permits > 0) { this.permits--; return; }
+        await new Promise<void>(res => this.waiters.push(res));
+    }
+    release(): void {
+        const w = this.waiters.shift();
+        if (w) w();
+        else this.permits++;
+    }
+}
 
 function raceCancel<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
     if (!signal) return promise;
@@ -265,6 +284,11 @@ export class SingleAgentService extends AgentServiceBase {
 
     /**
      * 工具执行节点 - 替代 ToolNode
+     *
+     * 边审批边执行：审批串行（callback.executeTool 走 session 的全局交互队列，主/子 agent
+     * 的审批被序列化、用户逐个点击），但某个工具一旦批准即放入“在途集合”立刻执行，不等其余
+     * 审批完成。最后等在途集合排空。并发由信号量限流，避免免审批工具瞬间全部涌入。
+     * ToolMessage 按 tool_calls 原顺序占位回填，保证与 AIMessage 的配对稳定。
      */
     private async callToolsNode(state: SingleAgentState) {
         const callback = state.callback;
@@ -274,84 +298,122 @@ export class SingleAgentService extends AgentServiceBase {
         }
         const lastMessage = messages[messages.length - 1];
 
-        // 获取工具调用
         const toolCalls = lastMessage.tool_calls || [];
         if (toolCalls.length === 0) {
             return { messages: [] };
         }
         const toolMap = new Map(state.tools.map(t => [t.name, t]));
 
-        // 执行所有工具调用
-        const toolMessages: ChatMessage[] = [];
+        // 按原 index 占位（稀疏），最后统一补齐未填充槽位，保持与 tool_calls 的顺序配对
+        const toolMessages: ChatMessage[] = new Array(toolCalls.length);
+        const cancelledMsg = (tc: ChatToolCall): ChatMessage =>
+            ({ role: MessageRole.Tool, tool_call_id: tc.id ?? "", content: "Cancelled", status: "error" });
+
+        const sem = new Semaphore(PARALLEL_TOOL_LIMIT);
+        const inFlight: Promise<void>[] = [];
+
         for (let i = 0; i < toolCalls.length; i++) {
             const toolCall = toolCalls[i];
-            // 取消时补偿剩余 tool_calls 的 ToolMessage，保持与 AIMessage 的配对完整
-            if (state.signal?.aborted) {
-                for (let j = i; j < toolCalls.length; j++) {
-                    toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCalls[j].id ?? "", content: "Cancelled", status: "error" });
-                }
-                break;
-            }
-            try {
-                const tool = toolMap.get(toolCall.name);
-                if (!tool) {
-                    throw new Error(`Tool not found`);
-                }
-                if (callback?.executeTool) {
-                    const approval = await raceCancel(callback.executeTool(toolCall), state.signal);
-                    if (approval === ToolApproval.Deny) {
-                        throw new Error(`Tool call rejected by user`);
-                    }
-                }
-                // 执行工具（LLM 有时会将数组/对象参数 JSON 序列化成字符串，先做一次反解析）
-                const parsedArgs = SingleAgentService.parseStringArgs(toolCall.args);
-                this.logger?.info(`开始执行工具 ${tool.name} 参数: ${truncate(JSON.stringify(parsedArgs), 300)}`);
-                const result = await raceCancel(tool.invoke(parsedArgs), state.signal);
+            if (state.signal?.aborted) break;   // 剩余未处理的在循环外统一补 Cancelled
 
-                // 标准化为 MCP 格式（自动检测和转换各种格式）
-                let mcpResult = normalizeToMCPResult(result);
-
-                // 单条 result 过大时纯头部截断 + 溢出落盘，防止 token 一下被打爆。
-                // 失败降级为不带路径的截断。
+            // 审批：串行 await（全局交互队列把跨 agent 的审批序列化，用户逐个点击）
+            let approval: ToolApproval | undefined;
+            if (callback?.executeTool) {
                 try {
-                    mcpResult = await truncateMCPToolResult(mcpResult, {
-                        spillDir: this.toolOverflowDir,
-                        toolCallId: toolCall.id ?? `noid-${Date.now()}-${i}`,
-                        toolName: tool.name,
-                    });
-                } catch (err: any) {
-                    this.logger?.warn(`工具结果截断失败 ${tool.name}: ${err?.message ?? err}`);
+                    approval = await raceCancel(callback.executeTool(toolCall), state.signal);
+                } catch (err) {
+                    if (err instanceof AgentCancelledError) break;
+                    throw err;
                 }
-
-                const resultStr = JSON.stringify(mcpResult);
-                this.logger?.info(`执行工具结束 ${tool.name} 结果: ${truncate(resultStr, 300)}`);
-
-                const thinkId = mcpResult._meta?.thinkId;
-                const taskId = mcpResult._meta?.taskId;
-                // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组。
-                // MCPContent 与 ContentPart 形状大体兼容（image_url 顶层 url/image_url 两种形态由 resizeImagesInContent 统一处理）
-                const rawContent: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
-                    ? mcpResult.content[0].text
-                    : mcpResult.content as unknown as ContentPart[];
-                const content = await this.resizeImagesInContent(rawContent);
-
-                const extra: Record<string, unknown> = {};
-                if (thinkId) extra.thinkId = thinkId;
-                if (taskId) extra.taskId = taskId;
-                toolMessages.push({
-                    role: MessageRole.Tool,
-                    tool_call_id: toolCall.id || "",
-                    content,
-                    status: mcpResult.isError ? "error" : "success",
-                    additional_kwargs: Object.keys(extra).length > 0 ? extra : undefined,
-                });
-            } catch (error: any) {
-                this.logger?.info(`执行工具错误 ${toolCall.name} 错误: ${truncateForLog(error.message)}`);
-                toolMessages.push({ role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${truncateForLog(error.message)}`, status: "error" });
             }
+            if (approval === ToolApproval.Deny) {
+                toolMessages[i] = { role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Tool call rejected by user`, status: "error" };
+                continue;
+            }
+
+            // 批准即执行：放入在途集合，不阻塞下一个审批（哪个批准哪个开跑）
+            const idx = i;
+            inFlight.push((async () => {
+                await sem.acquire();
+                try {
+                    if (state.signal?.aborted) { toolMessages[idx] = cancelledMsg(toolCall); return; }
+                    toolMessages[idx] = await this.runSingleTool(toolCall, toolMap, idx, state.signal);
+                } catch (error: any) {
+                    if (error instanceof AgentCancelledError) {
+                        toolMessages[idx] = cancelledMsg(toolCall);
+                    } else {
+                        this.logger?.info(`执行工具错误 ${toolCall.name} 错误: ${truncateForLog(error.message)}`);
+                        toolMessages[idx] = { role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${truncateForLog(error.message)}`, status: "error" };
+                    }
+                } finally {
+                    sem.release();
+                }
+            })());
+        }
+
+        // 等在途全部完成（边批边跑、最后排空在途集合，而非预收集后 Promise.all 一个批次）
+        await Promise.allSettled(inFlight);
+
+        // 取消补偿：未审批到 / 中途 abort 的 tool_calls 全部补 Cancelled，保持与 AIMessage 配对完整
+        for (let i = 0; i < toolCalls.length; i++) {
+            if (!toolMessages[i]) toolMessages[i] = cancelledMsg(toolCalls[i]);
         }
 
         return { messages: toolMessages };
+    }
+
+    /** 执行单个已批准的工具：invoke → MCP 标准化 → 截断溢出落盘 → 图片缩放。
+     *  取消（AgentCancelledError）与工具自身错误均向上抛，由调用方归一处理。 */
+    private async runSingleTool(
+        toolCall: ChatToolCall,
+        toolMap: Map<string, StructuredToolInterface>,
+        i: number,
+        signal?: AbortSignal,
+    ): Promise<ChatMessage> {
+        const tool = toolMap.get(toolCall.name);
+        if (!tool) throw new Error(`Tool not found`);
+
+        // LLM 有时会将数组/对象参数 JSON 序列化成字符串，先做一次反解析
+        const parsedArgs = SingleAgentService.parseStringArgs(toolCall.args);
+        this.logger?.info(`开始执行工具 ${tool.name} 参数: ${truncate(JSON.stringify(parsedArgs), 300)}`);
+        const result = await raceCancel(tool.invoke(parsedArgs), signal);
+
+        // 标准化为 MCP 格式（自动检测和转换各种格式）
+        let mcpResult = normalizeToMCPResult(result);
+
+        // 单条 result 过大时纯头部截断 + 溢出落盘，防止 token 一下被打爆。失败降级为不带路径的截断。
+        try {
+            mcpResult = await truncateMCPToolResult(mcpResult, {
+                spillDir: this.toolOverflowDir,
+                toolCallId: toolCall.id ?? `noid-${Date.now()}-${i}`,
+                toolName: tool.name,
+            });
+        } catch (err: any) {
+            this.logger?.warn(`工具结果截断失败 ${tool.name}: ${err?.message ?? err}`);
+        }
+
+        const resultStr = JSON.stringify(mcpResult);
+        this.logger?.info(`执行工具结束 ${tool.name} 结果: ${truncate(resultStr, 300)}`);
+
+        const thinkId = mcpResult._meta?.thinkId;
+        const taskId = mcpResult._meta?.taskId;
+        // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组。
+        // MCPContent 与 ContentPart 形状大体兼容（image_url 顶层 url/image_url 两种形态由 resizeImagesInContent 统一处理）
+        const rawContent: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
+            ? mcpResult.content[0].text
+            : mcpResult.content as unknown as ContentPart[];
+        const content = await this.resizeImagesInContent(rawContent);
+
+        const extra: Record<string, unknown> = {};
+        if (thinkId) extra.thinkId = thinkId;
+        if (taskId) extra.taskId = taskId;
+        return {
+            role: MessageRole.Tool,
+            tool_call_id: toolCall.id || "",
+            content,
+            status: mcpResult.isError ? "error" : "success",
+            additional_kwargs: Object.keys(extra).length > 0 ? extra : undefined,
+        };
     }
 
     /** 模型调用 400/500 时把消息序列与工具列表摘要打到日志，便于定位（如同名工具 / 空 content / tool_calls 与 ToolMessage 不配对等） */

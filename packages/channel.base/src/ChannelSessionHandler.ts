@@ -69,11 +69,13 @@ export abstract class ChannelSessionHandler<TProvider extends AbstractChatProvid
 
   // Framework entrypoints. Channels should customize the protected hooks below.
   async executeApproval(toolCall: ChatToolCall): Promise<ToolApproval> {
-    const timeout = this.approvalTimeoutMs;
-    const { id, promise } = this.session.enterApproval(toolCall, timeout, this.approvalTimeoutValue);
-    const remainSec = timeout > 0 ? Math.floor(timeout / 1000) : 0;
+    // 入队即返回；推 UI 延迟到成为队首 active 时（onActivate），计时也从那一刻起算。
+    // 主/子 agent 并发触发的审批因此被串行展示，用户逐个点击。
+    const { id, promise } = this.session.enterApproval(
+      toolCall, this.approvalTimeoutMs, this.approvalTimeoutValue,
+      (activeId, remainSec) => { void this.enterApproval(activeId, remainSec, toolCall); },
+    );
     try {
-      await this.enterApproval(id, remainSec, toolCall);
       return await promise;
     } finally {
       try { await this.exitApproval(id); } catch {}
@@ -81,11 +83,11 @@ export abstract class ChannelSessionHandler<TProvider extends AbstractChatProvid
   }
 
   async executeAsk(params: AskToolParams): Promise<AskResponse> {
-    const timeout = this.askTimeoutMs;
-    const { id, promise } = this.session.enterAsk(params, timeout, this.askTimeoutMessage);
-    const remainSec = timeout > 0 ? Math.floor(timeout / 1000) : 0;
+    const { id, promise } = this.session.enterAsk(
+      params, this.askTimeoutMs, this.askTimeoutMessage,
+      (activeId, remainSec) => { void this.enterAsk(activeId, remainSec, params); },
+    );
     try {
-      await this.enterAsk(id, remainSec, params);
       return await promise;
     } finally {
       try { await this.exitAsk(id); } catch {}
