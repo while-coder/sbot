@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  defineChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from "channel.base";
 import { SlackService } from "./SlackService";
@@ -22,7 +22,7 @@ const SLACK_CHANNEL_PROMPT = `<channel-info name="slack">
 - 链接用 \`<https://url|文字>\` 格式。
 </channel-info>`;
 
-export const slackPlugin: ChannelPlugin = {
+export const slackPlugin = defineChannelPlugin({
   type: "slack",
   label: "Slack",
   channelPrompt: SLACK_CHANNEL_PROMPT,
@@ -56,4 +56,4 @@ export const slackPlugin: ChannelPlugin = {
     await service.registerEventHandlers();
     return service;
   },
-};
+});

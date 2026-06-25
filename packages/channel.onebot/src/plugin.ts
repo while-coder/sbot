@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  defineChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from 'channel.base';
 import { OnebotService } from './OnebotService';
@@ -18,7 +18,7 @@ const ONEBOT_CHANNEL_PROMPT = `<channel-info name="onebot">
 - 用空行/序号表达层级。
 </channel-info>`;
 
-export const onebotPlugin: ChannelPlugin = {
+export const onebotPlugin = defineChannelPlugin({
   type: 'onebot',
   label: 'OneBot',
   channelPrompt: ONEBOT_CHANNEL_PROMPT,
@@ -69,4 +69,4 @@ export const onebotPlugin: ChannelPlugin = {
     service.start();
     return service;
   },
-};
+});

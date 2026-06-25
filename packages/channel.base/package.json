@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@langchain/core": "catalog:",
+    "sbot.plugin": "workspace:*",
     "scorpio.ai": "workspace:*",
     "zod": "catalog:"
   },

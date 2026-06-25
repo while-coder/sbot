@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  defineChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from 'channel.base';
 import { XiaoaiAuthMode } from './XiaoaiAPI';
@@ -18,7 +18,7 @@ const XIAOAI_CHANNEL_PROMPT = `<channel-info name="xiaoai">
 - 控制长度，音箱朗读超过几句话用户会听不下去。
 </channel-info>`;
 
-export const xiaoaiPlugin: ChannelPlugin = {
+export const xiaoaiPlugin = defineChannelPlugin({
   type: 'xiaoai',
   label: '小爱同学',
   channelPrompt: XIAOAI_CHANNEL_PROMPT,
@@ -118,4 +118,4 @@ export const xiaoaiPlugin: ChannelPlugin = {
     await service.start();
     return service;
   },
-};
+});

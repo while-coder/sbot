@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  defineChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from 'channel.base';
 import { DingtalkConversationType, DingtalkService } from './DingtalkService';
@@ -19,7 +19,7 @@ const DINGTALK_CHANNEL_PROMPT = `<channel-info name="dingtalk">
 - 支持标准 markdown（标题、列表、代码块、图片、链接、表格）。
 </channel-info>`;
 
-export const dingtalkPlugin: ChannelPlugin = {
+export const dingtalkPlugin = defineChannelPlugin({
   type: 'dingtalk',
   label: '钉钉 / DingTalk',
   channelPrompt: DINGTALK_CHANNEL_PROMPT,
@@ -71,4 +71,4 @@ export const dingtalkPlugin: ChannelPlugin = {
     await service.start();
     return service;
   },
-};
+});

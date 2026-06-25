@@ -4,6 +4,7 @@ export {
   IChannelService, ProcessAIHandler,
   ChannelCapability,
   ConfigFieldType, ConfigField,
+  defineChannelPlugin,
 } from './ChannelPlugin';
 export { AbstractChatProvider } from './AbstractChatProvider';
 export { createSendFileTool, SEND_FILE_TOOL_NAME, type SendFileFn } from './SendFileTool';

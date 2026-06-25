@@ -1,6 +1,9 @@
 import { type MessageContent } from "scorpio.ai";
+import { ConfigField, ConfigFieldType } from "sbot.plugin";
 import { ChannelSessionHandler } from "./ChannelSessionHandler";
 import { SessionService } from "./SessionService";
+
+export { ConfigField, ConfigFieldType };
 
 /** Capability tokens advertised by a running IChannelService instance. Mirrors which optional send methods are implemented. */
 export enum ChannelCapability {
@@ -72,27 +75,9 @@ export type ProcessAIHandler = (
   sessionHandler: ChannelSessionHandler,
 ) => Promise<void>;
 
-export enum ConfigFieldType {
-  String = 'string',
-  Password = 'password',
-  Boolean = 'boolean',
-  Number = 'number',
-  Select = 'select',
-  /** Renders a button → QR code image → waits for scan result. */
-  QRCode = 'qrcode',
-}
-
-export interface ConfigField {
-  label: string;
-  type: ConfigFieldType;
-  required?: boolean;
-  description?: string;
-  default?: string | boolean | number;
-  /** only for type: 'select' */
-  options?: Array<{ label: string; value: string }>;
-}
-
 export interface ChannelPlugin {
+  /** 区分插件种类，供统一加载器分流（与 WikiPlugin 的 kind:'wiki' 区别开）。 */
+  kind: "channel";
   type: string;
   label: string;
   configSchema: Record<string, ConfigField>;
@@ -109,4 +94,12 @@ export interface ChannelPlugin {
   awaitQRResult?(key: string): Promise<Record<string, any> | null>;
   init(ctx: ChannelPluginContext): Promise<IChannelService | undefined>;
   dispose?(): Promise<void>;
+}
+
+/**
+ * 声明一个 channel 插件。自动注入 `kind: "channel"`，各插件无需手写判别字段。
+ * 类型上要求除 kind 外的所有字段，漏写/拼错照常报错。
+ */
+export function defineChannelPlugin(plugin: Omit<ChannelPlugin, "kind">): ChannelPlugin {
+  return { ...plugin, kind: "channel" };
 }

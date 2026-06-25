@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  defineChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from "channel.base";
 import { WechatApiClient } from "./WechatApiClient";
@@ -33,7 +33,7 @@ const WECHAT_CHANNEL_PROMPT = `<channel-info name="wechat">
 - 用纯文本表达层级（空行分段、序号 1./2.）。
 </channel-info>`;
 
-export const wechatPlugin: ChannelPlugin = {
+export const wechatPlugin = defineChannelPlugin({
   type: "wechat",
   label: "微信",
   channelPrompt: WECHAT_CHANNEL_PROMPT,
@@ -125,4 +125,4 @@ export const wechatPlugin: ChannelPlugin = {
   async dispose(): Promise<void> {
     // Service disposal handled by ChannelManager calling service.dispose()
   },
-};
+});

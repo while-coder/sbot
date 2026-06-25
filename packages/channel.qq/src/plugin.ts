@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  defineChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from 'channel.base';
 import { QqService } from './QqService';
@@ -20,7 +20,7 @@ const QQ_CHANNEL_PROMPT = `<channel-info name="qq">
 - 仅能"被动回复"近期收到的消息。
 </channel-info>`;
 
-export const qqPlugin: ChannelPlugin = {
+export const qqPlugin = defineChannelPlugin({
   type: 'qq',
   label: 'QQ',
   channelPrompt: QQ_CHANNEL_PROMPT,
@@ -64,4 +64,4 @@ export const qqPlugin: ChannelPlugin = {
     await service.start();
     return service;
   },
-};
+});

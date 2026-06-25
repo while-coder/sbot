@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  defineChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from "channel.base";
 import { LarkService, LarkReceiveIdType, LarkUserIdType, type LarkUserInfo, type LarkChatInfo, type LarkDomain } from "./LarkService";
@@ -21,7 +21,7 @@ const LARK_CHANNEL_PROMPT = `<channel-info name="lark">
 - 表格请用列表代替，飞书 markdown 元素对表格支持有限。
 </channel-info>`;
 
-export const larkPlugin: ChannelPlugin = {
+export const larkPlugin = defineChannelPlugin({
   type: "lark",
   label: "飞书 / Lark",
   channelPrompt: LARK_CHANNEL_PROMPT,
@@ -90,4 +90,4 @@ export const larkPlugin: ChannelPlugin = {
     return service;
   },
 
-};
+});

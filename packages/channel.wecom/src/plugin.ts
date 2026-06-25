@@ -1,5 +1,5 @@
 import {
-  ChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
+  defineChannelPlugin, ChannelPluginContext, IChannelService, ConfigFieldType,
   type MessageContent,
 } from "channel.base";
 import { WecomService } from "./WecomService";
@@ -17,7 +17,7 @@ const WECOM_CHANNEL_PROMPT = `<channel-info name="wecom">
 - 标题用 \`#\`（企业微信支持 1-6 级）。
 </channel-info>`;
 
-export const wecomPlugin: ChannelPlugin = {
+export const wecomPlugin = defineChannelPlugin({
   type: "wecom",
   label: "企业微信",
   channelPrompt: WECOM_CHANNEL_PROMPT,
@@ -66,4 +66,4 @@ export const wecomPlugin: ChannelPlugin = {
     service.connect();
     return service;
   },
-};
+});
