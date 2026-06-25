@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
@@ -8,6 +8,8 @@ import type { STableColumn } from 'sbot-ui'
 import { SaverType } from '@/shared/types'
 import type { SaverConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
+import ResourceRefs from '@/components/ResourceRefs.vue'
+import { useResourceRefs } from '@/composables/useResourceRefs'
 
 type SaverRow = { id: string; name: string; type: string; raw: SaverConfig }
 
@@ -31,6 +33,15 @@ const saverColumns = computed<STableColumn[]>(() => [
   { key: 'type', label: t('common.type') },
   { key: 'ops',  label: t('common.ops'), ops: true },
 ])
+
+// ── 被引用情况（频道 / 会话档案 / 智能体） ──
+const { loadProfiles, makeResourceRefs } = useResourceRefs()
+const refs = makeResourceRefs({
+  channel: (c, id) => c.saver === id,
+  profile: (p, id) => p.saver === id,
+  agent: (a, id) => a.saver === id,
+})
+onMounted(loadProfiles)
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
@@ -123,6 +134,7 @@ async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
+    await loadProfiles()
     const expandedIds = expandedKeys.value.map(String)
     if (expandedIds.length > 0) {
       for (const id of expandedIds) delete saverThreadsMap.value[id]
@@ -150,11 +162,16 @@ async function refresh() {
         :empty-text="t('savers.empty')"
         @expand="onExpand"
       >
+        <template #name="{ row }">
+          {{ row.name || row.id }}
+          <ResourceRefs mode="badge" :refs="refs(row.id)" />
+        </template>
         <template #ops="{ row }">
           <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
         </template>
         <template #_expanded="{ row }">
+          <ResourceRefs mode="card" :refs="refs(row.id)" class="saver-refs" />
           <div v-if="saverLoading[row.id]" class="thread-status">{{ t('common.loading') }}</div>
           <div v-else-if="(saverThreadsMap[row.id] || []).length === 0" class="thread-status thread-status--empty">
             {{ t('savers.no_sessions') }}
@@ -194,6 +211,7 @@ async function refresh() {
 </template>
 
 <style scoped>
+.saver-refs { margin-bottom: var(--sui-sp-3); }
 .thread-status {
   padding: var(--sui-sp-2) 0;
   font-size: var(--sui-fs-sm);

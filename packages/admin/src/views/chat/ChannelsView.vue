@@ -907,6 +907,7 @@ async function refresh() {
                   <SInput v-model="form.config[key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" class="apikey-input" />
                   <button type="button" class="apikey-toggle" @click="passwordVisible[key] = !passwordVisible[key]" :title="passwordVisible[key] ? t('common.hide') : t('common.show')">{{ passwordVisible[key] ? t('common.hide') : t('common.show') }}</button>
                 </div>
+                <SInput v-else-if="field.type === 'textarea'" multiline v-model="form.config[key]" :placeholder="field.description || ''" />
                 <SInput v-else v-model="form.config[key]" :placeholder="field.description || ''" />
                 <template v-if="field.type !== 'boolean' && field.description" #hint>
                   <span v-html="linkifyHint(field.description || '')"></span>

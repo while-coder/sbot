@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import MemoryListModal from '@/components/modals/MemoryListModal.vue'
+import ResourceRefs from '@/components/ResourceRefs.vue'
+import { useResourceRefs } from '@/composables/useResourceRefs'
 
 interface MemoryProfileForm {
   name: string
@@ -26,6 +28,15 @@ const profileList = computed(() =>
 const modelOptions = computed(() =>
   Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id })),
 )
+
+// ── 被引用情况（频道 / 会话档案） ──
+const { loadProfiles, makeResourceRefs } = useResourceRefs()
+const refs = makeResourceRefs({
+  channel: (c, id) => c.memory === id,
+  profile: (p, id) => p.memory === id,
+})
+const expandedIds = ref<string[]>([])
+onMounted(loadProfiles)
 
 const columns = computed<STableColumn[]>(() => [
   { key: 'name',         label: t('common.name'),                primary: true },
@@ -132,6 +143,7 @@ async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
+    await loadProfiles()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -172,9 +184,14 @@ function modelLabel(id: string | undefined | null): string {
         :columns="columns"
         :rows="profileList"
         row-key="id"
+        expandable
+        v-model:expandedKeys="expandedIds"
         :empty-text="t('memory_profiles.empty')"
       >
-        <template #name="{ row }">{{ row.name || row.id }}</template>
+        <template #name="{ row }">
+          {{ row.name || row.id }}
+          <ResourceRefs mode="badge" :refs="refs(row.id)" />
+        </template>
         <template #enabled="{ row }">
           <SBadge :variant="row.enabled ? 'success' : 'neutral'" pill>
             {{ row.enabled ? t('common.enabled') : t('common.disabled') }}
@@ -187,6 +204,11 @@ function modelLabel(id: string | undefined | null): string {
             <SButton type="outline" size="sm" :loading="consolidating[row.id]" @click="runConsolidate(row.id)">{{ t('memory_profiles.run_consolidate') }}</SButton>
             <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+          </div>
+        </template>
+        <template #_expanded="{ row }">
+          <div class="refs-expanded">
+            <ResourceRefs mode="card" :refs="refs(row.id)" />
           </div>
         </template>
       </STable>
@@ -235,5 +257,9 @@ function modelLabel(id: string | undefined | null): string {
   display: inline-flex;
   gap: var(--sui-sp-2);
   white-space: nowrap;
+}
+.refs-expanded {
+  padding: var(--sui-sp-4) var(--sui-sp-6);
+  background: var(--sui-bg-subtle);
 }
 </style>

@@ -7,6 +7,8 @@ import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFor
 import type { WikiConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import WikiViewModal from './WikiViewModal.vue'
+import ResourceRefs from '@/components/ResourceRefs.vue'
+import { useResourceRefs, parseList } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -67,6 +69,14 @@ const form = ref<WikiConfig>({
 
 const wikiViewModal = ref<InstanceType<typeof WikiViewModal>>()
 
+// ── 被引用情况（频道 / 会话档案） ──
+const { loadProfiles, makeResourceRefs } = useResourceRefs()
+const refs = makeResourceRefs({
+  channel: (c, id) => Array.isArray(c.wikis) && c.wikis.includes(id),
+  profile: (p, id) => parseList(p.wikis).includes(id),
+})
+const expandedIds = ref<string[]>([])
+
 const wikiCounts = ref<Record<string, number | null>>({})
 
 async function loadCounts() {
@@ -83,6 +93,7 @@ async function loadCounts() {
 }
 
 onMounted(loadCounts)
+onMounted(loadProfiles)
 watch(wikis, () => loadCounts(), { deep: true })
 
 function openAdd() {
@@ -152,7 +163,7 @@ async function refresh() {
     Object.assign(store.settings, res.data)
     await loadPlugins()
     wikiCounts.value = {}
-    await loadCounts()
+    await Promise.all([loadCounts(), loadProfiles()])
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -170,9 +181,14 @@ async function refresh() {
         :columns="columns"
         :rows="wikiList"
         row-key="id"
+        expandable
+        v-model:expandedKeys="expandedIds"
         :empty-text="t('wikis.empty')"
       >
-        <template #name="{ row }">{{ row.name || row.id }}</template>
+        <template #name="{ row }">
+          {{ row.name || row.id }}
+          <ResourceRefs mode="badge" :refs="refs(row.id)" />
+        </template>
         <template #embedding="{ row }">
           <div class="embed-cell">
             <template v-if="embeddingOptions.find(e => e.id === row.embedding)">
@@ -197,6 +213,11 @@ async function refresh() {
             <SButton type="outline" size="sm" @click="wikiViewModal?.open(row.id, row, isReadOnly(row))">{{ t('common.view') }}</SButton>
             <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+          </div>
+        </template>
+        <template #_expanded="{ row }">
+          <div class="refs-expanded">
+            <ResourceRefs mode="card" :refs="refs(row.id)" />
           </div>
         </template>
       </STable>
@@ -235,6 +256,7 @@ async function refresh() {
               <SInput v-model="form.config![key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" class="apikey-input" />
               <button type="button" class="apikey-toggle" @click="passwordVisible[key] = !passwordVisible[key]">{{ passwordVisible[key] ? t('common.hide') : t('common.show') }}</button>
             </div>
+            <SInput v-else-if="field.type === 'textarea'" multiline v-model="form.config![key]" :placeholder="field.description || ''" />
             <SInput v-else v-model="form.config![key]" :placeholder="field.description || ''" />
             <template v-if="field.type !== 'boolean' && field.description" #hint>{{ field.description }}</template>
           </SFormItem>
@@ -281,6 +303,10 @@ async function refresh() {
 .count-muted {
   color: var(--sui-fg-disabled);
   font-size: var(--sui-fs-sm);
+}
+.refs-expanded {
+  padding: var(--sui-sp-4) var(--sui-sp-6);
+  background: var(--sui-bg-subtle);
 }
 .toggle-label {
   display: inline-flex;

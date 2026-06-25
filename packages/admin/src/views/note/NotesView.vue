@@ -6,6 +6,8 @@ import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import type { NoteConfig } from '@/shared/types'
 import NoteViewModal from './NoteViewModal.vue'
+import ResourceRefs from '@/components/ResourceRefs.vue'
+import { useResourceRefs, parseList } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -28,6 +30,14 @@ const embeddingOptions = computed(() =>
     detail: `${e.provider} / ${e.model}`,
   }))
 )
+// ── 被引用情况（频道 / 会话档案） ──
+const { loadProfiles, makeResourceRefs } = useResourceRefs()
+const refs = makeResourceRefs({
+  channel: (c, id) => Array.isArray(c.notes) && c.notes.includes(id),
+  profile: (p, id) => parseList(p.notes).includes(id),
+})
+const expandedIds = ref<string[]>([])
+
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const form = ref<NoteConfig>({
@@ -52,6 +62,7 @@ async function loadCounts() {
 }
 
 onMounted(loadCounts)
+onMounted(loadProfiles)
 watch(notes, () => loadCounts(), { deep: true })
 
 function openAdd() {
@@ -106,7 +117,7 @@ async function refresh() {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
     noteCounts.value = {}
-    await loadCounts()
+    await Promise.all([loadCounts(), loadProfiles()])
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -124,9 +135,14 @@ async function refresh() {
         :columns="columns"
         :rows="noteList"
         row-key="id"
+        expandable
+        v-model:expandedKeys="expandedIds"
         :empty-text="t('notes.empty')"
       >
-        <template #name="{ row }">{{ row.name || row.id }}</template>
+        <template #name="{ row }">
+          {{ row.name || row.id }}
+          <ResourceRefs mode="badge" :refs="refs(row.id)" />
+        </template>
         <template #embedding="{ row }">
           <div class="embed-cell">
             <template v-if="embeddingOptions.find(e => e.id === row.embedding)">
@@ -151,6 +167,11 @@ async function refresh() {
             <SButton type="outline" size="sm" @click="noteViewModal?.open(row.id, row)">{{ t('common.view') }}</SButton>
             <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+          </div>
+        </template>
+        <template #_expanded="{ row }">
+          <div class="refs-expanded">
+            <ResourceRefs mode="card" :refs="refs(row.id)" />
           </div>
         </template>
       </STable>
@@ -206,5 +227,9 @@ async function refresh() {
 .count-muted {
   color: var(--sui-fg-disabled);
   font-size: var(--sui-fs-sm);
+}
+.refs-expanded {
+  padding: var(--sui-sp-4) var(--sui-sp-6);
+  background: var(--sui-bg-subtle);
 }
 </style>
