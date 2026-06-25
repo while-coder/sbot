@@ -6,6 +6,7 @@ import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from 'sbot-ui'
 import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
+import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
@@ -33,7 +34,7 @@ interface PluginInfo {
   type: string
   label: string
   builtin: boolean
-  configSchema: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
+  configSchema: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }>; showWhen?: ShowWhen }>
   tools?: { name: string; label: string }[]
 }
 
@@ -124,6 +125,9 @@ const currentSchema = computed(() => {
   const p = plugins.value.find(p => p.type === form.value.type)
   return p?.configSchema ?? {}
 })
+const visibleSchemaEntries = computed(() =>
+  Object.entries(currentSchema.value).filter(([, field]) => isConfigFieldVisible(field, form.value.config)),
+)
 
 const currentToolOptions = computed(() => {
   const p = plugins.value.find(p => p.type === form.value.type)
@@ -875,7 +879,7 @@ async function refresh() {
           </SFormSection>
 
           <SFormSection v-if="Object.keys(currentSchema).length > 0" :title="t('channels.section_plugin')">
-            <template v-for="(field, key) in currentSchema" :key="key">
+            <template v-for="[key, field] in visibleSchemaEntries" :key="key">
               <SFormItem v-if="field.type === 'qrcode'" :label="field.label">
                 <div class="qrcode-block">
                   <SButton type="outline" :disabled="actionState[key]?.loading" @click="triggerAction(key as string)">

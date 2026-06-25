@@ -5,6 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from 'sbot-ui'
 import type { WikiConfig } from '@/shared/types'
+import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import WikiViewModal from './WikiViewModal.vue'
 
 const { t } = useI18n()
@@ -34,7 +35,7 @@ interface WikiPluginInfo {
   type: string
   label: string
   readOnly: boolean
-  configSchema: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }> }>
+  configSchema: Record<string, { label: string; type: string; required?: boolean; description?: string; default?: string | boolean | number; options?: Array<{ label: string; value: string }>; showWhen?: ShowWhen }>
 }
 const plugins = ref<WikiPluginInfo[]>([])
 async function loadPlugins() {
@@ -46,6 +47,9 @@ async function loadPlugins() {
 loadPlugins()
 
 const currentSchema = computed(() => plugins.value.find(p => p.type === form.value.type)?.configSchema ?? {})
+const visibleSchemaEntries = computed(() =>
+  Object.entries(currentSchema.value).filter(([, field]) => isConfigFieldVisible(field, form.value.config)),
+)
 const passwordVisible = ref<Record<string, boolean>>({})
 
 /** 某 wiki 配置对应的数据源是否只读（决定页面 CRUD 是否可用）。 */
@@ -217,7 +221,7 @@ async function refresh() {
 
       <!-- 数据源插件私有配置 -->
       <SFormSection v-if="Object.keys(currentSchema).length > 0" :title="t('wikis.source_config')">
-        <template v-for="(field, key) in currentSchema" :key="key">
+        <template v-for="[key, field] in visibleSchemaEntries" :key="key">
           <SFormItem :label="field.label + (field.required ? ' *' : '')">
             <SSelect v-if="field.type === 'select'" v-model="form.config![key]">
               <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>

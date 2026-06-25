@@ -33,21 +33,25 @@ export const gdrivePlugin = defineWikiPlugin({
       label: "Service Account JSON",
       type: ConfigFieldType.Password,
       description: "Service Account 模式：服务账号凭据 JSON。需把目标文件夹共享给该服务账号邮箱（查看者即可）。",
+      showWhen: { field: "authMethod", eq: "service_account" },
     },
     clientId: {
       label: "OAuth Client ID",
       type: ConfigFieldType.String,
       description: "OAuth 模式：OAuth 2.0 客户端 ID。",
+      showWhen: { field: "authMethod", eq: "oauth" },
     },
     clientSecret: {
       label: "OAuth Client Secret",
       type: ConfigFieldType.Password,
       description: "OAuth 模式：OAuth 2.0 客户端密钥。",
+      showWhen: { field: "authMethod", eq: "oauth" },
     },
     refreshToken: {
       label: "OAuth Refresh Token",
       type: ConfigFieldType.Password,
       description: "OAuth 模式：预先获取的 refresh token（drive.readonly 作用域）。",
+      showWhen: { field: "authMethod", eq: "oauth" },
     },
   },
   async init(ctx) {
