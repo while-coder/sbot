@@ -31,7 +31,7 @@ export const gdrivePlugin = defineWikiPlugin({
     },
     credentials: {
       label: "Service Account JSON",
-      type: ConfigFieldType.Password,
+      type: ConfigFieldType.Textarea,
       description: "Service Account 模式：服务账号凭据 JSON。需把目标文件夹共享给该服务账号邮箱（查看者即可）。",
       showWhen: { field: "authMethod", eq: "service_account" },
     },

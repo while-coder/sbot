@@ -4,6 +4,8 @@
  */
 export enum ConfigFieldType {
   String = 'string',
+  /** 多行文本（textarea）。适合大段内容，如 Service Account JSON 凭据。 */
+  Textarea = 'textarea',
   Password = 'password',
   Boolean = 'boolean',
   Number = 'number',
