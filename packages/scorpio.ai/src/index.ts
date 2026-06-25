@@ -153,7 +153,6 @@ export {
 
   // 存储层
   IWikiDatabase,
-  WikiFileDatabase,
 
   // 工具
   WikiToolProvider,

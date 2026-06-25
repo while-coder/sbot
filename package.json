@@ -3,7 +3,10 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "build:deps": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.ai run build && pnpm --filter sbot.commons run build && pnpm --filter channel.base run build && pnpm --filter channel.lark run build && pnpm --filter channel.slack run build && pnpm --filter channel.wecom run build && pnpm --filter channel.wechat run build && pnpm --filter channel.onebot run build && pnpm --filter channel.xiaoai run build && pnpm --filter channel.dingtalk run build && pnpm --filter channel.qq run build",
+    "build:core": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.ai run build && pnpm --filter sbot.plugin run build && pnpm --filter sbot.commons run build",
+    "build:wiki": "pnpm --filter wiki.base run build && pnpm --filter wiki.local run build && pnpm --filter wiki.gdrive run build",
+    "build:channel": "pnpm --filter channel.base run build && pnpm --filter channel.lark run build && pnpm --filter channel.slack run build && pnpm --filter channel.wecom run build && pnpm --filter channel.wechat run build && pnpm --filter channel.onebot run build && pnpm --filter channel.xiaoai run build && pnpm --filter channel.dingtalk run build && pnpm --filter channel.qq run build",
+    "build:deps": "pnpm run build:core && pnpm run build:wiki && pnpm run build:channel",
     "assets": "pnpm --filter shared-assets run distribute",
 
     "debug:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build && pnpm --filter @qingfeng346/sbot run debug",

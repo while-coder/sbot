@@ -23,6 +23,7 @@ const { confirm } = useConfirm()
 const visible    = ref(false)
 const wikiId     = ref('')
 const wikiConfig = ref<Partial<WikiConfig>>({})
+const readOnly   = ref(false)
 const pages      = ref<WikiPageItem[]>([])
 const loading    = ref(false)
 
@@ -162,9 +163,10 @@ async function confirmSave() {
   }
 }
 
-function open(id: string, config: Partial<WikiConfig>) {
+function open(id: string, config: Partial<WikiConfig>, ro = false) {
   wikiId.value     = id
   wikiConfig.value = config
+  readOnly.value   = ro
   pages.value      = []
   pageContents.value = {}
   expandedPage.value = null
@@ -189,10 +191,11 @@ defineExpose({ open })
       <SButton type="outline" size="sm" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('wikis.add_page') }}</SButton>
-      <SButton type="danger" size="sm" style="margin-left:auto" :disabled="pages.length === 0" @click="clearAll">
+      <SButton v-if="!readOnly" type="primary" size="sm" @click="openAdd">{{ t('wikis.add_page') }}</SButton>
+      <SButton v-if="!readOnly" type="danger" size="sm" style="margin-left:auto" :disabled="pages.length === 0" @click="clearAll">
         {{ t('wikis.clear_all') }}
       </SButton>
+      <SBadge v-if="readOnly" variant="neutral" size="sm" style="margin-left:auto">{{ t('wikis.readonly_source') }}</SBadge>
     </template>
 
     <STable
@@ -217,10 +220,11 @@ defineExpose({ open })
         <span class="cell-secondary">{{ new Date(row.updatedAt).toLocaleString() }}</span>
       </template>
       <template #ops="{ row }">
-        <div class="ops-row">
+        <div class="ops-row" v-if="!readOnly">
           <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="removePage(row.id, row.title)">{{ t('common.delete') }}</SButton>
         </div>
+        <span v-else class="cell-secondary">-</span>
       </template>
       <template #_expanded="{ row }">
         <div v-if="pageLoading[row.id]" class="cell-secondary" style="font-style:italic">{{ t('common.loading') }}</div>

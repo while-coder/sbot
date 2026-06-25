@@ -372,6 +372,9 @@ export default {
     embedding_model: '向量模型（可选）',
     embedding_none: '不使用（仅 BM25 关键词检索）',
     embedding_bm25_only: 'BM25',
+    source_type: '数据源',
+    source_config: '数据源配置',
+    readonly_source: '只读数据源',
   },
   mcp: {
     add: '+ 添加工具',

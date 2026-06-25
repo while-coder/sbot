@@ -1,0 +1,19 @@
+{
+  "name": "wiki.local",
+  "version": "0.0.1",
+  "description": "Local Markdown-file wiki data-source plugin for sbot",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "wiki.base": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

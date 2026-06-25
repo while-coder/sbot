@@ -8,6 +8,7 @@ import { LoggerService } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { compareSemver, fetchLatestRelease, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from "sbot.commons";
 import { PluginLoader } from "./PluginLoader";
+import { channelPluginRegistry } from "./ChannelPluginRegistry";
 import { WEB_CHANNEL_TOOLS } from "./web/WebSocketSessionHandler";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");
@@ -110,11 +111,10 @@ export type SendResult = { ok: true } | { ok: false; error: string };
 
 export class ChannelManager {
     private pluginLoader = new PluginLoader();
-    private plugins = new Map<string, ChannelPlugin>();
     private services = new Map<string, IChannelService>();
 
     async init(): Promise<void> {
-        this.plugins = await this.pluginLoader.loadAll();
+        await this.pluginLoader.loadAll();
 
         const channels = Object.entries(config.settings.channels || {});
         if (channels.length === 0) {
@@ -135,7 +135,7 @@ export class ChannelManager {
 
         if (channel.type === WEB_CHANNEL_TYPE) return false;
 
-        const plugin = this.plugins.get(channel.type);
+        const plugin = channelPluginRegistry.get(channel.type);
         if (!plugin) {
             logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
             return false;
@@ -192,14 +192,14 @@ export class ChannelManager {
     }
 
     getPlugin(type: string): ChannelPlugin | undefined {
-        return this.plugins.get(type);
+        return channelPluginRegistry.get(type);
     }
 
     getPluginList(): Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean; tools?: { name: string; label: string }[] }> {
         const list: Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean; tools?: { name: string; label: string }[] }> = [
             { type: WEB_CHANNEL_TYPE, label: 'Web', configSchema: {}, builtin: true, tools: WEB_CHANNEL_TOOLS },
         ];
-        for (const p of this.plugins.values()) {
+        for (const p of channelPluginRegistry.list()) {
             list.push({ type: p.type, label: p.label, configSchema: p.configSchema, builtin: false, tools: p.tools });
         }
         return list;
@@ -308,10 +308,10 @@ export class ChannelManager {
         return caps;
     }
 
+    /** 运行时加载单个插件（按 kind 分发到对应注册表）。返回 channel 插件供调用方使用。 */
     async loadPlugin(moduleOrPath: string): Promise<ChannelPlugin | undefined> {
         const plugin = this.pluginLoader.loadPlugin(moduleOrPath);
-        if (plugin) this.plugins.set(plugin.type, plugin);
-        return plugin;
+        return plugin && plugin.kind === "channel" ? plugin : undefined;
     }
 }
 

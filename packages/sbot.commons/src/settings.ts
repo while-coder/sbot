@@ -124,6 +124,10 @@ export interface WikiConfig {
   name: string
   /** 可选的 embedding 配置 ID，启用语义搜索 */
   embedding?: string
+  /** 数据源类型，对应 WikiPlugin.type；缺省 'local'（兼容旧配置） */
+  type?: string
+  /** 插件私有配置，结构由该插件的 configSchema 定义 */
+  config?: Record<string, any>
 }
 
 export interface SaverConfig {

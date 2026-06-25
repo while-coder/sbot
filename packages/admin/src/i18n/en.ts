@@ -372,6 +372,9 @@ export default {
     embedding_model: 'Embedding Model (optional)',
     embedding_none: 'None (BM25 keyword search only)',
     embedding_bm25_only: 'BM25',
+    source_type: 'Data Source',
+    source_config: 'Source Config',
+    readonly_source: 'Read-only source',
   },
   mcp: {
     add: '+ Add MCP',

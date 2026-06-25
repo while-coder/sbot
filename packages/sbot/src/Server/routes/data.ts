@@ -5,6 +5,7 @@ import { AgentRunner } from '../../Agent/AgentRunner';
 import { SaverPool } from '../../Agent/SaverPool';
 import { database, type ChannelSessionRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
+import { wikiPluginRegistry } from '../../Wiki/WikiPluginRegistry';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
 import { api, throwBad } from '../utils';
 import type { RouteContext } from './types';
@@ -140,6 +141,11 @@ export class DataRoutes {
 
 
         // ── Wiki ──
+        // 列出已注册的 wiki 数据源插件（type/label/configSchema/readOnly），供后台渲染数据源下拉与配置表单。
+        app.get('/api/wiki-plugins', api(async () => {
+            return wikiPluginRegistry.list();
+        }));
+
         app.get('/api/wikis/:wikiName', api(async req => {
             const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
             const pages = await svc.getAllPages();

@@ -1,13 +1,15 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
-import { inject, T_DBPath } from "../../Core";
-import { WikiPage } from "../Types";
-import { IWikiDatabase } from "./IWikiDatabase";
+import type { IWikiDatabase, WikiPage } from "wiki.base";
 
+/**
+ * 本地 Markdown 文件存储：每个 wiki 页面是一个带 YAML frontmatter 的 .md 文件，
+ * 存放在插件分配的缓存目录（config/wiki/{wikiId}）下。
+ */
 export class WikiFileDatabase implements IWikiDatabase {
     private readonly dir: string;
 
-    constructor(@inject(T_DBPath) dir: string) {
+    constructor(dir: string) {
         this.dir = dir;
         if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     }

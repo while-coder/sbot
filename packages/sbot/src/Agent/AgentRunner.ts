@@ -32,8 +32,8 @@ import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "../Session/SessionManager";
 import { NoteDatabaseManager } from "./NoteDatabaseManager";
-import { WikiDatabaseManager } from "./WikiDatabaseManager";
 import { SaverPool } from "./SaverPool";
+import { wikiPluginRegistry } from "../Wiki/WikiPluginRegistry";
 import { agendaServicePool } from "../Agenda";
 import { memoryServicePool } from "../Memory/MemoryServicePool";
 
@@ -228,9 +228,22 @@ export class AgentRunner {
             ? config.getEmbeddingService(wikiConfig.embedding, true)
             : undefined;
 
-        const sub = new ServiceContainer();
         const wikiDir = config.getWikiDBPath(wikiId);
-        sub.registerInstance(IWikiDatabase, WikiDatabaseManager.getInstance().acquire(wikiDir));
+        const sourceType = wikiConfig.type ?? 'local';
+        const plugin = wikiPluginRegistry.get(sourceType);
+        if (!plugin) {
+            LoggerService.getLogger('AgentRunner').warn(`Unknown wiki source type "${sourceType}" for wiki "${wikiId}", skipping`);
+            return null;
+        }
+        const db = await plugin.init({
+            config: wikiConfig.config ?? {},
+            logger: LoggerService.getLogger(`wiki:${plugin.type}`),
+            cachePath: wikiDir,
+            embedding,
+        });
+
+        const sub = new ServiceContainer();
+        sub.registerInstance(IWikiDatabase, db);
 
         const args: Record<string | symbol, any> = {
             [T_WikiCachePath]: wikiDir,
