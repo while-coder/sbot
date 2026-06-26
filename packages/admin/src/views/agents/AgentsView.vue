@@ -642,6 +642,7 @@ async function saveMcpParams() {
 .agent-name {
   font-weight: 500;
   color: var(--sui-fg);
+  white-space: nowrap;
 }
 .acp-command {
   font-family: var(--sui-font-mono);
@@ -670,6 +671,7 @@ async function saveMcpParams() {
   border-radius: 8px;
   margin-left: var(--sui-sp-3);
   vertical-align: middle;
+  white-space: nowrap;
 }
 .config-badge-id { background: #e0f2fe; color: #0369a1; }
 .config-badge-info { background: #dbeafe; color: #1d4ed8; }
@@ -693,6 +695,7 @@ async function saveMcpParams() {
   padding: 1px 8px;
   border-radius: var(--sui-radius-sm);
   margin: 2px 6px 2px 0;
+  white-space: nowrap;
 }
 .ref-chip-sub {
   color: var(--sui-fg-muted);
@@ -745,6 +748,7 @@ async function saveMcpParams() {
   transition: color .15s;
   color: var(--sui-fg-disabled);
   font-family: inherit;
+  white-space: nowrap;
 }
 .agent-tab.active { color: var(--sui-fg); border-bottom-color: var(--sui-fg); }
 .agent-tab-content {

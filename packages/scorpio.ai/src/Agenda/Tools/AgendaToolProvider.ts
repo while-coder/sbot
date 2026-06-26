@@ -132,7 +132,7 @@ export class AgendaToolProvider {
                 }),
                 func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {
                     try {
-                        const record = await agendaService.update(id, { ...patch, channelSessionId });
+                        const record = await agendaService.update(id, patch);
                         return record ? `Updated agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
                     } catch (e: any) {
                         return `Failed to update agenda #${id}: ${e.message}`;

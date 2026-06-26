@@ -216,7 +216,10 @@ export interface AgendaCreateArgs {
     channelSessionId?: number;
 }
 
-/** 更新 agenda item 主体字段。trigger 调度优先走 agenda_trigger_* 工具/API。 */
+/**
+ * 更新 agenda item 主体字段。仅改主体，不碰调度——trigger 的增改删一律走
+ * addTrigger / updateTrigger / removeTrigger / replaceTriggers（对应 agenda_trigger 工具 / 单条 trigger API）。
+ */
 export interface AgendaUpdatePatch {
     /** 改内容。LLM 说"把 #3 改成 '交月报'" → content = "交月报"。 */
     content?: string;
@@ -225,19 +228,9 @@ export interface AgendaUpdatePatch {
     requiresCheckIn?: boolean;
     /**
      * 显式改 dueAt（ISO 字符串或 null 清空）。
-     * 不传时若发生调度变更，dueAt 由新 triggers 推导。
+     * 纯主体字段，不联动现有 trigger 的节奏。
      */
     dueAt?: string | null;
-    /**
-     * 管理 API 兼容入口：传入最终应生效的完整 trigger 列表（每条自带 action/message）。
-     * [] 表示清空所有 active triggers。LLM 工具不暴露（用 agenda_trigger_replace_all）。
-     */
-    triggers?: AgendaTriggerSpec[];
-    /**
-     * 调度变更（重建 triggers）时新 trigger.channelSessionId 用的频道会话 id。
-     * 缺省 = 0。仅在传 triggers 时有意义；不在 LLM 工具 schema 暴露。
-     */
-    channelSessionId?: number;
 }
 
 /**

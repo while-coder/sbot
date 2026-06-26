@@ -78,7 +78,6 @@ const AgendaExtractSchema = z.object({
             id: z.number(),
             at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Use it when the user references a past time — including backfilling missed instances. Omit for a plain "just now" check-in.'),
         }),
-        z.object({ type: z.literal(AgendaActionType.Cancel), id: z.number() }),
         z.object({ type: z.literal(AgendaActionType.TriggerAdd), itemId: z.number(), args: TriggerSpecSchema }),
         z.object({ type: z.literal(AgendaActionType.TriggerUpdate), triggerId: z.number(), patch: TriggerSpecSchema }),
         z.object({ type: z.literal(AgendaActionType.TriggerRemove), triggerId: z.number() }),

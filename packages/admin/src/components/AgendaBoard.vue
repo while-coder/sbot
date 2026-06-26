@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SButton, SEntityList, SFormItem, SInput, SModal, SSelect, STextarea } from 'sbot-ui'
-import SessionSelect from '@/components/SessionSelect.vue'
+import { SBadge, SButton, SEntityList, SFormItem, SModal, SSelect, STextarea } from 'sbot-ui'
+import AgendaTriggerFields from '@/components/AgendaTriggerFields.vue'
 import {
   firstNextFire,
   isOverdue,
@@ -14,9 +14,15 @@ import {
   type AgendaStatus,
   type AgendaStatusFilter,
   type AgendaTrigger,
-  type AgendaTriggerAction,
-  type AgendaTriggerKind,
 } from '@/composables/useAgendas'
+import {
+  draftToSpec,
+  emptyDraft,
+  localInputToIso,
+  triggerToDraft,
+  tsToLocalInput,
+  type TriggerDraft,
+} from '@/composables/agendaTriggerDraft'
 
 const props = withDefaults(defineProps<{
   items: AgendaRow[]
@@ -38,10 +44,15 @@ const emit = defineEmits<{
   (e: 'refresh'): void
   (e: 'complete', row: AgendaRow): void
   (e: 'cancel', row: AgendaRow): void
+  (e: 'reopen', row: AgendaRow): void
   (e: 'remove', row: AgendaRow): void
   (e: 'update', payload: { row: AgendaRow; patch: Record<string, unknown> }): void
   (e: 'fire-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
+  (e: 'cancel-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
+  (e: 'reopen-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
   (e: 'remove-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
+  (e: 'add-trigger', payload: { row: AgendaRow }): void
+  (e: 'update-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger; spec: Record<string, unknown> }): void
 }>()
 
 const { t } = useI18n()
@@ -81,33 +92,11 @@ function formatTime(ts: number | null | undefined): string {
   return new Date(ts).toLocaleString()
 }
 
-type TriggerUnit = 'minute' | 'hour' | 'day' | 'week'
-
-interface TriggerDraft {
-  kind: AgendaTriggerKind
-  // absolute
-  at: string
-  // interval
-  amount: number
-  unit: TriggerUnit
-  // cron
-  expr: string
-  // shared schedule
-  startAt: string
-  count: string
-  // shared delivery
-  action: AgendaTriggerAction
-  message: string
-  /** 投递目标频道会话 db id；0 = 自动解析归属会话。 */
-  channelSessionId: number
-}
-
 interface EditForm {
   content: string
   priority: AgendaPriority
   requiresCheckIn: boolean
   dueAt: string
-  triggers: TriggerDraft[]
 }
 
 const showEdit = ref(false)
@@ -117,125 +106,6 @@ const editForm = reactive<EditForm>({
   priority: 'normal',
   requiresCheckIn: false,
   dueAt: '',
-  triggers: [],
-})
-const triggersDirty = ref(false)
-
-function pad2(n: number): string { return String(n).padStart(2, '0') }
-function tsToLocalInput(ts: number): string {
-  const d = new Date(ts)
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
-}
-function localInputToIso(value: string): string | null {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  const d = new Date(trimmed)
-  return Number.isNaN(d.getTime()) ? null : d.toISOString()
-}
-
-const UNIT_MS: Record<TriggerUnit, number> = {
-  minute: 60_000,
-  hour: 3_600_000,
-  day: 86_400_000,
-  week: 604_800_000,
-}
-
-function reverseInterval(ms: number): { amount: number; unit: TriggerUnit } {
-  for (const unit of ['week', 'day', 'hour', 'minute'] as TriggerUnit[]) {
-    const u = UNIT_MS[unit]
-    if (ms >= u && ms % u === 0) return { amount: Math.floor(ms / u), unit }
-  }
-  // 退化：保留分钟数（向上取整 1）
-  return { amount: Math.max(1, Math.round(ms / UNIT_MS.minute)), unit: 'minute' }
-}
-
-function triggerToDraft(t: AgendaTrigger): TriggerDraft {
-  const base: TriggerDraft = {
-    kind: t.kind,
-    at: '',
-    amount: 1,
-    unit: 'day',
-    expr: '',
-    startAt: '',
-    count: t.maxFires > 0 ? String(t.maxFires) : '',
-    action: t.action,
-    message: t.message ?? '',
-    channelSessionId: t.channelSessionId > 0 ? t.channelSessionId : 0,
-  }
-  if (t.kind === 'absolute') {
-    base.at = tsToLocalInput(new Date(t.expr).getTime())
-  } else if (t.kind === 'interval') {
-    const ms = Number(t.expr)
-    if (Number.isFinite(ms) && ms > 0) {
-      const { amount, unit } = reverseInterval(ms)
-      base.amount = amount
-      base.unit = unit
-    }
-  } else if (t.kind === 'cron') {
-    base.expr = t.expr
-  }
-  return base
-}
-
-function emptyDraft(): TriggerDraft {
-  const inOneHour = new Date(Date.now() + 60 * 60 * 1000)
-  return {
-    kind: 'absolute',
-    at: tsToLocalInput(inOneHour.getTime()),
-    amount: 1,
-    unit: 'day',
-    expr: '',
-    startAt: '',
-    count: '',
-    action: 'notify',
-    message: '',
-    channelSessionId: 0,
-  }
-}
-
-function draftToSpec(d: TriggerDraft): Record<string, unknown> | null {
-  const base: Record<string, unknown> = {
-    kind: d.kind,
-    action: d.action,
-    message: d.message.trim() ? d.message.trim() : null,
-    channelSessionId: d.channelSessionId > 0 ? d.channelSessionId : 0,
-  }
-  if (d.kind === 'absolute') {
-    const iso = localInputToIso(d.at)
-    if (!iso) return null
-    base.at = iso
-    return base
-  }
-  const startIso = d.startAt ? localInputToIso(d.startAt) : null
-  if (d.startAt && !startIso) return null
-  if (startIso) base.startAt = startIso
-  const count = d.count.trim() ? Number(d.count) : null
-  if (count != null) {
-    if (!Number.isFinite(count) || count <= 0) return null
-    base.count = Math.floor(count)
-  }
-  if (d.kind === 'interval') {
-    const amount = Number(d.amount)
-    if (!Number.isFinite(amount) || amount <= 0) return null
-    base.every = { amount: Math.floor(amount), unit: d.unit }
-    return base
-  }
-  if (d.kind === 'cron') {
-    const expr = d.expr.trim()
-    if (!expr) return null
-    base.expr = expr
-    return base
-  }
-  return null
-}
-
-const editTriggerError = computed<string | null>(() => {
-  for (let i = 0; i < editForm.triggers.length; i++) {
-    if (!draftToSpec(editForm.triggers[i])) {
-      return t('agenda.edit_trigger_invalid', { idx: i + 1 })
-    }
-  }
-  return null
 })
 
 function openEdit(row: AgendaRow): void {
@@ -244,49 +114,52 @@ function openEdit(row: AgendaRow): void {
   editForm.priority = row.item.priority
   editForm.requiresCheckIn = row.item.requiresCheckIn
   editForm.dueAt = row.item.dueAt ? tsToLocalInput(row.item.dueAt) : ''
-  editForm.triggers = row.triggers.filter(t => t.enabled).map(triggerToDraft)
-  triggersDirty.value = false
   showEdit.value = true
 }
 
 function clearDueAt(): void { editForm.dueAt = '' }
-
-function markTriggersDirty(): void { triggersDirty.value = true }
-
-function addTrigger(): void {
-  editForm.triggers.push(emptyDraft())
-  triggersDirty.value = true
-}
-
-function removeTrigger(idx: number): void {
-  editForm.triggers.splice(idx, 1)
-  triggersDirty.value = true
-}
 
 function submitEdit(): void {
   const row = editingRow.value
   if (!row) return
   const content = editForm.content.trim()
   if (!content) return
-  if (editTriggerError.value) return
   const patch: Record<string, unknown> = {
     content,
     priority: editForm.priority,
     requiresCheckIn: editForm.requiresCheckIn,
     dueAt: editForm.dueAt ? localInputToIso(editForm.dueAt) : null,
   }
-  if (triggersDirty.value) {
-    const specs: Record<string, unknown>[] = []
-    for (const draft of editForm.triggers) {
-      const spec = draftToSpec(draft)
-      if (!spec) return  // 兜底：理论上 editTriggerError 已挡
-      specs.push(spec)
-    }
-    patch.triggers = specs
-  }
   emit('update', { row, patch })
   showEdit.value = false
   editingRow.value = null
+}
+
+// ── 触发器编辑：复用 AgendaTriggerFields，保存时整体覆盖该条 trigger 的 spec ──
+const showTriggerEdit = ref(false)
+const editingTriggerRow = ref<AgendaRow | null>(null)
+const editingTrigger = ref<AgendaTrigger | null>(null)
+const triggerDraft = reactive<TriggerDraft>(emptyDraft())
+const triggerEditSpec = computed<Record<string, unknown> | null>(() => draftToSpec(triggerDraft))
+const triggerEditInvalid = computed(() => triggerEditSpec.value == null)
+
+function openTriggerEdit(row: AgendaRow, trigger: AgendaTrigger): void {
+  editingTriggerRow.value = row
+  editingTrigger.value = trigger
+  Object.assign(triggerDraft, triggerToDraft(trigger))
+  showTriggerEdit.value = true
+}
+
+function submitTriggerEdit(): void {
+  const row = editingTriggerRow.value
+  const trigger = editingTrigger.value
+  if (!row || !trigger) return
+  const spec = triggerEditSpec.value
+  if (!spec) return
+  emit('update-trigger', { row, trigger, spec })
+  showTriggerEdit.value = false
+  editingTriggerRow.value = null
+  editingTrigger.value = null
 }
 
 function rowKeyFn(row: AgendaRow): number { return row.item.id }
@@ -384,6 +257,7 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
         <SButton v-if="row.item.status === 'pending'" type="primary" size="sm" @click="emit('complete', row)">{{ t('agenda.complete') }}</SButton>
         <SButton v-if="row.item.status === 'pending'" type="outline" size="sm" @click="openEdit(row)">{{ t('agenda.edit') }}</SButton>
         <SButton v-if="row.item.status === 'pending'" type="outline" size="sm" @click="emit('cancel', row)">{{ t('agenda.cancel') }}</SButton>
+        <SButton v-if="row.item.status !== 'pending'" type="primary" size="sm" @click="emit('reopen', row)">{{ t('agenda.reopen') }}</SButton>
         <SButton type="danger" size="sm" @click="emit('remove', row)">{{ t('common.delete') }}</SButton>
       </template>
 
@@ -433,6 +307,13 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
             <div class="agenda-sub-title">
               <h4>{{ t('agenda.trigger_details') }}</h4>
               <SBadge variant="success" size="xs">{{ activeTriggers(row) }} / {{ row.triggers.length }}</SBadge>
+              <SButton
+                v-if="row.item.status === 'pending'"
+                type="outline"
+                size="sm"
+                class="agenda-sub-add"
+                @click="emit('add-trigger', { row })"
+              >+ {{ t('agenda.edit_add_trigger') }}</SButton>
             </div>
             <p v-if="row.triggers.length > activeTriggers(row)" class="agenda-sub-hint">{{ t('agenda.trigger_disabled_hint') }}</p>
             <div v-if="row.triggers.length === 0" class="agenda-sub-empty">{{ t('agenda.no_trigger') }}</div>
@@ -448,20 +329,41 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
                   <SBadge v-if="trigger.enabled" variant="info" size="xs">{{ triggerActionLabel(trigger) }}</SBadge>
                   <SBadge v-if="!trigger.enabled" variant="neutral" size="xs">{{ t('agenda.trigger_disabled') }}</SBadge>
                   <code class="agenda-trigger-expr">{{ trigger.expr }}</code>
-                  <SButton
-                    type="outline"
-                    size="sm"
-                    class="agenda-trigger-fire"
-                    :title="t('agenda.fire_trigger_hint')"
-                    @click="emit('fire-trigger', { row, trigger })"
-                  >⚡ {{ t('agenda.fire_trigger') }}</SButton>
-                  <SButton
-                    type="danger"
-                    size="sm"
-                    class="agenda-trigger-del"
-                    :title="t('agenda.delete_trigger_hint')"
-                    @click="emit('remove-trigger', { row, trigger })"
-                  >🗑 {{ t('common.delete') }}</SButton>
+                  <div class="agenda-trigger-ops">
+                    <SButton
+                      v-if="row.item.status === 'pending' && !trigger.enabled"
+                      type="primary"
+                      size="sm"
+                      :title="t('agenda.reopen_trigger_hint')"
+                      @click="emit('reopen-trigger', { row, trigger })"
+                    >↻ {{ t('agenda.reopen_trigger') }}</SButton>
+                    <SButton
+                      type="outline"
+                      size="sm"
+                      :title="t('agenda.fire_trigger_hint')"
+                      @click="emit('fire-trigger', { row, trigger })"
+                    >⚡ {{ t('agenda.fire_trigger') }}</SButton>
+                    <SButton
+                      v-if="row.item.status === 'pending' && trigger.enabled"
+                      type="outline"
+                      size="sm"
+                      :title="t('agenda.edit_trigger_hint')"
+                      @click="openTriggerEdit(row, trigger)"
+                    >✎ {{ t('agenda.edit') }}</SButton>
+                    <SButton
+                      v-if="trigger.enabled"
+                      type="outline"
+                      size="sm"
+                      :title="t('agenda.cancel_trigger_hint')"
+                      @click="emit('cancel-trigger', { row, trigger })"
+                    >⏸ {{ t('agenda.cancel_trigger') }}</SButton>
+                    <SButton
+                      type="danger"
+                      size="sm"
+                      :title="t('agenda.delete_trigger_hint')"
+                      @click="emit('remove-trigger', { row, trigger })"
+                    >🗑 {{ t('common.delete') }}</SButton>
+                  </div>
                 </div>
                 <dl class="agenda-trigger-grid">
                   <div>
@@ -538,122 +440,25 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
           <SButton v-if="editForm.dueAt" type="outline" size="sm" @click="clearDueAt">{{ t('agenda.edit_clear_due') }}</SButton>
         </div>
       </SFormItem>
-      <div class="agenda-edit-section-title">
-        <span>{{ t('agenda.edit_triggers_section') }}</span>
-        <SBadge v-if="triggersDirty" variant="warning" size="xs">{{ t('agenda.edit_triggers_dirty') }}</SBadge>
-      </div>
-      <p v-if="!triggersDirty" class="agenda-edit-trigger-hint">{{ t('agenda.edit_triggers_hint') }}</p>
-      <p v-else class="agenda-edit-trigger-hint warning">{{ t('agenda.edit_triggers_hint_dirty') }}</p>
-
-      <ul v-if="editForm.triggers.length" class="agenda-edit-trigger-list">
-        <li v-for="(draft, idx) in editForm.triggers" :key="idx" class="agenda-edit-trigger-card">
-          <div class="agenda-edit-trigger-head">
-            <span class="agenda-edit-trigger-label">#{{ idx + 1 }}</span>
-            <SSelect v-model="draft.kind" size="sm" class="agenda-edit-trigger-kind" @update:model-value="markTriggersDirty">
-              <option value="absolute">{{ t('agenda.trigger_absolute') }}</option>
-              <option value="interval">{{ t('agenda.trigger_interval') }}</option>
-              <option value="cron">{{ t('agenda.trigger_cron') }}</option>
-            </SSelect>
-            <SButton type="danger" size="sm" @click="removeTrigger(idx)">{{ t('common.delete') }}</SButton>
-          </div>
-
-          <div v-if="draft.kind === 'absolute'" class="agenda-edit-trigger-fields">
-            <SFormItem :label="t('agenda.edit_trigger_at')">
-              <input v-model="draft.at" type="datetime-local" class="agenda-edit-datetime" @change="markTriggersDirty" />
-            </SFormItem>
-          </div>
-
-          <div v-else-if="draft.kind === 'interval'" class="agenda-edit-trigger-fields">
-            <SFormItem :label="t('agenda.edit_trigger_every')">
-              <div class="agenda-edit-trigger-every">
-                <SInput
-                  :model-value="String(draft.amount)"
-                  type="number"
-                  min="1"
-                  class="agenda-edit-trigger-amount"
-                  @update:model-value="(v: string | number) => { draft.amount = Number(v); markTriggersDirty() }"
-                />
-                <SSelect v-model="draft.unit" @update:model-value="markTriggersDirty">
-                  <option value="minute">{{ t('agenda.unit_minute') }}</option>
-                  <option value="hour">{{ t('agenda.unit_hour') }}</option>
-                  <option value="day">{{ t('agenda.unit_day') }}</option>
-                  <option value="week">{{ t('agenda.unit_week') }}</option>
-                </SSelect>
-              </div>
-            </SFormItem>
-            <SFormItem :label="t('agenda.edit_trigger_start_at')" :hint="t('agenda.edit_trigger_start_at_hint')">
-              <div class="agenda-edit-due">
-                <input v-model="draft.startAt" type="datetime-local" class="agenda-edit-datetime" @change="markTriggersDirty" />
-                <SButton v-if="draft.startAt" type="outline" size="sm" @click="draft.startAt = ''; markTriggersDirty()">{{ t('agenda.edit_clear_due') }}</SButton>
-              </div>
-            </SFormItem>
-            <SFormItem :label="t('agenda.edit_trigger_count')" :hint="t('agenda.edit_trigger_count_hint')">
-              <SInput
-                v-model="draft.count"
-                type="number"
-                min="1"
-                :placeholder="t('agenda.edit_trigger_count_placeholder')"
-                @update:model-value="markTriggersDirty"
-              />
-            </SFormItem>
-          </div>
-
-          <div v-else-if="draft.kind === 'cron'" class="agenda-edit-trigger-fields">
-            <SFormItem :label="t('agenda.edit_trigger_cron_expr')" :hint="t('agenda.edit_trigger_cron_expr_hint')">
-              <SInput v-model="draft.expr" :placeholder="'0 0 9 * * 1-5'" @update:model-value="markTriggersDirty" />
-            </SFormItem>
-            <SFormItem :label="t('agenda.edit_trigger_start_at')" :hint="t('agenda.edit_trigger_start_at_hint')">
-              <div class="agenda-edit-due">
-                <input v-model="draft.startAt" type="datetime-local" class="agenda-edit-datetime" @change="markTriggersDirty" />
-                <SButton v-if="draft.startAt" type="outline" size="sm" @click="draft.startAt = ''; markTriggersDirty()">{{ t('agenda.edit_clear_due') }}</SButton>
-              </div>
-            </SFormItem>
-            <SFormItem :label="t('agenda.edit_trigger_count')" :hint="t('agenda.edit_trigger_count_hint')">
-              <SInput
-                v-model="draft.count"
-                type="number"
-                min="1"
-                :placeholder="t('agenda.edit_trigger_count_placeholder')"
-                @update:model-value="markTriggersDirty"
-              />
-            </SFormItem>
-          </div>
-
-          <SFormItem :label="t('agenda.trigger_action')">
-            <SSelect v-model="draft.action" @update:model-value="markTriggersDirty">
-              <option value="notify">{{ t('agenda.action_notify') }}</option>
-              <option value="notify_and_record">{{ t('agenda.action_notify_and_record') }}</option>
-              <option value="invoke">{{ t('agenda.action_invoke') }}</option>
-            </SSelect>
-          </SFormItem>
-          <SFormItem :label="t('agenda.trigger_message')">
-            <STextarea
-              v-model="draft.message"
-              :placeholder="t('agenda.edit_trigger_message_placeholder')"
-              :rows="3"
-              @update:model-value="markTriggersDirty"
-            />
-          </SFormItem>
-          <SFormItem :label="t('agenda.edit_channel_session')" :hint="t('agenda.edit_channel_session_hint')">
-            <SessionSelect
-              :model-value="draft.channelSessionId || null"
-              :agenda="editingRow?.agendaId"
-              :empty-label="t('agenda.edit_channel_session_auto')"
-              @update:model-value="(v: number | null) => { draft.channelSessionId = v ?? 0; markTriggersDirty() }"
-            />
-          </SFormItem>
-        </li>
-      </ul>
-      <p v-else class="agenda-edit-no-trigger">{{ t('agenda.edit_no_trigger_yet') }}</p>
-
-      <div class="agenda-edit-trigger-actions">
-        <SButton type="outline" size="sm" @click="addTrigger">+ {{ t('agenda.edit_add_trigger') }}</SButton>
-      </div>
-      <p v-if="editTriggerError" class="agenda-edit-trigger-error">{{ editTriggerError }}</p>
 
       <template #footer>
         <SButton type="outline" @click="showEdit = false">{{ t('common.cancel') }}</SButton>
-        <SButton type="primary" :disabled="!editForm.content.trim() || !!editTriggerError" @click="submitEdit">{{ t('common.save') }}</SButton>
+        <SButton type="primary" :disabled="!editForm.content.trim()" @click="submitEdit">{{ t('common.save') }}</SButton>
+      </template>
+    </SModal>
+
+    <SModal
+      v-model:visible="showTriggerEdit"
+      :title="editingTrigger ? t('agenda.trigger_edit_title_edit', { id: editingTrigger.id }) : ''"
+      width="md"
+    >
+      <p class="agenda-edit-trigger-hint">{{ t('agenda.trigger_edit_hint') }}</p>
+      <AgendaTriggerFields :draft="triggerDraft" :agenda-id="editingTriggerRow?.agendaId" />
+      <p v-if="triggerEditInvalid" class="agenda-edit-trigger-error">{{ t('agenda.trigger_edit_invalid') }}</p>
+
+      <template #footer>
+        <SButton type="outline" @click="showTriggerEdit = false">{{ t('common.cancel') }}</SButton>
+        <SButton type="primary" :disabled="triggerEditInvalid" @click="submitTriggerEdit">{{ t('common.save') }}</SButton>
       </template>
     </SModal>
   </div>
@@ -898,8 +703,14 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
   border-radius: var(--sui-radius-sm);
   overflow-wrap: anywhere;
 }
-.agenda-trigger-fire { margin-left: auto; flex-shrink: 0; }
-.agenda-trigger-del { flex-shrink: 0; }
+.agenda-trigger-ops {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
 .agenda-trigger-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

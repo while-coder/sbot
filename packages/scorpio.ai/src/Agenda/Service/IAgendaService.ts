@@ -63,6 +63,19 @@ export interface IAgendaService {
     complete(id: number, at?: string): Promise<AgendaCompleteResult | null>;
     cancel(id: number): Promise<AgendaRecord | null>;
     /**
+     * cancel() 的逆操作（仅 item 层）：把 Cancelled/Done 的条目恢复为 Pending。
+     * **不**连带复活触发器——它们保持停用，由 reopenTrigger 逐条按需启用。
+     * 已是 Pending 时幂等返回。仅 admin 路径用——LLM 工具不暴露。item 不存在返回 null。
+     */
+    reopen(id: number): Promise<AgendaRecord | null>;
+    /**
+     * removeTrigger（软停用）的逆操作：重新启用单条 trigger 并重算 nextFireAt。
+     * 所属 item 非 Pending 时引擎 reload 会把它重新停用（需先 reopen item）；
+     * 已耗尽（达 maxFires）的会重置 fireCount。返回所属 item 最新记录；trigger 不存在返回 null。
+     * 仅 admin 路径用。
+     */
+    reopenTrigger(triggerId: number): Promise<AgendaRecord | null>;
+    /**
      * 物理删除一条 agenda（连带 triggers / occurrences）。
      * 返回删除前的完整快照；找不到返回 null。
      * 仅 admin 路径用——LLM 工具走 cancel 不走 delete。

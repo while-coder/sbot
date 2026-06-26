@@ -31,6 +31,7 @@ const emit = defineEmits<{
   border-radius: var(--sui-radius-sm);
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-secondary);
+  white-space: nowrap;
 }
 .s-tag__close {
   background: none;

@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SModal } from 'sbot-ui'
 import AgendaBoard from '@/components/AgendaBoard.vue'
-import { useAgendas } from '@/composables/useAgendas'
+import AgendaTriggerEditModal from '@/components/modals/AgendaTriggerEditModal.vue'
+import { useAgendas, type AgendaRow } from '@/composables/useAgendas'
 
 const { t } = useI18n()
 
@@ -22,14 +23,29 @@ const {
   load,
   complete,
   cancel,
+  reopen,
   remove,
   update,
   fireTrigger,
+  cancelTrigger,
+  reopenTrigger,
   removeTrigger,
+  addTrigger,
+  updateTrigger,
 } = useAgendas({
   buildQuery: () => agendaIdRef.value ? `agendaId=${encodeURIComponent(agendaIdRef.value)}` : null,
   limit: 300,
 })
+
+const triggerEditModal = ref<InstanceType<typeof AgendaTriggerEditModal> | null>(null)
+
+function onAddTrigger(payload: { row: AgendaRow }): void {
+  triggerEditModal.value?.openCreate(payload.row)
+}
+
+function onTriggerSubmit(payload: { row: AgendaRow; spec: Record<string, unknown> }): void {
+  addTrigger({ row: payload.row, spec: payload.spec })
+}
 
 const title = computed(() => sessionLabel.value ? `${t('agenda.title')} - ${sessionLabel.value}` : t('agenda.title'))
 
@@ -62,10 +78,16 @@ defineExpose({ openByAgendaId })
       @refresh="load"
       @complete="complete"
       @cancel="cancel"
+      @reopen="reopen"
       @remove="remove"
       @update="update"
       @fire-trigger="fireTrigger"
+      @cancel-trigger="cancelTrigger"
+      @reopen-trigger="reopenTrigger"
       @remove-trigger="removeTrigger"
+      @update-trigger="updateTrigger"
+      @add-trigger="onAddTrigger"
     />
+    <AgendaTriggerEditModal ref="triggerEditModal" @submit="onTriggerSubmit" />
   </SModal>
 </template>

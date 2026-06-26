@@ -12,7 +12,6 @@ export enum AgendaActionType {
     Create = 'create',
     Update = 'update',
     Complete = 'complete',
-    Cancel = 'cancel',
     TriggerAdd = 'trigger_add',
     TriggerUpdate = 'trigger_update',
     TriggerRemove = 'trigger_remove',
@@ -23,7 +22,6 @@ export type AgendaAction =
     | { type: AgendaActionType.Create; args: AgendaCreateArgs }
     | { type: AgendaActionType.Update; id: number; patch: AgendaUpdatePatch }
     | { type: AgendaActionType.Complete; id: number; at?: string }
-    | { type: AgendaActionType.Cancel; id: number }
     | { type: AgendaActionType.TriggerAdd; itemId: number; args: AgendaTriggerCreateArgs }
     | { type: AgendaActionType.TriggerUpdate; triggerId: number; patch: AgendaTriggerUpdatePatch }
     | { type: AgendaActionType.TriggerRemove; triggerId: number }

@@ -162,44 +162,22 @@ export class AgendaService implements IAgendaService {
     }
 
     async update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null> {
-        // 整个 update（updateItem → appendTrigger(s) → disableItemTriggers）必须原子，
-        // 否则两个 session 并发 update 同一 id 时会数据混乱（多 trigger / dueAt 与 trigger 不匹配等）。
-        // triggerEngine.reload / reloadItem 也放在锁内：可重入，且 reload 内部不会修改"哪个 trigger 当 active"
-        // 这件事——它只是把锁内已确定的状态同步到 timer，安全。
+        // 只改主体字段，不碰调度——trigger 的增改删走 addTrigger / updateTrigger / removeTrigger / replaceTriggers。
+        // 仍进 runExclusive：与并发的 trigger 操作（同一 item 上 updateItem）串行化，避免 updatedAt 等写竞争。
         return this.agendaStore.runExclusive(async () => {
             const item = await this.loadItem(id);
             if (!item) return null;
             const now = Date.now();
-            const replacementSpecs = patch.triggers;
             const fields: Partial<AgendaItem> = { updatedAt: now };
             if (patch.content != null && patch.content.trim()) fields.content = patch.content.trim();
             if (patch.priority != null) fields.priority = patch.priority;
             if (patch.requiresCheckIn != null) fields.requiresCheckIn = patch.requiresCheckIn;
             if (patch.dueAt !== undefined) {
                 fields.dueAt = patch.dueAt === null ? null : TimeUtils.parseAt(patch.dueAt);
-            } else if (replacementSpecs !== undefined) {
-                // 调度变更但未显式指定 dueAt：依据新 trigger 列表推导，与 create 保持一致。
-                fields.dueAt = AgendaService.deriveDueAtFromSpecs(replacementSpecs, now);
             }
-
+            // 注意：仅改 dueAt 不会联动现有 trigger。如需调度同步，调用方应显式走 trigger 端点。
             const data = await this.agendaStore.updateItem(id, fields);
-            const updatedItem = data?.item;
-            if (!updatedItem) return null;
-
-            if (replacementSpecs !== undefined) {
-                const triggers = await this.createTriggersIfNeeded(updatedItem, {
-                    content: updatedItem.content,
-                    priority: updatedItem.priority,
-                    triggers: replacementSpecs,
-                    channelSessionId: patch.channelSessionId,
-                }, now);
-                // 非空替换但全部无效时，不破坏现有调度；空数组是显式清空 active triggers。
-                if (triggers.length > 0 || replacementSpecs.length === 0) {
-                    await this.disableItemTriggers(id, triggers.map(t => t.id));
-                    for (const trigger of triggers) await this.triggerEngine.reload(trigger.id);
-                }
-            }
-            // 注意：仅改 dueAt 不会联动现有 trigger。如需调度同步，调用方应在同一次 update 里显式传 trigger。
+            if (!data?.item) return null;
             return this.agendaStore.findItem(id);
         });
     }
@@ -378,6 +356,47 @@ export class AgendaService implements IAgendaService {
         return this.agendaStore.findItem(id);
     }
 
+    async reopen(id: number): Promise<AgendaRecord | null> {
+        // cancel() 的逆操作（仅 item 层）：把 Cancelled/Done 的条目恢复为 Pending。
+        // 触发器**不**在此连带复活——它们保持停用，由 reopenTrigger 逐条按需启用，
+        // 避免把历史上被替换/已耗尽的 trigger 一并激活。已是 Pending 时幂等返回。
+        return this.agendaStore.runExclusive(async () => {
+            const record = await this.agendaStore.findItem(id);
+            if (!record) return null;
+            if (record.item.status === AgendaStatus.Pending) return record;  // 已是 Pending，幂等返回
+            const now = Date.now();
+            await this.agendaStore.updateItem(id, {
+                status: AgendaStatus.Pending,
+                doneAt: null,
+                updatedAt: now,
+            });
+            return this.agendaStore.findItem(id);
+        });
+    }
+
+    async reopenTrigger(triggerId: number): Promise<AgendaRecord | null> {
+        // removeTrigger（软停用）的逆操作：重新启用单条 trigger 并重算 nextFireAt。
+        // 交给 triggerEngine.reload 二次校验：所属 item 非 Pending 时 reload 会把它重新停用
+        // （item 仍取消/完成时单独启用一条 trigger 无意义，需先 reopen item）；
+        // absolute 若已过宽限窗口 reload 会 markMissed 停用，interval/cron 推进到下一个未来时刻。
+        return this.agendaStore.runExclusive(async () => {
+            const found = await this.agendaStore.findTrigger(triggerId);
+            if (!found) return null;
+            const trigger = found.trigger;
+            const now = Date.now();
+            let nextFireAt: number | null;
+            try { nextFireAt = computeInitialNextFire(trigger.kind, trigger.expr, now); }
+            catch { nextFireAt = null; }
+            const fields: Partial<AgendaTrigger> = { enabled: true, nextFireAt };
+            // 已耗尽（达 maxFires）的重新计数，否则启用后会立刻再触发一次就停。
+            if (trigger.maxFires > 0 && trigger.fireCount >= trigger.maxFires) fields.fireCount = 0;
+            await this.agendaStore.updateTrigger(triggerId, fields);
+            await this.agendaStore.updateItem(found.data.item.id, { updatedAt: now });
+            await this.triggerEngine.reload(triggerId);
+            return this.agendaStore.findItem(found.data.item.id);
+        });
+    }
+
     async delete(id: number): Promise<AgendaRecord | null> {
         const data = await this.agendaStore.deleteItem(id);
         if (data) for (const trigger of data.triggers) this.triggerEngine.cancel(trigger.id);
@@ -456,7 +475,9 @@ export class AgendaService implements IAgendaService {
 
     private async runExtractJob(messages: ChatMessage[], channelSessionId: number): Promise<number> {
         if (!this.extractor || messages.length === 0) return 0;
-        const existing = await this.list({ status: 'all', limit: EXISTING_AGENDA_LIMIT });
+        // 只把 Pending 条目喂给 sync extractor：done/cancelled 是只读历史，sync 对它们没有可操作动作，
+        // 暴露出去只会诱发误操作（复活已取消项、对已完成项重复 Complete）。打卡 routine 主体恒为 Pending，不受影响。
+        const existing = await this.list({ status: AgendaStatus.Pending, limit: EXISTING_AGENDA_LIMIT });
         const actions = await this.extractor.extract(messages, existing);
         if (actions.length === 0) return 0;
         for (const action of actions) await this.applyAction(action, channelSessionId);
@@ -467,11 +488,9 @@ export class AgendaService implements IAgendaService {
         if (action.type === AgendaActionType.Create) {
             await this.create({ ...action.args, source: AgendaSource.Sync, channelSessionId });
         } else if (action.type === AgendaActionType.Update) {
-            await this.update(action.id, { ...action.patch, channelSessionId });
+            await this.update(action.id, action.patch);
         } else if (action.type === AgendaActionType.Complete) {
             await this.complete(action.id, action.at);
-        } else if (action.type === AgendaActionType.Cancel) {
-            await this.cancel(action.id);
         } else if (action.type === AgendaActionType.TriggerAdd) {
             await this.addTrigger(action.itemId, { ...action.args, channelSessionId });
         } else if (action.type === AgendaActionType.TriggerUpdate) {

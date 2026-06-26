@@ -30,6 +30,7 @@ const tableStyle = computed(() => ({
 }
 .s-info-table :deep(.s-info-row__label) {
   width: var(--s-info-label-width);
+  white-space: nowrap;
 }
 .s-info-table :deep(.s-info-row__value.mono) {
   font-family: var(--sui-font-mono);

@@ -31,6 +31,7 @@
   "scripts": {
     "debug": "rimraf debug && tsc -p tsconfig.debug.json && node scripts/postbuild.js debug",
     "build": "rimraf dist && tsc && node scripts/postbuild.js",
+    "test": "tsx --test test/*.test.ts",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {

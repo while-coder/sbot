@@ -148,6 +148,17 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
+  async function reopen(row: AgendaRow) {
+    if (!await confirm(t('agenda.confirm_reopen', { id: row.item.id }))) return
+    try {
+      await apiFetch(`/api/agendas/${row.item.id}/reopen`, 'POST', { agendaId: row.agendaId })
+      show(t('common.saved'))
+      await load()
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+
   async function update(payload: { row: AgendaRow; patch: Record<string, unknown> }) {
     const { row, patch } = payload
     try {
@@ -182,12 +193,60 @@ export function useAgendas(opts: UseAgendasOptions) {
     }
   }
 
+  async function cancelTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
+    const { row, trigger } = payload
+    if (!await confirm(t('agenda.confirm_cancel_trigger', { id: trigger.id }))) return
+    try {
+      await apiFetch(`/api/agendas/triggers/${trigger.id}/disable`, 'POST', { agendaId: row.agendaId })
+      show(t('common.saved'))
+      await load()
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+
+  async function reopenTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
+    const { row, trigger } = payload
+    if (!await confirm(t('agenda.confirm_reopen_trigger', { id: trigger.id }))) return
+    try {
+      await apiFetch(`/api/agendas/triggers/${trigger.id}/reopen`, 'POST', { agendaId: row.agendaId })
+      show(t('common.saved'))
+      await load()
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+
   async function removeTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
     const { row, trigger } = payload
     if (!await confirm(t('agenda.confirm_delete_trigger', { id: trigger.id }), { danger: true })) return
     try {
       await apiFetch(`/api/agendas/triggers/${trigger.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
       show(t('common.deleted'))
+      await load()
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+
+  // 给某条 item 追加一条 trigger（单条精确，不影响其他 trigger）。
+  async function addTrigger(payload: { row: AgendaRow; spec: Record<string, unknown> }) {
+    const { row, spec } = payload
+    try {
+      await apiFetch(`/api/agendas/${row.item.id}/triggers`, 'POST', { agendaId: row.agendaId, spec })
+      show(t('common.saved'))
+      await load()
+    } catch (e: any) {
+      show(e.message, 'error')
+    }
+  }
+
+  // 整体覆盖某条 trigger 的 spec（fireCount reset）；只动这一条。
+  async function updateTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger; spec: Record<string, unknown> }) {
+    const { row, trigger, spec } = payload
+    try {
+      await apiFetch(`/api/agendas/triggers/${trigger.id}`, 'PATCH', { agendaId: row.agendaId, spec })
+      show(t('common.saved'))
       await load()
     } catch (e: any) {
       show(e.message, 'error')
@@ -206,9 +265,14 @@ export function useAgendas(opts: UseAgendasOptions) {
     load,
     complete,
     cancel,
+    reopen,
     remove,
     update,
     fireTrigger,
+    cancelTrigger,
+    reopenTrigger,
     removeTrigger,
+    addTrigger,
+    updateTrigger,
   }
 }
