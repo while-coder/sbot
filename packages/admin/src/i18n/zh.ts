@@ -680,6 +680,7 @@ export default {
     empty: '暂无日志',
     auto_refresh: '自动刷新',
     every_n_seconds: '{n}秒',
+    download: '下载文件',
   },
   about: {
     title: '关于',

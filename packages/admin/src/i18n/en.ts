@@ -680,6 +680,7 @@ export default {
     empty: 'No log entries',
     auto_refresh: 'Auto Refresh',
     every_n_seconds: '{n}s',
+    download: 'Download File',
   },
   about: {
     title: 'About',

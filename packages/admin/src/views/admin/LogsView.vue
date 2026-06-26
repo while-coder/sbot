@@ -62,6 +62,14 @@ function scrollToBottom() {
   if (logRef.value) logRef.value.scrollTop = logRef.value.scrollHeight
 }
 
+function downloadFile() {
+  if (!selectedFile.value) return
+  const a = document.createElement('a')
+  a.href = `/api/logs/${encodeURIComponent(selectedFile.value)}/download`
+  a.download = selectedFile.value
+  a.click()
+}
+
 function lineClass(line: string): string {
   if (line.includes('[ERROR]')) return 'log-error'
   if (line.includes('[WARN]')) return 'log-warn'
@@ -120,6 +128,7 @@ onUnmounted(() => stopAutoRefresh())
         <option :value="0">{{ t('logs.all_lines') }}</option>
       </SSelect>
       <SButton type="outline" size="sm" @click="loadContent()">{{ t('common.refresh') }}</SButton>
+      <SButton type="outline" size="sm" :disabled="!selectedFile" @click="downloadFile()">{{ t('logs.download') }}</SButton>
       <label class="auto-refresh-toggle">
         <input type="checkbox" v-model="autoRefresh" />
         <span>{{ t('logs.auto_refresh') }}</span>
