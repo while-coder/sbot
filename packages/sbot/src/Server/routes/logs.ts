@@ -39,7 +39,9 @@ export class LogRoutes {
                     'Content-Disposition',
                     `attachment; filename="${filename.replace(/"/g, '\\"')}"; filename*=UTF-8''${encoded}`,
                 );
-                res.sendFile(path.resolve(filepath));
+                // logsDir 位于 ~/.sbot(-dev) 下，路径段以 "." 开头；send 默认 dotfiles:'ignore'
+                // 会把整条路径当 dotfile 直接 404，必须显式 allow（filesystem.ts 下载同理）。
+                res.sendFile(path.resolve(filepath), { dotfiles: 'allow' });
             } catch (e: any) {
                 res.status(e?.status ?? 404).json({ success: false, message: e?.message ?? 'not found' });
             }
