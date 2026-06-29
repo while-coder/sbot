@@ -49,6 +49,10 @@ function onViewFires(payload: { row: AgendaRow; trigger: AgendaTrigger }): void 
   firesModal.value?.openFor(payload.row, payload.trigger)
 }
 
+function onViewItemFires(payload: { row: AgendaRow }): void {
+  firesModal.value?.openForItem(payload.row)
+}
+
 function onTriggerSubmit(payload: { row: AgendaRow; spec: Record<string, unknown> }): void {
   addTrigger({ row: payload.row, spec: payload.spec })
 }
@@ -89,6 +93,7 @@ defineExpose({ openByAgendaId })
       @update="update"
       @fire-trigger="fireTrigger"
       @view-fires="onViewFires"
+      @view-item-fires="onViewItemFires"
       @cancel-trigger="cancelTrigger"
       @reopen-trigger="reopenTrigger"
       @remove-trigger="removeTrigger"
