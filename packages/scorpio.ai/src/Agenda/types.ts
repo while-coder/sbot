@@ -344,9 +344,9 @@ export interface AgendaTriggerFire {
     /** 投递模式（notify / notify_and_record / invoke）。 */
     action: SessionDeliveryMode;
     /**
-     * 本次触发的内容描述：
-     * - notify / notify_and_record：投递的文本（= trigger.message）。
-     * - invoke：一句简短描述（截断后的 invoke 指令），避免整段 prompt 塞进日志。
+     * 本次触发的描述，两行「内容 / 结果」：
+     *   内容：<触发内容（截断）>
+     *   结果：已发送 / 发送失败: <原因> / 已触发 AI 执行（invoke 异步，触发当下拿不到最终结果）
      */
     message: string;
 }

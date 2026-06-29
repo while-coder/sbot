@@ -11,8 +11,8 @@ import {
     type AgendaTrigger,
 } from "scorpio.ai";
 
-/** invoke fire 的日志描述截断长度。 */
-const INVOKE_LOG_DESC_MAX = 100;
+/** trigger_fire.message 描述的截断长度。 */
+const FIRE_LOG_DESC_MAX = 100;
 import { LoggerService } from "../Core/LoggerService";
 import { TimerExecutor } from "../Core/TimerExecutor";
 import { triggerSession } from "../Core/triggerSession";
@@ -133,7 +133,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
             const scheduledAt = freshTrigger.nextFireAt ?? Date.now();
 
-            const delivered = await this.deliver(item, freshTrigger);
+            const { ok: delivered, error: deliverError } = await this.deliver(item, freshTrigger);
 
             // 一次性 absolute 触发投递失败时延后重试，避免提醒在临时通道异常下永久丢失。
             // expr 在 absolute trigger 中是创建时写入的 ISO 字符串，重试不会改写它；
@@ -172,7 +172,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 firedAt: Date.now(),
                 delivered,
                 action: freshTrigger.action,
-                message: this.fireLogMessage(freshTrigger),
+                message: this.fireLogMessage(freshTrigger, delivered, deliverError),
             });
 
             await this.advanceAfterFire(freshTrigger, item, scheduledAt);
@@ -194,7 +194,8 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         if (!trigger || !item) throw new Error(`Trigger ${triggerId} not found`);
         let ok = false;
         const ran = await this.executor.execute(triggerId, async () => {
-            ok = await this.deliver(item, trigger);
+            const res = await this.deliver(item, trigger);
+            ok = res.ok;
             await this.store.insertTriggerFire({
                 triggerId: trigger.id,
                 itemId: item.id,
@@ -202,7 +203,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 firedAt: Date.now(),
                 delivered: ok,
                 action: trigger.action,
-                message: this.fireLogMessage(trigger),
+                message: this.fireLogMessage(trigger, res.ok, res.error),
             });
         });
         if (!ran) throw new Error(`Trigger ${triggerId} is currently firing`);
@@ -212,12 +213,12 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     /**
      * 解析投递目标并按 trigger.action 投递一次 message。
      * 只负责"投出去"，不触碰任何调度/状态字段；fire() 与 fireManual() 共用。
-     * 返回是否投递成功（无会话 / 通道异常均记 warn 并返回 false）。
+     * 返回是否投递成功 + 失败原因（无会话 / 通道异常均记 warn 并返回 ok:false）。
      */
-    private async deliver(item: AgendaItem, trigger: AgendaTrigger): Promise<boolean> {
+    private async deliver(item: AgendaItem, trigger: AgendaTrigger): Promise<{ ok: boolean; error?: string }> {
         const delivery = await resolveAgendaDelivery(this.agendaId, item, trigger);
         try {
-            if (!delivery) throw new Error("no delivery session");
+            if (!delivery) throw new Error("无投递会话");
             const result = await triggerSession({
                 targetId: delivery.id,
                 message: trigger.message,
@@ -225,24 +226,33 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 tag: `Agenda trigger [${trigger.id}]`,
             });
             if (!result.ok) logger.warn(`Agenda trigger [${trigger.id}] delivery failed`);
-            return result.ok;
+            return { ok: result.ok };
         } catch (e: any) {
-            logger.warn(`Agenda trigger [${trigger.id}] failed: ${e?.message ?? String(e)}`);
-            return false;
+            const error = e?.message ?? String(e);
+            logger.warn(`Agenda trigger [${trigger.id}] failed: ${error}`);
+            return { ok: false, error };
         }
     }
 
     /**
-     * trigger_fire.message 的取值：notify / notify_and_record 记完整投递文本；
-     * invoke 的 message 是给 AI 的长 prompt，只记一句截断后的简短描述，避免塞满日志。
+     * trigger_fire.message 的取值，两行「内容 / 结果」：
+     *   内容：<触发内容（截断）>
+     *   结果：已发送 / 发送失败: <原因> / 已触发 AI 执行
+     * invoke 的结果是 "已触发 AI 执行"——AI 异步执行，触发当下拿不到最终结果。
      */
-    private fireLogMessage(trigger: AgendaTrigger): string {
-        const raw = trigger.message ?? "";
-        // notify / notify_and_record：原样记投递文本。
-        if (trigger.action !== SessionDeliveryMode.Invoke) return raw;
-        // invoke：prompt 可能很长，压成一行并截断成简短描述。
-        const oneLine = raw.replace(/\s+/g, " ").trim();
-        return oneLine.length > INVOKE_LOG_DESC_MAX ? `${oneLine.slice(0, INVOKE_LOG_DESC_MAX - 1)}…` : oneLine;
+    private fireLogMessage(trigger: AgendaTrigger, ok: boolean, error?: string): string {
+        const content = this.briefDesc(trigger.message ?? "");
+        let result: string;
+        if (trigger.action === SessionDeliveryMode.Invoke) result = "已触发 AI 执行";
+        else if (ok) result = "已发送";
+        else result = error ? `发送失败: ${error}` : "发送失败";
+        return `内容：${content}\n结果：${result}`;
+    }
+
+    /** 压成一行并截断，给 trigger_fire.message 用。 */
+    private briefDesc(text: string): string {
+        const oneLine = text.replace(/\s+/g, " ").trim();
+        return oneLine.length > FIRE_LOG_DESC_MAX ? `${oneLine.slice(0, FIRE_LOG_DESC_MAX - 1)}…` : oneLine;
     }
 
     private parseAbsoluteExpr(expr: string): number | null {
