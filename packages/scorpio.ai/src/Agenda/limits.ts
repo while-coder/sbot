@@ -33,6 +33,13 @@ export const EXISTING_AGENDA_LIMIT = 80;
 export const MAX_TRIGGER_FIRES_PER_ITEM = 200;
 
 /**
+ * listTriggerFires（admin 查看触发历史）的默认返回条数。
+ * 不传 limit 时用它；任何 caller 传更大的值都被截到 MAX_TRIGGER_FIRES_PER_ITEM
+ * （单 item 的留存上限，再多也没有）。
+ */
+export const DEFAULT_TRIGGER_FIRES_LIMIT = 100;
+
+/**
  * IAgendaService.listPending / admin listPendingJobs 的默认 limit。
  * 配合 PENDING_JOB_LIST_HARD_CAP 一起生效。
  */

@@ -47,6 +47,12 @@ export interface IAgendaStore {
      * 返回写入的行（含自增 id）；item 不存在时返回 null。
      */
     insertTriggerFire(fire: Omit<AgendaTriggerFire, "id">): Promise<AgendaTriggerFire | null>;
+    /**
+     * 读 trigger fire 审计日志（insertTriggerFire 的逆向只读视图）。
+     * 按 triggerId / itemId 过滤（都传则取交集），按 firedAt DESC 返回最近的若干条。
+     * limit 缺省 DEFAULT_TRIGGER_FIRES_LIMIT，上限 MAX_TRIGGER_FIRES_PER_ITEM。仅 admin 查看用。
+     */
+    listTriggerFires(filter?: { triggerId?: number; itemId?: number; limit?: number }): Promise<AgendaTriggerFire[]>;
     deleteItem(itemId: number): Promise<AgendaRecord | null>;
     /** 物理删除单条 trigger（与软停用 updateTrigger 区分），返回所属 item 的最新记录；不存在返回 null。 */
     deleteTrigger(triggerId: number): Promise<AgendaRecord | null>;

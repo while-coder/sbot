@@ -139,6 +139,24 @@ export class AgendaRoutes {
             });
         }));
 
+        // 查看某条 trigger 的触发历史（trigger_fire 审计日志，只读）：含定时与手动触发，按 firedAt DESC。
+        app.get('/api/agendas/triggers/:triggerId/fires', api(async req => {
+            const triggerId = Number(req.params.triggerId);
+            if (!Number.isInteger(triggerId) || triggerId <= 0) throwBad('Invalid triggerId');
+            const agendaId = requireAgendaId(req.query.agendaId);
+            const limit = num(req.query.limit);
+            return agendaStorePool.get(agendaId).listTriggerFires({ triggerId, limit });
+        }));
+
+        // 查看整条 item（含其所有 trigger）的触发历史，按 firedAt DESC 聚合。
+        app.get('/api/agendas/:id/fires', api(async req => {
+            const id = Number(req.params.id);
+            if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
+            const agendaId = requireAgendaId(req.query.agendaId);
+            const limit = num(req.query.limit);
+            return agendaStorePool.get(agendaId).listTriggerFires({ itemId: id, limit });
+        }));
+
         // 手动触发某条 trigger：立即按其 action 投递一次，不改调度状态（含已停用 trigger）。
         app.post('/api/agendas/triggers/:triggerId/fire', api(async req => {
             const triggerId = Number(req.params.triggerId);

@@ -6,7 +6,7 @@ import path from "path";
 import { inject } from "scorpio.di";
 import { T_AgendaDbPath } from "../../Core";
 import type { ChatMessage } from "../../Saver";
-import { ERROR_MESSAGE_MAX_LEN, MAX_TRIGGER_FIRES_PER_ITEM, PENDING_JOB_LIST_HARD_CAP } from "../limits";
+import { DEFAULT_TRIGGER_FIRES_LIMIT, ERROR_MESSAGE_MAX_LEN, MAX_TRIGGER_FIRES_PER_ITEM, PENDING_JOB_LIST_HARD_CAP } from "../limits";
 import {
     AgendaPendingJobType,
     type AgendaPendingJobStatus,
@@ -395,6 +395,22 @@ export class AgendaStore implements IAgendaStore {
             `).run({ itemId: row.itemId, limit: MAX_TRIGGER_FIRES_PER_ITEM });
             return row;
         });
+    }
+
+    async listTriggerFires(filter: { triggerId?: number; itemId?: number; limit?: number } = {}): Promise<AgendaTriggerFire[]> {
+        if (!existsSync(this.dbPath)) return [];
+        const where: string[] = [];
+        const params: Record<string, number> = {};
+        if (filter.triggerId != null) { where.push("triggerId = @triggerId"); params.triggerId = filter.triggerId; }
+        if (filter.itemId != null) { where.push("itemId = @itemId"); params.itemId = filter.itemId; }
+        params.limit = Math.min(Math.max(1, filter.limit ?? DEFAULT_TRIGGER_FIRES_LIMIT), MAX_TRIGGER_FIRES_PER_ITEM);
+        const rows = this.db.prepare(`
+            SELECT * FROM trigger_fire
+            ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+             ORDER BY firedAt DESC, id DESC
+             LIMIT @limit
+        `).all(params) as any[];
+        return rows.map(row => ({ ...row, delivered: Boolean(row.delivered) })) as AgendaTriggerFire[];
     }
 
     async deleteItem(itemId: number): Promise<AgendaRecord | null> {

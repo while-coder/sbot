@@ -46,6 +46,8 @@ const emit = defineEmits<{
   (e: 'remove', row: AgendaRow): void
   (e: 'update', payload: { row: AgendaRow; patch: Record<string, unknown> }): void
   (e: 'fire-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
+  (e: 'view-fires', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
+  (e: 'view-item-fires', payload: { row: AgendaRow }): void
   (e: 'cancel-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
   (e: 'reopen-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
   (e: 'remove-trigger', payload: { row: AgendaRow; trigger: AgendaTrigger }): void
@@ -283,6 +285,13 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
                 class="agenda-sub-add"
                 @click="emit('add-trigger', { row })"
               >+ {{ t('agenda.edit_add_trigger') }}</SButton>
+              <SButton
+                v-if="row.triggers.length"
+                type="outline"
+                size="sm"
+                :title="t('agenda.view_item_fires_hint')"
+                @click="emit('view-item-fires', { row })"
+              >📜 {{ t('agenda.view_item_fires') }}</SButton>
             </div>
             <p v-if="row.triggers.length > activeTriggers(row)" class="agenda-sub-hint">{{ t('agenda.trigger_disabled_hint') }}</p>
             <div v-if="row.triggers.length === 0" class="agenda-sub-empty">{{ t('agenda.no_trigger') }}</div>
@@ -312,6 +321,12 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
                       :title="t('agenda.fire_trigger_hint')"
                       @click="emit('fire-trigger', { row, trigger })"
                     >⚡ {{ t('agenda.fire_trigger') }}</SButton>
+                    <SButton
+                      type="outline"
+                      size="sm"
+                      :title="t('agenda.view_fires_hint')"
+                      @click="emit('view-fires', { row, trigger })"
+                    >📜 {{ t('agenda.view_fires') }}</SButton>
                     <SButton
                       v-if="row.item.status === 'pending' && trigger.enabled"
                       type="outline"

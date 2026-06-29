@@ -38,6 +38,22 @@ export interface AgendaTrigger {
   createdAt: number
 }
 
+/** trigger fire 审计日志行（只读）。每次触发（含手动）落一行，服务端按 firedAt DESC 返回。 */
+export interface AgendaTriggerFire {
+  id: number
+  triggerId: number
+  itemId: number
+  /** 计划触发时刻（毫秒）。手动触发时与 firedAt 相同。 */
+  scheduledAt: number
+  /** 实际触发时刻（毫秒）。 */
+  firedAt: number
+  /** 是否投递成功。 */
+  delivered: boolean
+  action: AgendaTriggerAction
+  /** 本次触发的描述文本。 */
+  message: string
+}
+
 /** 列表行：服务端 AgendaRecord + 所属模板 id。 */
 export interface AgendaRow {
   item: AgendaItem

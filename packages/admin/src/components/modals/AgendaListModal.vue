@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { SModal } from 'sbot-ui'
 import AgendaBoard from '@/components/AgendaBoard.vue'
 import AgendaTriggerEditModal from '@/components/modals/AgendaTriggerEditModal.vue'
-import { useAgendas, type AgendaRow } from '@/composables/useAgendas'
+import AgendaFiresModal from '@/components/modals/AgendaFiresModal.vue'
+import { useAgendas, type AgendaRow, type AgendaTrigger } from '@/composables/useAgendas'
 
 const { t } = useI18n()
 
@@ -38,9 +39,14 @@ const {
 })
 
 const triggerEditModal = ref<InstanceType<typeof AgendaTriggerEditModal> | null>(null)
+const firesModal = ref<InstanceType<typeof AgendaFiresModal> | null>(null)
 
 function onAddTrigger(payload: { row: AgendaRow }): void {
   triggerEditModal.value?.openCreate(payload.row)
+}
+
+function onViewFires(payload: { row: AgendaRow; trigger: AgendaTrigger }): void {
+  firesModal.value?.openFor(payload.row, payload.trigger)
 }
 
 function onTriggerSubmit(payload: { row: AgendaRow; spec: Record<string, unknown> }): void {
@@ -82,6 +88,7 @@ defineExpose({ openByAgendaId })
       @remove="remove"
       @update="update"
       @fire-trigger="fireTrigger"
+      @view-fires="onViewFires"
       @cancel-trigger="cancelTrigger"
       @reopen-trigger="reopenTrigger"
       @remove-trigger="removeTrigger"
@@ -89,5 +96,6 @@ defineExpose({ openByAgendaId })
       @add-trigger="onAddTrigger"
     />
     <AgendaTriggerEditModal ref="triggerEditModal" @submit="onTriggerSubmit" />
+    <AgendaFiresModal ref="firesModal" />
   </SModal>
 </template>
