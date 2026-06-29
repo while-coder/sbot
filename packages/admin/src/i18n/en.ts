@@ -78,6 +78,7 @@ export default {
     ref_unused_hint: 'This item is not referenced by any channel, session profile, or agent — safe to delete.',
     ref_channels: 'Channels',
     ref_profiles: 'Session Profiles',
+    ref_sessions: 'Sessions (private override)',
     ref_agents: 'Agents',
     ref_profile_sessions: '{n} session(s)',
     enabled: 'Enabled',

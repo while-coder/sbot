@@ -34,11 +34,12 @@ const saverColumns = computed<STableColumn[]>(() => [
   { key: 'ops',  label: t('common.ops'), ops: true },
 ])
 
-// ── 被引用情况（频道 / 会话档案 / 智能体） ──
+// ── 被引用情况（频道 / 会话档案 / 会话 / 智能体） ──
 const { loadProfiles, makeResourceRefs } = useResourceRefs()
 const refs = makeResourceRefs({
   channel: (c, id) => c.saver === id,
   profile: (p, id) => p.saver === id,
+  session: (s, id) => s.saver === id,   // 会话私有覆盖（存在各自 auto profile 上，否则被漏扫）
   agent: (a, id) => a.saver === id,
 })
 onMounted(loadProfiles)

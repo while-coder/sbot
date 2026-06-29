@@ -78,6 +78,7 @@ export default {
     ref_unused_hint: '该项未被任何频道、会话档案或智能体引用，可安全删除。',
     ref_channels: '频道',
     ref_profiles: '会话档案',
+    ref_sessions: '会话（私有覆盖）',
     ref_agents: '智能体',
     ref_profile_sessions: '{n} 个会话',
     enabled: '启用',

@@ -28,6 +28,9 @@ const { t } = useI18n()
           {{ p.name }}<span v-if="p.sessionCount" class="ref-chip-sub">{{ t('common.ref_profile_sessions', { n: p.sessionCount }) }}</span>
         </span>
       </SInfoRow>
+      <SInfoRow v-if="refs.sessions.length" :label="t('common.ref_sessions')">
+        <span v-for="s in refs.sessions" :key="s.id" class="ref-chip">{{ s.name }}</span>
+      </SInfoRow>
       <SInfoRow v-if="refs.agents.length" :label="t('common.ref_agents')">
         <span v-for="a in refs.agents" :key="a.id" class="ref-chip">{{ a.name }}</span>
       </SInfoRow>
