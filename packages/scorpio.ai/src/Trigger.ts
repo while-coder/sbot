@@ -6,7 +6,7 @@
  *   一次性提醒/外发通知；用户响应不依赖这次投递的上下文。
  * - NotifyAndRecord: 投递 + 把文本以 AI 角色 + Normal kind 写入 saver。
  *   主对话 agent 后续能看到"系统刚提醒了用户"，避免上下文断裂。
- *   适合 occurrence 打卡/汇报类 routine。
+ *   适合汇报/提交类 routine（用户随后回复"已交"时 AI 有上下文）。
  * - Invoke: 把文本当作"用户输入"投给 AI 处理，让 agent 主动响应。
  *   需要 AI 在触发瞬间产出内容时使用（如自动总结日志）。
  */

@@ -5,7 +5,6 @@ import {
     AgendaStatus,
     type IAgendaService,
     type AgendaListFilter,
-    type AgendaCompleteResult,
     type AgendaRecord,
     type AgendaUpdatePatch,
 } from 'scorpio.ai';
@@ -79,7 +78,6 @@ export class AgendaRoutes {
                 priority: body.priority,
                 triggers: body.triggers,
                 dueAt: body.dueAt,
-                requiresCheckIn: body.requiresCheckIn,
                 channelSessionId,
             }));
         }));
@@ -95,7 +93,6 @@ export class AgendaRoutes {
             const patch: AgendaUpdatePatch = {};
             if (body.content !== undefined) patch.content = body.content;
             if (body.priority !== undefined) patch.priority = body.priority;
-            if (body.requiresCheckIn !== undefined) patch.requiresCheckIn = body.requiresCheckIn;
             if (body.dueAt !== undefined) patch.dueAt = body.dueAt;
             return withAgendaService(agendaId, async service => {
                 const updated = await service.update(id, patch);
@@ -217,11 +214,8 @@ export class AgendaRoutes {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) throwBad('Invalid id');
         const agendaId = requireAgendaId(req.body?.agendaId ?? req.query.agendaId);
-        return withAgendaService<AgendaCompleteResult | AgendaRecord | null>(agendaId, service => {
-            if (action === 'complete') {
-                const at = typeof req.body?.at === 'string' && req.body.at.trim() ? req.body.at.trim() : undefined;
-                return service.complete(id, at);
-            }
+        return withAgendaService<AgendaRecord | null>(agendaId, service => {
+            if (action === 'complete') return service.complete(id);
             if (action === 'reopen') return service.reopen(id);
             return service.cancel(id);
         });

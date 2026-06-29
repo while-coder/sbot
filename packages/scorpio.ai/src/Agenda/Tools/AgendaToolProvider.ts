@@ -14,7 +14,6 @@ import {
 } from "../types";
 import { IAgendaService } from "../Service/IAgendaService";
 import { formatAgendaXml } from "../format";
-import { TimeUtils } from "../../Utils/TimeUtils";
 import { DEFAULT_LIST_LIMIT } from "../limits";
 
 export const AGENDA_CREATE_TOOL_NAME = 'agenda_create' as const;
@@ -39,7 +38,7 @@ const RelativeTimeSchema = z.object({
     unit: z.enum(AgendaTimeUnit).describe('minute / hour / day / week.'),
 });
 
-const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default, plain-text reminder) / notify_and_record (occurrence routine) / invoke (AI actively produces at fire time, e.g. "generate/summarize/write/organize for me"). Details → agenda_wiki §8.');
+const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default, plain-text reminder) / notify_and_record (also records the fire into the conversation history) / invoke (AI actively produces at fire time, e.g. "generate/summarize/write/organize for me"). Details → agenda_wiki §8.');
 
 const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact words delivered WHEN this trigger fires, phrased as a present-moment ping ("Time to drink water"), NOT as a request to set a reminder ("remind me to drink water in 2 min" ✗). No fallback to content; if no special wording, restate content. Recorded fires re-enter the conversation, so request-like wording can make the post-turn sync create a duplicate agenda.');
 
@@ -87,7 +86,6 @@ export class AgendaToolProvider {
                     priority: z.enum(AgendaPriority).optional().describe('Default normal. high = urgent; low = casual.'),
                     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; omit / [] = plain todo.'),
                     dueAt: z.string().optional().describe('ISO deadline. Pure metadata — does NOT auto-create a trigger (agenda_wiki §3).'),
-                    requiresCheckIn: z.boolean().optional().describe('true = per-fire check-in routine; each fire creates an occurrence the user closes individually (agenda_wiki §4). Omit for normal items.'),
                 }),
                 func: async (args: AgendaCreateArgs) => {
                     try {
@@ -127,7 +125,6 @@ export class AgendaToolProvider {
                     id: z.number().describe('Item id.'),
                     content: z.string().optional(),
                     priority: z.enum(AgendaPriority).optional(),
-                    requiresCheckIn: z.boolean().optional().describe('Toggle per-fire check-in (occurrence) mode. See agenda_wiki §4.'),
                     dueAt: z.string().nullable().optional().describe('ISO or null. Does NOT retime triggers (agenda_wiki §3).'),
                 }),
                 func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {
@@ -186,24 +183,12 @@ export class AgendaToolProvider {
                 description: descs.complete,
                 schema: z.object({
                     id: z.number().describe('Item id.'),
-                    at: z.string().optional().describe('ISO to pinpoint a specific occurrence (incl. missed/backfill); omit closes earliest pending. Examples → agenda_wiki §4.'),
                 }),
-                func: async ({ id, at }: { id: number; at?: string }) => {
+                func: async ({ id }: { id: number }) => {
                     try {
-                        const result = await agendaService.complete(id, at);
-                        if (!result) return `Agenda #${id} not found.`;
-                        const { record, closedOccurrence, itemCompleted } = result;
-                        const head = `agenda #${record.item.id}: ${record.item.content}`;
-                        if (itemCompleted) {
-                            return `Completed ${head}`;
-                        }
-                        if (!closedOccurrence) {
-                            return `No matching occurrence to close on ${head}${at ? ` (requested at=${at})` : ' (no pending instance available)'}. Verify whether the routine has a pending/missed instance the user actually meant before retrying or apologizing.`;
-                        }
-                        const closedIso = TimeUtils.formatIsoMinute(closedOccurrence.scheduledAt);
-                        const fromStatus = closedOccurrence.status; // 关闭前的快照
-                        const reqLine = at ? ` (requested at=${at})` : '';
-                        return `Closed occurrence at ${closedIso} (was ${fromStatus}) on ${head}${reqLine}. If this scheduledAt does not match what the user described, the routing was approximate — clarify with the user before assuming success.`;
+                        const record = await agendaService.complete(id);
+                        if (!record) return `Agenda #${id} not found.`;
+                        return `Completed agenda #${record.item.id}: ${record.item.content}`;
                     } catch (e: any) {
                         return `Failed to complete agenda #${id}: ${e.message}`;
                     }

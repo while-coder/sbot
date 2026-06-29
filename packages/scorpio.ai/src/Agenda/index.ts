@@ -1,6 +1,6 @@
 export * from "./types";
 export * from "./time";
-export { IAgendaService, type AgendaToolDescs, type AgendaCompleteResult } from "./Service/IAgendaService";
+export { IAgendaService, type AgendaToolDescs } from "./Service/IAgendaService";
 export { AgendaService } from "./Service/AgendaService";
 export {
     AgendaServicePool,

@@ -22,18 +22,6 @@ export const DEFAULT_LIST_LIMIT = 50;
  */
 export const EXISTING_AGENDA_LIMIT = 80;
 
-/**
- * 单个 occurrence routine 渲染 XML 时，done 状态保留多少条最近记录。
- * pending + missed 全量列出，done 截尾。
- */
-export const OCC_DISPLAY_LIMIT = 10;
-
-/**
- * 每个 item 最多保留多少条 occurrence（按 scheduledAt 取最近的）。
- * appendOccurrence 写入后会把超出的最旧记录裁掉，防止打卡 routine 无限累积。
- */
-export const MAX_OCCURRENCES_PER_ITEM = 50;
-
 // ──────────────────────────────────────────────────────────────
 // Internal
 // ──────────────────────────────────────────────────────────────

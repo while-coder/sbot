@@ -1,5 +1,5 @@
 Terminate an agenda item entirely — all triggers disabled; routines stop firing.
 
-Trigger phrases: "drop it / I don't want this / stop reminding me". vs agenda_complete: complete = "I did it"; cancel = "I don't want this anymore". For occurrence routines, complete only closes ONE instance — to stop the routine itself, use cancel.
+Trigger phrases: "drop it / I don't want this / stop reminding me". vs agenda_complete: complete = "I did it / it's finished"; cancel = "I don't want this anymore". Both end the whole item and disable all triggers — the difference is intent, not effect.
 
 Full semantics → agenda_wiki.

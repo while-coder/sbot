@@ -7,7 +7,7 @@
 export enum AgendaStatus {
     /** 待处理。新建后的默认状态，trigger 仍会按计划触发。 */
     Pending = 'pending',
-    /** 已完成。complete() 调用后写入；非打卡（requiresCheckIn=false）条目下意味着不再触发。 */
+    /** 已完成。complete() 调用后写入或调度耗尽自动置入；意味着整条不再触发。 */
     Done = 'done',
     /** 已取消。cancel() 调用后写入；trigger 全部 disable。 */
     Cancelled = 'cancelled',
@@ -57,21 +57,6 @@ export enum AgendaTriggerKind {
 import { SessionDeliveryMode } from "../Trigger";
 export { SessionDeliveryMode as AgendaTriggerAction };
 
-/**
- * Occurrence 状态。仅打卡（requiresCheckIn=true）条目下使用。
- */
-export enum AgendaOccurrenceStatus {
-    /** 已生成但未确认完成。 */
-    Pending = 'pending',
-    /** 已完成。 */
-    Done = 'done',
-    /**
-     * 已错过：本次触发后用户在下次触发到来前没 complete，由 TriggerEngine 在生成新一条 pending
-     * 时把上一条 pending 标记为 missed。doneAt 记录被标记的时刻（≈下次触发时刻）。
-     */
-    Missed = 'missed',
-}
-
 // ===== DTOs =====
 
 /**
@@ -103,7 +88,7 @@ interface TriggerSpecDelivery {
     /**
      * 触发动作。缺省 Notify。
      * LLM 说"每天帮我总结一下"/"每天 8 点帮我跑数据" → 显式传 Invoke（让 AI 处理）。
-     * 占卡/汇报/喝水 等 occurrence routine 必须用 NotifyAndRecord（让 fire 进会话历史）。
+     * 想让 fire 进会话历史（便于用户随后回复"已交"时 AI 有上下文）→ NotifyAndRecord。
      */
     action?: SessionDeliveryMode;
     /**
@@ -191,12 +176,6 @@ export interface AgendaCreateArgs {
      */
     triggers?: AgendaTriggerSpec[];
     /**
-     * 是否为「打卡」条目（每次触发产生一个 occurrence，complete() 只关一条，主体保留 Pending）。
-     * 一般省略（默认 false：触发耗尽自动 Done，或无 trigger 时由 complete() 整条关闭）；
-     * 仅"每日喝水/每周交周报"这类逐次打卡场景需显式传 true。
-     */
-    requiresCheckIn?: boolean;
-    /**
      * 截止时刻（ISO 字符串）。仅作为「目标完成时刻」的语义字段：
      * - 用作 findNearDuplicate 去重 key（content + dueAt 一致视为重复）
      * - UI/LLM 展示「已过期」标记
@@ -224,8 +203,6 @@ export interface AgendaUpdatePatch {
     /** 改内容。LLM 说"把 #3 改成 '交月报'" → content = "交月报"。 */
     content?: string;
     priority?: AgendaPriority;
-    /** 改打卡开关。详见 AgendaCreateArgs.requiresCheckIn。 */
-    requiresCheckIn?: boolean;
     /**
      * 显式改 dueAt（ISO 字符串或 null 清空）。
      * 纯主体字段，不联动现有 trigger 的节奏。
@@ -278,7 +255,7 @@ export interface AgendaCreateResult {
 // ===== Entities =====
 
 /**
- * agenda 主体表行。trigger 与 occurrence 在各自的子表里。
+ * agenda 主体表行。trigger 在各自的子表里。
  * 时间戳统一是毫秒（Date.now()），不是秒。
  */
 export interface AgendaItem {
@@ -288,11 +265,6 @@ export interface AgendaItem {
     content: string;
     status: AgendaStatus;
     priority: AgendaPriority;
-    /**
-     * 是否为「打卡」条目。true = 每次触发 append 一个 occurrence，complete() 只关最早的一条，
-     * 主体保留 Pending；false = 普通条目（有 trigger 时触发耗尽自动 Done，无 trigger 时由 complete() 整条关闭）。
-     */
-    requiresCheckIn: boolean;
     /**
      * 截止时间戳（毫秒）。写入规则（优先级从高到低）：
      * - args.dueAt 显式传 → 用它
@@ -354,26 +326,36 @@ export interface AgendaTrigger {
 }
 
 /**
- * 一次"打卡实例"。仅打卡（requiresCheckIn=true）条目下，trigger 每次触发都会 append 一条。
- * 用于支持"每日喝水"这种"完成单次而非整条"的语义。
+ * trigger fire 事件日志行。每次 trigger 触发（含手动）落一行，纯记录、不参与任何调度/完成逻辑。
+ * 不进 AgendaRecord，也不暴露给 LLM；仅供审计 / 将来统计。
  */
-export interface AgendaOccurrence {
+export interface AgendaTriggerFire {
     id: number;
+    /** 触发的 trigger。 */
+    triggerId: number;
+    /** 所属 agenda item。 */
     itemId: number;
-    /** 计划触发时刻（毫秒），不一定 = 实际投递时刻。 */
+    /** 计划触发时刻（毫秒）。 */
     scheduledAt: number;
-    status: AgendaOccurrenceStatus;
-    /** 完成时刻；尚未 Done 时为 null。 */
-    doneAt: number | null;
+    /** 实际触发时刻（毫秒）。 */
+    firedAt: number;
+    /** 是否投递成功。 */
+    delivered: boolean;
+    /** 投递模式（notify / notify_and_record / invoke）。 */
+    action: SessionDeliveryMode;
+    /**
+     * 本次触发的内容描述：
+     * - notify / notify_and_record：投递的文本（= trigger.message）。
+     * - invoke：一句简短描述（截断后的 invoke 指令），避免整段 prompt 塞进日志。
+     */
+    message: string;
 }
 
 /**
- * agenda 三件套：item 主行 + 关联 trigger 列表 + 关联 occurrence 列表。
+ * agenda 两件套：item 主行 + 关联 trigger 列表。
  * AgendaStore 直接产出此结构；service / 上层 list/format/UI 也直接消费它。
  */
 export interface AgendaRecord {
     item: AgendaItem;
     triggers: AgendaTrigger[];
-    /** 仅打卡（requiresCheckIn=true）条目才会被填充；普通条目恒为空数组。 */
-    occurrences: AgendaOccurrence[];
 }

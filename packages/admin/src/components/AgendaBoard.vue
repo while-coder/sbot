@@ -7,8 +7,6 @@ import {
   firstNextFire,
   isOverdue,
   type AgendaItem,
-  type AgendaOccurrence,
-  type AgendaOccurrenceStatus,
   type AgendaPriority,
   type AgendaRow,
   type AgendaStatus,
@@ -72,20 +70,11 @@ function statusVariant(s: AgendaStatus): 'success' | 'warning' | 'neutral' {
   return 'neutral'
 }
 
-function occurrenceVariant(s: AgendaOccurrenceStatus): 'success' | 'warning' | 'danger' | 'neutral' {
-  if (s === 'done') return 'success'
-  if (s === 'pending') return 'warning'
-  if (s === 'missed') return 'danger'
-  return 'neutral'
-}
-
 function priorityLabel(p: AgendaPriority): string { return t(`agenda.priority_${p}`) }
 function statusLabel(s: AgendaStatus): string { return t(`agenda.status_${s}`) }
 function sourceLabel(s: AgendaItem['source']): string { return t(`agenda.source_${s}`) }
-function checkInLabel(requiresCheckIn: AgendaItem['requiresCheckIn']): string { return t(requiresCheckIn ? 'agenda.check_in_on' : 'agenda.check_in_off') }
 function triggerKindLabel(trigger: AgendaTrigger): string { return t(`agenda.trigger_${trigger.kind}`) }
 function triggerActionLabel(trigger: AgendaTrigger): string { return t(`agenda.action_${trigger.action}`) }
-function occurrenceStatusLabel(o: AgendaOccurrence): string { return t(`agenda.occurrence_${o.status}`) }
 
 function formatTime(ts: number | null | undefined): string {
   if (!ts) return t('agenda.no_time')
@@ -95,7 +84,6 @@ function formatTime(ts: number | null | undefined): string {
 interface EditForm {
   content: string
   priority: AgendaPriority
-  requiresCheckIn: boolean
   dueAt: string
 }
 
@@ -104,7 +92,6 @@ const editingRow = ref<AgendaRow | null>(null)
 const editForm = reactive<EditForm>({
   content: '',
   priority: 'normal',
-  requiresCheckIn: false,
   dueAt: '',
 })
 
@@ -112,7 +99,6 @@ function openEdit(row: AgendaRow): void {
   editingRow.value = row
   editForm.content = row.item.content
   editForm.priority = row.item.priority
-  editForm.requiresCheckIn = row.item.requiresCheckIn
   editForm.dueAt = row.item.dueAt ? tsToLocalInput(row.item.dueAt) : ''
   showEdit.value = true
 }
@@ -127,7 +113,6 @@ function submitEdit(): void {
   const patch: Record<string, unknown> = {
     content,
     priority: editForm.priority,
-    requiresCheckIn: editForm.requiresCheckIn,
     dueAt: editForm.dueAt ? localInputToIso(editForm.dueAt) : null,
   }
   emit('update', { row, patch })
@@ -163,18 +148,12 @@ function submitTriggerEdit(): void {
 }
 
 function rowKeyFn(row: AgendaRow): number { return row.item.id }
-function countOcc(row: AgendaRow, status: AgendaOccurrenceStatus): number {
-  return row.occurrences.filter(o => o.status === status).length
-}
 function activeTriggers(row: AgendaRow): number { return row.triggers.filter(t => t.enabled).length }
 function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
   return [...triggers].sort((a, b) => {
     if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
     return b.createdAt - a.createdAt
   })
-}
-function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] {
-  return [...occurrences].sort((a, b) => b.scheduledAt - a.scheduledAt)
 }
 </script>
 
@@ -264,18 +243,8 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
       <template #meta="{ item: row }">
         <span v-if="showProfile" class="agenda-meta-chip mono">{{ t('agenda.profile_col') }}: {{ row.agendaId.slice(0, 8) }}</span>
         <span class="agenda-meta-chip">{{ t('agenda.source_col') }}: {{ sourceLabel(row.item.source) }}</span>
-        <span v-if="row.item.requiresCheckIn" class="agenda-meta-chip">{{ t('agenda.check_in_col') }}: {{ checkInLabel(row.item.requiresCheckIn) }}</span>
         <span v-if="row.triggers.length" class="agenda-meta-chip blue">
           {{ t('agenda.triggers_col') }}: {{ activeTriggers(row) }}/{{ row.triggers.length }}
-        </span>
-        <span v-if="countOcc(row, 'missed')" class="agenda-meta-chip overdue" :title="t('agenda.occurrence_missed_chip_hint')">
-          {{ t('agenda.occurrence_missed') }}: {{ countOcc(row, 'missed') }}
-        </span>
-        <span v-if="countOcc(row, 'pending')" class="agenda-meta-chip orange" :title="t('agenda.occurrence_chip_hint')">
-          {{ t('agenda.occurrence_pending') }}: {{ countOcc(row, 'pending') }}
-        </span>
-        <span v-if="countOcc(row, 'done')" class="agenda-meta-chip" :title="t('agenda.occurrence_done_chip_hint')">
-          {{ t('agenda.occurrence_done') }}: {{ countOcc(row, 'done') }}
         </span>
         <span v-if="row.item.dueAt" class="agenda-meta-chip" :class="{ overdue: isOverdue(row) }">
           {{ t('agenda.due_col') }}: {{ formatTime(row.item.dueAt) }}
@@ -386,33 +355,6 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
               </li>
             </ul>
           </section>
-
-          <section v-if="row.occurrences.length" class="agenda-sub-section">
-            <div class="agenda-sub-title">
-              <h4>{{ t('agenda.occurrence_section') }}</h4>
-              <span class="agenda-sub-counts">
-                <SBadge v-if="countOcc(row, 'pending')" variant="warning" size="xs">{{ t('agenda.occurrence_pending') }} {{ countOcc(row, 'pending') }}</SBadge>
-                <SBadge v-if="countOcc(row, 'missed')" variant="danger" size="xs">{{ t('agenda.occurrence_missed') }} {{ countOcc(row, 'missed') }}</SBadge>
-                <SBadge v-if="countOcc(row, 'done')" variant="success" size="xs">{{ t('agenda.occurrence_done') }} {{ countOcc(row, 'done') }}</SBadge>
-              </span>
-            </div>
-            <p class="agenda-sub-hint">{{ t('agenda.occurrence_hint') }}</p>
-            <ul class="agenda-occurrence-list">
-              <li
-                v-for="occ in sortedOccurrences(row.occurrences)"
-                :key="occ.id"
-                class="agenda-occurrence-row"
-                :class="{
-                  'agenda-occurrence-row--done': occ.status === 'done',
-                  'agenda-occurrence-row--missed': occ.status === 'missed',
-                }"
-              >
-                <SBadge :variant="occurrenceVariant(occ.status)" size="xs">{{ occurrenceStatusLabel(occ) }}</SBadge>
-                <span class="agenda-occurrence-time mono">{{ formatTime(occ.scheduledAt) }}</span>
-                <span v-if="occ.doneAt" class="agenda-occurrence-time mono muted">→ {{ formatTime(occ.doneAt) }}</span>
-              </li>
-            </ul>
-          </section>
         </div>
       </template>
     </SEntityList>
@@ -427,12 +369,6 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
           <option value="normal">{{ t('agenda.priority_normal') }}</option>
           <option value="high">{{ t('agenda.priority_high') }}</option>
         </SSelect>
-      </SFormItem>
-      <SFormItem :label="t('agenda.check_in_col')" :hint="t('agenda.check_in_hint')">
-        <label class="agenda-check-in-toggle">
-          <input v-model="editForm.requiresCheckIn" type="checkbox" />
-          <span>{{ t('agenda.check_in_label') }}</span>
-        </label>
       </SFormItem>
       <SFormItem :label="t('agenda.edit_due_at')" :hint="t('agenda.edit_due_at_hint')">
         <div class="agenda-edit-due">
@@ -663,8 +599,7 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
   padding: var(--sui-sp-3) 0;
 }
 
-.agenda-trigger-list,
-.agenda-occurrence-list {
+.agenda-trigger-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -730,47 +665,12 @@ function sortedOccurrences(occurrences: AgendaOccurrence[]): AgendaOccurrence[] 
 }
 .agenda-trigger-msg { grid-column: 1 / -1; }
 
-.agenda-occurrence-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sui-sp-2);
-  padding: var(--sui-sp-1) var(--sui-sp-2);
-  border-radius: var(--sui-radius-sm);
-  font-size: var(--sui-fs-sm);
-}
-.agenda-occurrence-row--done { opacity: 0.65; }
-.agenda-occurrence-row--cancelled {
-  background: var(--sui-bg-soft);
-  color: var(--sui-fg-muted);
-  text-decoration: line-through;
-}
-.agenda-occurrence-row--missed {
-  background: var(--sui-danger-soft);
-  border-left: 3px solid var(--sui-danger);
-  padding-left: calc(var(--sui-sp-2) - 3px);
-}
-.agenda-occurrence-row--missed,
-.agenda-occurrence-row--missed .agenda-occurrence-time {
-  color: var(--sui-on-danger-soft);
-}
-.agenda-occurrence-row--missed .agenda-occurrence-time.muted {
-  color: var(--sui-on-danger-soft);
-  opacity: 0.7;
-}
-.agenda-sub-counts {
-  display: inline-flex;
-  gap: var(--sui-sp-2);
-  flex-wrap: wrap;
-}
 .agenda-sub-hint {
   margin: 0 0 var(--sui-sp-2);
   color: var(--sui-fg-muted);
   font-size: var(--sui-fs-xs);
   line-height: 1.5;
 }
-.agenda-occurrence-time { color: var(--sui-fg); }
-.agenda-occurrence-time.mono { font-family: var(--sui-font-mono); }
-.agenda-occurrence-time.muted { color: var(--sui-fg-muted); }
 
 .agenda-edit-due {
   display: flex;

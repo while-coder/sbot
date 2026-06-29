@@ -6,7 +6,7 @@ import path from "path";
 import { inject } from "scorpio.di";
 import { T_AgendaDbPath } from "../../Core";
 import type { ChatMessage } from "../../Saver";
-import { ERROR_MESSAGE_MAX_LEN, MAX_OCCURRENCES_PER_ITEM, PENDING_JOB_LIST_HARD_CAP } from "../limits";
+import { ERROR_MESSAGE_MAX_LEN, PENDING_JOB_LIST_HARD_CAP } from "../limits";
 import {
     AgendaPendingJobType,
     type AgendaPendingJobStatus,
@@ -15,12 +15,12 @@ import {
 } from "./IAgendaStore";
 import type {
     AgendaItem,
-    AgendaOccurrence,
     AgendaRecord,
     AgendaTrigger,
+    AgendaTriggerFire,
 } from "../types";
 
-type AgendaTable = "items" | "triggers" | "occurrences";
+type AgendaTable = "items" | "triggers" | "trigger_fire";
 
 /**
  * 单 agenda 模板的存储。绑定一个 db 文件路径，构造后不再变化。
@@ -53,7 +53,6 @@ export class AgendaStore implements IAgendaStore {
                     content             TEXT    NOT NULL,
                     status              TEXT    NOT NULL,
                     priority            TEXT    NOT NULL,
-                    requiresCheckIn     INTEGER NOT NULL DEFAULT 0,
                     dueAt               INTEGER,
                     source              TEXT    NOT NULL,
                     createdAt           INTEGER NOT NULL,
@@ -75,17 +74,21 @@ export class AgendaStore implements IAgendaStore {
                     nextFireAt     INTEGER,
                     createdAt      INTEGER NOT NULL
                 );
-                CREATE TABLE IF NOT EXISTS occurrences (
+                CREATE TABLE IF NOT EXISTS trigger_fire (
                     id          INTEGER PRIMARY KEY,
+                    triggerId   INTEGER NOT NULL,
                     itemId      INTEGER NOT NULL,
                     scheduledAt INTEGER NOT NULL,
-                    status      TEXT    NOT NULL,
-                    doneAt      INTEGER
+                    firedAt     INTEGER NOT NULL,
+                    delivered   INTEGER NOT NULL,
+                    action      TEXT    NOT NULL,
+                    message     TEXT    NOT NULL DEFAULT ''
                 );
                 CREATE INDEX IF NOT EXISTS idx_items_status ON items (status, dueAt);
                 CREATE INDEX IF NOT EXISTS idx_triggers_item ON triggers (itemId, id);
                 CREATE INDEX IF NOT EXISTS idx_triggers_enabled ON triggers (enabled, nextFireAt);
-                CREATE INDEX IF NOT EXISTS idx_occurrences_item_status ON occurrences (itemId, status, scheduledAt);
+                CREATE INDEX IF NOT EXISTS idx_trigger_fire_item ON trigger_fire (itemId, firedAt);
+                CREATE INDEX IF NOT EXISTS idx_trigger_fire_trigger ON trigger_fire (triggerId, firedAt);
 
                 -- 待处理抽取 job 队列：每轮对话末尾入队，AgendaService 通过 isRunning 标志串行消费；
                 -- 失败行保留 status='failed'，不再自动重试，由 admin 决定。
@@ -117,16 +120,21 @@ export class AgendaStore implements IAgendaStore {
                 this._db.exec(`ALTER TABLE items DROP COLUMN category`);
             }
 
-            // 迁移：完成方式由三值枚举 completionMode(none/item/occurrence) 收敛为布尔 requiresCheckIn。
-            // none/item 行为完全由"是否有 trigger"决定，合并为 requiresCheckIn=0；只有 occurrence（打卡）→ 1。
-            // 旧库：补列 → 按旧值回填 → 删旧列。ADD COLUMN NOT NULL 需带 DEFAULT；DROP COLUMN 需 SQLite 3.35+。
+            // 迁移：打卡(occurrence)子系统已整体移除。旧库可能残留 occurrences 表、items.requiresCheckIn /
+            // completionMode 列，统一清掉——它们不再被任何代码引用。DROP COLUMN 需 SQLite 3.35+。
+            this._db.exec(`DROP TABLE IF EXISTS occurrences`);
             const itemColNames = new Set(itemCols.map(c => c.name));
-            if (itemColNames.has("completionMode") && !itemColNames.has("requiresCheckIn")) {
-                this._db.exec(`
-                    ALTER TABLE items ADD COLUMN requiresCheckIn INTEGER NOT NULL DEFAULT 0;
-                    UPDATE items SET requiresCheckIn = CASE WHEN completionMode = 'occurrence' THEN 1 ELSE 0 END;
-                    ALTER TABLE items DROP COLUMN completionMode;
-                `);
+            if (itemColNames.has("requiresCheckIn")) {
+                this._db.exec(`ALTER TABLE items DROP COLUMN requiresCheckIn`);
+            }
+            if (itemColNames.has("completionMode")) {
+                this._db.exec(`ALTER TABLE items DROP COLUMN completionMode`);
+            }
+
+            // 迁移：trigger_fire.message 后加；旧库（已建过无 message 的 trigger_fire）补列。
+            const fireCols = this._db.prepare(`PRAGMA table_info(trigger_fire)`).all() as Array<{ name: string }>;
+            if (!fireCols.some(c => c.name === "message")) {
+                this._db.exec(`ALTER TABLE trigger_fire ADD COLUMN message TEXT NOT NULL DEFAULT ''`);
             }
 
             // 迁移：trigger.message 现为必填，fire 时不再回退到 item.content。
@@ -145,8 +153,8 @@ export class AgendaStore implements IAgendaStore {
         return this._db;
     }
 
-    /** 反向查 child（trigger / occurrence）所属的 itemId。返回 null = 找不到这一行。 */
-    private lookupItemIdForChild(table: "triggers" | "occurrences", childId: number): number | null {
+    /** 反向查 trigger 所属的 itemId。返回 null = 找不到这一行。 */
+    private lookupItemIdForChild(table: "triggers", childId: number): number | null {
         const row = this.db.prepare(`SELECT itemId FROM ${table} WHERE id = ?`).get(childId) as { itemId: number } | undefined;
         return row?.itemId ?? null;
     }
@@ -181,26 +189,23 @@ export class AgendaStore implements IAgendaStore {
     }
 
     private buildAgendaRecord(item: AgendaItem): AgendaRecord {
-        // requiresCheckIn 在 SQLite 里以 0/1 存储，回读时统一转回布尔。
-        const normalizedItem: AgendaItem = { ...item, requiresCheckIn: Boolean((item as any).requiresCheckIn) };
         const triggers = (this.db.prepare("SELECT * FROM triggers WHERE itemId = ? ORDER BY id").all(item.id) as any[]).map(row => ({
             ...row,
             enabled: Boolean(row.enabled),
         })) as AgendaTrigger[];
-        const occurrences = this.db.prepare("SELECT * FROM occurrences WHERE itemId = ? ORDER BY scheduledAt, id").all(item.id) as AgendaOccurrence[];
-        return { item: normalizedItem, triggers, occurrences };
+        return { item, triggers };
     }
 
     private insertItem(item: Omit<AgendaItem, "id">): number {
         const result = this.db.prepare(`
             INSERT INTO items (
-                content, status, priority, requiresCheckIn,
+                content, status, priority,
                 dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
-                @content, @status, @priority, @requiresCheckIn,
+                @content, @status, @priority,
                 @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
-        `).run({ ...item, requiresCheckIn: item.requiresCheckIn ? 1 : 0 });
+        `).run({ ...item });
         return Number(result.lastInsertRowid);
     }
 
@@ -234,14 +239,14 @@ export class AgendaStore implements IAgendaStore {
     async createItem(item: Omit<AgendaItem, "id">): Promise<AgendaRecord> {
         return this.withLock(async () => {
             const id = this.insertItem(item);
-            return { item: { id, ...item }, triggers: [], occurrences: [] };
+            return { item: { id, ...item }, triggers: [] };
         });
     }
 
     async updateItem(itemId: number, fields: Partial<AgendaItem>): Promise<AgendaRecord | null> {
         return this.withLock(async () => {
             if (!existsSync(this.dbPath)) return null;
-            this.updateById("items", itemId, fields, new Set(["requiresCheckIn"]));
+            this.updateById("items", itemId, fields);
             return this.readAgendaRecordFromDb(itemId);
         });
     }
@@ -288,55 +293,15 @@ export class AgendaStore implements IAgendaStore {
         });
     }
 
-    async appendOccurrence(itemId: number, occurrence: Omit<AgendaOccurrence, "id">): Promise<AgendaOccurrence | null> {
+    async insertTriggerFire(fire: Omit<AgendaTriggerFire, "id">): Promise<AgendaTriggerFire | null> {
         return this.withLock(async () => {
-            if (!this.hasItem(itemId)) return null;
-            const row = { ...occurrence, id: this.nextChildIdInDb("occurrences") };
+            if (!this.hasItem(fire.itemId)) return null;
+            const row: AgendaTriggerFire = { ...fire, id: this.nextChildIdInDb("trigger_fire") };
             this.db.prepare(`
-                INSERT INTO occurrences (id, itemId, scheduledAt, status, doneAt)
-                VALUES (@id, @itemId, @scheduledAt, @status, @doneAt)
-            `).run(row);
-            // 裁剪到 MAX_OCCURRENCES_PER_ITEM 条，防止无限累积。
-            // 优先删 done（已结案、价值最低）：保留排序里 pending/missed 排前、done 排后，同级按 scheduledAt 取新。
-            // 即超额时先丢最旧的 done；只有 pending/missed 自身就超额时，才会裁掉其中最旧的。
-            this.db.prepare(`
-                DELETE FROM occurrences
-                 WHERE itemId = @itemId
-                   AND id NOT IN (
-                       SELECT id FROM occurrences
-                        WHERE itemId = @itemId
-                        ORDER BY (CASE WHEN status = 'done' THEN 1 ELSE 0 END), scheduledAt DESC, id DESC
-                        LIMIT @limit
-                   )
-            `).run({ itemId, limit: MAX_OCCURRENCES_PER_ITEM });
+                INSERT INTO trigger_fire (id, triggerId, itemId, scheduledAt, firedAt, delivered, action, message)
+                VALUES (@id, @triggerId, @itemId, @scheduledAt, @firedAt, @delivered, @action, @message)
+            `).run({ ...row, delivered: row.delivered ? 1 : 0 });
             return row;
-        });
-    }
-
-    async updateOccurrence(occurrenceId: number, fields: Partial<AgendaOccurrence>): Promise<AgendaRecord | null> {
-        return this.withLock(async () => {
-            if (!existsSync(this.dbPath)) return null;
-            const itemId = this.lookupItemIdForChild("occurrences", occurrenceId);
-            if (itemId == null) return null;
-            const changed = this.updateById("occurrences", occurrenceId, fields);
-            return changed ? this.readAgendaRecordFromDb(itemId) : null;
-        });
-    }
-
-    async markPendingOccurrencesMissed(itemId: number, missedAt: number): Promise<number[]> {
-        return this.withLock(async () => {
-            if (!existsSync(this.dbPath)) return [];
-            const rows = this.db.prepare(
-                "SELECT id FROM occurrences WHERE itemId = ? AND status = 'pending'"
-            ).all(itemId) as Array<{ id: number }>;
-            if (rows.length === 0) return [];
-            const update = this.db.prepare(
-                "UPDATE occurrences SET status = 'missed', doneAt = ? WHERE id = ?"
-            );
-            this.db.transaction(() => {
-                for (const row of rows) update.run(missedAt, row.id);
-            })();
-            return rows.map(r => r.id);
         });
     }
 
@@ -346,7 +311,7 @@ export class AgendaStore implements IAgendaStore {
             const data = this.readAgendaRecordFromDb(itemId);
             if (!data) return null;
             this.db.transaction(() => {
-                this.db.prepare("DELETE FROM occurrences WHERE itemId = ?").run(itemId);
+                this.db.prepare("DELETE FROM trigger_fire WHERE itemId = ?").run(itemId);
                 this.db.prepare("DELETE FROM triggers WHERE itemId = ?").run(itemId);
                 this.db.prepare("DELETE FROM items WHERE id = ?").run(itemId);
             })();
@@ -440,7 +405,7 @@ export class AgendaStore implements IAgendaStore {
         return rows.map(r => this.mapPendingRow(r));
     }
 
-    private nextChildIdInDb(table: "triggers" | "occurrences"): number {
+    private nextChildIdInDb(table: "triggers" | "trigger_fire"): number {
         const row = this.db.prepare(`SELECT MAX(id) AS id FROM ${table}`).get() as { id: number | null };
         return (row.id ?? 0) + 1;
     }

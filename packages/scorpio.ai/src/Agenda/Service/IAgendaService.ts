@@ -4,27 +4,12 @@ import type {
     AgendaCreateArgs,
     AgendaCreateResult,
     AgendaListFilter,
-    AgendaOccurrence,
     AgendaRecord,
     AgendaTriggerCreateArgs,
     AgendaTriggerReplaceAllArgs,
     AgendaTriggerUpdatePatch,
     AgendaUpdatePatch,
 } from "../types";
-
-/**
- * complete() 的返回值。三种结果互斥，调用方据此报告，无需回看 item 上的任何标志：
- * - itemCompleted=true：整条被置 Done（closedOccurrence 必为 null）。
- * - closedOccurrence!=null：关闭了一条打卡实例，主体保留 Pending（itemCompleted=false）。
- *   该实例**保留关闭前的 status/doneAt**，方便报告"关了哪一条、关之前是 pending 还是 missed"。
- * - 两者皆空：打卡条目但没找到可关闭的实例（无 pending/匹配的 occurrence）。
- */
-export interface AgendaCompleteResult {
-    record: AgendaRecord;
-    closedOccurrence: AgendaOccurrence | null;
-    /** 本次是否把整条 item 置为 Done。 */
-    itemCompleted: boolean;
-}
 
 export interface AgendaToolDescs {
     create: string;
@@ -53,14 +38,10 @@ export interface IAgendaService {
     deleteTrigger(triggerId: number): Promise<AgendaRecord | null>;
     replaceTriggers(itemId: number, args: AgendaTriggerReplaceAllArgs): Promise<AgendaRecord | null>;
     /**
-     * 完成一条 agenda。行为由条目类型决定，调用方（含 LLM）无法整条 Done 一个打卡条目：
-     * - 打卡条目（requiresCheckIn）：只关一条 occurrence（完成本次），主体永远保持 Pending。
-     *   `at` 指定要关哪一次：不传关最早 pending；传则在 pending+missed 里找 scheduledAt 最接近的（支持补办）。
-     *   要结束整条 routine 用 cancel；整条 Done 只由调度耗尽(auto)或后台手动触发。
-     * - 普通条目（todo / reminder，无 occurrence）：整条置 Done 并 disable 所有 trigger。
-     * 返回 null = item 不存在；否则返回 AgendaCompleteResult（itemCompleted / closedOccurrence 互斥说明结果）。
+     * 完成一条 agenda：整条置 Done 并 disable 所有 trigger。
+     * 返回 null = item 不存在；否则返回置 Done 后的记录。
      */
-    complete(id: number, at?: string): Promise<AgendaCompleteResult | null>;
+    complete(id: number): Promise<AgendaRecord | null>;
     cancel(id: number): Promise<AgendaRecord | null>;
     /**
      * cancel() 的逆操作（仅 item 层）：把 Cancelled/Done 的条目恢复为 Pending。
@@ -76,7 +57,7 @@ export interface IAgendaService {
      */
     reopenTrigger(triggerId: number): Promise<AgendaRecord | null>;
     /**
-     * 物理删除一条 agenda（连带 triggers / occurrences）。
+     * 物理删除一条 agenda（连带 triggers / trigger_fire 日志）。
      * 返回删除前的完整快照；找不到返回 null。
      * 仅 admin 路径用——LLM 工具走 cancel 不走 delete。
      */

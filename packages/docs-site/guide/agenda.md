@@ -16,7 +16,7 @@ An agenda **item** has a content, category, priority, optional due date, and a c
 | `interval` | Milliseconds between fires | `86400000` (every 24h) |
 | `cron` | 6-field cron (`sec min hour day month weekday`) | `0 0 9 * * 1-5` (9am weekdays) |
 
-When a trigger fires it delivers its `message` (falling back to the item content) to the bound session/channel using its `action` mode. Recurring triggers can track per-fire **occurrences** (pending → done / missed); one-shot `absolute` triggers retry briefly on delivery failure, then give up.
+When a trigger fires it delivers its `message` to the bound session/channel using its `action` mode, and the fire is recorded in the `trigger_fire` log table (pure audit, not used for scheduling). One-shot `absolute` triggers retry briefly on delivery failure, then give up.
 
 ## Configuration
 
@@ -44,7 +44,7 @@ Once enabled, the agent gets these tools:
 | `agenda_complete` | Mark an item done |
 | `agenda_cancel` | Cancel an item |
 | `agenda_trigger` | Fire / manage a trigger |
-| `agenda_wiki` | In-tool reference for edge cases (occurrences, multi-trigger, action choice) |
+| `agenda_wiki` | In-tool reference for edge cases (multi-trigger, dueAt vs trigger, action choice) |
 
 ## Agenda vs Heartbeat vs Scheduler
 

@@ -1,5 +1,4 @@
 import {
-    AgendaOccurrenceStatus,
     AgendaStatus,
     AgendaTriggerKind,
     computeNextAfterFire,
@@ -161,21 +160,15 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 return;
             }
 
-            // 仅在投递成功时记录 occurrence，避免失败积累虚假 pending 条目。
-            // 新增 pending 前，把上一轮还挂着的 pending 标为 missed——
-            // 语义：下一次提醒来了 = 上一次错过了。doneAt = scheduledAt（本次触发时刻）。
-            if (delivered && item.requiresCheckIn) {
-                const missedIds = await this.store.markPendingOccurrencesMissed(item.id, scheduledAt);
-                if (missedIds.length > 0) {
-                    logger.info(`Agenda item [${item.id}] marked ${missedIds.length} pending occurrence(s) as missed`);
-                }
-                await this.store.appendOccurrence(item.id, {
-                    itemId: item.id,
-                    scheduledAt,
-                    status: AgendaOccurrenceStatus.Pending,
-                    doneAt: null,
-                });
-            }
+            // 纯日志：每次 fire（不论投递成功与否）落一行 trigger_fire，不参与任何调度/完成逻辑。
+            await this.store.insertTriggerFire({
+                triggerId: freshTrigger.id,
+                itemId: item.id,
+                scheduledAt,
+                firedAt: Date.now(),
+                delivered,
+                action: freshTrigger.action,
+            });
 
             await this.advanceAfterFire(freshTrigger, item, scheduledAt);
         });
@@ -183,7 +176,8 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
     /**
      * admin 手动触发：立即按 trigger.action 投递一次，**不改动触发器调度状态**——
-     * fireCount / nextFireAt / maxFires / enabled 均保持不变，也不记录 occurrence。
+     * fireCount / nextFireAt / maxFires / enabled 均保持不变。
+     * 仍会落一行 trigger_fire 日志（纯记录，便于审计手动触发）。
      * 允许对已停用（enabled=false）的 trigger 触发，方便重测或补发已结束的提醒。
      * 复用 executor 并发保护：若该 trigger 正在定时触发中则拒绝，避免重复投递。
      * 返回投递结果；trigger / item 不存在时抛错。
@@ -196,6 +190,14 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         let ok = false;
         const ran = await this.executor.execute(triggerId, async () => {
             ok = await this.deliver(item, trigger);
+            await this.store.insertTriggerFire({
+                triggerId: trigger.id,
+                itemId: item.id,
+                scheduledAt: Date.now(),
+                firedAt: Date.now(),
+                delivered: ok,
+                action: trigger.action,
+            });
         });
         if (!ran) throw new Error(`Trigger ${triggerId} is currently firing`);
         return { ok };
@@ -255,7 +257,6 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         // 只有当前这条耗尽还不够——多 trigger 时其它条可能仍在循环/未到 max。
         // updateTrigger 上面已把当前条的 enabled 落库，这里 findItem 取到的就是最新状态。
         // 无限循环的 trigger 永远 enabled → item 永不自动 Done；纯 Todo（无 trigger）走不到这里，仍由 complete() 手动关。
-        // 与 requiresCheckIn（打卡）无关——后者只管 occurrence 子系统。
         if (!enabled) {
             const record = await this.store.findItem(item.id);
             const anyActive = record?.triggers.some(t => t.enabled) ?? false;

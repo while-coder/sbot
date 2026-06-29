@@ -2,21 +2,20 @@ Agenda system — full decision rules. Call agenda_wiki when uncertain about any
 
 # 1. MENTAL MODEL
 
-An agenda has THREE layers:
-- ITEM — the thing being tracked (id, content, status, requiresCheckIn, dueAt). Lifecycle: pending → done / cancelled.
+An agenda has TWO layers:
+- ITEM — the thing being tracked (id, content, status, dueAt). Lifecycle: pending → done / cancelled.
 - TRIGGERS — 0..N schedules attached to an item; each has its own kind / expr / action / message / fireCount. Disabling a trigger does NOT cancel the item.
-- OCCURRENCES — ONLY exist when requiresCheckIn=true. Each fire of a routine creates one instance the user can check off independently.
 
-Status of the ITEM is independent of triggers' enabled state and of occurrence statuses. Cancelling the item disables all triggers; disabling triggers does not cancel the item.
+Status of the ITEM is independent of triggers' enabled state. Cancelling the item disables all triggers; disabling triggers does not cancel the item.
 
-# 2. COMPLETION & THE requiresCheckIn FLAG (usually omit requiresCheckIn on create)
+# 2. COMPLETION
 
-How an item becomes done depends ONLY on its triggers — there is no completion-mode enum:
+How an item becomes done depends ONLY on its triggers — there is no completion-mode flag:
 - no triggers (plain todo) → stays pending until the user explicitly completes it (agenda_complete).
 - has a one-off / finite trigger (one absolute fire, or a count-bounded routine) → auto-closes (status→done) once the schedule is fully exhausted; the user does NOT call complete.
 - has an infinite recurring trigger → never auto-closes; ends only via agenda_cancel.
 
-requiresCheckIn is a SEPARATE boolean, default false, that ONLY controls the occurrence (per-fire check-in) subsystem — it does NOT change the completion rule above. Set requiresCheckIn=true only for per-fire check-in routines (drinking water, daily report, weekly review). See §4.
+agenda_complete always closes the WHOLE item (status→done, all triggers disabled). For a recurring routine the user keeps doing (drinking water, daily report), do NOT complete on each "did it today" — just acknowledge; the routine keeps firing. Complete only when the whole thing is truly done; stop a routine with agenda_cancel.
 
 # 3. dueAt vs TRIGGER — they are NOT the same thing
 
@@ -28,29 +27,7 @@ dueAt is PURE METADATA:
 
 Changing dueAt does NOT retime existing triggers. If the user moves a deadline AND the existing trigger was the deadline reminder, also call agenda_trigger op=update / op=replace_all with the new schedule. Otherwise the trigger keeps firing at its old time.
 
-# 4. OCCURRENCE ROUTINES (per-fire check-in)
-
-WHEN TO USE: drinking water, daily standup, weekly report, taking medication — anything where "today's done ≠ the whole thing's done".
-
-CREATE checklist:
-- requiresCheckIn: true  (REQUIRED — system won't infer this)
-- For EVERY trigger in triggers[]: action: "notify_and_record"  (REQUIRED — fires must enter conversation history so the user can see the check-in prompt and reply)
-
-LIFECYCLE:
-- Each fire creates one occurrence row (status=pending, scheduledAt=fire time).
-- agenda_complete closes exactly ONE occurrence; the routine keeps firing. It can NEVER mark the whole routine done — there is no "finish the entire routine" action for you. The item ends only when the user cancels it (agenda_cancel) or its finite schedule runs out on its own.
-- An occurrence missed before the next fire is auto-marked status=missed when the next one is generated.
-
-agenda_complete on a check-in routine — when the user reports doing it ("drank it / submitted / checked in / done for today"):
-- Plain "just did it" → agenda_complete{id} with no `at` → closes the EARLIEST pending occurrence.
-- User points at a specific past time (or backfills a missed one) → pass `at` (ISO); it matches the closest pending OR missed occurrence:
-  * "I drank it at 16:38, forgot to log it" → at=today 16:38 ISO
-  * "I submitted Monday's report" → at=Monday's fire ISO
-  * "here's the 10am report" → at=today 10:00 ISO
-- The result tells you which scheduledAt actually closed; if it doesn't match what the user meant, the match was approximate — check with the user before claiming success.
-- If nothing matched (no pending instance), say so plainly; do NOT retry as a whole-item complete.
-
-# 5. CADENCE CHANGES — cross-tool sync
+# 4. CADENCE CHANGES — cross-tool sync
 
 When the user changes cadence ("every hour" → "every 2 hours", "9am weekdays" → "10am weekdays"):
 1. Update the schedule via agenda_trigger op=update / op=replace_all.
@@ -61,7 +38,7 @@ When the user changes cadence ("every hour" → "every 2 hours", "9am weekdays" 
 
 Otherwise the displayed name stays stale and contradicts the new schedule.
 
-# 6. SURGICAL vs REPLACE — choosing the trigger op
+# 5. SURGICAL vs REPLACE — choosing the trigger op
 
 - Adding ONE trigger alongside existing ones → op=add. ("also remind me a day earlier")
 - Editing ONE specific trigger by id → op=update. ("move the 9am reminder to 10am") — read the trigger id from <existing-agenda> XML; the spec must be COMPLETE (existing kind/schedule + new field).
@@ -72,27 +49,20 @@ Otherwise the displayed name stays stale and contradicts the new schedule.
 
 Prefer op=add / op=update over op=replace_all for surgical edits — replace_all is heavier and harder for the user to reason about.
 
-# 7. COMPLETE vs CANCEL — semantically opposite
+# 6. COMPLETE vs CANCEL — semantically opposite
 
-- complete = "I did it / done" →
-  * plain todo / reminder → marks the whole item done.
-  * check-in routine → closes ONE occurrence only; the routine stays alive and keeps firing. You CANNOT finish the whole routine via complete.
+- complete = "I did it / done" → marks the whole item done; all triggers disabled.
 - cancel = "I don't need this / stop reminding me / delete it" → terminates the whole item; all triggers disabled; a routine stops firing entirely.
 
-Common confusion on a check-in routine:
-- "did today's / submitted this one" → complete (closes this instance).
-- "I'm dropping this habit / stop reminding me" → cancel (ends the routine). complete can never do this.
-- "I've built the habit, this goal is achieved" (wants the routine itself marked finished) → there's no whole-done for you; cancel it, and tell the user it's been closed out.
+For a recurring routine the difference is mostly intent/wording, but both end the item. When the user just reports "did today's" on an ongoing routine, do NEITHER — acknowledge and let it keep firing.
 
-# 8. CREATE — common pitfalls
+# 7. CREATE — common pitfalls
 
 - Trust dedup. An "already exists" result counts as success. Do NOT pre-call agenda_list to check.
 - `triggers` is an array; multiple elements = multiple active schedules on one item ("9:00 AND 18:00", "1 day before AND at deadline"). Each spec carries its own action/message — different triggers on the same item can mix invoke / notify / notify_and_record.
 - "1 hour from now", "100 days later" — compute the ISO yourself from the current time; trigger schemas only accept absolute ISO.
-- Default `action` is notify (pure text ping, fire NOT recorded in history). Use notify_and_record for occurrence routines (REQUIRED) or whenever the user wants the fire to appear as an AI message in history. Use invoke when the user wants the AI to actively work at fire time ("summarise the logs every morning at 8").
+- Default `action` is notify (pure text ping, fire NOT recorded in history). Use notify_and_record when the user wants the fire to appear as an AI message in history (e.g. so a later reply like "已交" has context). Use invoke when the user wants the AI to actively work at fire time ("summarise the logs every morning at 8").
 
-# 9. LIST — answering shape
+# 8. LIST — answering shape
 
-Output is XML <agenda-list count="N"> with nested <trigger> and <occurrence> elements. Times are UTC ISO truncated to minute. `expr` semantics: absolute=ISO; interval=ms string ("86400000"=24h); cron=6-field. Only enabled triggers are listed. For occurrence routines, all pending+missed plus the latest 10 done are kept.
-
-When answering "which ones did I miss" — cite concrete missed scheduledAt times, not just a count.
+Output is XML <agenda-list count="N"> with nested <trigger> elements. Times are UTC ISO truncated to minute. `expr` semantics: absolute=ISO; interval=ms string ("86400000"=24h); cron=6-field. Only enabled triggers are listed.

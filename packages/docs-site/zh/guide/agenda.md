@@ -16,7 +16,7 @@ Agenda 是 sbot 的有状态提醒 / 日程系统。每个日程**条目**（待
 | `interval` | 两次触发间隔的毫秒数 | `86400000`（每 24 小时） |
 | `cron` | 6 字段 cron（`秒 分 时 日 月 周`） | `0 0 9 * * 1-5`（工作日 9 点） |
 
-触发时把 `message`（缺省回退到条目内容）按其 `action` 模式投递到绑定的会话 / 渠道。周期触发器可追踪每次的**发生记录（occurrence）**（pending → done / missed）；一次性 `absolute` 触发器投递失败会短暂重试，超期则放弃。
+触发时把 `message` 按其 `action` 模式投递到绑定的会话 / 渠道，并在 `trigger_fire` 日志表里记一行（纯审计，不参与调度）。一次性 `absolute` 触发器投递失败会短暂重试，超期则放弃。
 
 ## 配置项
 
@@ -44,7 +44,7 @@ Agenda 是 sbot 的有状态提醒 / 日程系统。每个日程**条目**（待
 | `agenda_complete` | 标记条目完成 |
 | `agenda_cancel` | 取消条目 |
 | `agenda_trigger` | 触发 / 管理触发器 |
-| `agenda_wiki` | 边界场景的工具内参考（occurrence、多触发器、action 选择等） |
+| `agenda_wiki` | 边界场景的工具内参考（多触发器、dueAt vs 触发器、action 选择等） |
 
 ## Agenda vs Heartbeat vs 调度器
 

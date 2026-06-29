@@ -1,8 +1,5 @@
 import { TimeUtils } from "../Utils/TimeUtils";
-import { OCC_DISPLAY_LIMIT } from "./limits";
 import {
-    AgendaOccurrenceStatus,
-    type AgendaOccurrence,
     type AgendaRecord,
     type AgendaTrigger,
 } from "./types";
@@ -11,10 +8,9 @@ import {
  * 给 LLM（主 agent agenda_list / sync extractor existing-agenda）看的统一 XML 渲染。
  *
  * 设计原则：
- * - 暴露 triggerId / occurrenceId，让 LLM 能精确引用——TriggerUpdate / TriggerRemove / Complete{at} 才有可操作 id。
+ * - 暴露 triggerId，让 LLM 能精确引用——TriggerUpdate / TriggerRemove 才有可操作 id。
  * - 每条 trigger 的 kind/expr/action/message/nextFireAt 都列出，sync 改 9:00 那条就能定位。
  * - 只列 enabled trigger（disabled 是历史，sync 操作 active 调度，列了反而易误改）。
- * - Occurrence 只在 requiresCheckIn=true 时输出；pending / missed 全量列，done 截最近 N 条。
  */
 
 /** XML 属性值转义。同时套上引号。 */
@@ -43,40 +39,15 @@ function renderTrigger(t: AgendaTrigger): string {
     return `  <trigger ${parts.join(' ')} />`;
 }
 
-/** 选择要渲染的 occurrence：pending+missed 全量，done 最近 OCC_DISPLAY_LIMIT 条。返回按 scheduledAt 升序。 */
-function selectOccurrences(all: AgendaOccurrence[]): AgendaOccurrence[] {
-    const pending: AgendaOccurrence[] = [];
-    const missed: AgendaOccurrence[] = [];
-    const doneAll: AgendaOccurrence[] = [];
-    for (const o of all) {
-        if (o.status === AgendaOccurrenceStatus.Pending) pending.push(o);
-        else if (o.status === AgendaOccurrenceStatus.Missed) missed.push(o);
-        else if (o.status === AgendaOccurrenceStatus.Done) doneAll.push(o);
-    }
-    const doneTail = [...doneAll].sort((a, b) => b.scheduledAt - a.scheduledAt).slice(0, OCC_DISPLAY_LIMIT);
-    return [...pending, ...missed, ...doneTail].sort((a, b) => a.scheduledAt - b.scheduledAt);
-}
-
-function renderOccurrence(o: AgendaOccurrence): string {
-    const parts = [
-        `id="${o.id}"`,
-        `scheduledAt="${TimeUtils.formatIsoMinute(o.scheduledAt)}"`,
-        `status="${o.status}"`,
-    ];
-    if (o.doneAt) parts.push(`doneAt="${TimeUtils.formatIsoMinute(o.doneAt)}"`);
-    return `  <occurrence ${parts.join(' ')} />`;
-}
-
 /**
- * 把一条 AgendaRecord 渲染成单个 <agenda> 元素（含 trigger / occurrence 子元素）。
- * 没有 active trigger 也没有 occurrence 时退化为自闭合元素。
+ * 把一条 AgendaRecord 渲染成单个 <agenda> 元素（含 trigger 子元素）。
+ * 没有 active trigger 时退化为自闭合元素。
  */
 export function formatAgendaXml(record: AgendaRecord): string {
     const item = record.item;
     const headParts = [
         `id="${item.id}"`,
         `status="${item.status}"`,
-        `requiresCheckIn="${item.requiresCheckIn}"`,
         `priority="${item.priority}"`,
     ];
     if (item.dueAt) headParts.push(`dueAt="${TimeUtils.formatIsoMinute(item.dueAt)}"`);
@@ -85,24 +56,12 @@ export function formatAgendaXml(record: AgendaRecord): string {
     const activeTriggers = record.triggers.filter(t => t.enabled);
     const triggerLines = activeTriggers.map(renderTrigger);
 
-    let occurrenceLines: string[] = [];
-    if (record.occurrences.length > 0) {
-        const total = record.occurrences.length;
-        const picked = selectOccurrences(record.occurrences);
-        occurrenceLines = picked.map(renderOccurrence);
-        const omitted = total - picked.length;
-        if (omitted > 0) {
-            occurrenceLines.push(`  <!-- ${omitted} earlier done occurrences omitted -->`);
-        }
-    }
-
-    const inner = [...triggerLines, ...occurrenceLines];
-    if (inner.length === 0) {
+    if (triggerLines.length === 0) {
         return `<agenda ${headParts.join(' ')} />`;
     }
     return [
         `<agenda ${headParts.join(' ')}>`,
-        ...inner,
+        ...triggerLines,
         `</agenda>`,
     ].join('\n');
 }

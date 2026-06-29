@@ -1,5 +1,5 @@
 List the user's agenda items.
 
-Trigger phrases: "what's on my list / pending / coming up / which check-ins did I miss". Returns XML <agenda-list> with nested <trigger id .../> and <occurrence id scheduledAt .../>. Use those ids when calling agenda_trigger / agenda_complete.
+Trigger phrases: "what's on my list / pending / coming up". Returns XML <agenda-list> with nested <trigger id .../>. Use those ids when calling agenda_trigger / agenda_complete.
 
 Output-format details and answering rules → agenda_wiki.

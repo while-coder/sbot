@@ -1,9 +1,9 @@
 import type { ChatMessage } from "../../Saver";
 import type {
     AgendaItem,
-    AgendaOccurrence,
     AgendaRecord,
     AgendaTrigger,
+    AgendaTriggerFire,
 } from "../types";
 
 // ── 待处理 job 队列 ──
@@ -42,14 +42,11 @@ export interface IAgendaStore {
     updateTrigger(triggerId: number, fields: Partial<AgendaTrigger>): Promise<AgendaRecord | null>;
     updateActiveTriggersByItem(itemId: number, fields: Partial<AgendaTrigger>, exceptTriggerIds: number[]): Promise<number[]>;
     appendTrigger(itemId: number, trigger: Omit<AgendaTrigger, "id">): Promise<AgendaTrigger | null>;
-    appendOccurrence(itemId: number, occurrence: Omit<AgendaOccurrence, "id">): Promise<AgendaOccurrence | null>;
-    updateOccurrence(occurrenceId: number, fields: Partial<AgendaOccurrence>): Promise<AgendaRecord | null>;
     /**
-     * 把指定 item 下所有 pending 状态的 occurrence 标为 missed，doneAt 设为 missedAt。
-     * 通常由 TriggerEngine 在产生新一条 pending 之前调用，把上一轮"还没 complete 的"沉淀为历史 missed。
-     * 返回被标记的 occurrence id 列表（空数组表示无可标记项）。
+     * 记录一次 trigger fire 事件（含手动触发）。纯写入日志，不参与任何调度/完成逻辑。
+     * 返回写入的行（含自增 id）；item 不存在时返回 null。
      */
-    markPendingOccurrencesMissed(itemId: number, missedAt: number): Promise<number[]>;
+    insertTriggerFire(fire: Omit<AgendaTriggerFire, "id">): Promise<AgendaTriggerFire | null>;
     deleteItem(itemId: number): Promise<AgendaRecord | null>;
     /** 物理删除单条 trigger（与软停用 updateTrigger 区分），返回所属 item 的最新记录；不存在返回 null。 */
     deleteTrigger(triggerId: number): Promise<AgendaRecord | null>;

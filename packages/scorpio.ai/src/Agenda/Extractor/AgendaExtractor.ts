@@ -22,7 +22,7 @@ const RelativeTimeSchema = z.object({
     unit: z.enum(AgendaTimeUnit),
 });
 
-const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('Per-trigger delivery mode. notify (default), notify_and_record (REQUIRED for occurrence routines), invoke.');
+const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('Per-trigger delivery mode. notify (default), notify_and_record (also records the fire into the conversation history), invoke.');
 const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact words delivered WHEN this trigger fires, phrased as a present-moment ping ("Time to drink water"), NOT as a request to set a reminder ("remind me to drink water in 2 min" ✗). No fallback to content; if there is no special wording, restate the content. Recorded fires re-enter the conversation, so request-like wording can make this very sync create a duplicate agenda.');
 
 const TriggerSpecSchema = z.discriminatedUnion('kind', [
@@ -55,13 +55,11 @@ const CreateArgsSchema = z.object({
     priority: z.enum(AgendaPriority).optional(),
     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; each element carries its own action/message. Omit or [] for a plain todo with no time.'),
     dueAt: z.string().optional(),
-    requiresCheckIn: z.boolean().optional(),
 });
 
 const UpdatePatchSchema = z.object({
     content: z.string().optional(),
     priority: z.enum(AgendaPriority).optional(),
-    requiresCheckIn: z.boolean().optional(),
     dueAt: z.string().nullable().optional(),
 });
 
@@ -73,11 +71,6 @@ const AgendaExtractSchema = z.object({
     actions: z.array(z.discriminatedUnion("type", [
         z.object({ type: z.literal(AgendaActionType.Create), args: CreateArgsSchema }),
         z.object({ type: z.literal(AgendaActionType.Update), id: z.number(), patch: UpdatePatchSchema }),
-        z.object({
-            type: z.literal(AgendaActionType.Complete),
-            id: z.number(),
-            at: z.string().optional().describe('ISO datetime of the specific occurrence the user is completing. Use it when the user references a past time — including backfilling missed instances. Omit for a plain "just now" check-in.'),
-        }),
         z.object({ type: z.literal(AgendaActionType.TriggerAdd), itemId: z.number(), args: TriggerSpecSchema }),
         z.object({ type: z.literal(AgendaActionType.TriggerUpdate), triggerId: z.number(), patch: TriggerSpecSchema }),
         z.object({ type: z.literal(AgendaActionType.TriggerRemove), triggerId: z.number() }),

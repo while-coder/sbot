@@ -8,7 +8,6 @@ export type AgendaPriority = 'low' | 'normal' | 'high'
 export type AgendaSource = 'user' | 'tool' | 'sync' | 'rule'
 export type AgendaTriggerKind = 'absolute' | 'interval' | 'cron'
 export type AgendaTriggerAction = 'notify' | 'notify_and_record' | 'invoke'
-export type AgendaOccurrenceStatus = 'pending' | 'done' | 'missed'
 export type AgendaStatusFilter = AgendaStatus | 'all'
 
 export interface AgendaItem {
@@ -16,7 +15,6 @@ export interface AgendaItem {
   content: string
   status: AgendaStatus
   priority: AgendaPriority
-  requiresCheckIn: boolean
   dueAt: number | null
   source: AgendaSource
   createdAt: number
@@ -40,19 +38,10 @@ export interface AgendaTrigger {
   createdAt: number
 }
 
-export interface AgendaOccurrence {
-  id: number
-  itemId: number
-  scheduledAt: number
-  status: AgendaOccurrenceStatus
-  doneAt: number | null
-}
-
 /** 列表行：服务端 AgendaRecord + 所属模板 id。 */
 export interface AgendaRow {
   item: AgendaItem
   triggers: AgendaTrigger[]
-  occurrences: AgendaOccurrence[]
   agendaId: string
 }
 
