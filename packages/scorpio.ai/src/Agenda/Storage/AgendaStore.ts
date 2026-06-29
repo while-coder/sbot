@@ -29,6 +29,13 @@ type AgendaTable = "items" | "triggers" | "trigger_fire";
  */
 export class AgendaStore implements IAgendaStore {
     private _db: Database.Database | undefined;
+    /**
+     * dispose() 后置 true。db getter 见此即抛错，不再懒重建连接——
+     * 否则删模板（deleteAll dispose+rm）/ 进程关闭与在途 drain 竞争时，
+     * 裸用 this.db 的 pending job 方法会悄悄重开一个（甚至刚被 rm 的）库，
+     * 让 checkJobs 的 "store closed → break" catch 形同虚设。
+     */
+    private disposed = false;
     private lock = Promise.resolve();
     /**
      * 跨方法原子块（如 service.create 的 findNearDuplicate + createItem）调用 runExclusive，
@@ -42,6 +49,7 @@ export class AgendaStore implements IAgendaStore {
     ) {}
 
     private get db(): Database.Database {
+        if (this.disposed) throw new Error("AgendaStore has been disposed");
         if (!this._db) {
             const dir = path.dirname(this.dbPath);
             if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -424,6 +432,7 @@ export class AgendaStore implements IAgendaStore {
     }
 
     dispose(): void {
+        this.disposed = true;
         this._db?.close();
         this._db = undefined;
     }
