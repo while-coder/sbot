@@ -3,12 +3,16 @@ import {
     AgendaTriggerKind,
     computeNextAfterFire,
     DEFAULT_GRACE_MS,
+    SessionDeliveryMode,
     TimeUtils,
     type IAgendaStore,
     type IAgendaTriggerEngine,
     type AgendaItem,
     type AgendaTrigger,
 } from "scorpio.ai";
+
+/** invoke fire 的日志描述截断长度。 */
+const INVOKE_LOG_DESC_MAX = 100;
 import { LoggerService } from "../Core/LoggerService";
 import { TimerExecutor } from "../Core/TimerExecutor";
 import { triggerSession } from "../Core/triggerSession";
@@ -168,6 +172,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 firedAt: Date.now(),
                 delivered,
                 action: freshTrigger.action,
+                message: this.fireLogMessage(freshTrigger),
             });
 
             await this.advanceAfterFire(freshTrigger, item, scheduledAt);
@@ -197,6 +202,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                 firedAt: Date.now(),
                 delivered: ok,
                 action: trigger.action,
+                message: this.fireLogMessage(trigger),
             });
         });
         if (!ran) throw new Error(`Trigger ${triggerId} is currently firing`);
@@ -224,6 +230,19 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
             logger.warn(`Agenda trigger [${trigger.id}] failed: ${e?.message ?? String(e)}`);
             return false;
         }
+    }
+
+    /**
+     * trigger_fire.message 的取值：notify / notify_and_record 记完整投递文本；
+     * invoke 的 message 是给 AI 的长 prompt，只记一句截断后的简短描述，避免塞满日志。
+     */
+    private fireLogMessage(trigger: AgendaTrigger): string {
+        const raw = trigger.message ?? "";
+        // notify / notify_and_record：原样记投递文本。
+        if (trigger.action !== SessionDeliveryMode.Invoke) return raw;
+        // invoke：prompt 可能很长，压成一行并截断成简短描述。
+        const oneLine = raw.replace(/\s+/g, " ").trim();
+        return oneLine.length > INVOKE_LOG_DESC_MAX ? `${oneLine.slice(0, INVOKE_LOG_DESC_MAX - 1)}…` : oneLine;
     }
 
     private parseAbsoluteExpr(expr: string): number | null {

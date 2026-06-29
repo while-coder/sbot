@@ -27,6 +27,12 @@ export const EXISTING_AGENDA_LIMIT = 80;
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * 每个 item 最多保留多少条 trigger_fire 日志（按 firedAt 取最近的）。
+ * insertTriggerFire 写入后裁掉超出的最旧记录，防止高频无限 trigger 让日志无界增长。
+ */
+export const MAX_TRIGGER_FIRES_PER_ITEM = 200;
+
+/**
  * IAgendaService.listPending / admin listPendingJobs 的默认 limit。
  * 配合 PENDING_JOB_LIST_HARD_CAP 一起生效。
  */

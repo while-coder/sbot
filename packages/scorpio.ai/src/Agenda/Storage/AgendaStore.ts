@@ -6,7 +6,7 @@ import path from "path";
 import { inject } from "scorpio.di";
 import { T_AgendaDbPath } from "../../Core";
 import type { ChatMessage } from "../../Saver";
-import { ERROR_MESSAGE_MAX_LEN, PENDING_JOB_LIST_HARD_CAP } from "../limits";
+import { ERROR_MESSAGE_MAX_LEN, MAX_TRIGGER_FIRES_PER_ITEM, PENDING_JOB_LIST_HARD_CAP } from "../limits";
 import {
     AgendaPendingJobType,
     type AgendaPendingJobStatus,
@@ -301,6 +301,17 @@ export class AgendaStore implements IAgendaStore {
                 INSERT INTO trigger_fire (id, triggerId, itemId, scheduledAt, firedAt, delivered, action, message)
                 VALUES (@id, @triggerId, @itemId, @scheduledAt, @firedAt, @delivered, @action, @message)
             `).run({ ...row, delivered: row.delivered ? 1 : 0 });
+            // 裁剪到每 item 最近 MAX_TRIGGER_FIRES_PER_ITEM 条，防止高频无限 trigger 让日志无界增长。
+            this.db.prepare(`
+                DELETE FROM trigger_fire
+                 WHERE itemId = @itemId
+                   AND id NOT IN (
+                       SELECT id FROM trigger_fire
+                        WHERE itemId = @itemId
+                        ORDER BY firedAt DESC, id DESC
+                        LIMIT @limit
+                   )
+            `).run({ itemId: row.itemId, limit: MAX_TRIGGER_FIRES_PER_ITEM });
             return row;
         });
     }
