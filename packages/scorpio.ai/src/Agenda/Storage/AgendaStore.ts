@@ -60,7 +60,7 @@ export class AgendaStore implements IAgendaStore {
                     doneAt              INTEGER
                 );
                 CREATE TABLE IF NOT EXISTS triggers (
-                    id             INTEGER PRIMARY KEY,
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
                     itemId         INTEGER NOT NULL,
                     kind           TEXT    NOT NULL,
                     expr           TEXT    NOT NULL,
@@ -75,7 +75,7 @@ export class AgendaStore implements IAgendaStore {
                     createdAt      INTEGER NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS trigger_fire (
-                    id          INTEGER PRIMARY KEY,
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     triggerId   INTEGER NOT NULL,
                     itemId      INTEGER NOT NULL,
                     scheduledAt INTEGER NOT NULL,
@@ -145,12 +145,86 @@ export class AgendaStore implements IAgendaStore {
                  WHERE message IS NULL OR message = ''
             `);
 
+            // 迁移：triggers / trigger_fire 的主键从无 AUTOINCREMENT 的 INTEGER PRIMARY KEY
+            // 升级为 AUTOINCREMENT。旧定义下删除最大 id 行后新行会复用该 id，导致 trigger_fire
+            // 历史日志与新 trigger 串味。AUTOINCREMENT 关键字必须重建表才能加上（ALTER 改不了 PK），
+            // 故对旧库整表 rename→新建→拷贝→drop，保留原 id 值。CREATE TABLE IF NOT EXISTS 之上的列
+            // 迁移此时已全部完成，SELECT 的列名齐全。重建会连带丢索引，块尾统一重建索引。
+            this.migrateChildPkToAutoincrement();
+
             // 启动 sweep：把上次进程崩溃留下的 'processing' 转回 'pending' 重新跑。
             // popPendingJob 用单条 UPDATE…RETURNING 把 job 标 'processing'，
             // 配合本 sweep 实现"崩溃恢复时不重复 LLM 调用 + 不丢 job"。
             this._db.prepare(`UPDATE agenda_pending_jobs SET status = 'pending' WHERE status = 'processing'`).run();
         }
         return this._db;
+    }
+
+    /**
+     * 把 triggers / trigger_fire 的主键升级为 AUTOINCREMENT（仅旧库需要）。
+     * 检测 sqlite_master.sql 是否已含 AUTOINCREMENT，无则整表重建并保留原 id。
+     * 重建会丢掉绑在旧表上的索引，重建后统一恢复。整个过程包在事务里。
+     */
+    private migrateChildPkToAutoincrement(): void {
+        const db = this._db!;
+        const needs = (table: string): boolean => {
+            const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name=?`).get(table) as { sql?: string } | undefined;
+            return !!row?.sql && !/AUTOINCREMENT/i.test(row.sql);
+        };
+        const migrateTriggers = needs("triggers");
+        const migrateFires = needs("trigger_fire");
+        if (!migrateTriggers && !migrateFires) return;
+
+        db.transaction(() => {
+            if (migrateTriggers) {
+                db.exec(`
+                    ALTER TABLE triggers RENAME TO triggers_legacy;
+                    CREATE TABLE triggers (
+                        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                        itemId         INTEGER NOT NULL,
+                        kind           TEXT    NOT NULL,
+                        expr           TEXT    NOT NULL,
+                        action           TEXT    NOT NULL,
+                        message          TEXT,
+                        channelSessionId INTEGER NOT NULL,
+                        enabled          INTEGER NOT NULL,
+                        fireCount      INTEGER NOT NULL,
+                        maxFires       INTEGER NOT NULL,
+                        lastFiredAt    INTEGER,
+                        nextFireAt     INTEGER,
+                        createdAt      INTEGER NOT NULL
+                    );
+                    INSERT INTO triggers (id, itemId, kind, expr, action, message, channelSessionId, enabled, fireCount, maxFires, lastFiredAt, nextFireAt, createdAt)
+                        SELECT id, itemId, kind, expr, action, message, channelSessionId, enabled, fireCount, maxFires, lastFiredAt, nextFireAt, createdAt FROM triggers_legacy;
+                    DROP TABLE triggers_legacy;
+                `);
+            }
+            if (migrateFires) {
+                db.exec(`
+                    ALTER TABLE trigger_fire RENAME TO trigger_fire_legacy;
+                    CREATE TABLE trigger_fire (
+                        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                        triggerId   INTEGER NOT NULL,
+                        itemId      INTEGER NOT NULL,
+                        scheduledAt INTEGER NOT NULL,
+                        firedAt     INTEGER NOT NULL,
+                        delivered   INTEGER NOT NULL,
+                        action      TEXT    NOT NULL,
+                        message     TEXT    NOT NULL DEFAULT ''
+                    );
+                    INSERT INTO trigger_fire (id, triggerId, itemId, scheduledAt, firedAt, delivered, action, message)
+                        SELECT id, triggerId, itemId, scheduledAt, firedAt, delivered, action, message FROM trigger_fire_legacy;
+                    DROP TABLE trigger_fire_legacy;
+                `);
+            }
+            // 重建表会连带丢掉绑在旧表上的索引，统一恢复（与建表块的定义保持一致）。
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_triggers_item ON triggers (itemId, id);
+                CREATE INDEX IF NOT EXISTS idx_triggers_enabled ON triggers (enabled, nextFireAt);
+                CREATE INDEX IF NOT EXISTS idx_trigger_fire_item ON trigger_fire (itemId, firedAt);
+                CREATE INDEX IF NOT EXISTS idx_trigger_fire_trigger ON trigger_fire (triggerId, firedAt);
+            `);
+        })();
     }
 
     /** 反向查 trigger 所属的 itemId。返回 null = 找不到这一行。 */
@@ -279,28 +353,27 @@ export class AgendaStore implements IAgendaStore {
     async appendTrigger(itemId: number, trigger: Omit<AgendaTrigger, "id">): Promise<AgendaTrigger | null> {
         return this.withLock(async () => {
             if (!this.hasItem(itemId)) return null;
-            const row = { ...trigger, id: this.nextChildIdInDb("triggers") };
-            this.db.prepare(`
+            const result = this.db.prepare(`
                 INSERT INTO triggers (
-                    id, itemId, kind, expr, action, message, channelSessionId, enabled,
+                    itemId, kind, expr, action, message, channelSessionId, enabled,
                     fireCount, maxFires, lastFiredAt, nextFireAt, createdAt
                 ) VALUES (
-                    @id, @itemId, @kind, @expr, @action, @message, @channelSessionId, @enabled,
+                    @itemId, @kind, @expr, @action, @message, @channelSessionId, @enabled,
                     @fireCount, @maxFires, @lastFiredAt, @nextFireAt, @createdAt
                 )
-            `).run({ ...row, enabled: row.enabled ? 1 : 0 });
-            return row;
+            `).run({ ...trigger, enabled: trigger.enabled ? 1 : 0 });
+            return { ...trigger, id: Number(result.lastInsertRowid) };
         });
     }
 
     async insertTriggerFire(fire: Omit<AgendaTriggerFire, "id">): Promise<AgendaTriggerFire | null> {
         return this.withLock(async () => {
             if (!this.hasItem(fire.itemId)) return null;
-            const row: AgendaTriggerFire = { ...fire, id: this.nextChildIdInDb("trigger_fire") };
-            this.db.prepare(`
-                INSERT INTO trigger_fire (id, triggerId, itemId, scheduledAt, firedAt, delivered, action, message)
-                VALUES (@id, @triggerId, @itemId, @scheduledAt, @firedAt, @delivered, @action, @message)
-            `).run({ ...row, delivered: row.delivered ? 1 : 0 });
+            const result = this.db.prepare(`
+                INSERT INTO trigger_fire (triggerId, itemId, scheduledAt, firedAt, delivered, action, message)
+                VALUES (@triggerId, @itemId, @scheduledAt, @firedAt, @delivered, @action, @message)
+            `).run({ ...fire, delivered: fire.delivered ? 1 : 0 });
+            const row: AgendaTriggerFire = { ...fire, id: Number(result.lastInsertRowid) };
             // 裁剪到每 item 最近 MAX_TRIGGER_FIRES_PER_ITEM 条，防止高频无限 trigger 让日志无界增长。
             this.db.prepare(`
                 DELETE FROM trigger_fire
@@ -414,11 +487,6 @@ export class AgendaStore implements IAgendaStore {
             LIMIT @limit
         `).all({ limit: Math.max(1, Math.min(limit, PENDING_JOB_LIST_HARD_CAP)) }) as any[];
         return rows.map(r => this.mapPendingRow(r));
-    }
-
-    private nextChildIdInDb(table: "triggers" | "trigger_fire"): number {
-        const row = this.db.prepare(`SELECT MAX(id) AS id FROM ${table}`).get() as { id: number | null };
-        return (row.id ?? 0) + 1;
     }
 
     private updateById(table: AgendaTable, id: number, fields: Record<string, any>, booleanFields = new Set<string>()): boolean {

@@ -205,7 +205,9 @@ export class AgendaService implements IAgendaService {
             if (!found) return null;
             const now = Date.now();
             const schedule = this.buildTriggerScheduleFields(patch, now);
-            if (!schedule) return found.data;
+            // schedule 构建不出来 = spec 无效（absolute 缺 at、cron expr 空、kind 不合法）。
+            // 抛错而非静默返回旧记录——否则上层会误报"已更新"，LLM 以为改成功了实际什么都没动。
+            if (!schedule) throw new Error(`Invalid trigger spec for #${triggerId}: cannot build schedule (check kind / at / expr).`);
             const fields: Partial<AgendaTrigger> = {
                 ...schedule,
                 enabled: true,
@@ -274,32 +276,32 @@ export class AgendaService implements IAgendaService {
     }
 
     async complete(id: number): Promise<AgendaRecord | null> {
-        // 完成 = 整条置 Done 并停掉所有 trigger。updateItem + disableItemTriggers 跨方法，
-        // 包进 runExclusive 让并发安全。
+        return this.terminate(id, AgendaStatus.Done);
+    }
+
+    async cancel(id: number): Promise<AgendaRecord | null> {
+        return this.terminate(id, AgendaStatus.Cancelled);
+    }
+
+    /**
+     * complete / cancel 的共用实现：整条置终态并停掉所有 trigger，仅 status 不同
+     * （Done 额外写 doneAt，Cancelled 不写）。updateItem + disableItemTriggers 跨方法，
+     * 必须包进 runExclusive，否则与并发的 addTrigger / 抽取交错时，可能出现
+     * item 已置终态但并发新加的 trigger 漏掉 disable。item 不存在返回 null。
+     */
+    private async terminate(id: number, status: AgendaStatus.Done | AgendaStatus.Cancelled): Promise<AgendaRecord | null> {
         return this.agendaStore.runExclusive(async () => {
             const item = await this.loadItem(id);
             if (!item) return null;
             const now = Date.now();
             await this.agendaStore.updateItem(id, {
-                status: AgendaStatus.Done,
-                doneAt: now,
+                status,
                 updatedAt: now,
+                ...(status === AgendaStatus.Done ? { doneAt: now } : {}),
             });
             await this.disableItemTriggers(id, []);
             return this.agendaStore.findItem(id);
         });
-    }
-
-    async cancel(id: number): Promise<AgendaRecord | null> {
-        const item = await this.loadItem(id);
-        if (!item) return null;
-        const now = Date.now();
-        await this.agendaStore.updateItem(id, {
-            status: AgendaStatus.Cancelled,
-            updatedAt: now,
-        });
-        await this.disableItemTriggers(id, []);
-        return this.agendaStore.findItem(id);
     }
 
     async reopen(id: number): Promise<AgendaRecord | null> {
