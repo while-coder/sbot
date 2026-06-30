@@ -12,7 +12,7 @@ Heartbeat lets an agent wake itself up on a fixed interval and run a prompt with
 | Track reminders, routines, or one-off tasks from conversation content | [Agenda](./agenda) |
 | Run on cron (e.g. weekdays at 9am) with item state and fire history | [Agenda](./agenda) |
 
-Heartbeat is a fixed-interval loop attached to an agent + target. Agenda is the stateful scheduler for reminders, routines, and cron-style triggers.
+Heartbeat is a fixed-interval loop attached to an agent + target. Agenda is the stateful system for reminders, routines, and cron-style triggers.
 
 ## Configuration
 

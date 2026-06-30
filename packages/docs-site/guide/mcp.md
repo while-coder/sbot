@@ -27,5 +27,5 @@ Once attached to an agent, MCP tools are advertised to the model on every turn. 
 ## Tips
 
 - For local commands that need a Node toolchain, use the `npx -y` form to avoid pre-install hassle
-- Use SSE transport when the MCP server is remote or shared across multiple sbot instances
+- Use HTTP or SSE transport when the MCP server is remote or shared across multiple sbot instances
 - Sensitive secrets in env vars are masked in logs

@@ -24,18 +24,19 @@ Memory 是 Agent 的自动长期记忆。后台 **MemoryLLM** 会在每次对话
 | 字段 | 说明 |
 |-------|-------------|
 | 名称 | 该 Profile 的显示名称 |
+| 启用 | 暂停该 Profile，而不删除配置 |
 | Writer 模型 | 用于提取记忆的 MemoryLLM（推荐有推理能力的模型） |
-| Writer 系统提示词 | 控制 **提取什么** |
-| 读取路径模板 | 召回的记忆如何回填进提示词 |
+| Writer 提示词 | 控制 **提取什么** |
+| Read 提示词 | 召回的记忆如何回填进提示词 |
 
-随后在 Agent → **Memory** 区块开启 Memory 并选择 Profile。在 Memory Profiles 页面还可以 **立即运行（Run Now）** 强制提取、**Consolidate**、**Reconcile**，以及 **查看记忆**。
+随后在 Agent → **Memory** 区块开启 Memory 并选择 Profile。在 Memory Profiles 页面可以 **查看记忆**、检查 pending / failed 后台任务、**Run Extract** 唤醒排队中的抽取任务、**Consolidate** 排队整理，以及 **Reconcile** 重新扫描文件与索引。
 
 ## Memory vs Notes vs Wiki
 
 | | 写入方 | 写入时机 |
 |---|-------------|---------------|
 | [Memory](./memory) | 后台 MemoryLLM | 对话空闲后自动写入 |
-| [Notes](./note) | 当前 Agent | 对话中通过工具调用按需写入 |
-| [Wiki](./wiki) | 主要由人工 + Agent | 人工编纂；Agent 也可创建 / 编辑 |
+| [Notes](./note) | 人 / 运维者 | 手动写入，随后自动注入或通过 `note_search` 召回 |
+| [Wiki](./wiki) | 人 / Wiki 数据源插件 | 编纂后的页面供 Agent 搜索 / 读取 |
 
 三者中 Memory 最"省心、自动"。

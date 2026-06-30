@@ -12,7 +12,7 @@
 - **Memory** — Per-agent automatic long-term memory: a background MemoryLLM extracts durable knowledge after each conversation idles; the agent reads it back via `search_memory` / `read_memory`, with consolidate/reconcile maintenance
 - **Agenda** — Conversation-driven reminders, schedules, and routines with absolute / interval / cron triggers; optionally synced from the conversation after every turn and delivered to any session or channel
 - **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
-- **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
+- **MCP tools** — Standard MCP protocol (stdio/HTTP/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
 - **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), OneBot (QQ), XiaoAI, REST API, WebSocket
 - **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, sleep, session search, and cross-channel messaging
 - **Built-in MCP presets** — Playwright, Markitdown, and Exa can be enabled from the MCP tool list alongside custom MCP servers

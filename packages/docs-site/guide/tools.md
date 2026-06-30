@@ -20,9 +20,9 @@ These tools are available as built-in providers without installing external pack
 
 ## Archive
 
-- Compress and extract archive files (zip, tar, gz, etc.)
-- List archive contents
-- Read files directly from within archives
+- Create and extract ZIP archives
+- List ZIP contents
+- Read files directly from within ZIP archives
 
 ## Web
 
