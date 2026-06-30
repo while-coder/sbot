@@ -13,6 +13,7 @@
         "${workspaceFolder}/packages/sbot.commons/dist/**/*.js",
         "${workspaceFolder}/packages/scorpio.di/dist/**/*.js",
         "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
+        "${workspaceFolder}/packages/sbot.plugin/dist/**/*.js",
         "${workspaceFolder}/packages/channel.base/dist/**/*.js",
         "${workspaceFolder}/packages/channel.lark/dist/**/*.js",
         "${workspaceFolder}/packages/channel.slack/dist/**/*.js",
@@ -21,7 +22,10 @@
         "${workspaceFolder}/packages/channel.onebot/dist/**/*.js",
         "${workspaceFolder}/packages/channel.xiaoai/dist/**/*.js",
         "${workspaceFolder}/packages/channel.dingtalk/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.qq/dist/**/*.js"
+        "${workspaceFolder}/packages/channel.qq/dist/**/*.js",
+        "${workspaceFolder}/packages/wiki.base/dist/**/*.js",
+        "${workspaceFolder}/packages/wiki.local/dist/**/*.js",
+        "${workspaceFolder}/packages/wiki.gdrive/dist/**/*.js"
       ],
       "env": { "NODE_ENV": "development" },
       "cwd": "${workspaceFolder}/packages/sbot",
