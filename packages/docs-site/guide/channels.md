@@ -8,7 +8,7 @@ Select the channel type and fill in the credentials, then assign agent + saver +
 
 | Type | Required fields |
 |------|----------------|
-| Lark / Feishu | App ID, App Secret |
+| Lark / Feishu | Deployment domain, App ID, App Secret |
 | Slack | Bot Token (`xoxb-...`), App Token (`xapp-...`) |
 | WeCom | Bot ID, Secret |
 | WeChat | QR code login (credentials auto-populated) |
@@ -57,7 +57,7 @@ Select the channel type and fill in the credentials, then assign agent + saver +
 :::
 
 4. Under **Events & Callbacks**, set the subscription mode to **Long Connection**
-5. In Web UI → **Channels**, create a Lark channel and fill in **App ID** and **App Secret**
+5. In Web UI → **Channels**, create a Lark channel, choose the deployment domain, and fill in **App ID** and **App Secret**
 
 Supports event deduplication, interactive cards, per-user context isolation, and file/image send and receive.
 

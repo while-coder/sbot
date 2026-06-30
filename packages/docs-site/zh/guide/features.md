@@ -6,7 +6,7 @@
 - **多 LLM 供应商** —— OpenAI、Anthropic Claude、Google Gemini、xAI Grok、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）；网络抖动自动指数退避重试
 - **多 Agent 编排** —— Single、ReAct（递归任务分解）、Generative（多模态）三种模式，Agent 可嵌套组合
 - **ACP Agent 支持** —— Agent Client Protocol 集成，支持持久化与临时两种 Agent 模式
-- **知识库** —— 内置 Wiki，支持关键词与语义混合检索，Agent 对话中自动引用
+- **知识库** —— 可插拔 Wiki 数据源（本地文件、Google Drive 与第三方来源），支持关键词与可选语义检索
 - **长期记忆** —— 基于向量 Embedding 的语义检索，持久化上下文召回（OpenAI、Gemini、Ollama、Cohere、VoyageAI）
 - **对话压缩** —— Token 用量超阈值时自动摘要早期消息，保持上下文连续性同时降低消耗
 - **记忆（Memory）** —— Agent 级自动长期记忆：会话空闲后由后台 MemoryLLM 提炼持久知识，主 Agent 通过 `search_memory` / `read_memory` 召回，并有 consolidate / reconcile 维护任务
@@ -14,7 +14,8 @@
 - **心跳唤醒** —— 可配置的周期性自激活，让 Agent 在任意渠道主动执行预定提示词
 - **MCP 工具** —— 标准 MCP 协议（stdio / SSE），接入任意 MCP 工具生态；支持 Agent 级与全局服务器，故障自动重启
 - **多渠道** —— Web UI、CLI、飞书 / Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、OneBot（QQ）、小爱、REST API、WebSocket
-- **内置工具** —— Shell 执行、文件系统、归档操作、媒体文件读取、Python / PowerShell 内联执行、Web 抓取 / 下载、Cron 调度器、待办、提问
+- **内置工具** —— Shell 执行、文件系统、归档操作、媒体文件读取、Python / PowerShell 内联执行、Web 抓取 / 下载、等待、会话搜索、跨渠道发消息
+- **内置 MCP 预设** —— Playwright、Markitdown、Exa 可在 MCP 工具列表中与自定义 MCP 服务器一起启用
 - **技能系统** —— 可安装的 Prompt 模块，支持从 Clawhub、skills.sh、skillhub.cn 远程安装
 - **Agent 商店** —— 浏览并一键安装预打包 Agent（模型 + 提示词 + 工具 + 技能 + MCP 服务器），支持自定义源
 - **Token 用量追踪** —— 按模型统计消耗，模型响应缓存命中率可视化

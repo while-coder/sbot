@@ -30,7 +30,7 @@ Agenda 是 sbot 的有状态提醒 / 日程系统。每个日程**条目**（待
 
 随后在 Agent → **Agenda** 区块开启 Agenda 并选择 Profile。开启后会注册日程工具；配置 sync 模型后，每轮对话都会从对话内容自动校正日程条目。
 
-在 Agenda Profiles 页面 → **查看** 可浏览已存条目、按待办 / 已完成筛选、手动 **完成** / **取消**，或手动触发某个触发器用于测试。
+在 Agenda Profiles 页面 → **查看** 可浏览已存条目、按待办 / 已完成筛选、手动 **完成** / **取消**，也可以新增 / 编辑 / 停用 / 重新启用 / 删除触发器、手动触发测试，并查看每个触发器的触发历史。
 
 ## Agent 工具
 
@@ -46,10 +46,10 @@ Agenda 是 sbot 的有状态提醒 / 日程系统。每个日程**条目**（待
 | `agenda_trigger` | 触发 / 管理触发器 |
 | `agenda_wiki` | 边界场景的工具内参考（多触发器、dueAt vs 触发器、action 选择等） |
 
-## Agenda vs Heartbeat vs 调度器
+## Agenda vs Heartbeat
 
 | 需求 | 使用 |
 |------|-----|
 | 有状态的待办 / 提醒 / 日程，从对话自动同步 | **Agenda** |
+| 一次性、间隔或 cron 触发，并保留投递审计历史 | **Agenda** |
 | 每隔 N 秒 / 分钟对某 Agent 运行固定提示词 | [Heartbeat](./heartbeat) |
-| Agent 自己调用的一次性低层 cron 原语 | [调度器工具](./tools#调度器scheduler) |

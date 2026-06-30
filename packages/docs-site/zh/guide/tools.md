@@ -1,6 +1,6 @@
 # 内置工具
 
-这些工具对每个 Agent 都开箱即用，无需任何配置。可在 Agent 编辑页按需开关。
+这些工具以内置提供者形式开箱即用，无需安装额外包。可在 Agent 编辑页按需开关；少数工具还依赖当前 Saver 或渠道上下文。
 
 ## 命令执行
 
@@ -29,29 +29,30 @@
 - 抓取网页 URL 并转换为干净的 Markdown
 - 从网络下载文件
 
-## 调度器（Scheduler）
+## 等待（Sleep）
 
-- 标准 6 字段 Cron 表达式（`秒 分 时 日 月 周`）
-- 服务重启后任务自动恢复
-- 任务可指向渠道用户、Web 会话或工作目录
-- 可设置最大执行次数，到达上限后自动清理
-- 可在 Web UI 管理，也可直接让 Agent 创建定时任务
+- 在限定秒数内暂停执行
+- 适合等待外部进程、文件生成或服务状态变化
 
-## 待办（Todo）
+## 会话搜索
 
-- Agent 可创建、完成和查询待办任务
-- Web UI 提供 Todo 管理页面
+- 当当前 Saver 支持历史归档检索时，搜索过往对话
+- 支持多组关键词匹配，并返回角色、时间与内容预览
 
-## 提问（Ask）
+## 渠道工具
 
-- Agent 在执行过程中可暂停并向用户提出结构化问题
-- 支持的题型：单选、多选、文本输入
-- 兼容 Web UI 与飞书；用户回答后 Agent 自动继续
+- 查询已配置渠道、渠道会话和已知用户
+- 让 Agent 工作流向其他渠道会话或用户发送消息
+
+## 内置 MCP 预设
+
+MCP 页面还会列出 Playwright、Markitdown、Exa 等内置预设。它们按 MCP 服务器方式管理，而不是本地工具；可在 [MCP 工具](./mcp) 或 Agent 的 MCP 标签页中启用。
 
 ## 知识与记忆
 
 当 [Notes](./note)、[Wiki](./wiki)、[Memory](./memory) 或 [Agenda](./agenda) 在会话 / 渠道中启用时，Agent 会自动获得对应的工具：
 
-- **Notes / Wiki** —— 读取、写入、检索和更新条目
+- **Notes** —— `note_search`，召回向量索引中的笔记
+- **Wiki** —— `wiki_search` / `wiki_read`，搜索并读取已分配的 Wiki 页面
 - **Memory** —— `search_memory` / `read_memory`，召回后台提取的长期记忆
 - **Agenda** —— `agenda_create` / `agenda_list` / `agenda_update` / `agenda_complete` / `agenda_cancel` / `agenda_trigger`，管理提醒与日程

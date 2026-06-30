@@ -10,10 +10,11 @@ Skill files live in `~/.sbot/skills/`. Each skill is a `SKILL.md` file with fron
 
 ## Installation
 
-Three ways to add skills:
+Ways to add skills:
 
 - **Search & install from a hub** — built-in registries: Clawhub, skills.sh, skillhub.cn
-- **Custom registries** — add additional URLs in **Settings**
+- **Install by URL** — paste a supported skill URL from a hub
+- **Install from ZIP** — upload one or more `.zip` files that contain `SKILL.md`
 - **Manual** — drop `SKILL.md` files into `~/.sbot/skills/` directly
 
 ## Assignment

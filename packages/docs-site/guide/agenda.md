@@ -25,12 +25,13 @@ An **Agenda Profile** is the store + optional auto-sync. Sidebar → **Agenda Pr
 | Field | Description |
 |-------|-------------|
 | Name | Display name for this profile |
+| Enabled | Pause the profile without deleting it |
 | Sync Model | Optional. The model that auto-syncs agenda items from the conversation after each turn (leave empty to disable sync) |
 | Sync Prompt | Optional. Prompt file controlling sync behavior (defaults to `agenda/sync/default.txt`) |
 
 Then, in an agent → **Agenda** section, toggle Agenda on and pick the profile. Enabling it registers the agenda tools; with a sync model, items are reconciled from the conversation automatically each turn.
 
-From the Agenda Profiles page → **View** you can browse stored items, filter by pending/done, manually **Complete** / **Cancel**, or fire a trigger manually for testing.
+From the Agenda Profiles page → **View** you can browse stored items, filter by pending/done, manually **Complete** / **Cancel**, add/edit/disable/reopen/delete triggers, fire a trigger manually for testing, and inspect each trigger's fire history.
 
 ## Agent Tools
 
@@ -46,10 +47,10 @@ Once enabled, the agent gets these tools:
 | `agenda_trigger` | Fire / manage a trigger |
 | `agenda_wiki` | In-tool reference for edge cases (multi-trigger, dueAt vs trigger, action choice) |
 
-## Agenda vs Heartbeat vs Scheduler
+## Agenda vs Heartbeat
 
 | Need | Use |
 |------|-----|
 | Stateful todos / reminders / schedules, auto-synced from conversation | **Agenda** |
+| One-shot, interval, or cron triggers with delivery audit history | **Agenda** |
 | Run a fixed prompt every N seconds/minutes against an agent | [Heartbeat](./heartbeat) |
-| Low-level cron primitive the agent calls itself for a one-off | [Scheduler tool](./tools#scheduler) |

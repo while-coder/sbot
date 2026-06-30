@@ -2,23 +2,27 @@
 
 侧栏 → **工具** → 新建
 
-[Model Context Protocol（MCP）](https://modelcontextprotocol.io/) 让 Agent 通过标准协议调用外部工具。sbot 同时支持 stdio 和 SSE 两种传输方式，提供全局共享服务器与 Agent 级覆盖。
+[Model Context Protocol（MCP）](https://modelcontextprotocol.io/) 让 Agent 通过标准协议调用外部工具。sbot 支持 stdio、HTTP、SSE 三种传输方式，并提供内置预设、全局共享服务器与 Agent 专属服务器。
 
 ## 添加服务器
 
 - **stdio** —— 命令 + 参数（如 `npx -y some-mcp-package`）；可按服务器配置环境变量
+- **http** —— 远程 MCP Endpoint URL + 可选请求头
 - **sse** —— 远程 URL + 可选请求头（用于托管的 MCP 服务）
 
 ## 配置
 
+- **内置预设** —— Playwright、Markitdown、Exa 以及本地内置工具组会出现在同一个 MCP 列表中
 - **全局服务器** —— 所有 Agent 共享
-- **Agent 级覆盖** —— 打开 Agent → MCP 标签页 → 启用特定服务器
+- **Agent 专属服务器** —— 打开 Agent → MCP 标签页，可启用全局提供者，也可添加仅该 Agent 使用的 MCP 服务器
 - **故障自动重启** —— stdio 服务器异常退出后自动重新拉起
 - **懒启动** —— 服务器仅在使用它的 Agent 运行时才启动
+- **工具超时** —— 可覆盖慢工具的单次调用超时时间
+- **Prompt / Resource 工具** —— 可选把 MCP prompts 和 resources 包装成辅助工具供 Agent 调用
 
 ## 使用方式
 
-挂载到 Agent 后，MCP 工具会在每轮对话中暴露给模型。Agent 自动发现可用工具并调用；工具结果会被回传到对话中。
+挂载到 Agent 后，MCP 工具会在每轮对话中暴露给模型。Web UI 可查看某个提供者暴露的工具、Prompts、Resources 和 Resource Templates；工具结果会被回传到对话中。
 
 ## 提示
 

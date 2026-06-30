@@ -4,15 +4,15 @@ Sidebar → **Heartbeats** → New
 
 Heartbeat lets an agent wake itself up on a fixed interval and run a prompt without any user message — useful for monitoring, daily summaries, scheduled outreach, or any "check in periodically and do X" workflow.
 
-## When to Use Heartbeat vs Scheduler
+## When to Use Heartbeat vs Agenda
 
 | Need | Use |
 |------|-----|
 | Run a fixed prompt every N seconds/minutes | **Heartbeat** |
-| Run on cron (e.g. weekdays at 9am) | [Scheduler tool](./tools#scheduler) |
-| One-off reminder | [Scheduler tool](./tools#scheduler) |
+| Track reminders, routines, or one-off tasks from conversation content | [Agenda](./agenda) |
+| Run on cron (e.g. weekdays at 9am) with item state and fire history | [Agenda](./agenda) |
 
-Heartbeat is a higher-level loop attached to an agent + target; the Scheduler tool is a lower-level cron primitive the agent can call itself.
+Heartbeat is a fixed-interval loop attached to an agent + target. Agenda is the stateful scheduler for reminders, routines, and cron-style triggers.
 
 ## Configuration
 

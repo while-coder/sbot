@@ -6,7 +6,7 @@
 - **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, xAI Grok, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.); automatic retry with exponential backoff on transient failures
 - **Multi-agent orchestration** — Single, ReAct (recursive task decomposition), and Generative (multimodal) modes; agents can be nested and composed
 - **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
-- **Knowledge base** — Built-in wiki with hybrid keyword + semantic search, referenced by agents during conversations
+- **Knowledge base** — Pluggable wiki data sources (local files, Google Drive, and third-party providers) with keyword + optional semantic search
 - **Long-term memory** — Vector-embedding semantic search for persistent context recall (OpenAI, Google, Ollama, Cohere, VoyageAI)
 - **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
 - **Memory** — Per-agent automatic long-term memory: a background MemoryLLM extracts durable knowledge after each conversation idles; the agent reads it back via `search_memory` / `read_memory`, with consolidate/reconcile maintenance
@@ -14,7 +14,8 @@
 - **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
 - **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), OneBot (QQ), XiaoAI, REST API, WebSocket
-- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo, ask
+- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, sleep, session search, and cross-channel messaging
+- **Built-in MCP presets** — Playwright, Markitdown, and Exa can be enabled from the MCP tool list alongside custom MCP servers
 - **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
 - **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources
 - **Token usage tracking** — Per-model consumption statistics, model response caching with hit/miss metrics

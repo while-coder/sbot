@@ -24,6 +24,12 @@
 
 选择多模态模型，用于文本 + 图像混合内容生成。
 
+### ACP
+
+把外部 Agent Client Protocol 进程作为 Agent 运行。后台提供 Claude Code、Codex、OpenCode、Cline、Qwen Code 等快速填充预设，也可以自定义启动命令、参数、环境变量、会话模式和初始化超时。
+
+**Persistent** 模式会让外部进程在多轮对话间常驻复用；**Transient** 模式则在每轮结束后关闭会话。
+
 ## 配置项
 
 | 区块 | 用途 |
@@ -37,6 +43,7 @@
 | 记忆 | Agent 级长期记忆，由后台 MemoryLLM 提取 —— 详见 [Memory](./memory) |
 | 日程 | Agent 级提醒 / 日程，可从对话自动同步 —— 详见 [Agenda](./agenda) |
 | 心跳 | 周期性自激活 —— 详见 [Heartbeat](./heartbeat) |
+| ACP 启动配置 | ACP Agent 的外部进程命令、参数、环境变量、会话模式和初始化超时 |
 
 ## 预制 Agent
 

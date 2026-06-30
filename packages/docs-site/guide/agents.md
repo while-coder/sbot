@@ -24,6 +24,12 @@ Each dispatched sub-task can inherit context from the parent conversation (`none
 
 Pick a multimodal model for mixed text + image content generation.
 
+### ACP
+
+Run an external Agent Client Protocol process as the agent. Presets are available for Claude Code, Codex, OpenCode, Cline, and Qwen Code; you can also provide a custom command, args, environment variables, session mode, and initialization timeout.
+
+Use **Persistent** mode to keep the external process alive across turns, or **Transient** mode to close the session after each turn.
+
 ## Configuration
 
 | Section | Purpose |
@@ -37,6 +43,7 @@ Pick a multimodal model for mixed text + image content generation.
 | Memory | Per-agent long-term memory via background MemoryLLM — see [Memory](./memory) |
 | Agenda | Per-agent reminders / schedules, optionally synced from the conversation — see [Agenda](./agenda) |
 | Heartbeat | Periodic self-activation — see [Heartbeat](./heartbeat) |
+| ACP command | External ACP process command, args, env, session mode, and init timeout for ACP agents |
 
 ## Pre-Built Agents
 

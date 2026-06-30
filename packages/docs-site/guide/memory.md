@@ -24,18 +24,19 @@ A **Memory Profile** defines how memories are extracted and read. Sidebar → **
 | Field | Description |
 |-------|-------------|
 | Name | Display name for this profile |
+| Enabled | Pause the profile without deleting it |
 | Writer Model | The MemoryLLM used to extract memories (a reasoning-capable model recommended) |
-| Writer System Prompt | Controls **what** gets extracted |
-| Read Path Template | How retrieved memories are formatted back into the prompt |
+| Writer Prompt | Controls **what** gets extracted |
+| Read Prompt | How retrieved memories are formatted back into the prompt |
 
-Then, in an agent → **Memory** section, toggle Memory on and pick the profile. From the Memory Profiles page you can also **Run Now** (force extraction), **Consolidate**, **Reconcile**, and **View Memories**.
+Then, in an agent → **Memory** section, toggle Memory on and pick the profile. From the Memory Profiles page you can **View Memories**, inspect pending/failed background jobs, **Run Extract** to wake the queued extractor, **Consolidate** to queue cleanup, and **Reconcile** to rescan files and indexes.
 
 ## Memory vs Notes vs Wiki
 
 | | Who writes? | When written? |
 |---|-------------|---------------|
 | [Memory](./memory) | Background MemoryLLM | After the conversation idles, automatically |
-| [Notes](./note) | The active agent | Mid-turn, via tool call when relevant |
-| [Wiki](./wiki) | Humans (mostly) + agent | Curated; agent can also create/edit |
+| [Notes](./note) | Humans / operators | Manually, then recalled automatically or via `note_search` |
+| [Wiki](./wiki) | Humans / wiki source plugins | Curated pages, then searched/read by agents |
 
 Memory is the most "set and forget" of the three.

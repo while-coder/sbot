@@ -2,23 +2,27 @@
 
 Sidebar → **Tools** → New
 
-[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) lets agents call external tools through a standard protocol. sbot supports both stdio and SSE transports, with global servers shared across all agents and per-agent overrides.
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) lets agents call external tools through a standard protocol. sbot supports stdio, HTTP, and SSE transports, with built-in presets, global servers shared across agents, and per-agent servers.
 
 ## Adding a Server
 
 - **stdio** — command + args (e.g. `npx -y some-mcp-package`); environment variables can be configured per server
+- **http** — remote MCP endpoint URL + optional headers
 - **sse** — remote URL + optional headers (for hosted MCP services)
 
 ## Configuration
 
+- **Built-in presets** — Playwright, Markitdown, Exa, and local built-in tool groups are listed from the same MCP screen
 - **Global servers** — shared across every agent
-- **Per-agent overrides** — open an agent → MCP tab → enable specific servers
+- **Per-agent servers** — open an agent → MCP tab to enable global providers or add agent-only MCP servers
 - **Auto-restart** — failed stdio servers are automatically respawned
 - **Lazy start** — servers boot only when an agent that uses them runs
+- **Tool timeout** — override the per-call timeout for slow tools
+- **Prompt / Resource tools** — optionally expose MCP prompts and resources through generated helper tools
 
 ## Usage
 
-Once attached to an agent, MCP tools are advertised to the model on every turn. The agent discovers available tools and calls them automatically; tool results are fed back into the conversation.
+Once attached to an agent, MCP tools are advertised to the model on every turn. The Web UI can inspect a provider's tools, prompts, resources, and resource templates, and tool results are fed back into the conversation.
 
 ## Tips
 

@@ -2,14 +2,26 @@
 
 Sidebar → **Knowledge (Docs)** → New
 
-A Wiki is a structured, human-curated knowledge base of pages (title + content + tags). Agents can search, read, write, and update pages via built-in tools — making it a great fit for project documentation, runbooks, FAQs, and team-shared references.
+A Wiki is a structured knowledge base of pages (title + content + tags). Agents can search and read assigned wikis during conversations, while the Web UI manages writable sources such as local files. This makes it a good fit for project documentation, runbooks, FAQs, and team-shared references.
 
 ## Configuration
 
 | Field | Description |
 |-------|-------------|
 | Name | Wiki identifier |
+| Source Type | Data source plugin, such as local files or Google Drive |
+| Source Config | Extra fields required by the selected source |
 | Embedding | Optional — when set, enables hybrid keyword + semantic search; without it, falls back to keyword-only search |
+
+## Data Sources
+
+Wiki sources are plugin-based:
+
+- **Local files** — the default writable source; pages are stored as Markdown under the wiki cache directory
+- **Google Drive** — a read-only source that treats a Drive folder as a wiki directory and exports Docs/Sheets/Slides into readable text
+- **Third-party plugins** — additional wiki providers can be loaded through the plugin system
+
+Read-only sources hide page creation, editing, and deletion in the Web UI.
 
 ## How It Works
 
@@ -26,9 +38,8 @@ Once a Wiki is assigned to a session/channel, the agent automatically gets:
 
 - `wiki_search` — query by keyword and/or semantic similarity
 - `wiki_read` — read a full page by id
-- `wiki_create` — add a new page (title, content, tags)
-- `wiki_update` — patch an existing page
-- `wiki_delete` — remove a page
+
+Page creation, editing, and deletion are managed from the Wiki page in the Web UI for writable sources.
 
 ## Assignment
 

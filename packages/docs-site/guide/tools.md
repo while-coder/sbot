@@ -1,6 +1,6 @@
 # Built-in Tools
 
-These tools are available to every agent without any configuration. Toggle them per-agent in the agent edit page.
+These tools are available as built-in providers without installing external packages. Toggle them per-agent in the agent edit page; a few tools also depend on the current saver or channel context.
 
 ## Command Execution
 
@@ -29,29 +29,30 @@ These tools are available to every agent without any configuration. Toggle them 
 - Fetch URLs and convert HTML to clean Markdown
 - Download files from the web
 
-## Scheduler
+## Sleep
 
-- Standard 6-field cron expressions (`second minute hour day month weekday`)
-- Persisted across restarts
-- Tasks can target a channel user, a web session, or a working directory
-- Optional max run count with auto-cleanup
-- Manageable via the Web UI or by asking the agent directly
+- Pause execution for a bounded number of seconds
+- Useful when an agent needs to wait for an external process, file, or service
 
-## Todo
+## Session Search
 
-- Agents can create, complete, and query todo tasks
-- Web UI provides a Todo management page
+- Search previous conversation history when the active Saver supports archive search
+- Match multiple keyword groups and return compact previews with role and timestamp
 
-## Ask
+## Channel Tools
 
-- Agents can pause mid-task and ask the user structured questions
-- Supported question types: single-select, multi-select, text input
-- Works across Web UI and Lark; the agent resumes automatically after the user responds
+- List configured channels, channel sessions, and known users
+- Send a message to another channel session or user from an agent workflow
+
+## Built-in MCP Presets
+
+The MCP page also lists built-in presets such as Playwright, Markitdown, and Exa. They are configured like MCP servers rather than local tools, so enable them from [MCP Tools](./mcp) or the agent's MCP tab.
 
 ## Knowledge & Memory
 
 When [Notes](./note), [Wiki](./wiki), [Memory](./memory), or [Agenda](./agenda) is enabled for the session/channel, the agent automatically gets the matching tools:
 
-- **Notes / Wiki** — read, write, search, and update entries
+- **Notes** — `note_search` to recall vector-indexed notes
+- **Wiki** — `wiki_search` / `wiki_read` to search and read assigned wiki pages
 - **Memory** — `search_memory` / `read_memory` to recall background-extracted long-term memories
 - **Agenda** — `agenda_create` / `agenda_list` / `agenda_update` / `agenda_complete` / `agenda_cancel` / `agenda_trigger` to manage reminders and schedules

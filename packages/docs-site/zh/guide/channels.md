@@ -8,14 +8,14 @@
 
 | 类型 | 必填字段 |
 |------|----------------|
-| Lark / 飞书 | App ID、App Secret |
+| Lark / 飞书 | 部署域、App ID、App Secret |
 | Slack | Bot Token（`xoxb-...`）、App Token（`xapp-...`） |
 | 企业微信 WeCom | Bot ID、Secret |
 | 微信 WeChat | 扫码登录（凭据自动获取） |
 | 钉钉 DingTalk | Client ID、Client Secret |
 | QQ（官方 Bot） | App ID、Client Secret |
 | OneBot（QQ 完整协议） | WS Host、WS Port、可选 Access Token |
-| 小爱 XiaoAI | 小米账号 ID、密码、设备名称 |
+| 小爱 XiaoAI | 小米账号 ID、登录凭据、音箱名称 |
 
 ## Lark / 飞书
 
@@ -57,7 +57,7 @@
 :::
 
 4. 在 **事件与回调** 中将订阅方式设置为 **长连接**
-5. 在 Web UI → **渠道** 中创建 Lark 渠道，填入 **App ID** 和 **App Secret**
+5. 在 Web UI → **渠道** 中创建 Lark 渠道，选择部署域，并填入 **App ID** 和 **App Secret**
 
 支持事件去重、互动卡片、多用户上下文隔离，以及文件和图片的收发。
 
@@ -109,7 +109,6 @@
 |------|------|
 | Client ID | 应用的 Client ID（AppKey） |
 | Client Secret | 应用的 Client Secret（AppSecret） |
-| 群聊回复时 @ 发送者 | 可选，群聊回复是否 @ 提问者 |
 
 ### 与机器人对话
 
@@ -150,7 +149,6 @@
 |------|------|
 | App ID | QQ 机器人 App ID |
 | Client Secret | QQ 机器人 AppSecret |
-| 群聊回复时 @ 发送者 | 可选 |
 
 ### 与机器人对话
 
