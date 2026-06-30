@@ -328,6 +328,7 @@ async function remove(p: ProfileRow) {
 
     <PathPickerModal
       ref="pathPicker"
+      nested
       :transport="pickerTransport"
       :labels="pickerLabels"
       @confirm="p => { form.overrides.workPath = p }"

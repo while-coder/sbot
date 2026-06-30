@@ -8,6 +8,8 @@ import { resolveLabels } from '../labels'
 const props = defineProps<{
   transport: IChatTransport
   labels?: ChatLabels
+  /** 从抽屉/弹层中打开时设为 true，使用更高的 z-index 盖住宿主层 */
+  nested?: boolean
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
@@ -156,6 +158,7 @@ defineExpose({ open })
     :title="L.selectDirTitle"
     width="480px"
     class="chatui-picker-modal"
+    :nested="nested"
   >
     <template #toolbar>
       <SInput

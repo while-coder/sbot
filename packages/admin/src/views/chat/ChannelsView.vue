@@ -779,12 +779,19 @@ async function refresh() {
         <template #meta="{ item: c }">
           <span class="session-meta-id">{{ c.id }}</span>
           <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
-          <span class="session-meta-chip" :class="Array.isArray(c.notes) && c.notes.length ? '' : 'muted'">{{ t('common.note') }}: {{ Array.isArray(c.notes) && c.notes.length ? c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') : t('common.not_configured') }}</span>
-          <span class="session-meta-chip" :class="Array.isArray((c as any).wikis) && (c as any).wikis.length ? '' : 'muted'">{{ t('common.wiki') }}: {{ Array.isArray((c as any).wikis) && (c as any).wikis.length ? (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') : t('common.not_configured') }}</span>
-          <span class="session-meta-chip" :class="c.workPath ? 'blue' : 'muted'">{{ t('directory.path_label') }}: {{ c.workPath || t('common.not_configured') }}</span>
-          <span class="session-meta-chip" :class="c.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ c.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
-          <span class="session-meta-chip" :class="c.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ c.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
-          <span class="session-meta-chip" :class="c.intentModel ? '' : 'muted'">{{ t('channels.intent_model') }}: {{ c.intentModel ? (modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel) : t('common.not_configured') }}</span>
+          <span v-if="Array.isArray(c.notes) && c.notes.length" class="session-meta-chip">{{ t('common.note') }}: {{ c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') }}</span>
+          <span v-if="Array.isArray((c as any).wikis) && (c as any).wikis.length" class="session-meta-chip">{{ t('common.wiki') }}: {{ (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') }}</span>
+          <span v-if="c.memory" class="session-meta-chip">{{ t('channels.memory_label') }}: {{ memoryProfileOptions.find(m => m.id === c.memory)?.label || c.memory }}</span>
+          <span v-if="c.agenda" class="session-meta-chip">{{ t('channels.agenda_label') }}: {{ agendaProfileOptions.find(a => a.id === c.agenda)?.label || c.agenda }}</span>
+          <span v-if="c.workPath" class="session-meta-chip blue">{{ t('directory.path_label') }}: {{ c.workPath }}</span>
+          <span v-if="c.streamVerbose" class="session-meta-chip green">{{ t('channels.stream_verbose') }}: {{ t('common.enabled') }}</span>
+          <span v-if="c.autoApproveAllTools" class="session-meta-chip orange">{{ t('settings.auto_approve_all') }}: {{ t('common.enabled') }}</span>
+          <span v-if="c.disableWorkspaceContext" class="session-meta-chip orange">{{ t('channels.workspace_context_off') }}</span>
+          <span v-if="c.disableWorkspaceSkills" class="session-meta-chip orange">{{ t('channels.workspace_skills_off') }}</span>
+          <span v-if="c.approvalTimeout != null && c.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ c.approvalTimeout }} / {{ c.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
+          <span v-if="c.askTimeout != null && c.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ c.askTimeout }}</span>
+          <span v-if="c.mergeWindow != null && c.mergeWindow > 0" class="session-meta-chip">{{ t('channels.merge_window') }}: {{ c.mergeWindow }}ms</span>
+          <span v-if="c.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel }}</span>
           <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
           <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
         </template>
@@ -1051,6 +1058,7 @@ async function refresh() {
     <AgendaListModal ref="agendaListModal" />
     <PathPickerModal
       ref="pathPicker"
+      nested
       :transport="pickerTransport"
       :labels="pickerLabels"
       @confirm="p => { if (editingSession) sessionForm.overrides.workPath = p; else form.workPath = p }"
