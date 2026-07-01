@@ -18,6 +18,10 @@ const TARGETS = {
       zh: 'packages/sbot/ReleaseNote.zh.md',
     },
   },
+  cli: {
+    tagPrefix: 'cli-v',
+    pkgJson: 'packages/cli/package.json',
+  },
 };
 
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
@@ -192,7 +196,7 @@ function main() {
   run('git push');
   run(`git push origin "${tag}"`);
 
-  const workflowName = { app: 'Release App', sbot: 'Release sbot' }[target] || `Release ${target}`;
+  const workflowName = { app: 'Release App', sbot: 'Release sbot', cli: 'Release CLI' }[target] || `Release ${target}`;
   console.log('');
   console.log(`✓ pushed tag ${tag} — workflow "${workflowName}" triggered`);
 }

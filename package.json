@@ -41,6 +41,7 @@
 
     "release:sbot": "node scripts/release.js sbot",
     "release:app": "node scripts/release.js app",
+    "release:cli": "node scripts/release.js cli",
 
     "debug:docs": "pnpm --filter sbot-docs run dev",
     "build:docs": "pnpm --filter sbot-docs run build",

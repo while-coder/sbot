@@ -2,26 +2,19 @@ This release includes the following main changes:
 
 ### Added
 
-1. Added `sbot update`, which updates sbot to the latest version and stops the running service first when needed.
-2. Added more built-in chat commands, including `/status`, `/workpath`, `/agent`, `/saver`, `/note`, `/wiki`, `/memory`, `/agenda`, `/autoapprove`, `/tokens`, `/version`, and `/history`.
-3. Added richer Agenda trigger controls: fire a trigger manually, delete a trigger, choose the delivery session per trigger, and mark routines as per-fire check-ins.
-4. Added DingTalk file sending, plus session recovery from saved metadata so proactive messages can still be delivered after a restart.
-5. Added ReAct sub-task tracking with task listing, resumable task state, optional parent-context injection, and nested-depth protection.
-6. Added Agent management helpers for reference counts, unused-Agent hints, skill exclusions in "use all" mode, and generated sub-agent capability descriptions.
+1. Added Agenda trigger fire history: every trigger records its past fires, viewable from the admin panel, with a retention cap.
+2. Reworked the Agenda management page with a dedicated trigger edit modal and trigger field editor for clearer management.
+3. Added resource reference display: see which objects reference an Agent, Memory, Note, Wiki, Saver, or channel, with hints for unused items.
+4. Added log downloads from the admin panel.
+5. Added parallel tool-call execution for faster responses in multi-tool scenarios.
+6. Added a `disableWorkspaceMcp` setting to turn off the workspace MCP.
 
 ### Improved
 
-1. Improved channel send/list guidance so the AI can look up a person or group by name before sending messages or files.
-2. Improved Lark message history with sender names and clearer pagination instructions.
-3. Improved generated-file delivery links so files saved in nested working-directory paths can be shared correctly.
-4. Simplified Agenda concepts by replacing category/completion-mode combinations with a clearer check-in switch.
-5. Slimmed down release tooling by removing the old helper package flow and pointing XiaoAI credential setup to sbox.
+1. Simplified Agenda concepts by removing occurrences in favor of clearer trigger fire records; the auto-extraction pass no longer completes or cancels items, leaving item termination entirely to the user's in-conversation tools.
+2. Unified channel loading behind a pluggable model, added the `sbot.plugin` config-field package, and gave config fields conditional visibility (showWhen) and multi-line (Textarea) input.
 
 ### Fixed
 
-1. Fixed Agenda trigger startup and reload races that could drop schedules or cause duplicate firing.
-2. Fixed multi-trigger Agenda items being marked done too early; an item now completes only after all active triggers are exhausted.
-3. Fixed Agenda delivery target storage and channel session metadata, improving reminder and proactive-message delivery after restarts.
-4. Fixed Windows command execution and process cleanup sometimes opening a console window.
-5. Fixed built-in command results being treated as ordinary AI replies in chat.
-6. Fixed embedded-client file downloads and terminal connections in environments where direct browser links or sockets are unavailable.
+1. Fixed inaccurate Saver resource reference counts.
+2. Fixed several Agenda storage and trigger-scheduling issues.

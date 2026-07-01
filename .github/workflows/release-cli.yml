@@ -1,0 +1,78 @@
+name: Release CLI
+
+on:
+  push:
+    tags: ['cli-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build cli
+        run: pnpm run build:cli
+
+      - name: Resolve and verify version
+        id: version
+        shell: bash
+        run: |
+          PKG_VERSION=$(node -p "require('./packages/cli/package.json').version")
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#cli-v}"
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "::error::Tag version ($TAG_VERSION) does not match packages/cli/package.json version ($PKG_VERSION)"
+              exit 1
+            fi
+          fi
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=cli-v$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes
+        id: notes
+        shell: bash
+        run: |
+          BODY=$(node -e "
+            const p = require('./packages/cli/package.json');
+            const en = p.releasenoteEn || '';
+            const zh = p.releasenoteZh || '';
+            process.stdout.write([en, zh].filter(Boolean).join('\n\n'));
+          ")
+          [ -z "$BODY" ] && BODY="sbot-cli v${{ steps.version.outputs.version }}"
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            echo "$BODY"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish to npm
+        if: github.event_name == 'push'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm --filter sbot-cli publish --no-git-checks
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 'sbot-cli v${{ steps.version.outputs.version }}'
+          body: ${{ steps.notes.outputs.body }}
+          draft: true
+          prerelease: false

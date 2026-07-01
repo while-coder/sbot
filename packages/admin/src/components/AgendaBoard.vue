@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { marked } from 'marked'
 import { SBadge, SButton, SEntityList, SFormItem, SModal, SSelect, STextarea } from 'sbot-ui'
 import AgendaTriggerFields from '@/components/AgendaTriggerFields.vue'
 import {
@@ -81,6 +82,10 @@ function triggerActionLabel(trigger: AgendaTrigger): string { return t(`agenda.a
 function formatTime(ts: number | null | undefined): string {
   if (!ts) return t('agenda.no_time')
   return new Date(ts).toLocaleString()
+}
+
+function renderMessage(msg: string): string {
+  return marked.parse(msg, { async: false }) as string
 }
 
 interface EditForm {
@@ -364,7 +369,7 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
                   </div>
                   <div v-if="trigger.message" class="agenda-trigger-msg">
                     <dt>{{ t('agenda.trigger_message') }}</dt>
-                    <dd>{{ trigger.message }}</dd>
+                    <dd class="agenda-trigger-md" v-html="renderMessage(trigger.message)" />
                   </div>
                 </dl>
               </li>
@@ -679,6 +684,73 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
   overflow-wrap: anywhere;
 }
 .agenda-trigger-msg { grid-column: 1 / -1; }
+
+/* ── Trigger 消息的 Markdown 渲染（紧凑版） ── */
+.agenda-trigger-md {
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-sm);
+  background: var(--sui-bg);
+  padding: var(--sui-sp-2) var(--sui-sp-3);
+  line-height: 1.6;
+}
+.agenda-trigger-md :deep(> *:first-child) { margin-top: 0; }
+.agenda-trigger-md :deep(> *:last-child) { margin-bottom: 0; }
+.agenda-trigger-md :deep(p) { margin: 0 0 var(--sui-sp-2); }
+.agenda-trigger-md :deep(h1),
+.agenda-trigger-md :deep(h2),
+.agenda-trigger-md :deep(h3),
+.agenda-trigger-md :deep(h4) {
+  margin: var(--sui-sp-2) 0 var(--sui-sp-1);
+  font-size: var(--sui-fs-sm);
+  font-weight: 700;
+  color: var(--sui-fg);
+}
+.agenda-trigger-md :deep(ul),
+.agenda-trigger-md :deep(ol) {
+  margin: 0 0 var(--sui-sp-2);
+  padding-left: 20px;
+}
+.agenda-trigger-md :deep(li) { margin-bottom: 2px; }
+.agenda-trigger-md :deep(code) {
+  font-family: var(--sui-font-mono);
+  font-size: var(--sui-fs-xs);
+  background: var(--sui-bg-hover);
+  padding: 1px 5px;
+  border-radius: var(--sui-radius-sm);
+  color: var(--sui-fg);
+}
+.agenda-trigger-md :deep(pre) {
+  background: var(--sui-bg-hover);
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-sm);
+  padding: var(--sui-sp-2) var(--sui-sp-3);
+  overflow-x: auto;
+  margin: var(--sui-sp-1) 0 var(--sui-sp-2);
+}
+.agenda-trigger-md :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+.agenda-trigger-md :deep(a) {
+  color: var(--sui-info-link);
+  text-decoration: none;
+}
+.agenda-trigger-md :deep(a:hover) { text-decoration: underline; }
+.agenda-trigger-md :deep(blockquote) {
+  border-left: 3px solid var(--sui-border-strong);
+  margin: var(--sui-sp-1) 0 var(--sui-sp-2);
+  padding: 2px 10px;
+  color: var(--sui-fg-muted);
+}
+.agenda-trigger-md :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--sui-border);
+  margin: var(--sui-sp-2) 0;
+}
+.agenda-trigger-row--disabled .agenda-trigger-grid dd.agenda-trigger-md,
+.agenda-trigger-row--disabled .agenda-trigger-grid dd.agenda-trigger-md :deep(*) {
+  text-decoration: none;
+}
 
 .agenda-sub-hint {
   margin: 0 0 var(--sui-sp-2);
