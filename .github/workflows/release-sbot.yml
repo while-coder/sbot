@@ -85,5 +85,5 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: 'sbot v${{ steps.version.outputs.version }}'
           body: ${{ steps.notes.outputs.body }}
-          draft: true
+          draft: false
           prerelease: false
