@@ -24,6 +24,7 @@ interface ProfileRow {
   autoApproveAllTools: boolean | null
   disableWorkspaceContext: boolean | null
   disableWorkspaceSkills: boolean | null
+  disableWorkspaceMcp: boolean | null
   approvalTimeout: number | null
   approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
@@ -133,7 +134,7 @@ function emptyOverrides(): SessionOverrides {
     agentId: null, saver: null, notes: null, wikis: null,
     useChannelNotes: null, useChannelWikis: null,
     workPath: null, streamVerbose: null, autoApproveAllTools: null,
-    disableWorkspaceContext: null, disableWorkspaceSkills: null,
+    disableWorkspaceContext: null, disableWorkspaceSkills: null, disableWorkspaceMcp: null,
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
@@ -177,6 +178,7 @@ function openEdit(p: ProfileRow) {
       autoApproveAllTools: toTriBool(p.autoApproveAllTools),
       disableWorkspaceContext: toTriBool(p.disableWorkspaceContext),
       disableWorkspaceSkills: toTriBool(p.disableWorkspaceSkills),
+      disableWorkspaceMcp: toTriBool(p.disableWorkspaceMcp),
       approvalTimeout: p.approvalTimeout,
       approvalTimeoutValue: p.approvalTimeoutValue,
       askTimeout: p.askTimeout,
@@ -235,6 +237,7 @@ function buildPayload(f: ProfileForm): Record<string, any> {
     autoApproveAllTools: o.autoApproveAllTools,
     disableWorkspaceContext: o.disableWorkspaceContext,
     disableWorkspaceSkills: o.disableWorkspaceSkills,
+    disableWorkspaceMcp: o.disableWorkspaceMcp,
     approvalTimeout: o.approvalTimeout,
     approvalTimeoutValue: o.approvalTimeoutValue,
     askTimeout: o.askTimeout,

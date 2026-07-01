@@ -9,7 +9,7 @@ import { LoggerService } from "./LoggerService";
 
 const logger = LoggerService.getLogger("Database.ts");
 const DBVersionName = "db_version";
-const DBSchemaVersion = "session_metadata";
+const DBSchemaVersion = "workspace_mcp";
 const DBVersion: string = `${config.pkg.version}:${DBSchemaVersion}`;
 export type MessageRow = {
   id: string;
@@ -122,6 +122,7 @@ export type SessionProfileRow = {
   autoApproveAllTools: boolean | null;
   disableWorkspaceContext: boolean | null;
   disableWorkspaceSkills: boolean | null;
+  disableWorkspaceMcp: boolean | null;
 
   approvalTimeout: number | null;
   approvalTimeoutValue: ApprovalTimeoutValue | null;
@@ -480,6 +481,12 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "是否关闭工作目录 Skill 自动导入",
+        },
+        disableWorkspaceMcp: {
+          type: DataTypes.BOOLEAN,
+          allowNull: true,
+          defaultValue: null,
+          comment: "是否关闭工作目录 MCP 自动导入",
         },
         approvalTimeout: {
           type: DataTypes.INTEGER,

@@ -62,6 +62,8 @@ export interface AgentRunOptions {
     disableWorkspaceContext?: boolean;
     /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
     disableWorkspaceSkills?: boolean;
+    /** 关闭工作目录 .mcp.json 中 MCP server 的自动导入 */
+    disableWorkspaceMcp?: boolean;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: StructuredToolInterface[];
     /** 归属会话 DB 主键（channel_session.id） */
@@ -152,6 +154,7 @@ export class AgentRunner {
                 dbSessionId,
                 workPath,
                 disableWorkspaceSkills: options.disableWorkspaceSkills,
+                disableWorkspaceMcp: options.disableWorkspaceMcp,
             });
             await agent.stream(query, callbacks, signal);
         } finally {

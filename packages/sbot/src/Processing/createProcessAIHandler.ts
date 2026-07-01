@@ -39,6 +39,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const askTimeoutMessage = resolved.askTimeoutMessage;
         const disableWorkspaceContext = resolved.disableWorkspaceContext ?? false;
         const disableWorkspaceSkills = resolved.disableWorkspaceSkills ?? false;
+        const disableWorkspaceMcp = resolved.disableWorkspaceMcp ?? false;
         const threadId = resolved.threadKey;  // = String(profile.id)
 
         sessionHandler.approvalTimeoutMs = approvalTimeout > 0 ? approvalTimeout * 1000 : 0;
@@ -112,6 +113,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             workPath,
             disableWorkspaceContext,
             disableWorkspaceSkills,
+            disableWorkspaceMcp,
             agentTools,
             memoryId: resolved.memory,
             agendaId: resolved.agenda,

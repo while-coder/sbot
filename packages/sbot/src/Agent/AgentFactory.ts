@@ -46,6 +46,8 @@ export interface AgentCreateOptions {
     workPath?: string;
     /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
     disableWorkspaceSkills?: boolean;
+    /** 关闭工作目录 .mcp.json 中 MCP server 的自动导入 */
+    disableWorkspaceMcp?: boolean;
 }
 
 /**
@@ -64,8 +66,9 @@ export class AgentFactory {
         if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
             const toolEntry = agentEntry as ToolAgentEntry;
             const workspaceSkillPath = options.disableWorkspaceSkills ? undefined : options.workPath;
+            const workspaceMcpPath = options.disableWorkspaceMcp ? undefined : options.workPath;
             await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath, toolEntry.skillsExclude);
-            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude);
+            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude, workspaceMcpPath);
         }
 
         if (agentType === AgentMode.ACP) {
@@ -90,6 +93,7 @@ export class AgentFactory {
                 dbSessionId: options.dbSessionId,
                 workPath: options.workPath,
                 disableWorkspaceSkills: options.disableWorkspaceSkills,
+                disableWorkspaceMcp: options.disableWorkspaceMcp,
             });
 
         switch (agentType) {
@@ -169,6 +173,7 @@ export class AgentFactory {
         mcpParams?: Record<string, Record<string, any>>,
         agentTools?: StructuredToolInterface[],
         mcpExclude?: string[],
+        workspaceMcpPath?: string,
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = container.resolve<AgentToolService>(IAgentToolService);
@@ -211,6 +216,17 @@ export class AgentFactory {
         }
 
         toolService.registerMcpServers(config.getAgentMcpServers(agentName));
+
+        // 工作目录级 MCP 自动导入：<workPath>/.mcp.json（最后注册，优先级最高）
+        if (workspaceMcpPath) {
+            const workspaceMcp = config.getWorkspaceMcpServers(workspaceMcpPath);
+            for (const cfg of Object.values(workspaceMcp)) {
+                // stdio 型 server 未指定 cwd 时，默认以工作目录为 cwd
+                const c = cfg as any;
+                if (c.command && !c.cwd) c.cwd = workspaceMcpPath;
+            }
+            toolService.registerMcpServers(workspaceMcp);
+        }
     }
 
     /**

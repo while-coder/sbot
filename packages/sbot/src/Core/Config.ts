@@ -543,6 +543,23 @@ class Config {
     }
     return {};
   }
+  /**
+   * 读取工作目录级 MCP 配置：`<workPath>/.mcp.json`
+   * 支持 `{ mcpServers: {...} }` 或直接的服务器映射两种格式
+   */
+  getWorkspaceMcpServers(workPath: string): MCPServers {
+    const mcpConfigPath = path.join(workPath, ".mcp.json");
+    try {
+      if (fs.existsSync(mcpConfigPath)) {
+        const content = fs.readFileSync(mcpConfigPath, "utf-8");
+        const parsed = JSON.parse(content);
+        return (parsed.mcpServers || parsed) as MCPServers;
+      }
+    } catch (error) {
+      // 读取失败时返回空对象
+    }
+    return {};
+  }
   getSaverDBPath(saverId: string, saverThreadId?: string, ext?: string) {
     if (saverThreadId) return this.getConfigPath(`savers/${saverId}/${saverThreadId}${ext}`)
     return this.getConfigPath(`savers/${saverId}`, true)

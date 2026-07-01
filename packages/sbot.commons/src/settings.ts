@@ -248,6 +248,8 @@ export interface SessionConfig {
   disableWorkspaceContext?: boolean
   /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
   disableWorkspaceSkills?: boolean
+  /** 关闭工作目录 .mcp.json 中 MCP server 的自动导入 */
+  disableWorkspaceMcp?: boolean
   /** Memory profile UUID（对应 memoryProfiles 中的 key） */
   memory?: string
   /** Agenda 模板 UUID（对应 agendaProfiles 中的 key） */
@@ -288,6 +290,8 @@ export interface ChannelConfig {
   disableWorkspaceContext?: boolean
   /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
   disableWorkspaceSkills?: boolean
+  /** 关闭工作目录 .mcp.json 中 MCP server 的自动导入 */
+  disableWorkspaceMcp?: boolean
   /** Approval 等待超时（秒），<=0 或不设置则不超时 */
   approvalTimeout?: number
   /** Approval 超时后的默认结果，默认 'deny' */

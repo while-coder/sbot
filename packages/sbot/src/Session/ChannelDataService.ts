@@ -27,6 +27,7 @@ export interface EffectiveSessionResolved {
     autoApproveAllTools?: boolean;
     disableWorkspaceContext?: boolean;
     disableWorkspaceSkills?: boolean;
+    disableWorkspaceMcp?: boolean;
     approvalTimeout?: number;
     approvalTimeoutValue?: ApprovalTimeoutValue;
     askTimeout?: number;
@@ -141,6 +142,7 @@ export class ChannelDataService {
             autoApproveAllTools: profile.autoApproveAllTools ?? channel?.autoApproveAllTools ?? undefined,
             disableWorkspaceContext: profile.disableWorkspaceContext ?? channel?.disableWorkspaceContext ?? undefined,
             disableWorkspaceSkills: profile.disableWorkspaceSkills ?? channel?.disableWorkspaceSkills ?? undefined,
+            disableWorkspaceMcp: profile.disableWorkspaceMcp ?? channel?.disableWorkspaceMcp ?? undefined,
             approvalTimeout: profile.approvalTimeout ?? channel?.approvalTimeout ?? undefined,
             approvalTimeoutValue: profile.approvalTimeoutValue ?? channel?.approvalTimeoutValue ?? undefined,
             askTimeout: profile.askTimeout ?? channel?.askTimeout ?? undefined,
@@ -244,6 +246,7 @@ export class ChannelDataService {
                 autoApproveAllTools: p?.autoApproveAllTools ?? null,
                 disableWorkspaceContext: p?.disableWorkspaceContext ?? null,
                 disableWorkspaceSkills: p?.disableWorkspaceSkills ?? null,
+                disableWorkspaceMcp: p?.disableWorkspaceMcp ?? null,
                 approvalTimeout: p?.approvalTimeout ?? null,
                 approvalTimeoutValue: p?.approvalTimeoutValue ?? null,
                 askTimeout: p?.askTimeout ?? null,
@@ -345,6 +348,7 @@ export class ChannelDataService {
             autoApproveAllTools: body.autoApproveAllTools === undefined ? undefined : (body.autoApproveAllTools ?? null),
             disableWorkspaceContext: body.disableWorkspaceContext === undefined ? undefined : (body.disableWorkspaceContext ?? null),
             disableWorkspaceSkills: body.disableWorkspaceSkills === undefined ? undefined : (body.disableWorkspaceSkills ?? null),
+            disableWorkspaceMcp: body.disableWorkspaceMcp === undefined ? undefined : (body.disableWorkspaceMcp ?? null),
             approvalTimeout: body.approvalTimeout === undefined ? undefined : (body.approvalTimeout ?? null),
             approvalTimeoutValue: body.approvalTimeoutValue === undefined ? undefined : (body.approvalTimeoutValue ?? null),
             askTimeout: body.askTimeout === undefined ? undefined : (body.askTimeout ?? null),
@@ -390,6 +394,7 @@ export class ChannelDataService {
             autoApproveAllTools: current?.autoApproveAllTools ?? null,
             disableWorkspaceContext: current?.disableWorkspaceContext ?? null,
             disableWorkspaceSkills: current?.disableWorkspaceSkills ?? null,
+            disableWorkspaceMcp: current?.disableWorkspaceMcp ?? null,
             approvalTimeout: current?.approvalTimeout ?? null,
             approvalTimeoutValue: current?.approvalTimeoutValue ?? null,
             askTimeout: current?.askTimeout ?? null,
@@ -477,6 +482,7 @@ export class ChannelDataService {
             workPath: body.workPath ?? null,
             disableWorkspaceContext: body.disableWorkspaceContext ?? null,
             disableWorkspaceSkills: body.disableWorkspaceSkills ?? null,
+            disableWorkspaceMcp: body.disableWorkspaceMcp ?? null,
             memory: normalizeRef(body.memory),
             agenda: normalizeRef(body.agenda),
         }, { where: { id: profile.id } });
@@ -499,6 +505,7 @@ export class ChannelDataService {
         if (body.autoApproveAllTools !== undefined) profileUpdate.autoApproveAllTools = !!body.autoApproveAllTools;
         if (body.disableWorkspaceContext !== undefined) profileUpdate.disableWorkspaceContext = body.disableWorkspaceContext ?? null;
         if (body.disableWorkspaceSkills !== undefined) profileUpdate.disableWorkspaceSkills = body.disableWorkspaceSkills ?? null;
+        if (body.disableWorkspaceMcp !== undefined) profileUpdate.disableWorkspaceMcp = body.disableWorkspaceMcp ?? null;
         if (body.memory !== undefined) profileUpdate.memory = normalizeRef(body.memory);
         if (body.agenda !== undefined) profileUpdate.agenda = normalizeRef(body.agenda);
         if (Object.keys(profileUpdate).length > 0) {
@@ -780,6 +787,7 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     autoApproveAllTools: boolean | null;
     disableWorkspaceContext: boolean | null;
     disableWorkspaceSkills: boolean | null;
+    disableWorkspaceMcp: boolean | null;
     approvalTimeout: number | null;
     approvalTimeoutValue: ApprovalTimeoutValue | null;
     askTimeout: number | null;

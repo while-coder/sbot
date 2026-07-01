@@ -178,6 +178,7 @@ export class SettingsRoutes {
                     autoApproveAllTools: profile?.autoApproveAllTools || undefined,
                     disableWorkspaceContext: profile?.disableWorkspaceContext ?? undefined,
                     disableWorkspaceSkills: profile?.disableWorkspaceSkills ?? undefined,
+                    disableWorkspaceMcp: profile?.disableWorkspaceMcp ?? undefined,
                     memory: profile?.memory ?? channel?.memory ?? null,
                     agenda: profile?.agenda ?? channel?.agenda ?? null,
                 });

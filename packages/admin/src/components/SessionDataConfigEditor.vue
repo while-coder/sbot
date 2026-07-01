@@ -16,6 +16,7 @@ export interface DataConfigValue {
   autoApproveAllTools: boolean | null
   disableWorkspaceContext: boolean | null
   disableWorkspaceSkills: boolean | null
+  disableWorkspaceMcp: boolean | null
   approvalTimeout: number | null
   approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
@@ -109,6 +110,7 @@ const resourcesBadge = computed(() => {
   if (props.modelValue.workPath) n++
   if (props.modelValue.disableWorkspaceContext) n++
   if (props.modelValue.disableWorkspaceSkills) n++
+  if (props.modelValue.disableWorkspaceMcp) n++
   return n || ''
 })
 
@@ -129,13 +131,13 @@ const runtimeBadge = computed(() => {
   return n || ''
 })
 
-function booleanSelectValue(key: 'streamVerbose' | 'autoApproveAllTools' | 'disableWorkspaceContext' | 'disableWorkspaceSkills'): string {
+function booleanSelectValue(key: 'streamVerbose' | 'autoApproveAllTools' | 'disableWorkspaceContext' | 'disableWorkspaceSkills' | 'disableWorkspaceMcp'): string {
   const v = props.modelValue[key]
   if (isProfileMode() && v === null) return ''
   return v ? 'true' : 'false'
 }
 
-function updateBool(key: 'streamVerbose' | 'autoApproveAllTools' | 'disableWorkspaceContext' | 'disableWorkspaceSkills', value: string) {
+function updateBool(key: 'streamVerbose' | 'autoApproveAllTools' | 'disableWorkspaceContext' | 'disableWorkspaceSkills' | 'disableWorkspaceMcp', value: string) {
   update(key, isProfileMode() && value === '' ? null : value === 'true')
 }
 
@@ -231,6 +233,13 @@ function setTimeoutMode(key: 'approvalTimeout' | 'askTimeout', mode: string) {
     </SFormItem>
     <SFormItem :label="t('agents.disable_workspace_skills')" :hint="inheritLabel('disableWorkspaceSkills', fmtBool) || t('agents.disable_workspace_skills_hint')">
       <SSelect :model-value="booleanSelectValue('disableWorkspaceSkills')" @update:model-value="v => updateBool('disableWorkspaceSkills', String(v))">
+        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
+        <option value="true">{{ t('common.enabled') }}</option>
+        <option value="false">{{ t('common.disabled') }}</option>
+      </SSelect>
+    </SFormItem>
+    <SFormItem :label="t('agents.disable_workspace_mcp')" :hint="inheritLabel('disableWorkspaceMcp', fmtBool) || t('agents.disable_workspace_mcp_hint')">
+      <SSelect :model-value="booleanSelectValue('disableWorkspaceMcp')" @update:model-value="v => updateBool('disableWorkspaceMcp', String(v))">
         <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
         <option value="true">{{ t('common.enabled') }}</option>
         <option value="false">{{ t('common.disabled') }}</option>

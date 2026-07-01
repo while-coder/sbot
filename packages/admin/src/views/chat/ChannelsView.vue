@@ -62,6 +62,7 @@ interface ChannelSessionRow {
   autoApproveAllTools: boolean | null
   disableWorkspaceContext: boolean | null
   disableWorkspaceSkills: boolean | null
+  disableWorkspaceMcp: boolean | null
   approvalTimeout: number | null
   approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
@@ -173,6 +174,7 @@ interface ProfileFull extends ProfileOption {
   autoApproveAllTools?: boolean | null
   disableWorkspaceContext?: boolean | null
   disableWorkspaceSkills?: boolean | null
+  disableWorkspaceMcp?: boolean | null
   approvalTimeout?: number | null
   approvalTimeoutValue?: ApprovalTimeoutValue | null
   askTimeout?: number | null
@@ -200,7 +202,7 @@ function emptyOverrides(): SessionOverrides {
     agentId: null, saver: null, notes: null, wikis: null,
     useChannelNotes: null, useChannelWikis: null,
     workPath: null, streamVerbose: null, autoApproveAllTools: null,
-    disableWorkspaceContext: null, disableWorkspaceSkills: null,
+    disableWorkspaceContext: null, disableWorkspaceSkills: null, disableWorkspaceMcp: null,
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
@@ -228,6 +230,7 @@ function profileToOverrides(p: ProfileFull): SessionOverrides {
     autoApproveAllTools: toTriBool(p.autoApproveAllTools),
     disableWorkspaceContext: toTriBool(p.disableWorkspaceContext),
     disableWorkspaceSkills: toTriBool(p.disableWorkspaceSkills),
+    disableWorkspaceMcp: toTriBool(p.disableWorkspaceMcp),
     approvalTimeout: p.approvalTimeout ?? null,
     approvalTimeoutValue: p.approvalTimeoutValue ?? null,
     askTimeout: p.askTimeout ?? null,
@@ -346,6 +349,7 @@ async function saveSession() {
     autoApproveAllTools: o.autoApproveAllTools,
     disableWorkspaceContext: o.disableWorkspaceContext,
     disableWorkspaceSkills: o.disableWorkspaceSkills,
+    disableWorkspaceMcp: o.disableWorkspaceMcp,
     approvalTimeout: o.approvalTimeout,
     approvalTimeoutValue: o.approvalTimeoutValue,
     askTimeout: o.askTimeout,
@@ -372,6 +376,7 @@ async function saveSession() {
     autoApproveAllTools: orig.autoApproveAllTools,
     disableWorkspaceContext: orig.disableWorkspaceContext,
     disableWorkspaceSkills: orig.disableWorkspaceSkills,
+    disableWorkspaceMcp: orig.disableWorkspaceMcp,
     approvalTimeout: orig.approvalTimeout,
     approvalTimeoutValue: orig.approvalTimeoutValue,
     askTimeout: orig.askTimeout,
@@ -417,7 +422,7 @@ const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
   name: '', type: '', config: {}, agent: '', saver: '', notes: [],
   workPath: '', streamVerbose: false, autoApproveAllTools: false,
-  disableWorkspaceContext: false, disableWorkspaceSkills: false,
+  disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false,
   approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny,
   askTimeout: 0, askTimeoutMessage: '',
   intentModel: '', intentPrompt: '', intentThreshold: 0.7,
@@ -437,6 +442,7 @@ const channelDataConfig = computed<DataConfigValue>({
     autoApproveAllTools: form.value.autoApproveAllTools ?? false,
     disableWorkspaceContext: form.value.disableWorkspaceContext ?? false,
     disableWorkspaceSkills: form.value.disableWorkspaceSkills ?? false,
+    disableWorkspaceMcp: form.value.disableWorkspaceMcp ?? false,
     approvalTimeout: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeout : null,
     approvalTimeoutValue: form.value.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny,
     askTimeout: form.value.askTimeout && form.value.askTimeout > 0 ? form.value.askTimeout : null,
@@ -457,6 +463,7 @@ const channelDataConfig = computed<DataConfigValue>({
     form.value.autoApproveAllTools = !!v.autoApproveAllTools
     form.value.disableWorkspaceContext = !!v.disableWorkspaceContext
     form.value.disableWorkspaceSkills = !!v.disableWorkspaceSkills
+    form.value.disableWorkspaceMcp = !!v.disableWorkspaceMcp
     form.value.approvalTimeout = v.approvalTimeout ?? 0
     form.value.approvalTimeoutValue = v.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny
     form.value.askTimeout = v.askTimeout ?? 0
@@ -628,7 +635,7 @@ function openAdd() {
   editingId.value = null
   clearActionState()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
-  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formTriggerTools.value = []
   formToolsMode.value = 'default'
@@ -640,7 +647,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, disableWorkspaceMcp: !!c.disableWorkspaceMcp, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
   formTools.value = [...(c.tools ?? [])]
   formTriggerTools.value = [...(c.triggerTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
@@ -682,6 +689,7 @@ async function save() {
       autoApproveAllTools: form.value.autoApproveAllTools || undefined,
       disableWorkspaceContext: form.value.disableWorkspaceContext || undefined,
       disableWorkspaceSkills: form.value.disableWorkspaceSkills || undefined,
+      disableWorkspaceMcp: form.value.disableWorkspaceMcp || undefined,
       approvalTimeout: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeout : undefined,
       approvalTimeoutValue: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeoutValue : undefined,
       askTimeout: form.value.askTimeout && form.value.askTimeout > 0 ? form.value.askTimeout : undefined,
@@ -788,6 +796,7 @@ async function refresh() {
           <span v-if="c.autoApproveAllTools" class="session-meta-chip orange">{{ t('settings.auto_approve_all') }}: {{ t('common.enabled') }}</span>
           <span v-if="c.disableWorkspaceContext" class="session-meta-chip orange">{{ t('channels.workspace_context_off') }}</span>
           <span v-if="c.disableWorkspaceSkills" class="session-meta-chip orange">{{ t('channels.workspace_skills_off') }}</span>
+          <span v-if="c.disableWorkspaceMcp" class="session-meta-chip orange">{{ t('channels.workspace_mcp_off') }}</span>
           <span v-if="c.approvalTimeout != null && c.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ c.approvalTimeout }} / {{ c.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
           <span v-if="c.askTimeout != null && c.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ c.askTimeout }}</span>
           <span v-if="c.mergeWindow != null && c.mergeWindow > 0" class="session-meta-chip">{{ t('channels.merge_window') }}: {{ c.mergeWindow }}ms</span>
