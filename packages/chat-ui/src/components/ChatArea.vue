@@ -5,7 +5,8 @@ import type {
   ToolCallEvent, ToolApprovalPayload, AskEvent, AskAnswerPayload,
   DisplayContent, UsageInfo,
 } from '../types'
-import { SButton } from 'sbot-ui'
+import type { CommandInfo } from '../transport'
+import { SSelect } from 'sbot-ui'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
 import { useAttachments } from '../composables/useAttachments'
@@ -29,11 +30,25 @@ const props = withDefaults(defineProps<{
   fetchThinks?: (url: string) => Promise<any>
   usage?: UsageInfo | null
   contextWindow?: number
+  autoApprove?: boolean
+  commands?: CommandInfo[]
+  agent?: string
+  agentOptions?: { value: string; label: string }[]
+  saver?: string
+  saverOptions?: { value: string; label: string }[]
+  workPath?: string
 }>(), {
   showAttachments: false,
   thinksUrlPrefix: null,
   tasksUrlPrefix: null,
   usage: null,
+  autoApprove: false,
+  commands: () => [],
+  agent: '',
+  agentOptions: () => [],
+  saver: '',
+  saverOptions: () => [],
+  workPath: '',
 })
 
 const emit = defineEmits<{
@@ -41,6 +56,10 @@ const emit = defineEmits<{
   approve: [payload: ToolApprovalPayload]
   answer: [payload: AskAnswerPayload]
   abort: []
+  'toggle-auto-approve': [value: boolean]
+  'update-agent': [value: string]
+  'update-config': [field: string, value: unknown]
+  'open-path-picker': [currentPath: string]
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
@@ -193,11 +212,6 @@ defineExpose({ scrollToBottom })
       />
     </div>
 
-    <!-- Stop bar -->
-    <div v-if="isStreaming" class="chatui-stop-bar">
-      <SButton type="danger" size="sm" @click="emit('abort')">{{ L.stop }}</SButton>
-    </div>
-
     <!-- Compact usage strip -->
     <div
       v-if="isCompact && usage && usage.totalTokens > 0"
@@ -218,17 +232,19 @@ defineExpose({ scrollToBottom })
       </span>
     </div>
 
-    <!-- Input bar -->
-    <div
-      class="chatui-input-bar"
-      :class="{ 'chatui-drag-over': isDragging, 'chatui-compact': isCompact }"
-      @dragover="onInputBarDragOver"
-      @dragleave="onInputBarDragLeave"
-      @drop.capture="isDragging = false"
-      @drop="onInputBarDrop"
-    >
-      <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileChange" />
-      <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+    <!-- Input bar (card) -->
+    <div class="chatui-input-wrap" :class="{ 'chatui-compact': isCompact }">
+      <div
+        class="chatui-input-card"
+        :class="{ 'chatui-drag-over': isDragging }"
+        @dragover="onInputBarDragOver"
+        @dragleave="onInputBarDragLeave"
+        @drop.capture="isDragging = false"
+        @drop="onInputBarDrop"
+      >
+        <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileChange" />
+
+        <!-- Attachment chips -->
         <div v-if="attachments.length > 0" class="chatui-attachments">
           <div v-for="(att, i) in attachments" :key="att.name" class="chatui-attachment-chip">
             <img v-if="isImageMime(att.type) && att.dataUrl" :src="att.dataUrl" class="chatui-attachment-thumb" />
@@ -237,16 +253,110 @@ defineExpose({ scrollToBottom })
             <button class="chatui-attachment-remove" @click="removeAttachment(i)">×</button>
           </div>
         </div>
+
+        <!-- Editor -->
         <RichInput
           ref="richInputRef"
           :placeholder="L.inputPlaceholder"
+          :commands="commands"
           @submit="send"
           @files="addFiles"
         />
+
+        <!-- Toolbar -->
+        <div class="chatui-input-toolbar">
+          <div class="chatui-input-toolbar-side">
+            <button
+              v-if="showAttachments"
+              class="chatui-icon-btn"
+              :title="L.addAttachment"
+              @click="pickFile"
+            >
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+                <path d="M10 5v10" />
+                <path d="M5 10h10" />
+              </svg>
+            </button>
+            <button
+              class="chatui-approve-chip"
+              :class="{ 'chatui-approve-chip--on': autoApprove }"
+              :title="autoApprove ? L.autoApproved : L.requestApproval"
+              @click="emit('toggle-auto-approve', !autoApprove)"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 1.8 2.6 4v3.4c0 3.1 2.2 5.3 5.4 6.8 3.2-1.5 5.4-3.7 5.4-6.8V4L8 1.8Z" />
+                <path v-if="autoApprove" d="M5.8 8.1 7.3 9.6 10.4 6.3" />
+              </svg>
+              <span>{{ autoApprove ? L.autoApproved : L.requestApproval }}</span>
+              <svg class="chatui-approve-caret" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 4.5 3 3 3-3" />
+              </svg>
+            </button>
+            <SSelect
+              v-if="agentOptions.length"
+              class="chatui-agent-select"
+              size="sm"
+              :model-value="agent"
+              :options="agentOptions"
+              @update:model-value="(v) => emit('update-agent', v as string)"
+            />
+          </div>
+          <div class="chatui-input-toolbar-side">
+            <button
+              v-if="isStreaming"
+              class="chatui-stop-btn"
+              :title="L.stop"
+              @click="emit('abort')"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="3" y="3" width="10" height="10" rx="2" />
+              </svg>
+            </button>
+            <button
+              class="chatui-send-btn"
+              :disabled="!hasSaver"
+              :title="L.send"
+              @click="send"
+            >
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 15.5v-11" />
+                <path d="M5.5 9 10 4.5 14.5 9" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
-      <div class="chatui-input-actions">
-        <SButton v-if="showAttachments" type="outline" size="sm" @click="pickFile" :title="L.addAttachment">{{ L.attachment }}</SButton>
-        <SButton :disabled="!hasSaver" @click="send">{{ L.send }}</SButton>
+
+      <!-- Below-card session config row -->
+      <div v-if="hasSaver" class="chatui-input-config">
+        <div class="chatui-input-config-item">
+          <span class="chatui-input-config-label">{{ L.storage }}</span>
+          <SSelect
+            class="chatui-config-select"
+            size="sm"
+            :model-value="saver"
+            :options="saverOptions"
+            @update:model-value="(v) => emit('update-config', 'saver', v)"
+          />
+        </div>
+        <div class="chatui-input-config-item chatui-input-config-path-wrap">
+          <button
+            class="chatui-input-config-path"
+            :title="workPath || L.workpathPlaceholder"
+            @click="emit('open-path-picker', workPath)"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h3l1.2 1.5H12.5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5Z" />
+            </svg>
+            <span class="chatui-input-config-path-text">{{ workPath || L.workpathPlaceholder }}</span>
+          </button>
+          <button
+            v-if="workPath"
+            class="chatui-input-config-clear"
+            :title="L.close"
+            @click="emit('update-config', 'workPath', undefined)"
+          >×</button>
+        </div>
       </div>
     </div>
   </div>
@@ -258,10 +368,6 @@ defineExpose({ scrollToBottom })
 }
 .chatui-messages-scroll {
   flex: 1; overflow-y: auto;
-}
-.chatui-stop-bar {
-  display: flex; justify-content: center; padding: 6px;
-  border-top: 1px solid var(--chatui-border); flex-shrink: 0;
 }
 .chatui-input-usage-strip {
   display: flex; align-items: center; justify-content: flex-end; gap: 6px;
@@ -291,18 +397,188 @@ defineExpose({ scrollToBottom })
 .chatui-input-usage-chip--cache {
   color: var(--chatui-usage-cache, #22c55e);
 }
-.chatui-input-bar {
-  display: flex; gap: 8px; padding: 10px 16px;
-  border-top: 1px solid var(--chatui-border); flex-shrink: 0;
+/* Card-style input */
+.chatui-input-wrap {
+  flex-shrink: 0;
+  padding: 10px 16px 14px;
   background: var(--chatui-bg-surface);
+  border-top: 1px solid var(--chatui-border);
 }
-.chatui-input-bar.chatui-drag-over {
-  outline: 2px dashed var(--chatui-accent);
-  outline-offset: -2px;
+.chatui-input-wrap.chatui-compact { padding: 8px; }
+.chatui-input-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--chatui-border);
+  border-radius: 14px;
+  background: var(--chatui-bg);
+  transition: border-color 0.15s;
+}
+.chatui-input-card:focus-within {
+  border-color: var(--chatui-border-focus, var(--chatui-accent));
+}
+.chatui-input-card.chatui-drag-over {
+  border-color: var(--chatui-accent);
+  border-style: dashed;
   background: rgba(59, 130, 246, 0.05);
 }
-.chatui-input-actions {
-  display: flex; flex-direction: column; gap: 6px; align-self: flex-end;
+.chatui-input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.chatui-input-toolbar-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chatui-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--chatui-fg-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.chatui-icon-btn:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg);
+}
+.chatui-stop-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  padding: 0;
+  border: 1px solid var(--chatui-btn-danger, #ef4444);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--chatui-btn-danger, #ef4444);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.chatui-stop-btn:hover {
+  background: var(--chatui-btn-danger, #ef4444);
+  color: #fff;
+}
+.chatui-approve-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--chatui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--chatui-fg-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chatui-approve-chip:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg);
+}
+.chatui-approve-chip--on {
+  color: var(--chatui-usage-cache, #22c55e);
+  border-color: var(--chatui-usage-cache, #22c55e);
+}
+.chatui-approve-caret { opacity: 0.6; }
+.chatui-send-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--chatui-accent, #3b82f6);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.chatui-send-btn:hover:not(:disabled) { opacity: 0.88; }
+.chatui-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chatui-agent-select {
+  max-width: 170px;
+  min-width: 0;
+}
+.chatui-agent-select :deep(select) {
+  max-width: 170px;
+}
+
+/* Below-card config row */
+.chatui-input-config {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 4px 0;
+}
+.chatui-input-config-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--chatui-fg-secondary);
+}
+.chatui-input-config-label {
+  white-space: nowrap;
+}
+.chatui-config-select {
+  min-width: 0;
+  max-width: 180px;
+}
+.chatui-input-config-path-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 340px;
+}
+.chatui-input-config-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--chatui-fg-secondary);
+}
+.chatui-input-config-path:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-fg);
+}
+.chatui-input-config-path-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatui-input-config-clear {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--chatui-fg-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.chatui-input-config-clear:hover {
+  background: var(--chatui-bg-hover);
+  color: var(--chatui-btn-danger, #ef4444);
 }
 .chatui-attachments {
   display: flex; flex-wrap: wrap; gap: 6px;
@@ -327,6 +603,4 @@ defineExpose({ scrollToBottom })
   padding: 0; line-height: 1; flex-shrink: 0;
 }
 .chatui-attachment-remove:hover { color: var(--chatui-btn-danger); }
-
-.chatui-input-bar.chatui-compact { padding: 8px; gap: 6px; }
 </style>

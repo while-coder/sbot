@@ -8,7 +8,7 @@ import type {
   DisplayContent, ChatEvent,
 } from '../types'
 import { MessageRole, ChatEventType, MessageKind } from '../types'
-import type { IChatTransport } from '../transport'
+import type { IChatTransport, CommandInfo } from '../transport'
 import { resolveLabels } from '../labels'
 import { useCompactProvider } from '../composables/useCompact'
 import SessionBar from './SessionBar.vue'
@@ -49,6 +49,7 @@ const showArchived      = ref(false)
 const pendingToolCall   = ref<ToolCallEvent | null>(null)
 const pendingAsk        = ref<AskEvent | null>(null)
 const usage             = ref<UsageInfo | null>(null)
+const commands          = ref<CommandInfo[]>([])
 
 /** Monotonic counter to discard stale async loads when switching sessions quickly. */
 let loadGeneration = 0
@@ -94,6 +95,22 @@ const contextWindow = computed<number | undefined>(() => {
 })
 
 const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.transport))
+
+const agentOptions = computed(() => [
+  { value: '', label: L.value.useChannelDefault },
+  ...Object.entries(settings.value.agents || {}).map(([id, a]) => ({
+    value: id,
+    label: `${a.name || id}${a.type ? ` (${a.type})` : ''}`,
+  })),
+])
+
+const saverOptions = computed(() => [
+  { value: '', label: L.value.useChannelDefault },
+  ...Object.entries(settings.value.savers || {}).map(([id, s]) => ({
+    value: id,
+    label: s.name || id,
+  })),
+])
 
 const filteredSessions = computed<SessionItem[]>(() => {
   const q = sessionSearch.value.trim().toLowerCase()
@@ -594,6 +611,11 @@ onMounted(async () => {
   } catch (e) {
     console.error('[ChatView] init', e)
   }
+  try {
+    commands.value = (await props.transport.listCommands?.()) ?? []
+  } catch (e) {
+    console.error('[ChatView] listCommands', e)
+  }
 })
 
 onBeforeUnmount(() => {
@@ -711,7 +733,6 @@ function saveRightPanelOpenState(open: boolean): void {
               :settings="settings"
               :labels="labels"
               @update-config="onUpdateConfig"
-              @open-path-picker="onOpenPathPicker"
             />
             <StatusBar
               v-if="activeProfileId"
@@ -773,7 +794,6 @@ function saveRightPanelOpenState(open: boolean): void {
         :settings="settings"
         :labels="labels"
         @update-config="onUpdateConfig"
-        @open-path-picker="onOpenPathPicker"
       />
 
       <!-- Status bar -->
@@ -823,10 +843,21 @@ function saveRightPanelOpenState(open: boolean): void {
           :fetch-thinks="fetchThinks"
           :usage="usage"
           :context-window="contextWindow"
+          :auto-approve="!!activeSession?.autoApproveAllTools"
+          :commands="commands"
+          :agent="activeSession?.agent || ''"
+          :agent-options="agentOptions"
+          :saver="activeSession?.saver || ''"
+          :saver-options="saverOptions"
+          :work-path="activeSession?.workPath || ''"
           @send="onSend"
           @approve="onApprove"
           @answer="onAnswer"
           @abort="onAbort"
+          @toggle-auto-approve="(v: boolean) => onUpdateConfig('autoApproveAllTools', v)"
+          @update-agent="(v: string) => onUpdateConfig('agent', v)"
+          @update-config="onUpdateConfig"
+          @open-path-picker="onOpenPathPicker"
         />
         <div v-if="rightPanelOpen" class="chatui-right-panel-pane" :style="rightPanelStyle">
           <div

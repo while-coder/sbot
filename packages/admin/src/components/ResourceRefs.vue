@@ -47,6 +47,7 @@ const { t } = useI18n()
   border-radius: 8px;
   margin-left: var(--sui-sp-3);
   vertical-align: middle;
+  white-space: nowrap;
 }
 .config-badge-ref { background: #dcfce7; color: #15803d; }
 .config-badge-unused { background: #fee2e2; color: #b91c1c; }

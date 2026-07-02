@@ -54,6 +54,8 @@ export const defaultLabels: Required<ChatLabels> = {
   memory: '记忆',
   wiki: 'Wiki',
   autoApproveAll: '自动审批',
+  requestApproval: '请求批准',
+  autoApproved: '自动审批',
   useChannelDefault: '使用渠道默认值',
   view: '查看',
   usageLast: 'Last',

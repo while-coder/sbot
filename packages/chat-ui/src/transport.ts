@@ -61,6 +61,15 @@ export interface IChatTransport {
   listShells?(): Promise<ShellOption[]>
   /** Open a fresh WebSocket bound to a single pty session. The caller owns its lifecycle. */
   openPty?(): WebSocket
+
+  /** 可用斜杠命令列表，供输入框自动补全菜单使用；不实现时前端不弹菜单。 */
+  listCommands?(): Promise<CommandInfo[]>
+}
+
+export interface CommandInfo {
+  name: string
+  description: string
+  args?: { name: string; description: string; required: boolean }[]
 }
 
 export interface FsUploadProgress {

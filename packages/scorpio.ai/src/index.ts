@@ -320,7 +320,11 @@ export {
   ICommand,
   CommandContext,
   CommandRegistry,
+
+  // 元数据访问器
+  getCommandMetadata,
 } from "./Command";
+export type { CommandMetadata, ArgMetadata, OptionMetadata } from "./Command";
 
 // ========================================
 // AgentTool - 工具管理

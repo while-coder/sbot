@@ -1,4 +1,4 @@
-import type { FsUploadOptions, IChatTransport, ShellOption } from './transport'
+import type { CommandInfo, FsUploadOptions, IChatTransport, ShellOption } from './transport'
 import {
   ChatEventType,
   type ChatEvent,
@@ -168,6 +168,11 @@ export class WebSocketTransport implements IChatTransport {
   async getSettings(): Promise<AppSettings> {
     const res = await this.api('/api/settings')
     return res.data ?? res ?? { agents: {}, savers: {}, notes: {}, wikis: {} }
+  }
+
+  async listCommands(): Promise<CommandInfo[]> {
+    const res = await this.api('/api/commands')
+    return res.data ?? res ?? []
   }
 
   async getSessionStatus(profileId: string): Promise<SessionStatus | null> {

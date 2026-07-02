@@ -157,6 +157,8 @@ export interface ChatLabels {
   memory?: string
   wiki?: string
   autoApproveAll?: string
+  requestApproval?: string
+  autoApproved?: string
   useChannelDefault?: string
   view?: string
   usageLast?: string

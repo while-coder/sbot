@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { SSelect, SMultiSelect, SInput, SButton, SCheckbox } from 'sbot-ui'
+import { SMultiSelect } from 'sbot-ui'
 import type { SessionItem, AppSettings, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
@@ -24,22 +24,6 @@ function toMSOptions<T extends { name?: string }>(map: Record<string, T> | undef
   return Object.entries(map || {}).map(([id, v]) => ({ id, label: v.name || id }))
 }
 
-const agentSelectOptions = computed(() => [
-  { value: '', label: L.value.useChannelDefault },
-  ...Object.entries(props.settings.agents || {}).map(([id, a]) => ({
-    value: id,
-    label: `${a.name || id}${a.type ? ` (${a.type})` : ''}`,
-  })),
-])
-
-const saverSelectOptions = computed(() => [
-  { value: '', label: L.value.useChannelDefault },
-  ...Object.entries(props.settings.savers || {}).map(([id, s]) => ({
-    value: id,
-    label: s.name || id,
-  })),
-])
-
 const noteOptions = computed(() => toMSOptions(props.settings.notes))
 const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
 </script>
@@ -47,46 +31,6 @@ const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
 <template>
   <div class="chatui-config-toolbar" :class="{ 'chatui-compact': isCompact }">
     <template v-if="session">
-      <div class="chatui-toolbar-group">
-        <label class="chatui-toolbar-label">{{ L.agent }}</label>
-        <SSelect
-          size="sm"
-          :model-value="session.agent || ''"
-          :options="agentSelectOptions"
-          @update:model-value="(v) => emit('updateConfig', 'agent', v)"
-        />
-      </div>
-
-      <div class="chatui-toolbar-sep" />
-
-      <div class="chatui-toolbar-group">
-        <label class="chatui-toolbar-label">{{ L.storage }}</label>
-        <SSelect
-          size="sm"
-          :model-value="session.saver || ''"
-          :options="saverSelectOptions"
-          @update:model-value="(v) => emit('updateConfig', 'saver', v)"
-        />
-      </div>
-
-      <div class="chatui-toolbar-sep" />
-
-      <div class="chatui-toolbar-group">
-        <label class="chatui-toolbar-label">{{ L.workpath }}</label>
-        <SInput
-          size="sm"
-          :model-value="session.workPath || ''"
-          :placeholder="L.workpathPlaceholder"
-          readonly
-          :title="session.workPath || L.workpathPlaceholder"
-          style="max-width:180px"
-        />
-        <SButton type="outline" size="sm" @click="emit('openPathPicker', session.workPath || '')">…</SButton>
-        <button v-if="session.workPath" class="chatui-toolbar-clear" @click="emit('updateConfig', 'workPath', undefined)">×</button>
-      </div>
-
-      <div class="chatui-toolbar-sep" />
-
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.note }}</label>
         <SMultiSelect
@@ -108,14 +52,6 @@ const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
           compact
           style="min-width:140px"
           @update:model-value="emit('updateConfig', 'wikis', $event)"
-        />
-      </div>
-
-      <div class="chatui-toolbar-group chatui-toolbar-group--toggle" style="margin-left:auto">
-        <SCheckbox
-          :model-value="!!session.autoApproveAllTools"
-          :label="L.autoApproveAll"
-          @update:model-value="(v) => emit('updateConfig', 'autoApproveAllTools', v)"
         />
       </div>
     </template>

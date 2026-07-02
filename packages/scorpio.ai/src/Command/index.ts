@@ -9,6 +9,8 @@ export {
     Parsers,
     ICommand,
     CommandContext,
+    getCommandMetadata,
 } from './CommandDecorators';
+export type { CommandMetadata, ArgMetadata, OptionMetadata } from './CommandDecorators';
 
 export { CommandRegistry } from './CommandRegistry';
