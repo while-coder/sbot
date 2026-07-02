@@ -49,7 +49,9 @@ export function formatAgendaXml(record: AgendaRecord): string {
         `id="${item.id}"`,
         `status="${item.status}"`,
         `priority="${item.priority}"`,
+        `assignee="${item.assignee}"`,
     ];
+    if (item.assigneeName) headParts.push(`assigneeName=${attr(item.assigneeName)}`);
     if (item.dueAt) headParts.push(`dueAt="${TimeUtils.formatIsoMinute(item.dueAt)}"`);
     headParts.push(`content=${attr(item.content)}`);
 

@@ -3,6 +3,7 @@ import { T_AgendaToolDescs } from "../../Core";
 import { ILoggerService, type ILogger } from "../../Logger";
 import type { ChatMessage } from "../../Saver";
 import {
+    AgendaAssignee,
     AgendaPriority,
     AgendaSource,
     AgendaStatus,
@@ -119,10 +120,14 @@ export class AgendaService implements IAgendaService {
             const existing = await this.findNearDuplicate(content, dueAt);
             if (existing) return { record: existing, created: false as const, triggers: [] };
 
+            const assignee = args.assignee ?? AgendaAssignee.User;
             const inserted = await this.agendaStore.createItem({
                 content,
                 status: AgendaStatus.Pending,
                 priority: args.priority ?? AgendaPriority.Normal,
+                assignee,
+                // 仅 Other 归属保留名字，其余强制置空，避免脏数据。
+                assigneeName: assignee === AgendaAssignee.Other ? (args.assigneeName?.trim() || null) : null,
                 dueAt,
                 source: args.source ?? AgendaSource.Tool,
                 createdAt: now,

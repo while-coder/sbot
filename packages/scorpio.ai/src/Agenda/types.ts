@@ -38,6 +38,20 @@ export enum AgendaSource {
 }
 
 /**
+ * 执行者/归属。表达一条 agenda「算在谁头上」——item 主体级语义，与 per-trigger 的
+ * action（触发时怎么投递）正交：一条「每天提醒张三交周报」可以 action=Notify 而 assignee=Other。
+ * 由 LLM 在 create/update 时显式指定，不根据 trigger.action 自动推断。
+ */
+export enum AgendaAssignee {
+    /** 用户自己完成。DB 兜底默认。 */
+    User = 'user',
+    /** 交给 AI 完成（LLM 说"你帮我总结/生成"时指定）。 */
+    AI = 'ai',
+    /** 第三方/外部完成，具体是谁见 assigneeName。 */
+    Other = 'other',
+}
+
+/**
  * 触发器类型。表达 trigger.expr 字段的语义。
  */
 export enum AgendaTriggerKind {
@@ -168,6 +182,10 @@ export interface AgendaCreateArgs {
     content: string;
     /** 优先级。默认 Normal。 */
     priority?: AgendaPriority;
+    /** 执行者/归属。缺省 User。LLM 按语义显式指定（用户自己=user、让 AI 做=ai、交给他人=other）。 */
+    assignee?: AgendaAssignee;
+    /** 第三方名字。仅 assignee=Other 时写入，其余忽略。 */
+    assigneeName?: string;
     /**
      * 调度规格列表。每条 spec 自带 action / message。
      * - 单个时间点：传 1 元素数组，例 [{ kind: 'absolute', at: '...', action: 'invoke' }]
@@ -203,6 +221,10 @@ export interface AgendaUpdatePatch {
     /** 改内容。LLM 说"把 #3 改成 '交月报'" → content = "交月报"。 */
     content?: string;
     priority?: AgendaPriority;
+    /** 改执行者/归属。 */
+    assignee?: AgendaAssignee;
+    /** 改第三方名字（null 清空）。改成非 Other 归属时由 service 自动清空。 */
+    assigneeName?: string | null;
     /**
      * 显式改 dueAt（ISO 字符串或 null 清空）。
      * 纯主体字段，不联动现有 trigger 的节奏。
@@ -236,6 +258,8 @@ export interface AgendaListFilter {
     status?: AgendaStatus | 'all';
     /** 仅返回某优先级。 */
     priority?: AgendaPriority;
+    /** 仅返回某执行者/归属（如 user = 我的待办、ai = 交给你的）。 */
+    assignee?: AgendaAssignee;
     /** 上限条数。缺省 50，下限 1。 */
     limit?: number;
 }
@@ -265,6 +289,14 @@ export interface AgendaItem {
     content: string;
     status: AgendaStatus;
     priority: AgendaPriority;
+    /**
+     * 执行者/归属。默认 User。用于「我/你还有多少待办」的区分统计与过滤。
+     */
+    assignee: AgendaAssignee;
+    /**
+     * 第三方执行者名字。仅 assignee === Other 时有意义；其余情形恒为 null。
+     */
+    assigneeName: string | null;
     /**
      * 截止时间戳（毫秒）。写入规则（优先级从高到低）：
      * - args.dueAt 显式传 → 用它

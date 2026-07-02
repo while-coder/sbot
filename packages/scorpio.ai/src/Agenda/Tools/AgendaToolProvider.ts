@@ -1,6 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
+    AgendaAssignee,
     AgendaPriority,
     AgendaStatus,
     AgendaTimeUnit,
@@ -41,6 +42,9 @@ const RelativeTimeSchema = z.object({
 const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default, plain-text reminder) / notify_and_record (also records the fire into the conversation history) / invoke (AI actively produces at fire time, e.g. "generate/summarize/write/organize for me"). Details → agenda_wiki §8.');
 
 const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact words delivered WHEN this trigger fires, phrased as a present-moment ping ("Time to drink water"), NOT as a request to set a reminder ("remind me to drink water in 2 min" ✗). No fallback to content; if no special wording, restate content. Recorded fires re-enter the conversation, so request-like wording can make the post-turn sync create a duplicate agenda.');
+
+const AssigneeSchema = z.enum(AgendaAssignee).optional().describe('Who owns this todo — decide EXPLICITLY: user (default, the user does it themselves) / ai (you the AI do it, e.g. "you help me summarize/generate") / other (a third party like a colleague, put their name in assigneeName). Orthogonal to trigger.action.');
+const AssigneeNameSchema = z.string().optional().describe('Third-party name; only meaningful with assignee=other, ignored otherwise.');
 
 const StartAtSchema = z.string().optional().describe('ISO of FIRST fire; omit for default.');
 const CountSchema = z.number().int().positive().optional().describe('Total fire count; omit for unlimited.');
@@ -84,6 +88,8 @@ export class AgendaToolProvider {
                 schema: z.object({
                     content: z.string().describe('Self-contained title, match user language. Just the thing itself ("Drink water" / "Submit weekly report") — do NOT bake in relative time or schedule ("remind me to drink water in 2 min" ✗); timing lives in triggers.'),
                     priority: z.enum(AgendaPriority).optional().describe('Default normal. high = urgent; low = casual.'),
+                    assignee: AssigneeSchema,
+                    assigneeName: AssigneeNameSchema,
                     triggers: z.array(TriggerSpecSchema).optional().describe('Schedule list; omit / [] = plain todo.'),
                     dueAt: z.string().optional().describe('ISO deadline. Pure metadata — does NOT auto-create a trigger (agenda_wiki §3).'),
                 }),
@@ -108,6 +114,7 @@ export class AgendaToolProvider {
                 schema: z.object({
                     status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, 'all']).optional().describe('Default pending. "all" = no filter.'),
                     priority: z.enum(AgendaPriority).optional(),
+                    assignee: z.enum(AgendaAssignee).optional().describe('Filter by owner: user = the user\'s own todos, ai = ones assigned to you, other = third-party. Use to answer "how many do I / do you have left".'),
                     limit: z.number().int().positive().optional().describe(`Default ${DEFAULT_LIST_LIMIT}.`),
                 }),
                 func: async (filter: AgendaListFilter) => {
@@ -125,6 +132,8 @@ export class AgendaToolProvider {
                     id: z.number().describe('Item id.'),
                     content: z.string().optional(),
                     priority: z.enum(AgendaPriority).optional(),
+                    assignee: AssigneeSchema,
+                    assigneeName: z.string().nullable().optional().describe('Third-party name (null clears). Auto-cleared when assignee is set to non-other.'),
                     dueAt: z.string().nullable().optional().describe('ISO or null. Does NOT retime triggers (agenda_wiki §3).'),
                 }),
                 func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {

@@ -61,6 +61,8 @@ export class AgendaStore implements IAgendaStore {
                     content             TEXT    NOT NULL,
                     status              TEXT    NOT NULL,
                     priority            TEXT    NOT NULL,
+                    assignee            TEXT    NOT NULL DEFAULT 'user',
+                    assigneeName        TEXT,
                     dueAt               INTEGER,
                     source              TEXT    NOT NULL,
                     createdAt           INTEGER NOT NULL,
@@ -137,6 +139,14 @@ export class AgendaStore implements IAgendaStore {
             }
             if (itemColNames.has("completionMode")) {
                 this._db.exec(`ALTER TABLE items DROP COLUMN completionMode`);
+            }
+
+            // 迁移：assignee / assigneeName 后加（执行者归属）。旧库补列，历史条目默认归属 user。
+            if (!itemColNames.has("assignee")) {
+                this._db.exec(`ALTER TABLE items ADD COLUMN assignee TEXT NOT NULL DEFAULT 'user'`);
+            }
+            if (!itemColNames.has("assigneeName")) {
+                this._db.exec(`ALTER TABLE items ADD COLUMN assigneeName TEXT`);
             }
 
             // 迁移：trigger_fire.message 后加；旧库（已建过无 message 的 trigger_fire）补列。
@@ -281,10 +291,10 @@ export class AgendaStore implements IAgendaStore {
     private insertItem(item: Omit<AgendaItem, "id">): number {
         const result = this.db.prepare(`
             INSERT INTO items (
-                content, status, priority,
+                content, status, priority, assignee, assigneeName,
                 dueAt, source, createdAt, updatedAt, doneAt
             ) VALUES (
-                @content, @status, @priority,
+                @content, @status, @priority, @assignee, @assigneeName,
                 @dueAt, @source, @createdAt, @updatedAt, @doneAt
             )
         `).run({ ...item });
