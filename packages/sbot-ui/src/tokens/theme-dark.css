@@ -44,6 +44,8 @@ html[data-theme="dark"] {
   --sui-tool-bg:        #2a2500;
   --sui-on-tool-bg:     #d4b860;
   --sui-warning-label:  #d4b860;
+  --sui-warning-soft:   #3a2e0a;   /* dark 下改深底（原浅色 #fef08a 在暗色刺眼） */
+  --sui-on-warning-soft:#fcd34d;   /* dark 下改浅字 */
   --sui-warning-bg:     #2a2500;
   --sui-warning-fg:     #fdba74;
   --sui-warning-chip-bg:#431407;

@@ -198,7 +198,7 @@ onMounted(async () => {
   display: inline-block;
   padding: 2px 8px;
   background: var(--sui-warning-fg);
-  color: #fff;
+  color: var(--sui-on-primary);
   border-radius: var(--sui-radius-sm);
   font-size: var(--sui-fs-sm);
   font-weight: 700;

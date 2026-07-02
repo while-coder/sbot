@@ -33,7 +33,7 @@ export async function fetchLatestRelease(): Promise<{ tag: string; url: string; 
     const version: string = (data.version as string) || ''
     if (!version) return null
     const tag = version.startsWith('v') ? version : `v${version}`
-    return { tag, url: `${GITHUB_RELEASES_URL}/tag/${tag}`, releasenoteEn: (data.releasenoteEn as string) || '', releasenoteZh: (data.releasenoteZh as string) || '' }
+    return { tag, url: `${NPM_URL}/v/${version}`, releasenoteEn: (data.releasenoteEn as string) || '', releasenoteZh: (data.releasenoteZh as string) || '' }
   } catch {
     return null
   }
