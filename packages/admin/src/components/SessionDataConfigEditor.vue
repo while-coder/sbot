@@ -141,6 +141,24 @@ function updateBool(key: 'streamVerbose' | 'autoApproveAllTools' | 'disableWorks
   update(key, isProfileMode() && value === '' ? null : value === 'true')
 }
 
+/**
+ * 工作目录自动注入类字段：底层存的是 disable* （关闭）语义，UI 上以正向「自动注入 启用/禁用」呈现，
+ * 因此这里对 select 的 true/false 做一次反转：启用注入 = disable false，禁用注入 = disable true。
+ */
+type WorkspaceInjectKey = 'disableWorkspaceContext' | 'disableWorkspaceSkills' | 'disableWorkspaceMcp'
+function injectSelectValue(key: WorkspaceInjectKey): string {
+  const v = props.modelValue[key]
+  if (isProfileMode() && v === null) return ''
+  return v ? 'false' : 'true'
+}
+
+function updateInject(key: WorkspaceInjectKey, value: string) {
+  update(key, isProfileMode() && value === '' ? null : value !== 'true')
+}
+
+/** 继承值显示：底层 disable=true 表示「禁用注入」，disable=false 表示「启用注入」 */
+const fmtInject = (v: any) => v ? t('common.disabled') : t('common.enabled')
+
 /** memory/agenda 引用：profile 模式下空串 = 沿用 channel；channel 模式下空串 = 不启用 */
 function refSelectValue(key: 'memory' | 'agenda'): string {
   return props.modelValue[key] ?? ''
@@ -224,22 +242,22 @@ function setTimeoutMode(key: 'approvalTimeout' | 'askTimeout', mode: string) {
       </div>
     </SFormItem>
 
-    <SFormItem :label="t('agents.disable_workspace_context')" :hint="inheritLabel('disableWorkspaceContext', fmtBool) || t('agents.disable_workspace_context_hint')">
-      <SSelect :model-value="booleanSelectValue('disableWorkspaceContext')" @update:model-value="v => updateBool('disableWorkspaceContext', String(v))">
+    <SFormItem :label="t('agents.disable_workspace_context')" :hint="inheritLabel('disableWorkspaceContext', fmtInject) || t('agents.disable_workspace_context_hint')">
+      <SSelect :model-value="injectSelectValue('disableWorkspaceContext')" @update:model-value="v => updateInject('disableWorkspaceContext', String(v))">
         <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
         <option value="true">{{ t('common.enabled') }}</option>
         <option value="false">{{ t('common.disabled') }}</option>
       </SSelect>
     </SFormItem>
-    <SFormItem :label="t('agents.disable_workspace_skills')" :hint="inheritLabel('disableWorkspaceSkills', fmtBool) || t('agents.disable_workspace_skills_hint')">
-      <SSelect :model-value="booleanSelectValue('disableWorkspaceSkills')" @update:model-value="v => updateBool('disableWorkspaceSkills', String(v))">
+    <SFormItem :label="t('agents.disable_workspace_skills')" :hint="inheritLabel('disableWorkspaceSkills', fmtInject) || t('agents.disable_workspace_skills_hint')">
+      <SSelect :model-value="injectSelectValue('disableWorkspaceSkills')" @update:model-value="v => updateInject('disableWorkspaceSkills', String(v))">
         <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
         <option value="true">{{ t('common.enabled') }}</option>
         <option value="false">{{ t('common.disabled') }}</option>
       </SSelect>
     </SFormItem>
-    <SFormItem :label="t('agents.disable_workspace_mcp')" :hint="inheritLabel('disableWorkspaceMcp', fmtBool) || t('agents.disable_workspace_mcp_hint')">
-      <SSelect :model-value="booleanSelectValue('disableWorkspaceMcp')" @update:model-value="v => updateBool('disableWorkspaceMcp', String(v))">
+    <SFormItem :label="t('agents.disable_workspace_mcp')" :hint="inheritLabel('disableWorkspaceMcp', fmtInject) || t('agents.disable_workspace_mcp_hint')">
+      <SSelect :model-value="injectSelectValue('disableWorkspaceMcp')" @update:model-value="v => updateInject('disableWorkspaceMcp', String(v))">
         <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
         <option value="true">{{ t('common.enabled') }}</option>
         <option value="false">{{ t('common.disabled') }}</option>
