@@ -46,6 +46,21 @@ export { WebSocketTransport } from './WebSocketTransport';
 // ── Composables ──
 export { useCompact, useCompactProvider } from './composables/useCompact'
 export { useAttachments } from './composables/useAttachments';
+export {
+  DEFAULT_SERVER_PORT,
+  isLocalBaseUrl,
+  localServerBaseUrl,
+  remoteToBaseUrl,
+  useServerSelection,
+} from './composables/useServerSelection'
+export type {
+  ServerConnectContext,
+  ServerSelectionAdapter,
+  ServerSelectionPhase,
+  ServerSelectOptions,
+  UseServerSelectionOptions,
+  UseServerSelectionReturn,
+} from './composables/useServerSelection'
 
 // ── Components ──
 export { default as ChatView } from './components/ChatView.vue';
@@ -61,6 +76,7 @@ export { default as RichInput } from './components/RichInput.vue';
 export { default as ImageLightbox } from './components/ImageLightbox.vue';
 export { default as ThinkDrawer } from './components/ThinkDrawer.vue';
 export { default as ServerPicker } from './components/ServerPicker.vue';
+export { default as ServerChatShell } from './components/ServerChatShell.vue';
 export { default as WorkbenchPanel } from './components/WorkbenchPanel.vue';
 export { default as Terminal } from './components/Terminal.vue';
 export { default as FileExplorer } from './components/FileExplorer.vue';

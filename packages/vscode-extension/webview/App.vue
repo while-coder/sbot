@@ -1,91 +1,60 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ChatView, ServerPicker } from '@sbot/chat-ui'
-import type { RemoteEntry } from '@sbot/chat-ui'
+import { onMounted } from 'vue'
+import { ServerChatShell, useServerSelection } from '@sbot/chat-ui'
 import { SConfirm } from 'sbot-ui'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-vscode.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
-import { transport } from './composables/useChat'
+import { transport as vscodeTransport } from './composables/useChat'
 
-const DEFAULT_PORT = 5500
-
-const remotes = ref<RemoteEntry[]>([])
-const phase = ref<'server-pick' | 'chat'>('server-pick')
-const currentBaseUrl = ref('')
-
-onMounted(async () => {
-  remotes.value = await transport.getRemotes()
-  selectLocal()
+const {
+  remotes,
+  phase,
+  transport: serverTransport,
+  currentBaseUrl,
+  connectError,
+  connecting,
+  loadRemotes,
+  selectLocal,
+  selectRemote,
+  addRemote,
+  updateRemote,
+  removeRemote,
+  switchServer,
+} = useServerSelection({
+  adapter: {
+    loadRemotes: () => vscodeTransport.getRemotes(),
+    saveRemotes: (list) => vscodeTransport.saveRemotes(list),
+    connect: async (baseUrl, { local }) => {
+      await vscodeTransport.connectServer(baseUrl, local)
+      return vscodeTransport
+    },
+  },
 })
 
-const connectError = ref('')
-
-async function selectServer(baseUrl: string, local = false) {
-  connectError.value = ''
-  try {
-    await transport.connectServer(baseUrl, local)
-    currentBaseUrl.value = baseUrl
-    phase.value = 'chat'
-  } catch (e: any) {
-    connectError.value = `无法连接服务器 ${baseUrl}`
-    phase.value = 'server-pick'
-  }
-}
-
-function switchServer() {
-  phase.value = 'server-pick'
-}
-
-function selectLocal() {
-  selectServer(`http://localhost:${DEFAULT_PORT}`, true)
-}
-
-function selectRemote(index: number) {
-  const r = remotes.value[index]
-  if (r) selectServer(`http://${r.host}:${r.port}`)
-}
-
-async function addRemote(name: string, host: string, port: number) {
-  remotes.value.push({ name, host, port })
-  await transport.saveRemotes(remotes.value)
-  selectServer(`http://${host}:${port}`)
-}
-
-async function updateRemote(index: number, patch: { name?: string; host?: string; port?: number }) {
-  const r = remotes.value[index]
-  if (r) {
-    Object.assign(r, patch)
-    await transport.saveRemotes(remotes.value)
-  }
-}
-
-async function removeRemote(index: number) {
-  remotes.value.splice(index, 1)
-  await transport.saveRemotes(remotes.value)
-}
+onMounted(async () => {
+  await loadRemotes()
+  await selectLocal()
+})
 </script>
 
 <template>
   <div class="vscode-app">
-    <template v-if="phase === 'server-pick'">
-      <div v-if="connectError" class="vscode-connect-error">{{ connectError }}</div>
-      <ServerPicker
-        :remotes="remotes"
-        @select-local="selectLocal"
-        @select-remote="selectRemote"
-        @add-remote="addRemote"
-        @update-remote="updateRemote"
-        @remove-remote="removeRemote"
-      />
-    </template>
-    <template v-else>
-      <div class="vscode-server-bar">
-        <span class="vscode-server-url">{{ currentBaseUrl }}</span>
-        <button class="vscode-server-switch" @click="switchServer">切换服务器</button>
-      </div>
-      <ChatView :transport="transport" always-compact />
-    </template>
+    <ServerChatShell
+      :phase="phase"
+      :remotes="remotes"
+      :transport="serverTransport"
+      :current-base-url="currentBaseUrl"
+      :connect-error="connectError"
+      :connecting="connecting"
+      :always-compact="true"
+      @select-local="selectLocal"
+      @select-remote="selectRemote"
+      @add-remote="addRemote"
+      @update-remote="updateRemote"
+      @remove-remote="removeRemote"
+      @switch-server="switchServer"
+    />
   </div>
   <SConfirm default-confirm-text="确定" default-cancel-text="取消" />
 </template>
@@ -107,45 +76,23 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-.vscode-server-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 12px;
-  background: var(--vscode-sideBar-background, var(--chatui-bg-surface, #f8f8f8));
-  border-bottom: 1px solid var(--vscode-panel-border, var(--chatui-border, #e8e6e3));
-  flex-shrink: 0;
-  font-size: 11px;
-}
-.vscode-server-url {
-  color: var(--vscode-descriptionForeground, #888);
-  font-family: var(--vscode-editor-font-family, monospace);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.vscode-server-switch {
-  margin-left: 8px;
-  padding: 2px 8px;
-  border: 1px solid var(--vscode-button-secondaryBackground, #d1d5db);
-  border-radius: 2px;
-  background: var(--vscode-button-secondaryBackground, transparent);
-  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-  cursor: pointer;
-  font-size: 11px;
-  flex-shrink: 0;
-}
-.vscode-server-switch:hover {
-  background: var(--vscode-button-secondaryHoverBackground, #e0e0e0);
-}
-.vscode-connect-error {
-  padding: 8px 12px;
-  margin: 8px 12px 0;
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--vscode-errorForeground, #f44);
-  background: var(--vscode-inputValidation-errorBackground, rgba(255,0,0,0.1));
-  border: 1px solid var(--vscode-inputValidation-errorBorder, rgba(255,0,0,0.3));
+  --server-chat-bar-padding: 4px 12px;
+  --server-chat-bar-bg: var(--vscode-sideBar-background, var(--chatui-bg-surface, #f8f8f8));
+  --server-chat-border: var(--vscode-panel-border, var(--chatui-border, #e8e6e3));
+  --server-chat-bar-font-size: 11px;
+  --server-chat-url-fg: var(--vscode-descriptionForeground, #888);
+  --server-chat-url-font-family: var(--vscode-editor-font-family, monospace);
+  --server-chat-switch-padding: 2px 8px;
+  --server-chat-switch-border: var(--vscode-button-secondaryBackground, #d1d5db);
+  --server-chat-switch-radius: 2px;
+  --server-chat-switch-bg: var(--vscode-button-secondaryBackground, transparent);
+  --server-chat-switch-fg: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  --server-chat-switch-hover-bg: var(--vscode-button-secondaryHoverBackground, #e0e0e0);
+  --server-chat-error-fg: var(--vscode-errorForeground, #f44);
+  --server-chat-error-bg: var(--vscode-inputValidation-errorBackground, rgba(255,0,0,0.1));
+  --server-chat-error-border: var(--vscode-inputValidation-errorBorder, rgba(255,0,0,0.3));
+  --server-chat-status-fg: var(--vscode-descriptionForeground, #888);
+  --server-chat-status-bg: var(--vscode-sideBar-background, var(--chatui-bg-surface, #f8f8f8));
+  --server-chat-status-border: var(--vscode-panel-border, var(--chatui-border, #e8e6e3));
 }
 </style>

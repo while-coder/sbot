@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ChatView, ServerPicker, WebSocketTransport } from '@sbot/chat-ui'
+import { ServerChatShell, WebSocketTransport, useServerSelection } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
 import { SConfirm, SToast } from 'sbot-ui'
 import ThemeMenu from './ThemeMenu.vue'
@@ -11,7 +11,6 @@ import darkThemeCSS from '@sbot/chat-ui/themes/theme-dark.css?inline'
 import '@sbot/chat-ui/themes/theme-pwa.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
 
-const DEFAULT_PORT = 5500
 const REMOTES_KEY = 'sbot-app-remotes'
 const THEME_KEY = 'sbot-app-theme'
 
@@ -38,12 +37,36 @@ function saveRemotes(list: RemoteEntry[]) {
   writeStorage(REMOTES_KEY, JSON.stringify(list))
 }
 
-const remotes = ref<RemoteEntry[]>(loadRemotes())
-const phase = ref<'server-pick' | 'chat'>('server-pick')
-const transport = ref<WebSocketTransport | null>(null)
-const currentBaseUrl = ref('')
-const connectError = ref('')
-const connecting = ref(false)
+const {
+  remotes,
+  phase,
+  transport,
+  currentBaseUrl,
+  connectError,
+  connecting,
+  selectLocal,
+  selectRemote,
+  addRemote,
+  updateRemote,
+  removeRemote,
+  switchServer,
+} = useServerSelection<WebSocketTransport>({
+  initialRemotes: loadRemotes(),
+  adapter: {
+    saveRemotes,
+    connect: async (baseUrl) => {
+      const nextTransport = new WebSocketTransport(baseUrl)
+      try {
+        await nextTransport.getSettings()
+        return nextTransport
+      } catch (error) {
+        nextTransport.disconnect()
+        throw error
+      }
+    },
+    disconnect: (currentTransport) => currentTransport.disconnect(),
+  },
+})
 
 const themeMode = ref<ThemeMode>(((): ThemeMode => {
   const v = readStorage(THEME_KEY)
@@ -88,62 +111,6 @@ function removeSystemThemeListener() {
 onMounted(addSystemThemeListener)
 onUnmounted(removeSystemThemeListener)
 
-async function selectServer(baseUrl: string) {
-  if (connecting.value) return
-  connectError.value = ''
-  connecting.value = true
-  const nextTransport = new WebSocketTransport(baseUrl)
-  try {
-    await nextTransport.getSettings()
-    transport.value = nextTransport
-    currentBaseUrl.value = baseUrl
-    phase.value = 'chat'
-  } catch {
-    nextTransport.disconnect()
-    connectError.value = `无法连接服务器 ${baseUrl}`
-  } finally {
-    connecting.value = false
-  }
-}
-
-function switchServer() {
-  transport.value?.disconnect()
-  transport.value = null
-  connectError.value = ''
-  phase.value = 'server-pick'
-}
-
-function selectLocal() {
-  selectServer(`http://localhost:${DEFAULT_PORT}`)
-}
-
-function selectRemote(index: number) {
-  const r = remotes.value[index]
-  if (r) {
-    const proto = r.secure ? 'https' : 'http'
-    selectServer(`${proto}://${r.host}:${r.port}`)
-  }
-}
-
-function addRemote(name: string, host: string, port: number, secure: boolean) {
-  remotes.value.push({ name, host, port, secure })
-  saveRemotes(remotes.value)
-  const proto = secure ? 'https' : 'http'
-  selectServer(`${proto}://${host}:${port}`)
-}
-
-function updateRemote(index: number, patch: { name?: string; host?: string; port?: number; secure?: boolean }) {
-  const r = remotes.value[index]
-  if (r) {
-    Object.assign(r, patch)
-    saveRemotes(remotes.value)
-  }
-}
-
-function removeRemote(index: number) {
-  remotes.value.splice(index, 1)
-  saveRemotes(remotes.value)
-}
 </script>
 
 <template>
@@ -151,30 +118,28 @@ function removeRemote(index: number) {
     <UpdaterDialog />
     <SToast />
     <SConfirm default-confirm-text="确定" default-cancel-text="取消" />
-    <div v-if="phase === 'server-pick'" class="theme-menu-floating">
-      <ThemeMenu :mode="themeMode" @update="(m) => themeMode = m" />
-    </div>
-
-    <template v-if="phase === 'server-pick'">
-      <div v-if="connectError" class="desktop-connect-error">{{ connectError }}</div>
-      <div v-if="connecting" class="desktop-connect-status">正在连接服务器...</div>
-      <ServerPicker
-        :remotes="remotes"
-        @select-local="selectLocal"
-        @select-remote="selectRemote"
-        @add-remote="addRemote"
-        @update-remote="updateRemote"
-        @remove-remote="removeRemote"
-      />
-    </template>
-    <template v-else-if="transport">
-      <div class="desktop-server-bar">
-        <span class="desktop-server-url">{{ currentBaseUrl }}</span>
+    <ServerChatShell
+      :phase="phase"
+      :remotes="remotes"
+      :transport="transport"
+      :current-base-url="currentBaseUrl"
+      :connect-error="connectError"
+      :connecting="connecting"
+      :show-attachments="true"
+      @select-local="selectLocal"
+      @select-remote="selectRemote"
+      @add-remote="addRemote"
+      @update-remote="updateRemote"
+      @remove-remote="removeRemote"
+      @switch-server="switchServer"
+    >
+      <template #picker-actions>
         <ThemeMenu :mode="themeMode" @update="(m) => themeMode = m" />
-        <button class="desktop-server-switch" @click="switchServer">切换服务器</button>
-      </div>
-      <ChatView :transport="transport" :show-attachments="true" />
-    </template>
+      </template>
+      <template #server-actions>
+        <ThemeMenu :mode="themeMode" @update="(m) => themeMode = m" />
+      </template>
+    </ServerChatShell>
   </div>
 </template>
 
@@ -195,60 +160,5 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-.desktop-server-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: var(--chatui-bg-surface);
-  border-bottom: 1px solid var(--chatui-border);
-  flex-shrink: 0;
-  font-size: 12px;
-}
-.desktop-server-url {
-  flex: 1;
-  color: var(--chatui-fg-secondary);
-  font-family: monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.desktop-server-switch {
-  padding: 2px 10px;
-  border: 1px solid var(--chatui-border);
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--chatui-fg);
-  flex-shrink: 0;
-}
-.desktop-server-switch:hover {
-  background: var(--chatui-bg-hover);
-}
-.theme-menu-floating {
-  position: fixed;
-  top: 8px;
-  right: 12px;
-  z-index: 10;
-}
-.desktop-connect-error,
-.desktop-connect-status {
-  padding: 8px 12px;
-  margin: 8px 12px 0;
-  border-radius: 4px;
-  font-size: 12px;
-  flex-shrink: 0;
-}
-.desktop-connect-error {
-  color: var(--chatui-btn-danger, #d14343);
-  background: var(--chatui-bg-surface);
-  border: 1px solid var(--chatui-btn-danger, #d14343);
-}
-.desktop-connect-status {
-  color: var(--chatui-fg-secondary);
-  background: var(--chatui-bg-surface);
-  border: 1px solid var(--chatui-border);
 }
 </style>
