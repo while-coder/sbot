@@ -1,5 +1,5 @@
 /**
- * MCP 标准内容类型定义
+ * MCP 标准内容与工具结果的基础定义
  * 基于 @modelcontextprotocol/sdk 的类型定义，扩展支持 OpenAI 格式
  */
 

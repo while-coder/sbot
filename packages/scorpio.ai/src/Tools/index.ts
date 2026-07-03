@@ -1,6 +1,6 @@
 /**
  * Tools 模块导出
- * 提供 MCP 标准类型定义
+ * 提供 MCP 标准定义与通用工具能力
  */
 export {
     MCPContentType,
@@ -20,7 +20,7 @@ export {
     createErrorResult,
     isMCPToolResult,
     normalizeToMCPResult,
-} from './Core/types';
+} from './Core/mcp';
 
 export {
     createDispatchTaskTool,
@@ -59,7 +59,7 @@ export {
     DEFAULT_WALK_LIMIT,
     type WalkTreeOptions,
     type WalkTreeResult,
-} from './walkTree';
+} from './Core/walkTree';
 
 export {
     truncateMCPToolResult,

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-/** 工具 schema 的统一默认值，供两端 schema 共用以保持一致 */
+/** 目录遍历 schema 的统一默认值，供两端 schema 共用以保持一致 */
 export const DEFAULT_WALK_MAX_DEPTH = 3;
 export const DEFAULT_WALK_LIMIT = 200;
 

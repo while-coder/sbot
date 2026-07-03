@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { MCPContentType, type MCPContent, type MCPToolResult } from './types';
+import { MCPContentType, type MCPContent, type MCPToolResult } from './mcp';
 
 const MAX_CHARS = 32 * 1024;
 
