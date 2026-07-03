@@ -53,7 +53,6 @@ export {
   T_DBTable,
   T_ReactSystemPromptTemplate,
   T_ReactSubNodePrompt,
-  T_ReactTaskToolDesc,
   T_SkillSystemPromptTemplate,
   T_SkillToolReadDesc,
   T_SkillToolListDesc,
@@ -398,11 +397,11 @@ export {
   MCPToolResult,
   MCPToolResultMeta,
 
-  // TaskTool
-  createTaskTool,
-  TASK_TOOL_NAME,
-  type TaskToolParams,
-  type RunTaskFn,
+  // Dispatch task tool
+  createDispatchTaskTool,
+  DISPATCH_TASK_TOOL_NAME,
+  type DispatchTaskToolParams,
+  type RunDispatchTaskFn,
 
   // 工具函数
   createTextContent,

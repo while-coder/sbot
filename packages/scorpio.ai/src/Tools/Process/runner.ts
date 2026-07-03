@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import { setTimeout as sleep } from 'timers/promises';
 import { StringDecoder } from 'string_decoder';
 import { GlobalLoggerService } from '../../Logger';
-import { createTextContent, MCPToolResult } from '../types';
+import { createTextContent, MCPToolResult } from '../Core';
 import { resolveShell } from './shell';
 
 const logger = GlobalLoggerService.getLogger('Tools/Process');

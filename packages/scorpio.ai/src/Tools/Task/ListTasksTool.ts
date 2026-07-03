@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
-import { createTextContent, type MCPToolResult } from "./types";
+import { createTextContent, type MCPToolResult } from "../Core";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// -- Types -------------------------------------------------------------------
 
 /** 子任务状态 */
 export enum TaskStatus {
@@ -24,14 +24,14 @@ export interface TaskInfo {
 
 export type GetTasksFn = () => TaskInfo[] | Promise<TaskInfo[]>;
 
-// ── Factory ─────────────────────────────────────────────────────────────────
+// -- Factory -----------------------------------------------------------------
 
 export const LIST_TASKS_TOOL_NAME = "_list_tasks";
 
 const DEFAULT_DESC =
   "List the sub-agent tasks dispatched in this conversation, with each task's id, target agent, " +
   "status (running/done/error) and a short summary. Use it to recall what you delegated and to pick " +
-  "a `taskId` to resume via `_task`. Takes no arguments.";
+  "a `taskId` to resume via `_dispatch_task`. Takes no arguments.";
 
 export function createListTasksTool(getTasks: GetTasksFn, description: string = DEFAULT_DESC): DynamicStructuredTool {
   return new DynamicStructuredTool({

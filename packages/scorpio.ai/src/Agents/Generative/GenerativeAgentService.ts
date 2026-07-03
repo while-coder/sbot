@@ -1,5 +1,5 @@
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MaxHistoryRounds } from "../../Core";
-import { MCPContentType } from "../../Tools/types";
+import { MCPContentType } from "../../Tools/Core";
 import { IModelService } from "../../Model";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";

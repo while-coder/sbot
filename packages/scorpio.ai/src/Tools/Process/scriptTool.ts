@@ -4,7 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
-import { createErrorResult, MCPToolResult } from '../types';
+import { createErrorResult, MCPToolResult } from '../Core';
 import { runProgram } from './runner';
 import { resolveWorkingDir } from './paths';
 import { isCommandAvailable } from './shell';

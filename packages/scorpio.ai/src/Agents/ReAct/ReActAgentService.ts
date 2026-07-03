@@ -1,5 +1,5 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReactTaskToolDesc, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate } from "../../Core";
+import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate } from "../../Core";
 import { contentToString } from "../../Utils/contentUtils";
 import { INoteService } from "../../Note";
 import { IWikiService } from "../../Wiki";
@@ -12,8 +12,8 @@ import { IMemoryService } from "../../Memory";
 import { IAgendaService } from "../../Agenda";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
-import { createTaskTool, createListTasksTool, TaskContextMode, TaskStatus, type RunTaskFn, type TaskInfo } from "../../Tools";
-import { MCPContentType, createTextContent, createImageContent, /* createAudioContent, */ createErrorResult, type MCPContent } from "../../Tools/types";
+import { createDispatchTaskTool, createListTasksTool, TaskContextMode, TaskStatus, type RunDispatchTaskFn, type TaskInfo } from "../../Tools";
+import { MCPContentType, createTextContent, createImageContent, /* createAudioContent, */ createErrorResult, type MCPContent } from "../../Tools/Core";
 import { v4 as uuidv4 } from "uuid";
 
 // ── Tokens ────────────────────────────────────────────────────
@@ -43,9 +43,9 @@ interface TaskRecord {
  * 重写 buildSystemMessage / buildTools，其余流程（saver、note、StateGraph 循环）复用父类。
  */
 export class ReActAgentService extends SingleAgentService {
-  /** context:state 注入的父对话消息条数上限 */
+  /** contextMode:state 注入的父对话消息条数上限 */
   private static readonly STATE_CONTEXT_MESSAGES = 8;
-  /** context:state 每条消息的截断长度 */
+  /** contextMode:state 每条消息的截断长度 */
   private static readonly STATE_CONTEXT_PER_MSG = 1000;
   /** 派生树最大深度（根编排者深度 0，故最多嵌套 MAX_SPAWN_DEPTH 层 ReAct）。 */
   private static readonly MAX_SPAWN_DEPTH = 5;
@@ -63,7 +63,6 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_CreateAgent) agentFactory: CreateAgentFn,
     @inject(T_ReactSystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_ReactSubNodePrompt) private subNodePrompt: string,
-    @inject(T_ReactTaskToolDesc) private taskToolDesc: string,
     @inject(ISkillService) skillService: ISkillService,
     @inject(T_ToolOverflowDir) toolOverflowDir: string,
     @inject(T_ChannelSessionId) channelSessionId: number,
@@ -114,7 +113,7 @@ export class ReActAgentService extends SingleAgentService {
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
-    const runFn: RunTaskFn = async ({ agentId, task, systemPrompt, taskId, context }) => {
+    const runFn: RunDispatchTaskFn = async ({ agentId, task, systemPrompt, taskId, contextMode }) => {
       let agentService: AgentServiceBase | null = null;
       const thinkId = uuidv4();
       const resolvedTaskId = taskId ?? uuidv4();
@@ -163,8 +162,8 @@ export class ReActAgentService extends SingleAgentService {
           agentService.addDynamicSystemPrompts([systemPrompt.trim()]);
         }
 
-        // P1 上下文继承：仅新建会话（无 taskId）时按档注入。续接路径忽略 context——子会话已有自己的历史。
-        if (!taskId && context === TaskContextMode.State) {
+        // P1 上下文继承：仅新建会话（无 taskId）时按档注入。续接路径忽略 contextMode——子会话已有自己的历史。
+        if (!taskId && contextMode === TaskContextMode.State) {
           const snippet = this.buildParentContextSnippet(await this.saverService.getMessages());
           if (snippet) agentService.addDynamicSystemPrompts([snippet]);
         }
@@ -206,11 +205,26 @@ export class ReActAgentService extends SingleAgentService {
       }
     };
 
+    const getTasks = async (): Promise<TaskInfo[]> => {
+      const reg = await this.readRegistry();
+      return [...reg.entries()]
+        .sort((a, b) => a[1].updatedAt - b[1].updatedAt)
+        .map(([taskId, r]) => ({
+          taskId,
+          agentId: r.agentId,
+          name: r.name,
+          status: r.status,
+          firstTask: r.firstTask,
+          lastSummary: r.lastSummary,
+          turns: r.turns,
+        }));
+    };
+
     const agentIds = this.agentSubNodes.map(a => a.id);
     const parentTools = await super.buildTools(callback, signal);
     return [
-      createTaskTool(agentIds, runFn, this.taskToolDesc),
-      createListTasksTool(() => this.listTasks()),
+      createDispatchTaskTool(agentIds, runFn),
+      createListTasksTool(getTasks),
       ...parentTools,
     ];
   }
@@ -248,22 +262,6 @@ export class ReActAgentService extends SingleAgentService {
     if (summary?.trim()) rec.lastSummary = truncate(summary.trim(), 300);
     rec.updatedAt = Date.now();
     await this.writeRegistry(reg);
-  }
-
-  /** 导出注册表快照（截断），供 _list_tasks 工具回灌编排 LLM。 */
-  private async listTasks(): Promise<TaskInfo[]> {
-    const reg = await this.readRegistry();
-    return [...reg.entries()]
-      .sort((a, b) => a[1].updatedAt - b[1].updatedAt)
-      .map(([taskId, r]) => ({
-        taskId,
-        agentId: r.agentId,
-        name: r.name,
-        status: r.status,
-        firstTask: r.firstTask,
-        lastSummary: r.lastSummary,
-        turns: r.turns,
-      }));
   }
 
   /** 取主对话最近若干条 Human/AI 文本消息，渲染成纯文本快照。

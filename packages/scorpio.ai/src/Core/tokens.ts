@@ -10,7 +10,6 @@ export const T_DBUrl = Symbol("scorpio:T_DBUrl");
 export const T_DBTable = Symbol("scorpio:T_DBTable");
 export const T_ReactSystemPromptTemplate = Symbol("scorpio:T_ReactSystemPromptTemplate");
 export const T_ReactSubNodePrompt        = Symbol("scorpio:T_ReactSubNodePrompt");
-export const T_ReactTaskToolDesc         = Symbol("scorpio:T_ReactTaskToolDesc");
 export const T_SkillSystemPromptTemplate = Symbol("scorpio:T_SkillSystemPromptTemplate");
 export const T_SkillToolReadDesc         = Symbol("scorpio:T_SkillToolReadDesc");
 export const T_SkillToolListDesc         = Symbol("scorpio:T_SkillToolListDesc");

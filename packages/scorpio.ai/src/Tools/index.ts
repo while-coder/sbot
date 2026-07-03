@@ -20,23 +20,20 @@ export {
     createErrorResult,
     isMCPToolResult,
     normalizeToMCPResult,
-} from './types';
+} from './Core/types';
 
 export {
-    createTaskTool,
-    TASK_TOOL_NAME,
+    createDispatchTaskTool,
+    DISPATCH_TASK_TOOL_NAME,
     TaskContextMode,
-    type TaskToolParams,
-    type RunTaskFn,
-} from './TaskTool';
-
-export {
+    type DispatchTaskToolParams,
+    type RunDispatchTaskFn,
     createListTasksTool,
     LIST_TASKS_TOOL_NAME,
     TaskStatus,
     type TaskInfo,
     type GetTasksFn,
-} from './ListTasksTool';
+} from './Task';
 
 export {
     runProgram,
@@ -67,5 +64,5 @@ export {
 export {
     truncateMCPToolResult,
     type TruncateToolResultOptions,
-} from './truncateToolResult';
+} from './Core/truncateToolResult';
 

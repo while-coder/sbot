@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { setTimeout as sleep } from 'timers/promises';
 import { StringDecoder } from 'string_decoder';
 import { GlobalLoggerService } from '../../Logger';
-import { createTextContent, type MCPToolResult } from '../types';
+import { createTextContent, type MCPToolResult } from '../Core';
 import { resolveShell } from './shell';
 
 const logger = GlobalLoggerService.getLogger('Tools/Process/ShellManager');

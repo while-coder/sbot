@@ -1,7 +1,0 @@
-Dispatch a task to a specialized sub-agent and return its result.
-
-Sub-agent sessions are persistent and identified by `taskId`:
-- Omit `taskId` to start a fresh session. The agent has no prior context, so `task` must be self-contained — include every detail it needs — unless you set `context: state` to inject a snapshot of the recent main conversation.
-- Each result includes a line `task_id: <uuid>`. Remember that uuid.
-- Pass the same uuid back as `taskId` to resume: the agent's full history (including auto-compacted summaries) is restored, so `task` can be a short follow-up rather than re-stating context. `context` is ignored when resuming.
-- Reuse a `taskId` only when continuing the same line of work; start fresh for unrelated requests.
