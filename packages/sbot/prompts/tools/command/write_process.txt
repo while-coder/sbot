@@ -1,0 +1,5 @@
+Writes stdin to a background process started with mode="background" and interactive=true.
+
+Pass the exact numeric processId returned by shell or a script tool. Put the input in stdin. Include a trailing newline for line prompts, for example "y\n" or "2\n".
+
+Use close=true when the process needs EOF after the input, such as programs that read all stdin before continuing. This tool writes to a normal stdin pipe; it is not a full terminal/TTY and may not work for terminal UIs, password prompts, or tools that require a real interactive terminal.

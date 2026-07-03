@@ -35,8 +35,9 @@ function withExecutionMode<T extends z.ZodRawShape>(base: z.ZodObject<T>) {
             timeout: z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
         }),
         base.extend({
-            mode:    z.literal(CodeToolMode.Background).describe('Run in the background and use read_process for later output'),
-            yieldMs: z.number().optional().default(1000).describe('How long to wait for immediate completion before returning a processid, default 1000 ms'),
+            mode:        z.literal(CodeToolMode.Background).describe('Run in the background and use read_process for later output'),
+            yieldMs:     z.number().optional().default(1000).describe('How long to wait for immediate completion before returning a processId, default 1000 ms'),
+            interactive: z.boolean().optional().default(false).describe('Keep stdin open so write_process can send more input later. Use only for programs that prompt for stdin; this is pipe-based, not a full TTY.'),
         }),
     ]);
 }
@@ -61,9 +62,16 @@ export const readProcessToolSchema = z.object({
     yieldMs: z.number().optional().default(1000).describe('How long to wait for new output, default 1000 ms'),
 });
 
+export const writeProcessToolSchema = z.object({
+    processId: z.number().int().positive().describe('The numeric processId returned by shell/script mode="background" with interactive=true'),
+    stdin:     z.any().optional().describe('Data to write to the background process stdin. Prefer a string and include a trailing newline for line prompts; objects/arrays are auto-serialized to JSON.'),
+    close:     z.boolean().optional().default(false).describe('Whether to close stdin after writing. Use true when the process needs EOF to continue or finish.'),
+});
+
 type ShellToolInput = z.infer<typeof shellToolSchema>;
 type ScriptCodeInput = z.infer<typeof scriptCodeSchema>;
 type ReadProcessToolInput = z.infer<typeof readProcessToolSchema>;
+type WriteProcessToolInput = z.infer<typeof writeProcessToolSchema>;
 type CodeToolInput = ShellToolInput | ScriptCodeInput;
 
 export interface ShellToolOptions {
@@ -72,6 +80,11 @@ export interface ShellToolOptions {
 }
 
 export interface ReadProcessToolOptions {
+    name?: string;
+    description: string;
+}
+
+export interface WriteProcessToolOptions {
     name?: string;
     description: string;
 }
@@ -100,7 +113,7 @@ async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Prom
     const stdin = normalizeStdin(input.stdin);
     if (opts.runtime === CodeRuntime.Shell) {
         if (input.mode === CodeToolMode.Background) {
-            const result = await processManager.exec(input.code, cwd!, input.yieldMs ?? 1000, stdin);
+            const result = await processManager.exec(input.code, cwd!, input.yieldMs ?? 1000, stdin, input.interactive ?? false);
             return formatProcessResult(result);
         }
         return runShellCommand(input.code, cwd!, input.timeout ?? 60000, `command "${input.code}"`, stdin);
@@ -133,6 +146,7 @@ async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Prom
                 input.yieldMs ?? 1000,
                 stdin,
                 cleanupTempFile,
+                input.interactive ?? false,
             );
             return formatProcessResult(result);
         }
@@ -177,6 +191,18 @@ export function createReadProcessTool({ name = 'read_process', description }: Re
         schema: readProcessToolSchema as any,
         func: async ({ processId, yieldMs = 1000 }: ReadProcessToolInput): Promise<MCPToolResult> => {
             const result = await processManager.readProcess(processId, yieldMs);
+            return formatProcessResult(result);
+        },
+    });
+}
+
+export function createWriteProcessTool({ name = 'write_process', description }: WriteProcessToolOptions): StructuredToolInterface {
+    return new DynamicStructuredTool({
+        name,
+        description,
+        schema: writeProcessToolSchema as any,
+        func: async ({ processId, stdin, close = false }: WriteProcessToolInput): Promise<MCPToolResult> => {
+            const result = await processManager.writeProcess(processId, normalizeStdin(stdin) ?? '', close);
             return formatProcessResult(result);
         },
     });

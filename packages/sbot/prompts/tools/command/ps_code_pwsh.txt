@@ -1,1 +1,3 @@
 Runs a PowerShell code snippet (string) by writing it to a temp .ps1 file and executing it. Using PowerShell Core (pwsh) — cross-platform, PS 7+ syntax (e.g. ternary operator, null coalescing, foreach-object -Parallel). Use execute_ps_script when the script already exists on disk.
+
+In background mode, set interactive=true only when the script prompts on stdin and you plan to continue with write_process.

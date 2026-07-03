@@ -2,6 +2,8 @@ Executes shell code in a given working directory. Put the command or multi-line 
 
 Use mode="background" for commands that may take longer than a normal tool call, such as builds, test suites, servers, or long scripts. In background mode, the tool waits briefly for completion; if the process is still running, it returns current output plus a numeric processId. Use read_process with that processId to read later output.
 
+For programs that prompt on stdin, set interactive=true in background mode, then use write_process with the returned processId to send input. Include a trailing newline for line prompts. This is pipe-based stdin, not a full terminal/TTY.
+
 The code field supports all forms:
 - Single command: "git status"
 - Chained commands: "npm install && npm run build"

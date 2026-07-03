@@ -1,6 +1,7 @@
 import {
     createShellTool as createCoreShellTool,
     createReadProcessTool as createCoreReadProcessTool,
+    createWriteProcessTool as createCoreWriteProcessTool,
 } from 'scorpio.ai';
 import { type StructuredToolInterface } from '@langchain/core/tools';
 import { loadPrompt } from '../../Core/PromptLoader';
@@ -14,5 +15,11 @@ export function createShellTool(): StructuredToolInterface {
 export function createReadProcessTool(): StructuredToolInterface {
     return createCoreReadProcessTool({
         description: loadPrompt('tools/command/read_process.txt'),
+    });
+}
+
+export function createWriteProcessTool(): StructuredToolInterface {
+    return createCoreWriteProcessTool({
+        description: loadPrompt('tools/command/write_process.txt'),
     });
 }

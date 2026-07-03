@@ -1,3 +1,5 @@
 Reads new output from a background process started by shell or a script tool with mode="background".
 
 Pass the exact numeric processId returned by the tool. The result contains only output produced since the previous read. If the process is still running, call read_process again later with the same processId. If the process has exited, the result includes the final exit status.
+
+If the process was started with interactive=true and is waiting for stdin, use write_process with the same processId to send input.

@@ -3,8 +3,10 @@ export { getCurrentShell, isCommandAvailable, validatePath, resolveWorkingDir } 
 export {
     createShellTool,
     createReadProcessTool,
+    createWriteProcessTool,
     shellToolSchema,
     readProcessToolSchema,
+    writeProcessToolSchema,
     scriptCodeSchema,
     CodeRuntime,
     CodeToolMode,
@@ -12,6 +14,7 @@ export {
     ScriptCodeMode,
     type ShellToolOptions,
     type ReadProcessToolOptions,
+    type WriteProcessToolOptions,
     createScriptCodeTool,
     type ScriptCodeToolOptions,
 } from './codeTool';

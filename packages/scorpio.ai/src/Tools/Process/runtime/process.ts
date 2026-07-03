@@ -116,25 +116,27 @@ export function getChildProcessEnv(): NodeJS.ProcessEnv {
 export function spawnRuntimeProcess(
     file: string,
     args: string[],
-    opts: { cwd: string; shell: ProcessShell; stdin?: string },
+    opts: { cwd: string; shell: ProcessShell; stdin?: string; keepStdinOpen?: boolean },
 ): ChildProcess {
     const proc = spawn(file, args, {
         shell:       opts.shell,
         cwd:         opts.cwd,
         env:         getChildProcessEnv(),
-        stdio:       [opts.stdin !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+        stdio:       [opts.stdin !== undefined || opts.keepStdinOpen ? 'pipe' : 'ignore', 'pipe', 'pipe'],
         detached:    process.platform !== 'win32',
         windowsHide: true,
     });
 
-    writeProcessStdin(proc, opts.stdin);
+    writeProcessStdin(proc, opts.stdin, !opts.keepStdinOpen);
     return proc;
 }
 
-export function writeProcessStdin(proc: ChildProcess, stdin: string | undefined): void {
-    if (stdin === undefined || !proc.stdin) return;
+export function writeProcessStdin(proc: ChildProcess, stdin: string | undefined, close = true): void {
+    if (!proc.stdin) return;
     proc.stdin.on('error', () => { /* ignore EPIPE */ });
-    proc.stdin.end(stdin, 'utf8');
+    if (stdin === undefined) return;
+    if (close) proc.stdin.end(stdin, 'utf8');
+    else proc.stdin.write(stdin, 'utf8');
 }
 
 export function createOutputBuffer(): LimitedOutputBuffer {
