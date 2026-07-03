@@ -38,6 +38,7 @@ program
             const child = spawn(process.execPath, [__filename, ...args], {
                 detached: true,
                 stdio: 'ignore',
+                windowsHide: true,
             });
             child.unref();
             console.log(`sbot 已在后台启动 (PID: ${child.pid})`);

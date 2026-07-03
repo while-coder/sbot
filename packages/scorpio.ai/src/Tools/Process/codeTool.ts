@@ -6,8 +6,7 @@ import { z } from 'zod';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { createErrorResult, type MCPToolResult } from '../Core';
 import { runProgram, runShellCommand } from './runtime/foreground';
-import { resolveWorkingDir } from './runtime/workingDir';
-import { isCommandAvailable } from './runtime/process';
+import { isCommandAvailable, resolveWorkingDir } from './runtime/process';
 import { processManager, formatProcessResult } from './runtime/processManager';
 
 export enum CodeRuntime {

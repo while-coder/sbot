@@ -69,11 +69,6 @@ interface ProcSession {
     cleanup?:   CleanupFn;
 }
 
-function clampYield(ms: number | undefined): number {
-    const v = typeof ms === 'number' && Number.isFinite(ms) ? ms : YIELD_MIN_MS;
-    return Math.min(YIELD_MAX_MS, Math.max(YIELD_MIN_MS, v));
-}
-
 export class ProcessManager {
     private sessions = new Map<number, ProcSession>();
     private nextProcessId = 1;
@@ -94,7 +89,7 @@ export class ProcessManager {
         }
         session.lastUsed = Date.now();
 
-        const collected = await this.collectOutput(session, clampYield(yieldMs), true);
+        const collected = await this.collectOutput(session, this.clampYield(yieldMs), true);
 
         if (session.exited) {
             this.sessions.delete(processId);
@@ -169,7 +164,7 @@ export class ProcessManager {
         this.wireStreams(session);
         this.register(session);
 
-        const collected = await this.collectOutput(session, clampYield(yieldMs), false);
+        const collected = await this.collectOutput(session, this.clampYield(yieldMs), false);
 
         if (spawnError) {
             this.sessions.delete(id);
@@ -261,6 +256,11 @@ export class ProcessManager {
                 session.waiters.push(finish);
             });
         }
+    }
+
+    private clampYield(ms: number | undefined): number {
+        const v = typeof ms === 'number' && Number.isFinite(ms) ? ms : YIELD_MIN_MS;
+        return Math.min(YIELD_MAX_MS, Math.max(YIELD_MIN_MS, v));
     }
 
     private ensureReaper(): void {
