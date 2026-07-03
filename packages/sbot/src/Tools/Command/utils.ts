@@ -3,12 +3,14 @@
 export {
     runProgram,
     runShellCommand,
-    resolveShell,
+    getCurrentShell,
     isCommandAvailable,
     validatePath,
     resolveWorkingDir,
     createScriptCodeTool,
     scriptCodeSchema,
+    CodeRuntime,
+    CodeToolMode,
     MAX_OUTPUT_BYTES,
 } from 'scorpio.ai';
 export type { ScriptCodeToolOptions } from 'scorpio.ai';

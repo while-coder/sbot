@@ -1,8 +1,24 @@
-export { runProgram, runShellCommand, MAX_OUTPUT_BYTES } from './runner';
-export { resolveShell, isCommandAvailable } from './shell';
-export { validatePath, resolveWorkingDir } from './paths';
-export { createScriptCodeTool, scriptCodeSchema, ScriptCodeMode, type ScriptCodeToolOptions } from './scriptTool';
+export { runProgram, runShellCommand, MAX_OUTPUT_BYTES } from './runtime/foreground';
+export { getCurrentShell, isCommandAvailable } from './runtime/process';
+export { validatePath, resolveWorkingDir } from './runtime/workingDir';
 export {
-    ShellManager,
-    formatBackgroundResult,
-} from './ShellManager';
+    createShellTool,
+    createReadProcessTool,
+    shellToolSchema,
+    readProcessToolSchema,
+    scriptCodeSchema,
+    CodeRuntime,
+    CodeToolMode,
+    ShellToolMode,
+    ScriptCodeMode,
+    type ShellToolOptions,
+    type ReadProcessToolOptions,
+    createScriptCodeTool,
+    type ScriptCodeToolOptions,
+} from './codeTool';
+export {
+    ProcessManager,
+    processManager,
+    formatProcessResult,
+    type ManagedProcessResult,
+} from './runtime/processManager';

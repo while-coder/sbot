@@ -1,72 +1,14 @@
-import { spawn, type ChildProcess } from 'child_process';
-import { setTimeout as sleep } from 'timers/promises';
+import { spawn } from 'child_process';
 import { StringDecoder } from 'string_decoder';
-import { GlobalLoggerService } from '../../Logger';
-import { createTextContent, MCPToolResult } from '../Core';
-import { resolveShell } from './shell';
+import { GlobalLoggerService } from '../../../Logger';
+import { createTextContent, MCPToolResult } from '../../Core';
+import { getChildProcessEnv, getCurrentShell, killProcessTree, MAX_OUTPUT_BYTES } from './process';
 
-const logger = GlobalLoggerService.getLogger('Tools/Process');
+const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/foreground');
 
-export const MAX_OUTPUT_BYTES = 256 * 1024;
-const SIGKILL_TIMEOUT_MS = 800;
 const IO_DRAIN_TIMEOUT_MS = 2_000;
 
-async function killTree(proc: ChildProcess, isExited: () => boolean): Promise<void> {
-    const pid = proc.pid;
-    if (!pid || isExited()) return;
-
-    if (process.platform === 'win32') {
-        await new Promise<void>((resolve) => {
-            const killer = spawn('taskkill', ['/pid', String(pid), '/f', '/t'], { stdio: 'ignore', windowsHide: true });
-            killer.once('exit', () => resolve());
-            killer.once('error', () => resolve());
-        });
-        return;
-    }
-
-    try {
-        process.kill(-pid, 'SIGTERM');
-        await sleep(SIGKILL_TIMEOUT_MS);
-        if (!isExited()) process.kill(-pid, 'SIGKILL');
-    } catch {
-        try { proc.kill('SIGTERM'); } catch { /* ignore */ }
-        await sleep(SIGKILL_TIMEOUT_MS);
-        if (!isExited()) { try { proc.kill('SIGKILL'); } catch { /* ignore */ } }
-    }
-}
-
-const QUIET_ENV = {
-    CI:                   '1',
-    NO_COLOR:             '1',
-    FORCE_COLOR:          '0',
-    NPM_CONFIG_PROGRESS:  'false',
-    PIP_PROGRESS_BAR:     'off',
-    PYTHONUNBUFFERED:     '1',
-    // 阻止子进程弹出交互式凭据提示（git push HTTPS、ssh、apt 等）。
-    GIT_TERMINAL_PROMPT:  '0',
-    GIT_ASKPASS:          'echo',
-    SSH_ASKPASS:          'echo',
-    GCM_INTERACTIVE:      'Never',
-    DEBIAN_FRONTEND:      'noninteractive',
-};
-
-const SECRET_ENV_RE = /KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|AUTH|SESSION/i;
-
-// 进程启动时一次性快照 process.env，过滤敏感变量再合并 QUIET_ENV。
-// 设计取舍：bot 运行期不会动态注入凭据，缓存一次避免每条命令都做 O(n) 过滤。
-// 若将来需要热更新 env，请改成基于版本号失效的缓存。
-let _safeEnv: NodeJS.ProcessEnv | undefined;
-function buildChildEnv(): NodeJS.ProcessEnv {
-    if (_safeEnv) return _safeEnv;
-    const filtered: NodeJS.ProcessEnv = {};
-    for (const [k, v] of Object.entries(process.env)) {
-        if (v === undefined) continue;
-        if (SECRET_ENV_RE.test(k)) continue;
-        filtered[k] = v;
-    }
-    _safeEnv = { ...filtered, ...QUIET_ENV };
-    return _safeEnv;
-}
+export { MAX_OUTPUT_BYTES };
 
 interface RunOptions {
     cwd:     string;
@@ -125,7 +67,7 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
         const proc = spawn(file, args, {
             shell,
             cwd,
-            env: buildChildEnv(),
+            env: getChildProcessEnv(),
             stdio: [stdin !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
             detached: process.platform !== 'win32',
             windowsHide: true,
@@ -138,7 +80,7 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
             proc.stdin.end(stdin, 'utf8');
         }
 
-        const kill = () => killTree(proc, () => exited);
+        const kill = () => killProcessTree(proc, () => exited);
 
         proc.stdout?.on('data', (chunk: Buffer) => appendChunk(outBuf, chunk));
         proc.stderr?.on('data', (chunk: Buffer) => appendChunk(errBuf, chunk));
@@ -216,7 +158,7 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
 
 /** 执行一段 shell 脚本字符串（支持 &&、管道、重定向）。整段交给 shell 解析。 */
 export function runShellCommand(command: string, cwd: string, timeout: number, label: string, stdin?: string): Promise<MCPToolResult> {
-    return runProcess(command, [], { cwd, timeout, label, shell: resolveShell(), stdin });
+    return runProcess(command, [], { cwd, timeout, label, shell: getCurrentShell(), stdin });
 }
 
 /** 执行解释器 + 参数数组。args 直接作为 OS 层参数传递，不经 shell 解析，无引号/转义风险。 */

@@ -1,6 +1,6 @@
 import { type StructuredToolInterface } from '@langchain/core/tools';
 import { loadPrompt } from '../../Core/PromptLoader';
-import { createScriptCodeTool, isCommandAvailable } from './utils';
+import { CodeRuntime, createScriptCodeTool, isCommandAvailable } from './utils';
 
 // 现代 Linux/macOS 默认只有 python3，Windows 通常是 python；都试一遍。
 let _pythonInterpreter: string | null | undefined;
@@ -18,6 +18,7 @@ export function createPythonCodeTool(): StructuredToolInterface | null {
     return createScriptCodeTool({
         name:        'execute_python_code',
         description: loadPrompt('tools/command/python_code.txt'),
+        runtime:     CodeRuntime.Python,
         interpreter,
         ext:         '.py',
     });

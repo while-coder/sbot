@@ -1,6 +1,6 @@
 import { type StructuredToolInterface } from '@langchain/core/tools';
 import { loadPrompt } from '../../Core/PromptLoader';
-import { createScriptCodeTool, isCommandAvailable } from './utils';
+import { CodeRuntime, createScriptCodeTool, isCommandAvailable } from './utils';
 
 interface PsInterpreter {
     interpreter: string;
@@ -24,6 +24,7 @@ export function createPsCodeTool(): StructuredToolInterface | null {
     return createScriptCodeTool({
         name:        'execute_ps_code',
         description: loadPrompt(`tools/command/ps_code_${ps.interpreter}.txt`),
+        runtime:     CodeRuntime.PowerShell,
         interpreter: ps.interpreter,
         preArgs:     ps.preArgs,
         ext:         '.ps1',

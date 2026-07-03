@@ -1,0 +1,123 @@
+import fs from 'fs';
+import path from 'path';
+import { execSync, spawn, type ChildProcess } from 'child_process';
+import os from 'os';
+import { setTimeout as sleep } from 'timers/promises';
+import { GlobalLoggerService } from '../../../Logger';
+
+const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/process');
+
+export const MAX_OUTPUT_BYTES = 256 * 1024;
+
+const SIGKILL_TIMEOUT_MS = 800;
+const SHELL_BLACKLIST = new Set(['fish', 'nu']);
+const PROBE_TIMEOUT_MS = 2_000;
+
+const QUIET_ENV = {
+    CI:                   '1',
+    NO_COLOR:             '1',
+    FORCE_COLOR:          '0',
+    NPM_CONFIG_PROGRESS:  'false',
+    PIP_PROGRESS_BAR:     'off',
+    PYTHONUNBUFFERED:     '1',
+    GIT_TERMINAL_PROMPT:  '0',
+    GIT_ASKPASS:          'echo',
+    SSH_ASKPASS:          'echo',
+    GCM_INTERACTIVE:      'Never',
+    DEBIAN_FRONTEND:      'noninteractive',
+};
+
+const SECRET_ENV_RE = /KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|AUTH|SESSION/i;
+
+let safeEnv: NodeJS.ProcessEnv | undefined;
+let currentShell: string | undefined;
+
+export function isCommandAvailable(interpreter: string): boolean {
+    try {
+        execSync(os.platform() === 'win32' ? `where ${interpreter}` : `which ${interpreter}`, {
+            stdio:   'ignore',
+            timeout: PROBE_TIMEOUT_MS,
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export function getCurrentShell(): string {
+    if (currentShell !== undefined) return currentShell;
+
+    if (process.platform !== 'win32') {
+        const s = process.env.SHELL;
+        currentShell = (s && !SHELL_BLACKLIST.has(path.basename(s))) ? s : '/bin/bash';
+        logger?.info(`using shell: ${currentShell}`);
+        return currentShell;
+    }
+
+    // Windows: $SHELL 可能是 unix 风格路径（WSL/Cygwin 残留），必须确认文件真实存在。
+    const envShell = process.env.SHELL;
+    if (envShell && !SHELL_BLACKLIST.has(path.win32.basename(envShell))) {
+        try {
+            if (fs.existsSync(envShell)) {
+                currentShell = envShell; logger?.info(`using shell: ${currentShell}`); return currentShell;
+            }
+        } catch { /* ignore */ }
+    }
+    if (process.env.SBOT_BASH_PATH && fs.existsSync(process.env.SBOT_BASH_PATH)) {
+        currentShell = process.env.SBOT_BASH_PATH; logger?.info(`using shell: ${currentShell}`); return currentShell;
+    }
+
+    // 直接探测常见 git-bash 路径，避免 `where git` 在 PATH 含慢盘时同步阻塞主线程。
+    const candidates: (string | undefined)[] = [
+        process.env.PROGRAMFILES         && path.join(process.env.PROGRAMFILES,        'Git', 'bin', 'bash.exe'),
+        process.env['PROGRAMFILES(X86)'] && path.join(process.env['PROGRAMFILES(X86)']!, 'Git', 'bin', 'bash.exe'),
+        process.env.PROGRAMW6432         && path.join(process.env.PROGRAMW6432,        'Git', 'bin', 'bash.exe'),
+        process.env.LOCALAPPDATA         && path.join(process.env.LOCALAPPDATA,        'Programs', 'Git', 'bin', 'bash.exe'),
+    ];
+    for (const p of candidates) {
+        if (!p) continue;
+        try { if (fs.existsSync(p)) { currentShell = p; logger?.info(`using shell: ${currentShell}`); return currentShell; } } catch { /* ignore */ }
+    }
+
+    currentShell = process.env.COMSPEC || 'cmd.exe';
+    logger?.info(`using shell: ${currentShell}`);
+    return currentShell;
+}
+
+// 进程启动时一次性快照 process.env，过滤敏感变量再合并 QUIET_ENV。
+// 若将来需要热更新 env，请改成基于版本号失效的缓存。
+export function getChildProcessEnv(): NodeJS.ProcessEnv {
+    if (safeEnv) return safeEnv;
+    const filtered: NodeJS.ProcessEnv = {};
+    for (const [k, v] of Object.entries(process.env)) {
+        if (v === undefined) continue;
+        if (SECRET_ENV_RE.test(k)) continue;
+        filtered[k] = v;
+    }
+    safeEnv = { ...filtered, ...QUIET_ENV };
+    return safeEnv;
+}
+
+export async function killProcessTree(proc: ChildProcess, isExited: () => boolean): Promise<void> {
+    const pid = proc.pid;
+    if (!pid || isExited()) return;
+
+    if (process.platform === 'win32') {
+        await new Promise<void>((resolve) => {
+            const killer = spawn('taskkill', ['/pid', String(pid), '/f', '/t'], { stdio: 'ignore', windowsHide: true });
+            killer.once('exit', () => resolve());
+            killer.once('error', () => resolve());
+        });
+        return;
+    }
+
+    try {
+        process.kill(-pid, 'SIGTERM');
+        await sleep(SIGKILL_TIMEOUT_MS);
+        if (!isExited()) process.kill(-pid, 'SIGKILL');
+    } catch {
+        try { proc.kill('SIGTERM'); } catch { /* ignore */ }
+        await sleep(SIGKILL_TIMEOUT_MS);
+        if (!isExited()) { try { proc.kill('SIGKILL'); } catch { /* ignore */ } }
+    }
+}
