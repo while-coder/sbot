@@ -103,7 +103,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/vscode": "^1.120.0",
+    "@types/vscode": "^1.85.0",
     "@types/ws": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "concurrently": "^10.0.3",
