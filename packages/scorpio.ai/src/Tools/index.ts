@@ -47,7 +47,10 @@ export {
     resolveWorkingDir,
     createScriptCodeTool,
     scriptCodeSchema,
+    ScriptCodeMode,
     type ScriptCodeToolOptions,
+    ShellManager,
+    formatBackgroundResult,
     MAX_OUTPUT_BYTES,
 } from './Process';
 

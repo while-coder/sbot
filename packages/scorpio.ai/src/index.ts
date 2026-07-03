@@ -423,7 +423,10 @@ export {
   resolveWorkingDir,
   createScriptCodeTool,
   scriptCodeSchema,
+  ScriptCodeMode,
   type ScriptCodeToolOptions,
+  ShellManager,
+  formatBackgroundResult,
   MAX_OUTPUT_BYTES,
 
   // 文件系统遍历

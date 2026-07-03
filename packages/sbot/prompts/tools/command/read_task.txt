@@ -1,0 +1,3 @@
+Reads new output from a task started by shell with background=true or a script tool with mode=background.
+
+Pass the exact taskid returned by the tool. The result contains only output produced since the previous read. If the task is still running, call read_task again later with the same taskid. If the process has exited, the result includes the final exit status.

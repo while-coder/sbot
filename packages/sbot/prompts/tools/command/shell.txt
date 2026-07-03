@@ -1,5 +1,7 @@
 Executes a shell command or multi-line shell script in a given working directory. Returns stdout and stderr separately. Default timeout 60 s.
 
+Set background=true for commands that may take longer than a normal tool call, such as builds, test suites, servers, or long scripts. In background mode, the tool waits briefly for completion; if the process is still running, it returns current output plus a taskid. Use read_task with that taskid to read later output.
+
 Supports all forms:
 - Single command: "git status"
 - Chained commands: "npm install && npm run build"
