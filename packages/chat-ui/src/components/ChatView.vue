@@ -9,7 +9,7 @@ import type {
 } from '../types'
 import { MessageRole, ChatEventType, MessageKind } from '../types'
 import type { IChatTransport, CommandInfo } from '../transport'
-import { resolveLabels } from '../labels'
+import { resolveLabels, tpl } from '../labels'
 import { useCompactProvider } from '../composables/useCompact'
 import SessionBar from './SessionBar.vue'
 import ConfigToolbar from './ConfigToolbar.vue'
@@ -17,7 +17,7 @@ import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
 import WorkbenchPanel from './WorkbenchPanel.vue'
-import { useConfirm } from 'sbot-ui'
+import { SButton, SInput, SModal, useConfirm } from 'sbot-ui'
 
 const props = withDefaults(defineProps<{
   transport: IChatTransport
@@ -63,6 +63,7 @@ const contentEl     = ref<HTMLElement | null>(null)
 const isCompact     = useCompactProvider(rootEl)
 const sidebarOpen   = ref(false)
 const settingsOpen  = ref(false)
+const compactMenuOpen = ref(false)
 const rightPanelOpen  = ref(loadRightPanelOpenState())
 const rightPanelWidth = ref(420)
 const rightPanelResizing = ref(false)
@@ -71,6 +72,9 @@ const sessionBarResizing = ref(false)
 const sessionSearch = ref('')
 const sessionHighlightIndex = ref(0)
 const sessionSearchInputEl = ref<HTMLInputElement | null>(null)
+const renameDialogVisible = ref(false)
+const renameDraft = ref('')
+const renameInputEl = ref<InstanceType<typeof SInput> | null>(null)
 
 // ── Derived ──
 
@@ -243,12 +247,14 @@ function selectSession(id: string) {
 
 function setSidebarOpen(open: boolean) {
   sidebarOpen.value = open
+  if (open) compactMenuOpen.value = false
 }
 
 function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value
   if (sidebarOpen.value) {
     settingsOpen.value = false
+    compactMenuOpen.value = false
     resetSessionSearch()
     nextTick(() => sessionSearchInputEl.value?.focus())
   }
@@ -300,7 +306,69 @@ function onSessionSearchKeydown(e: KeyboardEvent) {
 
 function toggleSettings() {
   settingsOpen.value = !settingsOpen.value
-  if (settingsOpen.value) sidebarOpen.value = false
+  if (settingsOpen.value) {
+    sidebarOpen.value = false
+    compactMenuOpen.value = false
+  }
+}
+
+function toggleCompactMenu() {
+  compactMenuOpen.value = !compactMenuOpen.value
+  if (compactMenuOpen.value) {
+    sidebarOpen.value = false
+    settingsOpen.value = false
+  }
+}
+
+function closeRenameDialog() {
+  renameDialogVisible.value = false
+}
+
+function openRenameDialog() {
+  const session = activeSession.value
+  if (!session) return
+  compactMenuOpen.value = false
+  renameDraft.value = session.name || ''
+  renameDialogVisible.value = true
+  nextTick(() => {
+    const root = (renameInputEl.value as any)?.$el as HTMLElement | undefined
+    const input = root instanceof HTMLInputElement ? root : root?.querySelector('input')
+    input?.focus()
+    input?.select()
+  })
+}
+
+async function submitRenameDialog() {
+  const session = activeSession.value
+  const name = renameDraft.value.trim()
+  if (!session || !name) return
+  if (name !== (session.name || '')) {
+    await onRenameSession(session.id, name)
+  }
+  closeRenameDialog()
+}
+
+async function deleteActiveSessionFromMenu() {
+  const session = activeSession.value
+  if (!session) return
+  compactMenuOpen.value = false
+  const label = session.name || L.value.untitledSession
+  if (await confirm(tpl(L.value.confirmDeleteSession, { name: label }), {
+    danger: true,
+    cancelText: L.value.cancel,
+  })) {
+    await onDeleteSession(session.id)
+  }
+}
+
+function onRenameDialogKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.isComposing) {
+    e.preventDefault()
+    void submitRenameDialog()
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    closeRenameDialog()
+  }
 }
 
 function setRightPanelOpen(open: boolean, persist = true) {
@@ -313,6 +381,7 @@ function toggleRightPanel() {
   if (rightPanelOpen.value && (isCompact.value || props.alwaysCompact)) {
     sidebarOpen.value = false
     settingsOpen.value = false
+    compactMenuOpen.value = false
   }
 }
 
@@ -462,6 +531,7 @@ async function createNewSession() {
     activeProfileId.value = res.id
     sidebarOpen.value = false
     settingsOpen.value = false
+    compactMenuOpen.value = false
   } catch (e) {
     console.error('[ChatView] createSession', e)
   }
@@ -649,21 +719,27 @@ function saveRightPanelOpenState(open: boolean): void {
 
 <template>
   <div ref="rootEl" class="chatui-root" :class="{ 'chatui-compact': isCompact || alwaysCompact, 'chatui-session-resizing': sessionBarResizing }">
-    <!-- Compact mode (narrow screen or alwaysCompact): hamburger + drawer -->
+    <!-- Compact mode (narrow screen or alwaysCompact): title opens the session drawer -->
     <template v-if="isCompact || alwaysCompact">
       <div class="chatui-compact-header">
-        <span class="chatui-compact-title">{{ activeSession?.name || L.untitledSession }}</span>
+        <button
+          type="button"
+          class="chatui-compact-title"
+          :class="{ 'chatui-compact-title--active': sidebarOpen }"
+          :title="L.sessionList"
+          @click="toggleSidebar"
+        >{{ activeSession?.name || L.untitledSession }}</button>
         <div class="chatui-compact-actions">
           <button
             class="chatui-compact-action"
-            :class="{ 'chatui-compact-action--active': sidebarOpen }"
-            :title="L.sessionList"
-            @click="toggleSidebar"
+            :class="{ 'chatui-compact-action--active': compactMenuOpen }"
+            :title="L.sessionActions"
+            @click="toggleCompactMenu"
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-              <path d="M5 6h10"/>
-              <path d="M5 10h10"/>
-              <path d="M5 14h10"/>
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <circle cx="5" cy="10" r="1.4"/>
+              <circle cx="10" cy="10" r="1.4"/>
+              <circle cx="15" cy="10" r="1.4"/>
             </svg>
           </button>
           <button
@@ -683,6 +759,38 @@ function saveRightPanelOpenState(open: boolean): void {
               <path d="M13.5 3.8 16.2 6.5"/>
               <path d="m8.8 11.2 6.7-6.7"/>
             </svg>
+          </button>
+        </div>
+      </div>
+      <div v-if="compactMenuOpen" class="chatui-compact-menu-backdrop" @click="compactMenuOpen = false">
+        <div class="chatui-compact-menu" @click.stop>
+          <button
+            type="button"
+            class="chatui-compact-menu-item"
+            :disabled="!activeSession"
+            @click="openRenameDialog"
+          >
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11.5 4.5 15.5 8.5"/>
+              <path d="M5 15l1.1-4.1 7.3-7.3a1.4 1.4 0 0 1 2 0l1 1a1.4 1.4 0 0 1 0 2l-7.3 7.3L5 15Z"/>
+              <path d="M4 17h12"/>
+            </svg>
+            <span>{{ L.renameSession }}</span>
+          </button>
+          <button
+            type="button"
+            class="chatui-compact-menu-item chatui-compact-menu-item--danger"
+            :disabled="!activeSession"
+            @click="deleteActiveSessionFromMenu"
+          >
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 6h12"/>
+              <path d="M8 6V4.8A1.8 1.8 0 0 1 9.8 3h.4A1.8 1.8 0 0 1 12 4.8V6"/>
+              <path d="m7 8 .4 7"/>
+              <path d="m13 8-.4 7"/>
+              <path d="M6 6l.7 10A1.5 1.5 0 0 0 8.2 17h3.6a1.5 1.5 0 0 0 1.5-1.4L14 6"/>
+            </svg>
+            <span>{{ L.deleteSession }}</span>
           </button>
         </div>
       </div>
@@ -716,6 +824,8 @@ function saveRightPanelOpenState(open: boolean): void {
               :highlighted-profile-id="highlightedProfileId"
               :labels="labels"
               :show-header="false"
+              :show-delete="false"
+              created-at-layout="inline"
               :empty-message="sessionSearch ? L.sessionNoMatch : undefined"
               @select="(id: string) => { selectSession(id); setSidebarOpen(false) }"
               @delete="onDeleteSession"
@@ -888,6 +998,27 @@ function saveRightPanelOpenState(open: boolean): void {
       :labels="labels"
       @confirm="onPathConfirmed"
     />
+    <SModal
+      :visible="renameDialogVisible"
+      :title="L.renameSession"
+      width="sm"
+      class="chatui-rename-dialog"
+      :close-on-overlay="false"
+      @close="closeRenameDialog"
+    >
+      <div class="chatui-rename-hint">{{ L.renameSessionHint }}</div>
+      <SInput
+        ref="renameInputEl"
+        v-model="renameDraft"
+        :placeholder="L.sessionNamePlaceholder"
+        autofocus
+        @keydown="onRenameDialogKeydown"
+      />
+      <template #footer>
+        <SButton type="outline" @click="closeRenameDialog">{{ L.cancel }}</SButton>
+        <SButton :disabled="!renameDraft.trim()" @click="submitRenameDialog">{{ L.save }}</SButton>
+      </template>
+    </SModal>
   </div>
 </template>
 
@@ -1071,12 +1202,29 @@ function saveRightPanelOpenState(open: boolean): void {
   border-bottom: 1px solid var(--chatui-border);
   background: var(--chatui-bg-surface);
   flex-shrink: 0;
+  position: relative;
 }
 .chatui-compact-title {
+  height: 26px;
+  padding: 0 6px;
+  margin-left: -6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  font: inherit;
   font-size: 13px; font-weight: 600; color: var(--chatui-fg);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: left;
   min-width: 0;
   flex: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.chatui-compact-title:hover {
+  background: var(--chatui-bg-hover);
+}
+.chatui-compact-title--active {
+  background: var(--chatui-bg-active);
 }
 .chatui-compact-actions {
   display: inline-flex; align-items: center; gap: 4px;
@@ -1098,6 +1246,68 @@ function saveRightPanelOpenState(open: boolean): void {
 .chatui-compact-action--active {
   background: var(--chatui-bg-active);
   color: var(--chatui-fg);
+}
+.chatui-compact-menu-backdrop {
+  position: absolute;
+  top: var(--chatui-compact-header-height);
+  left: 0; right: 0; bottom: 0;
+  z-index: 98;
+}
+.chatui-compact-menu {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  min-width: 168px;
+  padding: 6px;
+  border: 1px solid var(--chatui-border);
+  border-radius: 8px;
+  background: var(--chatui-bg-surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+.chatui-compact-menu-item {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--chatui-fg);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.chatui-compact-menu-item:hover:not(:disabled) {
+  background: var(--chatui-bg-hover);
+}
+.chatui-compact-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.chatui-compact-menu-item svg {
+  flex-shrink: 0;
+  color: var(--chatui-fg-secondary);
+}
+.chatui-compact-menu-item--danger {
+  color: var(--chatui-btn-danger);
+}
+.chatui-compact-menu-item--danger svg {
+  color: currentColor;
+}
+.chatui-compact-menu-item--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--chatui-btn-danger) 14%, transparent);
+}
+.chatui-rename-dialog :deep(.s-modal-body) {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chatui-rename-hint {
+  font-size: 12px;
+  color: var(--chatui-fg-secondary);
 }
 
 /* Compact popovers */

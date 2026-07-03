@@ -170,6 +170,7 @@ export class SettingsRoutes {
                     id: String(r.profileId),
                     profileId: String(r.profileId),
                     name: r.sessionName || r.autoSessionName,
+                    createdAt: r.createdAt,
                     agent: profile?.agentId || '',
                     saver: profile?.saver || '',
                     notes: parseNotes(profile?.notes ?? null),

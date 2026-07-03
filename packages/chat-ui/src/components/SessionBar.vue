@@ -13,10 +13,14 @@ const props = withDefaults(defineProps<{
   searchable?: boolean
   width?: number
   emptyMessage?: string
+  showDelete?: boolean
+  createdAtLayout?: 'inline' | 'stacked'
 }>(), {
   showHeader: true,
   searchable: false,
   highlightedProfileId: null,
+  showDelete: true,
+  createdAtLayout: 'stacked',
 })
 
 const barStyle = computed(() =>
@@ -45,7 +49,8 @@ const displayedSessions = computed<SessionItem[]>(() => {
   return props.sessions.filter(s => {
     const name = (s.name || '').toLowerCase()
     const path = (s.workPath || '').toLowerCase()
-    return name.includes(q) || path.includes(q)
+    const createdAt = formatSessionCreatedAt(s.createdAt).toLowerCase()
+    return name.includes(q) || path.includes(q) || createdAt.includes(q)
   })
 })
 const resolvedEmptyMessage = computed(() => {
@@ -79,6 +84,19 @@ async function onDelete(id: string) {
   })) {
     emit('delete', id)
   }
+}
+
+function formatSessionCreatedAt(value?: number): string {
+  if (!value) return ''
+  const ms = value < 1_000_000_000_000 ? value * 1000 : value
+  const date = new Date(ms)
+  if (Number.isNaN(date.getTime())) return ''
+  const now = new Date()
+  const y = date.getFullYear()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const day = `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return y === now.getFullYear() ? `${day} ${time}` : `${y}-${day} ${time}`
 }
 </script>
 
@@ -128,13 +146,21 @@ async function onDelete(id: string) {
             />
             <div
               v-else
-              class="chatui-session-item-name"
-              @dblclick.stop="startEdit(s.id)"
-              :title="L.editSessionNameHint"
-            >{{ s.name || L.untitledSession }}</div>
+              class="chatui-session-item-title-row"
+              :class="`chatui-session-item-title-row--${createdAtLayout}`"
+            >
+              <div
+                class="chatui-session-item-name"
+                @dblclick.stop="startEdit(s.id)"
+                :title="L.editSessionNameHint"
+              >{{ s.name || L.untitledSession }}</div>
+              <div v-if="s.createdAt" class="chatui-session-item-created" :title="new Date(s.createdAt < 1_000_000_000_000 ? s.createdAt * 1000 : s.createdAt).toLocaleString()">
+                {{ formatSessionCreatedAt(s.createdAt) }}
+              </div>
+            </div>
             <div v-if="s.workPath" class="chatui-session-item-path" :title="s.workPath">{{ s.workPath }}</div>
           </div>
-          <button class="chatui-session-del-btn" @click.stop="onDelete(s.id)">×</button>
+          <button v-if="showDelete" class="chatui-session-del-btn" @click.stop="onDelete(s.id)">×</button>
         </div>
       </div>
       <div v-if="displayedSessions.length === 0" class="chatui-session-empty">
@@ -192,14 +218,33 @@ async function onDelete(id: string) {
   box-shadow: inset 0 0 0 1px var(--chatui-border-focus, var(--chatui-accent));
 }
 .chatui-session-item.active.highlighted { background: var(--chatui-bg-active); }
+.chatui-session-item-title-row {
+  display: flex; align-items: baseline; gap: 8px;
+  min-width: 0;
+}
+.chatui-session-item-title-row--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
 .chatui-session-item-name {
   font-size: 13px; font-weight: 500; color: var(--chatui-fg);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1; max-width: 100%;
+}
+.chatui-session-item-title-row--stacked .chatui-session-item-name {
+  width: 100%;
+  flex: none;
 }
 .chatui-session-item-path {
   font-size: 10px; color: var(--chatui-fg-secondary);
   font-family: monospace; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; margin-top: 1px;
+}
+.chatui-session-item-created {
+  font-size: 10px; color: var(--chatui-fg-secondary);
+  overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; flex-shrink: 0;
 }
 .chatui-session-del-btn {
   background: none; border: none; cursor: pointer; color: transparent;

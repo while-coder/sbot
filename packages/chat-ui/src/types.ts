@@ -9,6 +9,7 @@ export interface SessionItem {
   id: string
   profileId?: string
   name?: string
+  createdAt?: number
   agent: string
   saver: string
   notes: string[]
@@ -146,6 +147,11 @@ export interface ChatLabels {
   sessionDeleted?: string
   emptySession?: string
   createSessionHint?: string
+  sessionActions?: string
+  renameSession?: string
+  deleteSession?: string
+  renameSessionHint?: string
+  sessionNamePlaceholder?: string
   editSessionNameHint?: string
   sessionSearchPlaceholder?: string
   sessionNoMatch?: string
