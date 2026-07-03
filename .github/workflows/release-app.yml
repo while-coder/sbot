@@ -9,7 +9,76 @@ permissions:
   contents: write
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      android_signed: ${{ steps.detect.outputs.android_signed }}
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      notes: ${{ steps.release.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - id: detect
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] &&
+             [ -n "$ANDROID_KEYSTORE_PASSWORD" ] &&
+             [ -n "$ANDROID_KEY_ALIAS" ] &&
+             [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            echo "android_signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "android_signed=false" >> "$GITHUB_OUTPUT"
+            if [ -n "$ANDROID_KEYSTORE_BASE64$ANDROID_KEYSTORE_PASSWORD$ANDROID_KEY_ALIAS$ANDROID_KEY_PASSWORD" ]; then
+              echo "::warning::Android signing secrets are incomplete; Android APK build will be skipped."
+            fi
+          fi
+
+      - id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_VERSION="$(node -p "require('./packages/app/package.json').version")"
+          if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#app-v}"
+          else
+            VERSION="$APP_VERSION"
+            TAG="app-v${VERSION}"
+          fi
+
+          if [ "$VERSION" != "$APP_VERSION" ]; then
+            echo "::error::Tag version ($VERSION) does not match packages/app/package.json version ($APP_VERSION). Run pnpm run release:app to keep them in sync."
+            exit 1
+          fi
+
+          BODY=$(awk -v v="$VERSION" '
+            $1 == "##" && $2 == v { capture=1; next }
+            capture && $1 == "##" { exit }
+            capture { print }
+          ' packages/app/CHANGELOG.md)
+          [ -z "$BODY" ] && BODY="Release $VERSION"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "notes<<RELEASE_NOTES_EOF"
+            echo "$BODY"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
   release-desktop:
+    needs: check
     strategy:
       fail-fast: false
       matrix:
@@ -26,18 +95,21 @@ jobs:
           - platform: windows-latest
             args: ''
             rust-target: ''
+          - platform: windows-latest
+            args: '--target aarch64-pc-windows-msvc'
+            rust-target: aarch64-pc-windows-msvc
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.33.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install Rust
@@ -46,14 +118,15 @@ jobs:
           targets: ${{ matrix.rust-target }}
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             packages/app/src-tauri/target
-          key: ${{ matrix.platform }}-cargo-app-${{ hashFiles('packages/app/src-tauri/Cargo.lock') }}
+          key: ${{ matrix.platform }}-${{ matrix.rust-target || 'default' }}-cargo-app-${{ hashFiles('packages/app/src-tauri/Cargo.lock') }}
           restore-keys: |
+            ${{ matrix.platform }}-${{ matrix.rust-target || 'default' }}-cargo-app-
             ${{ matrix.platform }}-cargo-app-
 
       - name: Install Linux deps
@@ -64,23 +137,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Extract release notes
-        id: notes
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#app-v}"
-          BODY=$(awk -v v="$VERSION" '
-            $1 == "##" && $2 == v { capture=1; next }
-            capture && $1 == "##" { exit }
-            capture { print }
-          ' packages/app/CHANGELOG.md)
-          [ -z "$BODY" ] && BODY="Release $VERSION"
-          {
-            echo "body<<RELEASE_NOTES_EOF"
-            echo "$BODY"
-            echo "RELEASE_NOTES_EOF"
-          } >> "$GITHUB_OUTPUT"
-
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,89 +144,50 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: packages/app
-          tagName: app-v__VERSION__
-          releaseName: 'sbot v__VERSION__'
-          releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: true
+          tagName: ${{ needs.check.outputs.tag }}
+          releaseName: 'sbot v${{ needs.check.outputs.version }}'
+          releaseBody: ${{ needs.check.outputs.notes }}
+          releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
-          updaterJsonPreferNsis: true
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
 
-  publish-manifest:
-    needs: release-desktop
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Force release body from CHANGELOG
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        shell: bash
-        run: |
-          VERSION="${TAG#app-v}"
-          BODY=$(awk -v v="$VERSION" '
-            $1 == "##" && $2 == v { capture=1; next }
-            capture && $1 == "##" { exit }
-            capture { print }
-          ' packages/app/CHANGELOG.md)
-          [ -z "$BODY" ] && BODY="Release $VERSION"
-          # tauri-action only sets the body when first creating the release; if an earlier
-          # run already created the draft, its body is stuck on whatever was there. Force it.
-          gh release edit "$TAG" -R "$REPO" --notes "$BODY"
-
-      - name: Sync app manifest to updater channel
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          if ! gh release download "$TAG" -R "$REPO" -p "latest.json" -O latest-app.json; then
-            echo "::error::latest.json not found on release $TAG — no platform produced an updater manifest"
-            exit 1
-          fi
-          gh release view updater -R "$REPO" >/dev/null 2>&1 || \
-            gh release create updater -R "$REPO" \
-              --title "Updater Manifests" \
-              --notes "Auto-maintained by CI. Hosts updater JSON for app and helper." \
-              --latest=false
-          gh release upload updater latest-app.json -R "$REPO" --clobber
-          gh release delete-asset "$TAG" latest.json -R "$REPO" --yes || true
-
   release-android:
+    needs: [check, release-desktop]
+    if: ${{ !cancelled() && needs.release-desktop.result == 'success' && needs.check.outputs.android_signed == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.33.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;27.0.12077973'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Install Rust with Android targets
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.11902837"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.11902837" >> "$GITHUB_ENV"
+
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -192,50 +209,41 @@ jobs:
       - name: Build APK
         working-directory: packages/app
         env:
-          NDK_HOME: ${{ env.ANDROID_NDK_ROOT }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: pnpm android:build --apk
 
-      - name: Rename APK
-        id: rename
-        run: |
-          VERSION="${GITHUB_REF_NAME#app-v}"
-          [ -z "$VERSION" ] && VERSION="dev"
-          mkdir -p artifacts
-          cp packages/app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk \
-             "artifacts/sbot_${VERSION}_universal.apk"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Upload APK to release
-        if: startsWith(github.ref, 'refs/tags/app-v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: 'sbot v${{ steps.rename.outputs.version }}'
-          draft: true
-          files: artifacts/*.apk
-
-      - name: Upload APK as artifact
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbot-android-apk
-          path: artifacts/*.apk
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          APK=$(find packages/app/src-tauri/gen/android/app/build/outputs/apk -name '*.apk' ! -name '*unsigned*' | head -n1)
+          if [ -z "$APK" ]; then
+            echo "::error::Signed APK was not found. Check Android signing configuration."
+            exit 1
+          fi
+          DEST="sbot_${VERSION}_android.apk"
+          cp "$APK" "$DEST"
+          gh release upload "$TAG" "$DEST" -R "$REPO" --clobber
 
   publish-vscode:
+    needs: [check, release-desktop]
+    if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.33.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -243,35 +251,171 @@ jobs:
       - name: Build extension
         run: pnpm run build:vscode
 
-      - name: Resolve version
-        id: version
+      - name: Verify VS Code extension version
+        id: vscode
         shell: bash
         run: |
-          PKG_VERSION=$(node -p "require('./packages/vscode-extension/package.json').version")
-          if [ "${{ github.event_name }}" = "push" ]; then
-            TAG_VERSION="${GITHUB_REF_NAME#app-v}"
-            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-              echo "::error::Tag version ($TAG_VERSION) does not match packages/vscode-extension/package.json version ($PKG_VERSION) — run pnpm run release:app to keep them in sync"
-              exit 1
-            fi
+          VERSION=$(node -p "require('./packages/vscode-extension/package.json').version")
+          if [ "$VERSION" != "${{ needs.check.outputs.version }}" ]; then
+            echo "::error::App version (${{ needs.check.outputs.version }}) does not match packages/vscode-extension/package.json version ($VERSION). Run pnpm run release:app to keep them in sync."
+            exit 1
           fi
-          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Package VSIX
         working-directory: packages/vscode-extension
-        run: npx --yes @vscode/vsce package --no-dependencies --out "sbot-vscode-${{ steps.version.outputs.version }}.vsix"
+        run: npx --yes @vscode/vsce package --no-dependencies --out "sbot-vscode-${{ steps.vscode.outputs.version }}.vsix"
 
-      - name: Attach VSIX to release
-        if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: packages/vscode-extension/sbot-vscode-${{ steps.version.outputs.version }}.vsix
-          draft: true
+      - name: Upload VSIX to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+          VERSION: ${{ steps.vscode.outputs.version }}
+        run: gh release upload "$TAG" "packages/vscode-extension/sbot-vscode-${VERSION}.vsix" -R "$REPO" --clobber
 
-      - name: Upload VSIX as artifact
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+  publish-manifest:
+    needs: [check, release-desktop]
+    if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
         with:
-          name: sbot-vscode-vsix
-          path: packages/vscode-extension/sbot-vscode-${{ steps.version.outputs.version }}.vsix
+          node-version: 24
+
+      - name: Force release body from CHANGELOG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+          RELEASE_NOTES: ${{ needs.check.outputs.notes }}
+        shell: bash
+        run: gh release edit "$TAG" -R "$REPO" --notes "$RELEASE_NOTES"
+
+      - name: Rename desktop assets with OS tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+          ASSET_VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          gh api "/repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)\t\(.name)"' |
+          while IFS=$'\t' read -r id name; do
+            new=$(printf '%s' "$name" | sed -E \
+              -e "s#^sbot_[0-9][0-9.]*_aarch64\.dmg#sbot_${ASSET_VERSION}_macos_arm64.dmg#" \
+              -e "s#^sbot_[0-9][0-9.]*_x64\.dmg#sbot_${ASSET_VERSION}_macos_x64.dmg#" \
+              -e "s#^sbot_aarch64\.app\.tar\.gz#sbot_${ASSET_VERSION}_macos_arm64.app.tar.gz#" \
+              -e "s#^sbot_x64\.app\.tar\.gz#sbot_${ASSET_VERSION}_macos_x64.app.tar.gz#" \
+              -e "s#^sbot_[0-9][0-9.]*_amd64\.(AppImage|deb)#sbot_${ASSET_VERSION}_linux_x64.\1#" \
+              -e "s#^sbot_[0-9][0-9.]*_x64-setup\.nsis\.zip#sbot_${ASSET_VERSION}_windows_x64.nsis.zip#" \
+              -e "s#^sbot_[0-9][0-9.]*_arm64-setup\.nsis\.zip#sbot_${ASSET_VERSION}_windows_arm64.nsis.zip#" \
+              -e "s#^sbot_[0-9][0-9.]*_x64-setup\.exe#sbot_${ASSET_VERSION}_windows_x64.exe#" \
+              -e "s#^sbot_[0-9][0-9.]*_arm64-setup\.exe#sbot_${ASSET_VERSION}_windows_arm64.exe#")
+            if [ "$new" != "$name" ]; then
+              echo "rename: $name -> $new"
+              gh api -X PATCH "/repos/$REPO/releases/assets/$id" -f name="$new" >/dev/null
+            fi
+          done
+
+      - name: Generate updater manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+          ASSET_VERSION: ${{ needs.check.outputs.version }}
+          RELEASE_NOTES: ${{ needs.check.outputs.notes }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/$REPO/releases/tags/$TAG" > release.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+
+          const repo = process.env.REPO;
+          const version = process.env.ASSET_VERSION;
+          const release = JSON.parse(fs.readFileSync('release.json', 'utf8'));
+          const assets = new Map(release.assets.map((asset) => [asset.name, asset]));
+          const platforms = {};
+          const missing = [];
+
+          function signatureFor(assetName) {
+            const sigName = `${assetName}.sig`;
+            const sigAsset = assets.get(sigName);
+            if (!sigAsset) {
+              throw new Error(`missing signature asset: ${sigName}`);
+            }
+            return execFileSync('gh', [
+              'api',
+              `/repos/${repo}/releases/assets/${sigAsset.id}`,
+              '-H',
+              'Accept: application/octet-stream',
+            ], { encoding: 'utf8' }).trim();
+          }
+
+          function add(keys, candidates) {
+            const asset = candidates.map((name) => assets.get(name)).find(Boolean);
+            if (!asset) {
+              missing.push(candidates.join(' or '));
+              return;
+            }
+            const entry = {
+              signature: signatureFor(asset.name),
+              url: asset.browser_download_url,
+            };
+            for (const key of keys) {
+              platforms[key] = entry;
+            }
+          }
+
+          add(['darwin-x86_64', 'darwin-x86_64-app'], [
+            `sbot_${version}_macos_x64.app.tar.gz`,
+          ]);
+          add(['darwin-aarch64', 'darwin-aarch64-app'], [
+            `sbot_${version}_macos_arm64.app.tar.gz`,
+          ]);
+          add(['windows-x86_64', 'windows-x86_64-nsis'], [
+            `sbot_${version}_windows_x64.nsis.zip`,
+            `sbot_${version}_windows_x64.exe`,
+          ]);
+          add(['windows-aarch64', 'windows-aarch64-nsis'], [
+            `sbot_${version}_windows_arm64.nsis.zip`,
+            `sbot_${version}_windows_arm64.exe`,
+          ]);
+          add(['linux-x86_64', 'linux-x86_64-appimage'], [
+            `sbot_${version}_linux_x64.AppImage.tar.gz`,
+            `sbot_${version}_linux_x64.AppImage`,
+          ]);
+
+          if (missing.length > 0) {
+            throw new Error(`missing updater payload asset(s): ${missing.join(', ')}`);
+          }
+
+          fs.writeFileSync(
+            'latest-app.json',
+            `${JSON.stringify({
+              version,
+              notes: process.env.RELEASE_NOTES || `Release ${version}`,
+              pub_date: new Date().toISOString(),
+              platforms,
+            }, null, 2)}\n`,
+          );
+          NODE
+          if gh release view updater -R "$REPO" >/dev/null 2>&1; then
+            gh release upload updater latest-app.json -R "$REPO" --clobber
+          else
+            gh release create updater -R "$REPO" \
+              latest-app.json \
+              --target "$GITHUB_SHA" \
+              --title "Updater Manifests" \
+              --notes "Auto-maintained by CI. Hosts updater JSON for app and helper." \
+              --latest=false
+          fi
+
+          for stale in latest.json latest-app.json; do
+            old_id=$(gh api "/repos/$REPO/releases/tags/$TAG" --jq ".assets[] | select(.name == \"$stale\") | .id" || true)
+            if [ -n "$old_id" ]; then
+              gh api -X DELETE "/repos/$REPO/releases/assets/$old_id" >/dev/null
+            fi
+          done
