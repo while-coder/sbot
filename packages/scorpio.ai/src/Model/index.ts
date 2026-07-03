@@ -4,7 +4,8 @@
  */
 
 // ===== 接口 + Symbol Token =====
-export { IModelService } from "./IModelService";
+export { IModelService, StructuredOutputMethod } from "./IModelService";
+export type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelService";
 
 // ===== 实现类 =====
 export { OpenAIModelService } from "./OpenAIModelService";

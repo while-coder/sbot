@@ -90,6 +90,7 @@ export {
 export {
   // 接口 + Symbol Token
   IModelService,
+  StructuredOutputMethod,
 
   // 实现类
   OpenAIModelService,

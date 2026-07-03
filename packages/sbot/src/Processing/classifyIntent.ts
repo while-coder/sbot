@@ -1,10 +1,16 @@
 import { z } from "zod";
-import { MessageRole, truncate, contentToString, type MessageContent } from "scorpio.ai";
+import { MessageRole, StructuredOutputMethod, truncate, contentToString, type MessageContent } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { loadPrompt } from "../Core/PromptLoader";
 
 const logger = LoggerService.getLogger("classifyIntent.ts");
+
+const INTENT_JSON_FORMAT_INSTRUCTION = [
+  "Return JSON only. Do not include markdown, code fences, or any extra text.",
+  "The JSON object must match this shape:",
+  '{"shouldReply": false, "confidence": 0.0, "reasoning": "brief justification"}',
+].join("\n");
 
 const IntentSchema = z.object({
   shouldReply: z.boolean().describe("Whether the AI assistant should reply to this message"),
@@ -30,10 +36,17 @@ export async function classifyIntent(
   if (!modelService) return true;
   let text = truncate(contentToString(query), 100);
   try {
+    const systemPrompt = [
+      intentPrompt || loadPrompt('intent/default.txt'),
+      INTENT_JSON_FORMAT_INSTRUCTION,
+    ].join("\n\n");
     const result = await modelService.invokeStructured<IntentResult>(IntentSchema, [
-      { role: MessageRole.System, content: intentPrompt || loadPrompt('intent/default.txt') },
+      { role: MessageRole.System, content: systemPrompt },
       { role: MessageRole.Human, content: query },
-    ], { signal: AbortSignal.timeout(120_000) });
+    ], {
+      signal: AbortSignal.timeout(120_000),
+      structuredMethod: StructuredOutputMethod.JsonMode,
+    });
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
     if (shouldReply) {
       logger.info(`[${sessionName ?? '?'}] ✅ 意图通过: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);

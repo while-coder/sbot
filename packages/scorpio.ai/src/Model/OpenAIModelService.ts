@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { AIMessageChunk } from "@langchain/core/messages";
-import { IModelService } from "./IModelService";
+import { IModelService, StructuredOutputMethod, type ModelInvokeOptions, type StructuredInvokeOptions } from "./IModelService";
 import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
 import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
@@ -38,7 +38,7 @@ export class OpenAIModelService implements IModelService {
     this.boundModel = undefined;
   }
 
-  async invoke(prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<ChatMessage> {
+  async invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage> {
     const m = this.boundModel ?? this.model!;
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
     const result = await m.invoke(input, options?.signal ? { signal: options.signal } : undefined);
@@ -49,13 +49,16 @@ export class OpenAIModelService implements IModelService {
     this.boundModel = this.model!.bindTools(tools);
   }
 
-  async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<T> {
+  async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T> {
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    const structured = this.model!.withStructuredOutput(schema, { method: "functionCalling" });
+    const structured = this.model!.withStructuredOutput(schema, {
+      method: options?.structuredMethod ?? StructuredOutputMethod.FunctionCalling,
+      ...(options?.strict !== undefined && { strict: options.strict }),
+    });
     return structured.invoke(input, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
   }
 
-  async stream(messages: string | ChatMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<ChatMessage>> {
+  async stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {
     const m = this.boundModel ?? this.model!;
     const input = typeof messages === 'string' ? messages : toBaseMessages(messages);
     const lcStream = await m.stream(input, options?.signal ? { signal: options.signal } : undefined);
