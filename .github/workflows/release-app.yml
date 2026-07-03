@@ -78,8 +78,46 @@ jobs:
             echo "RELEASE_NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
-  release-desktop:
+  prepare-release:
     needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or refresh GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+          VERSION: ${{ needs.check.outputs.version }}
+          RELEASE_NOTES: ${{ needs.check.outputs.notes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            gh release edit "$TAG" -R "$REPO" \
+              --title "sbot v${VERSION}" \
+              --notes "$RELEASE_NOTES"
+          else
+            gh release create "$TAG" -R "$REPO" \
+              --target "$GITHUB_SHA" \
+              --title "sbot v${VERSION}" \
+              --notes "$RELEASE_NOTES"
+          fi
+
+          gh api "/repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)\t\(.name)"' |
+          while IFS=$'\t' read -r id name; do
+            case "$name" in
+              "sbot_${VERSION}_android.apk"|sbot-vscode-*.vsix)
+                continue
+                ;;
+              "latest.json"|"latest-app.json"|"sbot.app.tar.gz"|"sbot.app.tar.gz.sig"|sbot_*.app.tar.gz|sbot_*.app.tar.gz.sig|sbot_${VERSION}_*)
+                echo "delete stale release asset: $name"
+                gh api -X DELETE "/repos/$REPO/releases/assets/$id" >/dev/null
+                ;;
+            esac
+          done
+
+  release-desktop:
+    needs: [check, prepare-release]
     strategy:
       fail-fast: false
       matrix:
