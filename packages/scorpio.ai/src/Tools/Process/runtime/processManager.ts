@@ -1,8 +1,18 @@
-import { spawn, type ChildProcess } from 'child_process';
-import { StringDecoder } from 'string_decoder';
+import { type ChildProcess } from 'child_process';
 import { GlobalLoggerService } from '../../../Logger';
 import { createTextContent, type MCPToolResult } from '../../Core';
-import { getChildProcessEnv, getCurrentShell, killProcessTree, MAX_OUTPUT_BYTES } from './process';
+import {
+    appendOutputBuffer,
+    createOutputBuffer,
+    drainOutputBuffer,
+    formatProcessExit,
+    getCurrentShell,
+    hasBufferedOutput,
+    killProcessTree,
+    LimitedOutputBuffer,
+    ProcessShell,
+    spawnRuntimeProcess,
+} from './process';
 
 const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/processManager');
 
@@ -12,13 +22,6 @@ const YIELD_MIN_MS = 250;
 const YIELD_MAX_MS = 30_000;
 const GRACE_DRAIN_MS = 150;
 const REAPER_INTERVAL_MS = 60_000;
-
-interface StreamBuffer {
-    text:     string;
-    bytes:    number;
-    overflow: boolean;
-    decoder:  StringDecoder;
-}
 
 export interface ManagedProcessResult {
     processId?: number;
@@ -59,8 +62,8 @@ type CleanupFn = () => void | Promise<void>;
 interface ProcSession {
     id:         number;
     proc:       ChildProcess;
-    stdout:     StreamBuffer;
-    stderr:     StreamBuffer;
+    stdout:     LimitedOutputBuffer;
+    stderr:     LimitedOutputBuffer;
     exited:     boolean;
     exitCode:   number | null;
     exitSignal: NodeJS.Signals | null;
@@ -99,7 +102,7 @@ export class ProcessManager {
                 exitCode: session.exitCode,
                 signal: session.exitSignal,
                 ...collected,
-                note: exitNote(session),
+                note: formatProcessExit(session.exitCode, session.exitSignal),
             };
         }
         return {
@@ -124,29 +127,17 @@ export class ProcessManager {
         args: string[],
         cwd: string,
         yieldMs: number | undefined,
-        shell: string | false,
+        shell: ProcessShell,
         stdin?: string,
         cleanup?: CleanupFn,
     ): Promise<ManagedProcessResult> {
-        const proc = spawn(file, args, {
-            shell,
-            cwd,
-            env:         getChildProcessEnv(),
-            stdio:       ['pipe', 'pipe', 'pipe'],
-            detached:    process.platform !== 'win32',
-            windowsHide: true,
-        });
-
-        if (stdin !== undefined && proc.stdin) {
-            proc.stdin.on('error', () => { /* ignore EPIPE */ });
-            proc.stdin.end(stdin, 'utf8');
-        }
+        const proc = spawnRuntimeProcess(file, args, { cwd, shell, stdin });
 
         const id = this.nextProcessId++;
         const session: ProcSession = {
             id, proc,
-            stdout: createStreamBuffer(),
-            stderr: createStreamBuffer(),
+            stdout: createOutputBuffer(),
+            stderr: createOutputBuffer(),
             exited: false, exitCode: null, exitSignal: null,
             lastUsed: Date.now(),
             waiters: [],
@@ -180,7 +171,7 @@ export class ProcessManager {
                 exitCode: session.exitCode,
                 signal: session.exitSignal,
                 ...collected,
-                note: exitNote(session),
+                note: formatProcessExit(session.exitCode, session.exitSignal),
             };
         }
         return {
@@ -207,8 +198,8 @@ export class ProcessManager {
     }
 
     private wireStreams(session: ProcSession): void {
-        session.proc.stdout?.on('data', (chunk: Buffer) => { appendStream(session.stdout, chunk); this.wake(session); });
-        session.proc.stderr?.on('data', (chunk: Buffer) => { appendStream(session.stderr, chunk); this.wake(session); });
+        session.proc.stdout?.on('data', (chunk: Buffer) => { appendOutputBuffer(session.stdout, chunk); this.wake(session); });
+        session.proc.stderr?.on('data', (chunk: Buffer) => { appendOutputBuffer(session.stderr, chunk); this.wake(session); });
         session.proc.once('exit', (code, signal) => {
             session.exited = true;
             session.exitCode = code;
@@ -239,7 +230,7 @@ export class ProcessManager {
         const deadline = Date.now() + yieldMs;
 
         for (;;) {
-            if (returnOnData && (hasUnread(session.stdout) || hasUnread(session.stderr))) {
+            if (returnOnData && (hasBufferedOutput(session.stdout) || hasBufferedOutput(session.stderr))) {
                 return drainBoth(session, false);
             }
             if (session.exited) {
@@ -285,46 +276,10 @@ export class ProcessManager {
 }
 
 function drainBoth(session: ProcSession, final: boolean): { stdout: string; stderr: string; truncated?: boolean } {
-    const out = drainStream(session.stdout, final);
-    const err = drainStream(session.stderr, final);
+    const out = drainOutputBuffer(session.stdout, final);
+    const err = drainOutputBuffer(session.stderr, final);
     const truncated = out.overflowed || err.overflowed;
     return { stdout: out.text, stderr: err.text, truncated: truncated || undefined };
-}
-
-function createStreamBuffer(): StreamBuffer {
-    return { text: '', bytes: 0, overflow: false, decoder: new StringDecoder('utf8') };
-}
-
-function hasUnread(sb: StreamBuffer): boolean {
-    return sb.bytes > 0 || sb.text.length > 0 || sb.overflow;
-}
-
-function appendStream(sb: StreamBuffer, chunk: Buffer): void {
-    if (sb.overflow) return;
-    const remain = MAX_OUTPUT_BYTES - sb.bytes;
-    if (chunk.length >= remain) {
-        if (remain > 0) sb.text += sb.decoder.write(chunk.subarray(0, remain));
-        sb.bytes = MAX_OUTPUT_BYTES;
-        sb.overflow = true;
-        return;
-    }
-    sb.text += sb.decoder.write(chunk);
-    sb.bytes += chunk.length;
-}
-
-function drainStream(sb: StreamBuffer, final: boolean): { text: string; overflowed: boolean } {
-    const overflowed = sb.overflow;
-    const text = sb.text + (final || overflowed ? sb.decoder.end() : '');
-    if (final || overflowed) sb.decoder = new StringDecoder('utf8');
-    sb.text = '';
-    sb.bytes = 0;
-    sb.overflow = false;
-    return { text, overflowed };
-}
-
-function exitNote(session: ProcSession): string {
-    if (session.exitSignal) return `Process terminated by signal ${session.exitSignal}`;
-    return `Process exited with code ${session.exitCode ?? -1}`;
 }
 
 function delay(ms: number): Promise<void> {

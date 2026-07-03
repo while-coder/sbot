@@ -1,8 +1,16 @@
-import { spawn } from 'child_process';
-import { StringDecoder } from 'string_decoder';
 import { GlobalLoggerService } from '../../../Logger';
 import { createTextContent, MCPToolResult } from '../../Core';
-import { getChildProcessEnv, getCurrentShell, killProcessTree, MAX_OUTPUT_BYTES } from './process';
+import {
+    appendOutputBuffer,
+    createOutputBuffer,
+    drainOutputBuffer,
+    formatProcessExit,
+    getCurrentShell,
+    killProcessTree,
+    MAX_OUTPUT_BYTES,
+    ProcessShell,
+    spawnRuntimeProcess,
+} from './process';
 
 const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/foreground');
 
@@ -15,37 +23,9 @@ interface RunOptions {
     timeout: number;
     label:   string;
     /** 传字符串走 shell（解析 &&、管道、重定向等）；传 false 直接 exec，args 不经 shell。 */
-    shell:   string | false;
+    shell:   ProcessShell;
     /** 写入子进程 stdin 的字符串；写完即 end，子进程读到 EOF。未传则 stdin 关闭。 */
     stdin?:  string;
-}
-
-interface OutputBuffer {
-    chunks:   Buffer[];
-    bytes:    number;
-    overflow: boolean;
-}
-
-function appendChunk(buf: OutputBuffer, chunk: Buffer): void {
-    if (buf.overflow) return;
-    const remain = MAX_OUTPUT_BYTES - buf.bytes;
-    if (chunk.length >= remain) {
-        if (remain > 0) buf.chunks.push(chunk.subarray(0, remain));
-        buf.bytes    = MAX_OUTPUT_BYTES;
-        buf.overflow = true;
-        return;
-    }
-    buf.chunks.push(chunk);
-    buf.bytes += chunk.length;
-}
-
-// 累积阶段保留 Buffer 引用，避免反复 ConsString 拼接 / flatten 带来的 GC 压力；
-// finish 时一次性 concat 后用 StringDecoder 解码全 buffer，多字节边界由 decoder 内部处理，
-// 字节截断尾部不完整字符通过 decoder.end() 输出 replacement。
-function decodeBuffer(buf: OutputBuffer): string {
-    const merged  = Buffer.concat(buf.chunks, buf.bytes);
-    const decoder = new StringDecoder('utf8');
-    return decoder.write(merged) + decoder.end();
 }
 
 /**
@@ -56,34 +36,21 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
     const { cwd, timeout, label, shell, stdin } = opts;
 
     return new Promise<MCPToolResult>((resolve) => {
-        const outBuf: OutputBuffer = { chunks: [], bytes: 0, overflow: false };
-        const errBuf: OutputBuffer = { chunks: [], bytes: 0, overflow: false };
+        const outBuf = createOutputBuffer();
+        const errBuf = createOutputBuffer();
         let timedOut = false;
         let exited = false;
         let settled = false;
 
         // detached: !win32 —— 让子进程成为新进程组组长，killTree 才能 kill -pgid 杀到孙子进程。
         // windowsHide: true —— Windows 下不弹出控制台窗口，静默执行。
-        const proc = spawn(file, args, {
-            shell,
-            cwd,
-            env: getChildProcessEnv(),
-            stdio: [stdin !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-            detached: process.platform !== 'win32',
-            windowsHide: true,
-        });
-
-        if (stdin !== undefined && proc.stdin) {
-            // 子进程不读 stdin 时 write 会触发 EPIPE，吞掉避免 unhandledRejection。
-            proc.stdin.on('error', () => { /* ignore EPIPE */ });
-            // end() 一次写完并关闭 fd，子进程读到 EOF；否则脚本可能一直等待更多输入。
-            proc.stdin.end(stdin, 'utf8');
-        }
+        // stdin 由 spawnRuntimeProcess 一次写完并关闭 fd；未传 stdin 时直接关闭输入端。
+        const proc = spawnRuntimeProcess(file, args, { cwd, shell, stdin });
 
         const kill = () => killProcessTree(proc, () => exited);
 
-        proc.stdout?.on('data', (chunk: Buffer) => appendChunk(outBuf, chunk));
-        proc.stderr?.on('data', (chunk: Buffer) => appendChunk(errBuf, chunk));
+        proc.stdout?.on('data', (chunk: Buffer) => appendOutputBuffer(outBuf, chunk));
+        proc.stderr?.on('data', (chunk: Buffer) => appendOutputBuffer(errBuf, chunk));
 
         let exitCode: number | null = null;
         let exitSignal: NodeJS.Signals | null = null;
@@ -98,13 +65,15 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
             try { proc.stderr?.destroy(); } catch { /* ignore */ }
 
             const parts = [];
-            const out = decodeBuffer(outBuf).trim();
-            const err = decodeBuffer(errBuf).trim();
+            const outDrain = drainOutputBuffer(outBuf, true);
+            const errDrain = drainOutputBuffer(errBuf, true);
+            const out = outDrain.text.trim();
+            const err = errDrain.text.trim();
             if (out) parts.push(createTextContent(out));
             if (err) parts.push(createTextContent(`stderr:\n${err}`));
 
-            const outOverflow = outBuf.overflow;
-            const errOverflow = errBuf.overflow;
+            const outOverflow = outDrain.overflowed;
+            const errOverflow = errDrain.overflowed;
 
             const isError = timedOut || outOverflow || errOverflow || forcedDrainTimeout ||
                             (exitCode !== null && exitCode !== 0) ||
@@ -112,8 +81,8 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
             if (timedOut)                                  parts.push(createTextContent(`Command timed out after ${timeout} ms`));
             else if (outOverflow || errOverflow)            parts.push(createTextContent(`Output exceeded ${MAX_OUTPUT_BYTES} bytes; remaining output discarded`));
             else if (forcedDrainTimeout)                    parts.push(createTextContent(`Output streams did not close within ${IO_DRAIN_TIMEOUT_MS} ms; force-finished`));
-            else if (exitCode !== null && exitCode !== 0)   parts.push(createTextContent(`Process exited with code ${exitCode}`));
-            else if (exitSignal !== null)                   parts.push(createTextContent(`Process terminated by signal ${exitSignal}`));
+            else if (exitCode !== null && exitCode !== 0)   parts.push(createTextContent(formatProcessExit(exitCode, null)));
+            else if (exitSignal !== null)                   parts.push(createTextContent(formatProcessExit(exitCode, exitSignal)));
 
             resolve({ content: parts, isError: isError || undefined });
         };

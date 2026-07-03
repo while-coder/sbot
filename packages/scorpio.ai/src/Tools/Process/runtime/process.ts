@@ -3,6 +3,7 @@ import path from 'path';
 import { execSync, spawn, type ChildProcess } from 'child_process';
 import os from 'os';
 import { setTimeout as sleep } from 'timers/promises';
+import { StringDecoder } from 'string_decoder';
 import { GlobalLoggerService } from '../../../Logger';
 
 const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/process');
@@ -12,6 +13,20 @@ export const MAX_OUTPUT_BYTES = 256 * 1024;
 const SIGKILL_TIMEOUT_MS = 800;
 const SHELL_BLACKLIST = new Set(['fish', 'nu']);
 const PROBE_TIMEOUT_MS = 2_000;
+
+export type ProcessShell = string | false;
+
+export interface LimitedOutputBuffer {
+    chunks:   Buffer[];
+    bytes:    number;
+    overflow: boolean;
+    decoder:  StringDecoder;
+}
+
+export interface OutputDrain {
+    text:       string;
+    overflowed: boolean;
+}
 
 const QUIET_ENV = {
     CI:                   '1',
@@ -96,6 +111,69 @@ export function getChildProcessEnv(): NodeJS.ProcessEnv {
     }
     safeEnv = { ...filtered, ...QUIET_ENV };
     return safeEnv;
+}
+
+export function spawnRuntimeProcess(
+    file: string,
+    args: string[],
+    opts: { cwd: string; shell: ProcessShell; stdin?: string },
+): ChildProcess {
+    const proc = spawn(file, args, {
+        shell:       opts.shell,
+        cwd:         opts.cwd,
+        env:         getChildProcessEnv(),
+        stdio:       [opts.stdin !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+        detached:    process.platform !== 'win32',
+        windowsHide: true,
+    });
+
+    writeProcessStdin(proc, opts.stdin);
+    return proc;
+}
+
+export function writeProcessStdin(proc: ChildProcess, stdin: string | undefined): void {
+    if (stdin === undefined || !proc.stdin) return;
+    proc.stdin.on('error', () => { /* ignore EPIPE */ });
+    proc.stdin.end(stdin, 'utf8');
+}
+
+export function createOutputBuffer(): LimitedOutputBuffer {
+    return { chunks: [], bytes: 0, overflow: false, decoder: new StringDecoder('utf8') };
+}
+
+export function hasBufferedOutput(buf: LimitedOutputBuffer): boolean {
+    return buf.bytes > 0 || buf.overflow;
+}
+
+export function appendOutputBuffer(buf: LimitedOutputBuffer, chunk: Buffer): void {
+    if (buf.overflow) return;
+    const remain = MAX_OUTPUT_BYTES - buf.bytes;
+    if (chunk.length >= remain) {
+        if (remain > 0) buf.chunks.push(chunk.subarray(0, remain));
+        buf.bytes    = MAX_OUTPUT_BYTES;
+        buf.overflow = true;
+        return;
+    }
+    buf.chunks.push(chunk);
+    buf.bytes += chunk.length;
+}
+
+export function drainOutputBuffer(buf: LimitedOutputBuffer, final: boolean): OutputDrain {
+    const overflowed = buf.overflow;
+    const merged = Buffer.concat(buf.chunks, buf.bytes);
+    const text = buf.decoder.write(merged) + (final || overflowed ? buf.decoder.end() : '');
+
+    if (final || overflowed) buf.decoder = new StringDecoder('utf8');
+    buf.chunks = [];
+    buf.bytes = 0;
+    buf.overflow = false;
+
+    return { text, overflowed };
+}
+
+export function formatProcessExit(exitCode: number | null, signal: NodeJS.Signals | null): string {
+    if (signal) return `Process terminated by signal ${signal}`;
+    return `Process exited with code ${exitCode ?? -1}`;
 }
 
 export function validatePath(filePath: string): { valid: boolean; error?: string; absolutePath?: string } {
