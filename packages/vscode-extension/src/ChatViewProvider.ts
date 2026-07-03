@@ -17,6 +17,8 @@ const EVENT_TYPE_MAP: Record<string, string> = {
   [WebChatEventType.Usage]: 'usage',
 };
 
+type ChatViewLayout = 'auto' | 'compact' | 'wide';
+
 export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   public static readonly viewType = 'sbot.chatView';
 
@@ -52,6 +54,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     webviewView.title = 'SBOT';
     webviewView.webview.html = this.getHtml(webviewView.webview);
     webviewView.webview.onDidReceiveMessage(this.onWebviewMessage, undefined, this.viewDisposables);
+    this.viewDisposables.push(vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('sbot.chatViewLayout')) this.postConfig();
+    }));
+    this.viewDisposables.push(vscode.workspace.onDidChangeWorkspaceFolders(() => this.postConfig()));
+    this.viewDisposables.push(vscode.window.onDidChangeActiveTextEditor(() => this.postConfig()));
     webviewView.onDidDispose(() => {
       if (this.view === webviewView) this.view = undefined;
       this.disposeClient();
@@ -332,11 +339,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     this.view?.webview.postMessage(msg);
   }
 
+  private postConfig(): void {
+    this.postMessage({
+      type: 'config',
+      config: this.getWebviewConfig(),
+    });
+  }
+
+  private getWebviewConfig(): { chatViewLayout: ChatViewLayout; workspaceFolder: string } {
+    return {
+      chatViewLayout: getChatViewLayout(),
+      workspaceFolder: this.getWorkspaceFolder() ?? '',
+    };
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const distUri = vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview');
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(distUri, 'index.js'));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(distUri, 'index.css'));
     const nonce = getNonce();
+    const configJson = JSON.stringify(this.getWebviewConfig()).replace(/</g, '\\u003c');
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -349,6 +371,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 </head>
 <body>
   <div id="app"></div>
+  <script nonce="${nonce}">window.__SBOT_VSCODE_CONFIG__=${configJson};</script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
@@ -388,4 +411,9 @@ function isLocalBaseUrl(baseUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+function getChatViewLayout(): ChatViewLayout {
+  const value = vscode.workspace.getConfiguration('sbot').get<string>('chatViewLayout', 'compact');
+  return value === 'auto' || value === 'wide' ? value : 'compact';
 }

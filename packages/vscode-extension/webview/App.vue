@@ -1,11 +1,22 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { ServerChatShell, useServerSelection } from '@sbot/chat-ui'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ServerChatShell, isLocalBaseUrl, type ChatLayoutMode, useServerSelection } from '@sbot/chat-ui'
 import { SConfirm } from 'sbot-ui'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-vscode.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
 import { transport as vscodeTransport } from './composables/useChat'
+
+const chatViewLayout = ref<ChatLayoutMode>(window.__SBOT_VSCODE_CONFIG__?.chatViewLayout ?? 'compact')
+const workspaceFolder = ref(window.__SBOT_VSCODE_CONFIG__?.workspaceFolder ?? '')
+
+function onHostMessage(e: MessageEvent) {
+  const msg = e.data
+  const config = msg?.type === 'config' ? msg.config : undefined
+  const next = config?.chatViewLayout
+  if (next === 'auto' || next === 'compact' || next === 'wide') chatViewLayout.value = next
+  if (typeof config?.workspaceFolder === 'string') workspaceFolder.value = config.workspaceFolder
+}
 
 const {
   remotes,
@@ -32,9 +43,17 @@ const {
   },
 })
 
+const isLocalServer = computed(() => currentBaseUrl.value ? isLocalBaseUrl(currentBaseUrl.value) : false)
+const fixedWorkPath = computed(() => isLocalServer.value ? workspaceFolder.value : '')
+
 onMounted(async () => {
+  window.addEventListener('message', onHostMessage)
   await loadRemotes()
   await selectLocal()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('message', onHostMessage)
 })
 </script>
 
@@ -47,7 +66,9 @@ onMounted(async () => {
       :current-base-url="currentBaseUrl"
       :connect-error="connectError"
       :connecting="connecting"
-      :always-compact="true"
+      :layout-mode="chatViewLayout"
+      :fixed-work-path="fixedWorkPath"
+      :work-path-locked="isLocalServer"
       @select-local="selectLocal"
       @select-remote="selectRemote"
       @add-remote="addRemote"

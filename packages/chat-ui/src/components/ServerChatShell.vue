@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ChatLabels, RemoteEntry } from '../types'
+import type { ChatLabels, ChatLayoutMode, RemoteEntry } from '../types'
 import type { IChatTransport } from '../transport'
 import type { ServerSelectionPhase } from '../composables/useServerSelection'
 import { resolveLabels } from '../labels'
@@ -17,11 +17,17 @@ const props = withDefaults(defineProps<{
   labels?: ChatLabels
   showAttachments?: boolean
   alwaysCompact?: boolean
+  layoutMode?: ChatLayoutMode
+  fixedWorkPath?: string
+  workPathLocked?: boolean
 }>(), {
   connectError: '',
   connecting: false,
   showAttachments: true,
   alwaysCompact: false,
+  layoutMode: 'auto',
+  fixedWorkPath: '',
+  workPathLocked: false,
 })
 
 const emit = defineEmits<{
@@ -67,6 +73,9 @@ const L = computed(() => resolveLabels(props.labels))
         :labels="labels"
         :show-attachments="showAttachments"
         :always-compact="alwaysCompact"
+        :layout-mode="layoutMode"
+        :fixed-work-path="fixedWorkPath"
+        :work-path-locked="workPathLocked"
       />
     </template>
   </div>

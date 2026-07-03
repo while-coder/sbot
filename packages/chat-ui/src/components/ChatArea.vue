@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import type {
   StoredMessage, ContentPart, Attachment, ChatLabels,
   ToolCallEvent, ToolApprovalPayload, AskEvent, AskAnswerPayload,
-  DisplayContent, UsageInfo,
+  DisplayContent,
 } from '../types'
 import type { CommandInfo } from '../transport'
 import { SSelect } from 'sbot-ui'
@@ -28,8 +28,6 @@ const props = withDefaults(defineProps<{
   showAttachments?: boolean
   hasSaver: boolean
   fetchThinks?: (url: string) => Promise<any>
-  usage?: UsageInfo | null
-  contextWindow?: number
   autoApprove?: boolean
   commands?: CommandInfo[]
   agent?: string
@@ -37,11 +35,11 @@ const props = withDefaults(defineProps<{
   saver?: string
   saverOptions?: { value: string; label: string }[]
   workPath?: string
+  workPathReadonly?: boolean
 }>(), {
   showAttachments: false,
   thinksUrlPrefix: null,
   tasksUrlPrefix: null,
-  usage: null,
   autoApprove: false,
   commands: () => [],
   agent: '',
@@ -49,6 +47,7 @@ const props = withDefaults(defineProps<{
   saver: '',
   saverOptions: () => [],
   workPath: '',
+  workPathReadonly: false,
 })
 
 const emit = defineEmits<{
@@ -74,30 +73,6 @@ let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
 let scrollFrame = 0
 
 const { attachments, add: addFiles, remove: removeAttachment, drain: drainAttachments, isImageMime } = useAttachments()
-
-const contextPercent = computed(() => {
-  if (!props.contextWindow || !props.usage?.lastInputTokens) return null
-  return Math.min(100, Math.round(props.usage.lastInputTokens / props.contextWindow * 100))
-})
-
-const cachePercent = computed(() => {
-  if (!props.usage) return null
-  const read = props.usage.cacheReadTokens ?? 0
-  if (read === 0) return null
-  const total = props.usage.inputTokens + read + (props.usage.cacheCreationTokens ?? 0)
-  if (total === 0) return null
-  return Math.round(read / total * 100)
-})
-
-function fmtCompact(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
-  return String(n)
-}
-
-function fmtFull(n: number): string {
-  return n.toLocaleString()
-}
 
 // ── Scrolling ──
 
@@ -212,26 +187,6 @@ defineExpose({ scrollToBottom })
       />
     </div>
 
-    <!-- Compact usage strip -->
-    <div
-      v-if="isCompact && usage && usage.totalTokens > 0"
-      class="chatui-input-usage-strip"
-      :title="`Last: ${fmtFull(usage.lastTotalTokens)} / Total: ${fmtFull(usage.totalTokens)} tokens`"
-    >
-      <span v-if="contextPercent != null" class="chatui-input-usage-chip chatui-input-usage-chip--context">
-        {{ contextPercent }}% context
-      </span>
-      <span class="chatui-input-usage-chip">
-        Last {{ fmtCompact(usage.lastTotalTokens) }}
-      </span>
-      <span class="chatui-input-usage-chip">
-        Total {{ fmtCompact(usage.totalTokens) }}
-      </span>
-      <span v-if="cachePercent != null" class="chatui-input-usage-chip chatui-input-usage-chip--cache">
-        Cache {{ cachePercent }}%
-      </span>
-    </div>
-
     <!-- Input bar (card) -->
     <div class="chatui-input-wrap" :class="{ 'chatui-compact': isCompact }">
       <div
@@ -342,8 +297,10 @@ defineExpose({ scrollToBottom })
         <div class="chatui-input-config-item chatui-input-config-path-wrap">
           <button
             class="chatui-input-config-path"
+            :class="{ 'chatui-input-config-path--readonly': workPathReadonly }"
+            :disabled="workPathReadonly"
             :title="workPath || L.workpathPlaceholder"
-            @click="emit('open-path-picker', workPath)"
+            @click="!workPathReadonly && emit('open-path-picker', workPath)"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
               <path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h3l1.2 1.5H12.5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5Z" />
@@ -351,7 +308,7 @@ defineExpose({ scrollToBottom })
             <span class="chatui-input-config-path-text">{{ workPath || L.workpathPlaceholder }}</span>
           </button>
           <button
-            v-if="workPath"
+            v-if="workPath && !workPathReadonly"
             class="chatui-input-config-clear"
             :title="L.close"
             @click="emit('update-config', 'workPath', undefined)"
@@ -368,34 +325,6 @@ defineExpose({ scrollToBottom })
 }
 .chatui-messages-scroll {
   flex: 1; overflow-y: auto;
-}
-.chatui-input-usage-strip {
-  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
-  min-height: 28px;
-  padding: 4px 8px;
-  border-top: 1px solid var(--chatui-border-subtle);
-  background: var(--chatui-bg-surface);
-  color: var(--chatui-fg-secondary);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-.chatui-input-usage-chip {
-  display: inline-flex; align-items: center;
-  min-height: 20px;
-  padding: 0 7px;
-  border: 1px solid var(--chatui-border-subtle);
-  border-radius: 999px;
-  background: var(--chatui-bg);
-  white-space: nowrap;
-}
-.chatui-input-usage-chip--context {
-  color: var(--chatui-fg);
-}
-.chatui-input-usage-chip--cache {
-  color: var(--chatui-usage-cache, #22c55e);
 }
 /* Card-style input */
 .chatui-input-wrap {
@@ -555,6 +484,16 @@ defineExpose({ scrollToBottom })
 .chatui-input-config-path:hover {
   background: var(--chatui-bg-hover);
   color: var(--chatui-fg);
+}
+.chatui-input-config-path:disabled,
+.chatui-input-config-path--readonly {
+  cursor: default;
+  opacity: 1;
+}
+.chatui-input-config-path:disabled:hover,
+.chatui-input-config-path--readonly:hover {
+  background: transparent;
+  color: var(--chatui-fg-secondary);
 }
 .chatui-input-config-path-text {
   overflow: hidden;

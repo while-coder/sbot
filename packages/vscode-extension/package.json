@@ -48,6 +48,26 @@
         "title": "sbot: Select Server"
       }
     ],
+    "configuration": {
+      "title": "sbot",
+      "properties": {
+        "sbot.chatViewLayout": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "compact",
+            "wide"
+          ],
+          "default": "compact",
+          "description": "Controls the sbot chat layout in VS Code.",
+          "enumDescriptions": [
+            "Automatically switch between compact and wide layouts based on view width.",
+            "Always use the compact layout.",
+            "Always use the wide layout."
+          ]
+        }
+      }
+    },
     "keybindings": [
       {
         "command": "sbot.openChat",

@@ -12,3 +12,10 @@ interface VsCodeApi {
 }
 
 declare function acquireVsCodeApi(): VsCodeApi;
+
+interface Window {
+  __SBOT_VSCODE_CONFIG__?: {
+    chatViewLayout?: 'auto' | 'compact' | 'wide';
+    workspaceFolder?: string;
+  };
+}

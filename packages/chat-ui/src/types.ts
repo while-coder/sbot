@@ -20,6 +20,8 @@ export interface SessionItem {
   memory?: string | null
 }
 
+export type ChatLayoutMode = 'auto' | 'compact' | 'wide'
+
 export interface AgentOption { id: string; name?: string }
 export interface SaverOption { id: string; name: string }
 export interface NoteOption { id: string; name: string }

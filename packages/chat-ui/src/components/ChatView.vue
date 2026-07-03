@@ -5,12 +5,12 @@ import type {
   StoredMessage, UsageInfo, UsageData, ContentPart, Attachment,
   ToolCallEvent, ToolApprovalPayload,
   AskEvent, AskAnswerPayload,
-  DisplayContent, ChatEvent,
+  DisplayContent, ChatEvent, ChatLayoutMode,
 } from '../types'
 import { MessageRole, ChatEventType, MessageKind } from '../types'
 import type { IChatTransport, CommandInfo } from '../transport'
 import { resolveLabels, tpl } from '../labels'
-import { useCompactProvider } from '../composables/useCompact'
+import { provideCompact, useCompactProvider } from '../composables/useCompact'
 import SessionBar from './SessionBar.vue'
 import ConfigToolbar from './ConfigToolbar.vue'
 import StatusBar from './StatusBar.vue'
@@ -24,9 +24,15 @@ const props = withDefaults(defineProps<{
   labels?: ChatLabels
   showAttachments?: boolean
   alwaysCompact?: boolean
+  layoutMode?: ChatLayoutMode
+  fixedWorkPath?: string
+  workPathLocked?: boolean
 }>(), {
   showAttachments: true,
   alwaysCompact: false,
+  layoutMode: 'auto',
+  fixedWorkPath: '',
+  workPathLocked: false,
 })
 
 const L = computed(() => resolveLabels(props.labels))
@@ -75,6 +81,12 @@ const sessionSearchInputEl = ref<HTMLInputElement | null>(null)
 const renameDialogVisible = ref(false)
 const renameDraft = ref('')
 const renameInputEl = ref<InstanceType<typeof SInput> | null>(null)
+const compactMode = computed(() => {
+  if (props.layoutMode === 'compact') return true
+  if (props.layoutMode === 'wide') return false
+  return props.alwaysCompact || isCompact.value
+})
+provideCompact(compactMode)
 
 // ── Derived ──
 
@@ -97,6 +109,10 @@ const contextWindow = computed<number | undefined>(() => {
   const modelId = agentId ? settings.value.agents?.[agentId]?.model : undefined
   return modelId ? settings.value.models?.[modelId]?.contextWindow : undefined
 })
+
+const effectiveWorkPath = computed(() =>
+  props.workPathLocked ? props.fixedWorkPath : (activeSession.value?.workPath || ''),
+)
 
 const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.transport))
 
@@ -139,7 +155,7 @@ const displayedMessages = computed<StoredMessage[]>(() =>
 )
 
 const rightPanelStyle = computed(() =>
-  isCompact.value || props.alwaysCompact
+  compactMode.value
     ? undefined
     : { width: `${rightPanelWidth.value}px` },
 )
@@ -373,12 +389,12 @@ function onRenameDialogKeydown(e: KeyboardEvent) {
 
 function setRightPanelOpen(open: boolean, persist = true) {
   rightPanelOpen.value = open
-  if (persist && !(isCompact.value || props.alwaysCompact)) saveRightPanelOpenState(open)
+  if (persist && !compactMode.value) saveRightPanelOpenState(open)
 }
 
 function toggleRightPanel() {
   setRightPanelOpen(!rightPanelOpen.value)
-  if (rightPanelOpen.value && (isCompact.value || props.alwaysCompact)) {
+  if (rightPanelOpen.value && compactMode.value) {
     sidebarOpen.value = false
     settingsOpen.value = false
     compactMenuOpen.value = false
@@ -394,7 +410,7 @@ function clampRightPanelWidth(width: number): number {
 }
 
 function startRightPanelResize(e: PointerEvent) {
-  if (isCompact.value || props.alwaysCompact) return
+  if (compactMode.value) return
   e.preventDefault()
   rightPanelResizing.value = true
   window.addEventListener('pointermove', onRightPanelResize)
@@ -420,7 +436,7 @@ function clampSessionBarWidth(width: number): number {
 }
 
 function startSessionBarResize(e: PointerEvent) {
-  if (isCompact.value || props.alwaysCompact) return
+  if (compactMode.value) return
   e.preventDefault()
   sessionBarResizing.value = true
   window.addEventListener('pointermove', onSessionBarResize)
@@ -448,7 +464,7 @@ watch(activeProfileId, async (id) => {
   await Promise.all([loadHistory(gen), loadUsage(gen), restoreSessionStatus(gen)])
 })
 
-watch(() => isCompact.value || props.alwaysCompact, (compact) => {
+watch(compactMode, (compact) => {
   rightPanelOpen.value = compact ? false : loadRightPanelOpenState()
 }, { immediate: true })
 
@@ -583,10 +599,12 @@ async function onUpdateConfig(field: string, value: unknown) {
 }
 
 function onOpenPathPicker(currentPath: string) {
+  if (props.workPathLocked) return
   pathPickerRef.value?.open(currentPath)
 }
 
 async function onPathConfirmed(path: string) {
+  if (props.workPathLocked) return
   await onUpdateConfig('workPath', path || undefined)
 }
 
@@ -718,9 +736,9 @@ function saveRightPanelOpenState(open: boolean): void {
 </script>
 
 <template>
-  <div ref="rootEl" class="chatui-root" :class="{ 'chatui-compact': isCompact || alwaysCompact, 'chatui-session-resizing': sessionBarResizing }">
-    <!-- Compact mode (narrow screen or alwaysCompact): title opens the session drawer -->
-    <template v-if="isCompact || alwaysCompact">
+  <div ref="rootEl" class="chatui-root" :class="{ 'chatui-compact': compactMode, 'chatui-session-resizing': sessionBarResizing }">
+    <!-- Compact mode: title opens the session drawer -->
+    <template v-if="compactMode">
       <div class="chatui-compact-header">
         <button
           type="button"
@@ -899,7 +917,7 @@ function saveRightPanelOpenState(open: boolean): void {
     <div class="chatui-main">
       <!-- Config toolbar -->
       <ConfigToolbar
-        v-if="!(isCompact || alwaysCompact)"
+        v-if="!compactMode"
         :session="activeSession"
         :settings="settings"
         :labels="labels"
@@ -908,7 +926,7 @@ function saveRightPanelOpenState(open: boolean): void {
 
       <!-- Status bar -->
       <StatusBar
-        v-if="activeProfileId && !(isCompact || alwaysCompact)"
+        v-if="activeProfileId && !compactMode"
         :usage="usage"
         :context-window="contextWindow"
         :labels="labels"
@@ -951,15 +969,14 @@ function saveRightPanelOpenState(open: boolean): void {
           :show-attachments="showAttachments"
           :has-saver="hasSaver"
           :fetch-thinks="fetchThinks"
-          :usage="usage"
-          :context-window="contextWindow"
           :auto-approve="!!activeSession?.autoApproveAllTools"
           :commands="commands"
           :agent="activeSession?.agent || ''"
           :agent-options="agentOptions"
           :saver="activeSession?.saver || ''"
           :saver-options="saverOptions"
-          :work-path="activeSession?.workPath || ''"
+          :work-path="effectiveWorkPath"
+          :work-path-readonly="workPathLocked"
           @send="onSend"
           @approve="onApprove"
           @answer="onAnswer"
@@ -971,18 +988,18 @@ function saveRightPanelOpenState(open: boolean): void {
         />
         <div v-if="rightPanelOpen" class="chatui-right-panel-pane" :style="rightPanelStyle">
           <div
-            v-if="!(isCompact || alwaysCompact)"
+            v-if="!compactMode"
             class="chatui-right-panel-resizer"
             :title="L.rightPanelToggle"
             @pointerdown="startRightPanelResize"
           />
-          <div v-if="isCompact || alwaysCompact" class="chatui-right-panel-header">
+          <div v-if="compactMode" class="chatui-right-panel-header">
             <span class="chatui-right-panel-title">{{ L.rightPanelToggle }}</span>
             <button class="chatui-right-panel-close" :title="L.close" @click="setRightPanelOpen(false, false)">×</button>
           </div>
           <WorkbenchPanel
             :transport="transport"
-            :root="activeSession?.workPath"
+            :root="effectiveWorkPath"
             :labels="labels"
             :persist-key="activeProfileId ?? undefined"
             editable

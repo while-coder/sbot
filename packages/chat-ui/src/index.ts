@@ -7,6 +7,7 @@ export type {
   StoredMessage,
   ContentPart,
   Attachment,
+  ChatLayoutMode,
   ChatLabels,
   DisplayPart,
   ToolCall,
