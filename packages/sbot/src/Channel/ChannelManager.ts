@@ -49,12 +49,6 @@ async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Prom
             `## 🎉 New version available: ${latest.tag}`,
             ``,
             `Current version: **v${config.pkg.version}**`,
-            `Latest version: **${latest.tag}**`,
-            ``,
-            `**Update command:**`,
-            `\`\`\``,
-            `npm install -g @qingfeng346/sbot@latest`,
-            `\`\`\``,
             ``,
             `[View release notes](${latest.url})${releasenoteSection}`,
         ].join('\n');
