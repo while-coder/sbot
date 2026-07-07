@@ -94,12 +94,12 @@ jobs:
           set -euo pipefail
           if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
             gh release edit "$TAG" -R "$REPO" \
-              --title "sbot v${VERSION}" \
+              --title "app v${VERSION}" \
               --notes "$RELEASE_NOTES"
           else
             gh release create "$TAG" -R "$REPO" \
               --target "$GITHUB_SHA" \
-              --title "sbot v${VERSION}" \
+              --title "app v${VERSION}" \
               --notes "$RELEASE_NOTES"
           fi
 
@@ -184,7 +184,7 @@ jobs:
         with:
           projectPath: packages/app
           tagName: ${{ needs.check.outputs.tag }}
-          releaseName: 'sbot v${{ needs.check.outputs.version }}'
+          releaseName: 'app v${{ needs.check.outputs.version }}'
           releaseBody: ${{ needs.check.outputs.notes }}
           releaseDraft: false
           prerelease: false
