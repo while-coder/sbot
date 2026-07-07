@@ -36,6 +36,7 @@ export interface LarkMessageArgs extends ChannelMessageArgs {
 export interface LarkActionArgs {
   event_id: string;
   sessionId: string;
+  userOpenId?: string;
   code: string;
   data: any;
   form_value: any;

@@ -60,6 +60,7 @@ export const larkPlugin = defineChannelPlugin({
           : '';
         const session = await initSession({
           userId,
+          userOpenId: args.userOpenId,
           userName: userInfo?.name ?? '',
           userInfo: JSON.stringify(userInfo ?? {}),
           sessionId: args.sessionId,
@@ -76,6 +77,7 @@ export const larkPlugin = defineChannelPlugin({
           : '';
         const session = await initSession({
           userId,
+          userOpenId: args.userOpenId,
           userName: userInfo?.name ?? '',
           userInfo: JSON.stringify(userInfo ?? {}),
           sessionId: args.sessionId,

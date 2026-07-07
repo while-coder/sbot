@@ -30,6 +30,8 @@ export interface IChannelService {
 
 export interface InitSessionContext {
   userId: string;
+  /** Optional channel-native open id when the platform distinguishes it from userId. */
+  userOpenId?: string;
   userName: string;
   userInfo: string;
   userAvatar?: string;

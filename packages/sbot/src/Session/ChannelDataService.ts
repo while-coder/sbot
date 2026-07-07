@@ -637,7 +637,7 @@ export class ChannelDataService {
                 id: s.id, channelId: s.channelId, sessionId: s.sessionId, sessionName: s.sessionName,
             })),
             orphanChannelUsers: orphanChannelUsers.map(u => ({
-                id: u.id, channelId: u.channelId, userId: u.userId, userName: u.userName,
+                id: u.id, channelId: u.channelId, userId: u.userId, openId: u.openId, userName: u.userName,
             })),
             orphanAutoProfiles: orphanAutoProfiles.map(p => ({
                 id: p.id, autoForSessionId: p.autoForSessionId!, name: p.name,
@@ -840,7 +840,7 @@ export interface CleanupReport {
     dryRun: boolean;
     /** 跨表残留行（cleanupOrphans 自动清理） */
     orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>;
-    orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; userName: string }>;
+    orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; openId: string; userName: string }>;
     orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>;
     orphanHeartbeats: Array<{ id: number; sessionId: number; name: string }>;
     /** 仅列出，cleanupOrphans 不会删；用户决定是否手删 */

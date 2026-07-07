@@ -61,7 +61,7 @@ export function createChannelListTool(currentChannelId?: string): StructuredTool
                     }
                     if (includeUsers) {
                         for (const u of usersByChannel.get(id) ?? []) {
-                            lines.push(`    <user id="${u.id}" userId="${escapeAttr(u.userId ?? '')}" name="${escapeAttr(u.userName ?? '')}" />`);
+                            lines.push(`    <user id="${u.id}" userId="${escapeAttr(u.userId ?? '')}" openId="${escapeAttr(u.openId ?? '')}" name="${escapeAttr(u.userName ?? '')}" />`);
                         }
                     }
 

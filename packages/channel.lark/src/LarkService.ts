@@ -612,7 +612,7 @@ export class LarkService implements IChannelService {
             this.getUserInfo(userId),
             this.getChatInfo(open_chat_id),
           ]);
-          await this.onTriggerAction(userId, userInfo, chatInfo, { event_id, sessionId: open_chat_id, code: value.code, data: value.data, form_value })
+          await this.onTriggerAction(userId, userInfo, chatInfo, { event_id, sessionId: open_chat_id, userOpenId: operator.open_id, code: value.code, data: value.data, form_value })
         } catch (e: any) {
           this.logger?.error(`Card Action error: ${e.stack}`);
         }

@@ -70,6 +70,7 @@ export type ChannelUserRow = {
   id: number;
   channelId: string; // 频道唯一ID
   userId: string;    // 用户唯一ID
+  openId: string;    // 用户 OpenID
   userName: string;  // 用户名字
   avatar: string;    // 用户头像
   userInfo: string;  // 用户信息
@@ -303,6 +304,12 @@ class Database {
           allowNull: false,
           defaultValue: "",
           comment: "用户ID",
+        },
+        openId: {
+          type: DataTypes.STRING(255),
+          allowNull: false,
+          defaultValue: "",
+          comment: "用户OpenID",
         },
         userName: {
           type: DataTypes.STRING(255),

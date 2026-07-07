@@ -78,8 +78,9 @@ function parseSessionMetadata(raw: string | undefined): Record<string, any> {
 }
 
 async function doInitSession(channelId: string, ctx: import("channel.base").InitSessionContext): Promise<{ dbUserId: number; dbSessionId: number }> {
-    const { userId, userName, userInfo, sessionId, sessionName, sendUpdate, userAvatar, sessionAvatar, metadata } = ctx;
+    const { userId, userOpenId, userName, userInfo, sessionId, sessionName, sendUpdate, userAvatar, sessionAvatar, metadata } = ctx;
     const userData: Record<string, any> = { userName, userInfo };
+    if (userOpenId !== undefined) userData.openId = userOpenId;
     if (userAvatar !== undefined) userData.avatar = userAvatar;
     const [dbUser, userCreated] = await database.findOrCreate<ChannelUserRow>(database.channelUser, {
         where: { channelId, userId },

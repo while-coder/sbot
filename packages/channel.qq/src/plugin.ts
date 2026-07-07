@@ -49,6 +49,7 @@ export const qqPlugin = defineChannelPlugin({
       onReceiveMessage: async (userId: string, args: QqMessageArgs, query: MessageContent) => {
         const session = await initSession({
           userId,
+          userOpenId: args.userOpenId,
           userName: userId.slice(-8),
           userInfo: JSON.stringify({ userOpenId: args.userOpenId, groupOpenId: args.groupOpenId }),
           sessionId: args.sessionId,
