@@ -1,8 +1,6 @@
 Look up who/what this bot can send to: its channels, group chats (sessions), and users — and their ids. Call this whenever you need to send a message or file but only have a name (e.g. "发给张三 / 通知运维群 / send it to the ops channel") and not yet a numeric id. The id you get here is passed straight into channel_send. Reads from the bot's local config / database — no platform API permission required.
 
-Returns configured channels nested as <channels><channel>...</channel></channels>. By default, it returns all channels. Set `currentChannelOnly=true` to return only the channel where this conversation is happening.
-
-The `type` parameter controls which children are emitted directly under each <channel>:
+Always returns ALL configured channels nested as <channels><channel>...</channel></channels>. The `type` parameter controls which children are emitted directly under each <channel>:
 
 - type="channel":          no children — channel metadata only.
 - type="session":          <session> rows under each <channel>.
@@ -13,7 +11,9 @@ A <channel> with no matching children is rendered self-closing.
 
 current="1" on a <channel> marks the channel that THIS conversation is happening on. When the user mentions a session/user name without specifying which channel and the name exists on multiple channels, prefer the entry under current="1" — it's almost always what they meant.
 
-Each <session>/<user> exposes only `id` and `name`. Pass that `id` directly to channel_send — it is globally unique across channels. The owning channel (and its caps) is whichever <channel> the row sits under. Note: <channel> itself has no id — you only ever send to a <session> or <user>, never to a channel directly.
+Each <session> exposes `id` and `name`. Each <user> exposes `id`, `userId`, and `name`.
+Pass `id` to channel_send. Use `userId` when a channel's own/native user id is needed.
+The owning channel (and its caps) is whichever <channel> the row sits under. Note: <channel> itself has no id — you only ever send to a <session> or <user>, never to a channel directly.
 
 caps (on <channel>) is a comma-separated capability set. Tokens:
   text       — channel_send (kind=text) works on sessions of this channel
