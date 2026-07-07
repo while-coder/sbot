@@ -32,8 +32,9 @@ export function createChannelListTool(currentChannelId?: string): StructuredTool
         description: loadPrompt('tools/channel/list.txt'),
         schema: z.object({
             type: z.enum(ChannelListType).describe('What to include under each <channel>: "channel" → no children; "session" → <session> rows; "user" → <user> rows; "session_and_user" → both.'),
+            currentChannelOnly: z.boolean().optional().default(false).describe('Only return data for the channel where this conversation is happening. Default false.'),
         }) as any,
-        func: async ({ type }: any): Promise<MCPToolResult> => {
+        func: async ({ type, currentChannelOnly = false }: any): Promise<MCPToolResult> => {
             try {
                 const includeSessions = type === ChannelListType.Session || type === ChannelListType.SessionAndUser;
                 const includeUsers    = type === ChannelListType.User    || type === ChannelListType.SessionAndUser;
@@ -47,7 +48,7 @@ export function createChannelListTool(currentChannelId?: string): StructuredTool
                 const usersByChannel    = groupByChannel(allUsers);
 
                 const channels = Object.entries(config.settings.channels ?? {})
-                    .filter(([_, c]) => c.type !== WEB_CHANNEL_TYPE);
+                    .filter(([id, c]) => c.type !== WEB_CHANNEL_TYPE && (!currentChannelOnly || id === currentChannelId));
                 const channelBlocks = channels.map(([id, c]) => {
                     const caps = channelManager.getChannelCapabilities(id).join(',');
                     const currentAttr = currentChannelId === id ? ' current="1"' : '';
