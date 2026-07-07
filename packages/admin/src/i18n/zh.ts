@@ -690,6 +690,7 @@ export default {
   users: {
     detail_title: '用户详情 — {name}',
     user_id: '用户ID',
+    open_id: 'OpenID',
     username: '用户名',
     channel: '频道',
     user_info: '用户信息',

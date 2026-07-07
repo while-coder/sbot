@@ -690,6 +690,7 @@ export default {
   users: {
     detail_title: 'User Details — {name}',
     user_id: 'User ID',
+    open_id: 'Open ID',
     username: 'Username',
     channel: 'Channel',
     user_info: 'User Info',

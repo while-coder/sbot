@@ -92,6 +92,7 @@ interface ProfileOption {
 interface UserRow {
   id: number
   userId: string
+  openId: string
   userName: string
   avatar: string
   userInfo: string
@@ -1080,6 +1081,9 @@ async function refresh() {
         </SFormItem>
         <SFormItem :label="t('users.user_id')">
           <SInput :model-value="viewUser.userId" disabled />
+        </SFormItem>
+        <SFormItem :label="t('users.open_id')">
+          <SInput :model-value="viewUser.openId" disabled />
         </SFormItem>
         <SFormItem :label="t('users.username')">
           <SInput :model-value="viewUser.userName" disabled />
