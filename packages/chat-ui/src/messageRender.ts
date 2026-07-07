@@ -1,4 +1,4 @@
-import { marked } from 'marked'
+import { Marked, type Tokens } from 'marked'
 import DOMPurify from 'dompurify'
 import { ContentPartType } from './types'
 import type { DisplayPart, DisplayContent } from './types'
@@ -16,18 +16,71 @@ const KNOWN_HTML_TAGS = new Set([
   'tr', 'u', 'ul', 'var', 'wbr',
 ])
 
-/**
- * Escape `<` of any tag whose name is not a known HTML element so XML-like
- * payloads (e.g. tool outputs containing `<channels>` or `<aaa />`) survive
- * marked + DOMPurify and render as literal text instead of being stripped.
- * Auto-link forms like `<https://x>` are left alone via the `[\s/>]` lookahead.
- */
-function escapeUnknownHtmlTags(text: string): string {
-  return text.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)(?=[\s/>])/g, (match, slash, tagName) => {
-    if (KNOWN_HTML_TAGS.has(tagName.toLowerCase())) return match
-    return `&lt;${slash}${tagName}`
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&': return '&amp;'
+      case '<': return '&lt;'
+      case '>': return '&gt;'
+      case '"': return '&quot;'
+      case "'": return '&#39;'
+      default: return ch
+    }
   })
 }
+
+function decodeBasicHtmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&#60;/g, '<')
+    .replace(/&#x3c;/gi, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#62;/g, '>')
+    .replace(/&#x3e;/gi, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&#x22;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&amp;/g, '&')
+}
+
+function renderLiteralText(text: string, opts: { decodeEntities?: boolean } = {}): string {
+  return escapeHtml(opts.decodeEntities ? decodeBasicHtmlEntities(text) : text)
+}
+
+/**
+ * Keep real HTML available to Markdown, but render XML-like platform/tool tags
+ * (e.g. <channels>, <session>, <at>) as literal text instead of losing them.
+ * Auto-link forms like <https://x> are left alone via the [\s/>] lookahead.
+ */
+function renderHtmlToken(text: string): string {
+  return text.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)(?=[\s/>])/g, (match, slash, tagName) => {
+    if (KNOWN_HTML_TAGS.has(tagName.toLowerCase())) return match
+    return renderLiteralText(`<${slash}${tagName}`)
+  })
+}
+
+function renderCodeLiteral(text: string): string {
+  return renderLiteralText(text, { decodeEntities: true })
+}
+
+const markdown = new Marked({
+  renderer: {
+    html({ text }: Tokens.HTML | Tokens.Tag) {
+      return renderHtmlToken(text)
+    },
+    code({ text, lang }: Tokens.Code) {
+      const code = renderCodeLiteral(text)
+      const language = (lang ?? '').match(/\S*/)?.[0]
+      if (!language) return `<pre><code>${code}</code></pre>\n`
+      return `<pre><code class="language-${renderLiteralText(language)}">${code}</code></pre>\n`
+    },
+    codespan({ text }: Tokens.Codespan) {
+      return `<code>${renderCodeLiteral(text)}</code>`
+    },
+  },
+})
 
 function dataUrl(mime: string | undefined, base64: string | undefined): string | null {
   if (!mime || !base64) return null
@@ -89,7 +142,7 @@ export function renderMd(content: DisplayContent | null | undefined): string {
       .map((c) => (typeof c === 'string' ? c : c?.type === 'text' ? (c.text ?? '') : ''))
       .filter(Boolean)
       .join('\n')
-  const html = marked.parse(escapeUnknownHtmlTags(text)) as string
+  const html = markdown.parse(text) as string
   return DOMPurify.sanitize(html)
 }
 
