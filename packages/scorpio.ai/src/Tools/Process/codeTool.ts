@@ -29,17 +29,12 @@ function normalizeStdin(stdin: unknown): string | undefined {
 }
 
 function withExecutionMode<T extends z.ZodRawShape>(base: z.ZodObject<T>) {
-    return z.discriminatedUnion('mode', [
-        base.extend({
-            mode:    z.literal(CodeToolMode.Sync).describe('Run synchronously and return the final output in this tool call'),
-            timeout: z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
-        }),
-        base.extend({
-            mode:        z.literal(CodeToolMode.Background).describe('Run in the background and use read_process for later output'),
-            yieldMs:     z.number().optional().default(1000).describe('How long to wait for immediate completion before returning a processId, default 1000 ms'),
-            interactive: z.boolean().optional().default(false).describe('Keep stdin open so write_process can send more input later. Use only for programs that prompt for stdin; this is pipe-based, not a full TTY.'),
-        }),
-    ]);
+    return base.extend({
+        mode: z.enum(CodeToolMode).describe('sync = run synchronously and return final output; background = start a process and use read_process for later output'),
+        timeout: z.number().optional().describe('For mode=sync: timeout in milliseconds, default 60000 (60 s)'),
+        yieldMs: z.number().optional().describe('For mode=background: how long to wait for immediate completion before returning a processId, default 1000 ms'),
+        interactive: z.boolean().optional().describe('For mode=background: keep stdin open so write_process can send more input later. Use only for programs that prompt for stdin; this is pipe-based, not a full TTY.'),
+    });
 }
 
 const shellCodeBaseSchema = z.object({
@@ -59,13 +54,13 @@ export const scriptCodeSchema = withExecutionMode(scriptCodeBaseSchema);
 
 export const readProcessToolSchema = z.object({
     processId: z.number().int().positive().describe('The numeric processId returned by shell/script mode="background"'),
-    yieldMs: z.number().optional().default(1000).describe('How long to wait for new output, default 1000 ms'),
+    yieldMs: z.number().optional().describe('How long to wait for new output, default 1000 ms'),
 });
 
 export const writeProcessToolSchema = z.object({
     processId: z.number().int().positive().describe('The numeric processId returned by shell/script mode="background" with interactive=true'),
     stdin:     z.any().optional().describe('Data to write to the background process stdin. Prefer a string and include a trailing newline for line prompts; objects/arrays are auto-serialized to JSON.'),
-    close:     z.boolean().optional().default(false).describe('Whether to close stdin after writing. Use true when the process needs EOF to continue or finish.'),
+    close:     z.boolean().optional().describe('Whether to close stdin after writing. Use true when the process needs EOF to continue or finish.'),
 });
 
 type ShellToolInput = z.infer<typeof shellToolSchema>;
