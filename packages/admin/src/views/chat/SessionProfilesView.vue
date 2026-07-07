@@ -5,7 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable, SModal } from 'sbot-ui'
 import type { STableColumn } from 'sbot-ui'
-import { ApprovalTimeoutValue } from 'sbot.commons'
+import { ApprovalTimeoutValue, IntentFilterMode } from 'sbot.commons'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides } from '@/components/SessionConfigOverridesEditor.vue'
 
@@ -29,6 +29,7 @@ interface ProfileRow {
   approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
   askTimeoutMessage: string | null
+  intentFilterMode: IntentFilterMode | null
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
@@ -137,6 +138,7 @@ function emptyOverrides(): SessionOverrides {
     disableWorkspaceContext: null, disableWorkspaceSkills: null, disableWorkspaceMcp: null,
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
+    intentFilterMode: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
     memory: null,
     agenda: null,
@@ -183,6 +185,7 @@ function openEdit(p: ProfileRow) {
       approvalTimeoutValue: p.approvalTimeoutValue,
       askTimeout: p.askTimeout,
       askTimeoutMessage: p.askTimeoutMessage,
+      intentFilterMode: p.intentFilterMode ?? null,
       intentModel: p.intentModel ?? null,
       intentPrompt: p.intentPrompt,
       intentThreshold: p.intentThreshold,
@@ -242,9 +245,10 @@ function buildPayload(f: ProfileForm): Record<string, any> {
     approvalTimeoutValue: o.approvalTimeoutValue,
     askTimeout: o.askTimeout,
     askTimeoutMessage: o.askTimeoutMessage,
+    intentFilterMode: o.intentFilterMode,
     intentModel: o.intentModel,
-    intentPrompt: o.intentModel == null ? null : o.intentPrompt,
-    intentThreshold: o.intentModel == null ? null : o.intentThreshold,
+    intentPrompt: o.intentFilterMode === IntentFilterMode.Off || o.intentFilterMode === IntentFilterMode.All || o.intentModel == null ? null : o.intentPrompt,
+    intentThreshold: o.intentFilterMode === IntentFilterMode.Off || o.intentFilterMode === IntentFilterMode.All || o.intentModel == null ? null : o.intentThreshold,
     memory: o.memory,
     agenda: o.agenda,
   }

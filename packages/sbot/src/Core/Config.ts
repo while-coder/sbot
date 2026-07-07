@@ -4,8 +4,8 @@ import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
 import { ModelProvider, EmbeddingProvider, ModelServiceFactory, EmbeddingServiceFactory } from "scorpio.ai";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
-export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "sbot.commons";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
+export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "sbot.commons";
 export type { TunnelConfig } from "sbot.commons";
 
 export const isDev = process.env.NODE_ENV === 'development';

@@ -210,7 +210,7 @@ Agent 的 `skills` 字段从全局 skill 集合中筛选：`'*'` 表示全选，
 
 `ChannelConfig` 常用字段：
 
-`name`, `type`, `config`, `agent`, `saver`, `notes`, `wikis`, `workPath`, `streamVerbose`, `autoApproveAllTools`, `disableWorkspaceContext`, `disableWorkspaceSkills`, `approvalTimeout`, `approvalTimeoutValue`, `askTimeout`, `askTimeoutMessage`, `intentModel`, `intentPrompt`, `intentThreshold`, `mergeWindow`, `memory`, `agenda`, `tools`, `triggerTools`
+`name`, `type`, `config`, `agent`, `saver`, `notes`, `wikis`, `workPath`, `streamVerbose`, `autoApproveAllTools`, `disableWorkspaceContext`, `disableWorkspaceSkills`, `approvalTimeout`, `approvalTimeoutValue`, `askTimeout`, `askTimeoutMessage`, `intentFilterMode`, `intentModel`, `intentPrompt`, `intentThreshold`, `mergeWindow`, `memory`, `agenda`, `tools`, `triggerTools`
 
 Session profile 不在 `settings.json`。它在 `database.sqlite` 的 `session_profile` 表中，字段值为 `null` 时沿用 channel 默认值。
 

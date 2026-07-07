@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SInput, STextarea, SSelect, SFormItem, SMultiSelect, SButton, SFormDetails } from 'sbot-ui'
-import { ApprovalTimeoutValue } from 'sbot.commons'
+import { ApprovalTimeoutValue, IntentFilterMode } from 'sbot.commons'
 
 export interface DataConfigValue {
   agentId: string | null
@@ -21,6 +21,7 @@ export interface DataConfigValue {
   approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
   askTimeoutMessage: string | null
+  intentFilterMode: IntentFilterMode | null
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
@@ -100,6 +101,14 @@ const fmtList = (v: any) => Array.isArray(v) ? `${v.length} ${t('channels.items_
 const fmtApprovalValue = (v: any) => v === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : v === ApprovalTimeoutValue.Deny ? t('channels.approval_timeout_value_deny') : String(v ?? '')
 const fmtMemory = (v: any) => props.memoryProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
 const fmtAgenda = (v: any) => props.agendaProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
+const fmtIntentFilterMode = (v: any) => {
+  switch (v) {
+    case IntentFilterMode.Off: return t('channels.intent_filter_mode_off')
+    case IntentFilterMode.All: return t('channels.intent_filter_mode_all')
+    case IntentFilterMode.Auto: return t('channels.intent_filter_mode_auto')
+    default: return String(v ?? '')
+  }
+}
 
 const resourcesBadge = computed(() => {
   let n = 0
@@ -127,6 +136,7 @@ const runtimeBadge = computed(() => {
   if (props.modelValue.autoApproveAllTools !== null && props.modelValue.autoApproveAllTools !== false) n++
   if (props.modelValue.approvalTimeout && props.modelValue.approvalTimeout > 0) n++
   if (props.modelValue.askTimeout && props.modelValue.askTimeout > 0) n++
+  if (props.modelValue.intentFilterMode != null && props.modelValue.intentFilterMode !== IntentFilterMode.Auto) n++
   if (props.modelValue.intentModel !== null && props.modelValue.intentModel !== '') n++
   return n || ''
 })
@@ -189,6 +199,26 @@ function setTimeoutMode(key: 'approvalTimeout' | 'askTimeout', mode: string) {
     const cur = props.modelValue[key]
     update(key, cur != null && cur > 0 ? cur : 30)
   }
+}
+
+function intentFilterModeValue(): string {
+  if (isProfileMode() && props.modelValue.intentFilterMode == null) return '__default__'
+  return props.modelValue.intentFilterMode ?? IntentFilterMode.Auto
+}
+
+function updateIntentFilterMode(value: string) {
+  const mode = isProfileMode() && value === '__default__' ? null : value as IntentFilterMode
+  const next: DataConfigValue = { ...props.modelValue, intentFilterMode: mode }
+  if (mode === IntentFilterMode.Off || mode === IntentFilterMode.All) {
+    next.intentModel = null
+    next.intentPrompt = null
+    next.intentThreshold = null
+  }
+  emit('update:modelValue', next)
+}
+
+function showIntentModelConfig(): boolean {
+  return props.modelValue.intentFilterMode == null || props.modelValue.intentFilterMode === IntentFilterMode.Auto
 }
 </script>
 
@@ -311,20 +341,30 @@ function setTimeoutMode(key: 'approvalTimeout' | 'askTimeout', mode: string) {
     <SFormItem v-if="timeoutMode('askTimeout') === 'custom'" :label="t('channels.ask_timeout_message')" :hint="inheritLabel('askTimeoutMessage') || t('channels.ask_timeout_message_hint')">
       <SInput :model-value="modelValue.askTimeoutMessage ?? ''" type="text" @update:model-value="v => update('askTimeoutMessage', String(v).trim() ? String(v) : null)" />
     </SFormItem>
-    <SFormItem :label="t('channels.intent_model')" :hint="inheritLabel('intentModel', fmtModel) || t('channels.intent_model_hint')">
-      <SSelect :model-value="modelValue.intentModel ?? (isProfileMode() ? '__default__' : '')" @update:model-value="v => update('intentModel', v === '__default__' ? null : String(v))">
+    <SFormItem :label="t('channels.intent_filter_mode')" :hint="inheritLabel('intentFilterMode', fmtIntentFilterMode) || t('channels.intent_filter_mode_hint')">
+      <SSelect :model-value="intentFilterModeValue()" @update:model-value="v => updateIntentFilterMode(String(v))">
         <option v-if="isProfileMode()" value="__default__">{{ t('channels.use_channel_default') }}</option>
-        <option value="">{{ t('common.not_use') }}</option>
-        <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        <option :value="IntentFilterMode.Auto">{{ t('channels.intent_filter_mode_auto') }}</option>
+        <option :value="IntentFilterMode.Off">{{ t('channels.intent_filter_mode_off') }}</option>
+        <option :value="IntentFilterMode.All">{{ t('channels.intent_filter_mode_all') }}</option>
       </SSelect>
     </SFormItem>
-    <template v-if="modelValue.intentModel">
-      <SFormItem :label="t('channels.intent_threshold')" :hint="inheritLabel('intentThreshold') || t('channels.intent_threshold_hint')">
-        <SInput :model-value="modelValue.intentThreshold ?? ''" type="number" placeholder="0.7" @update:model-value="v => update('intentThreshold', v === '' || v === null ? null : Number(v))" />
+    <template v-if="showIntentModelConfig()">
+      <SFormItem :label="t('channels.intent_model')" :hint="inheritLabel('intentModel', fmtModel) || t('channels.intent_model_hint')">
+        <SSelect :model-value="modelValue.intentModel ?? (isProfileMode() ? '__default__' : '')" @update:model-value="v => update('intentModel', v === '__default__' ? null : String(v))">
+          <option v-if="isProfileMode()" value="__default__">{{ t('channels.use_channel_default') }}</option>
+          <option value="">{{ t('common.not_use') }}</option>
+          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </SSelect>
       </SFormItem>
-      <SFormItem :label="t('channels.intent_prompt')" :hint="inheritLabel('intentPrompt')">
-        <STextarea :model-value="modelValue.intentPrompt ?? ''" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" @update:model-value="v => update('intentPrompt', String(v).trim() ? String(v) : null)" />
-      </SFormItem>
+      <template v-if="modelValue.intentModel">
+        <SFormItem :label="t('channels.intent_threshold')" :hint="inheritLabel('intentThreshold') || t('channels.intent_threshold_hint')">
+          <SInput :model-value="modelValue.intentThreshold ?? ''" type="number" placeholder="0.7" @update:model-value="v => update('intentThreshold', v === '' || v === null ? null : Number(v))" />
+        </SFormItem>
+        <SFormItem :label="t('channels.intent_prompt')" :hint="inheritLabel('intentPrompt')">
+          <STextarea :model-value="modelValue.intentPrompt ?? ''" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" @update:model-value="v => update('intentPrompt', String(v).trim() ? String(v) : null)" />
+        </SFormItem>
+      </template>
     </template>
     </SFormDetails>
 

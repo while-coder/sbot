@@ -1,4 +1,4 @@
-import { ApprovalTimeoutValue } from "sbot.commons";
+import { ApprovalTimeoutValue, IntentFilterMode } from "sbot.commons";
 import {
     database,
     parseNotes,
@@ -32,6 +32,7 @@ export interface EffectiveSessionResolved {
     approvalTimeoutValue?: ApprovalTimeoutValue;
     askTimeout?: number;
     askTimeoutMessage?: string;
+    intentFilterMode: IntentFilterMode;
     intentModel?: string;
     intentPrompt?: string;
     intentThreshold?: number;
@@ -69,6 +70,13 @@ function normalizeRef(value: any): string | null {
     if (value == null) return null;
     const s = String(value).trim();
     return s ? s : null;
+}
+
+function normalizeIntentFilterMode(value: any): IntentFilterMode | null | undefined {
+    if (value === undefined) return undefined;
+    if (value == null || value === "") return null;
+    if (value === IntentFilterMode.Off || value === IntentFilterMode.All || value === IntentFilterMode.Auto) return value;
+    throw new Error(`Invalid intentFilterMode: ${value}`);
 }
 
 // ── ChannelDataService ────────────────────────────────────────────────────────
@@ -147,6 +155,7 @@ export class ChannelDataService {
             approvalTimeoutValue: profile.approvalTimeoutValue ?? channel?.approvalTimeoutValue ?? undefined,
             askTimeout: profile.askTimeout ?? channel?.askTimeout ?? undefined,
             askTimeoutMessage: profile.askTimeoutMessage ?? channel?.askTimeoutMessage ?? undefined,
+            intentFilterMode: profile.intentFilterMode ?? channel?.intentFilterMode ?? IntentFilterMode.Auto,
             intentModel: profile.intentModel ?? channel?.intentModel ?? undefined,
             intentPrompt: profile.intentPrompt ?? channel?.intentPrompt ?? undefined,
             intentThreshold: profile.intentThreshold ?? channel?.intentThreshold ?? undefined,
@@ -251,6 +260,7 @@ export class ChannelDataService {
                 approvalTimeoutValue: p?.approvalTimeoutValue ?? null,
                 askTimeout: p?.askTimeout ?? null,
                 askTimeoutMessage: p?.askTimeoutMessage ?? null,
+                intentFilterMode: p?.intentFilterMode ?? null,
                 intentModel: p?.intentModel ?? null,
                 intentPrompt: p?.intentPrompt ?? null,
                 intentThreshold: p?.intentThreshold ?? null,
@@ -353,6 +363,7 @@ export class ChannelDataService {
             approvalTimeoutValue: body.approvalTimeoutValue === undefined ? undefined : (body.approvalTimeoutValue ?? null),
             askTimeout: body.askTimeout === undefined ? undefined : (body.askTimeout ?? null),
             askTimeoutMessage: body.askTimeoutMessage === undefined ? undefined : (body.askTimeoutMessage || null),
+            intentFilterMode: normalizeIntentFilterMode(body.intentFilterMode),
             intentModel: body.intentModel === undefined ? undefined : (body.intentModel ?? null),
             intentPrompt: body.intentPrompt === undefined ? undefined : (body.intentPrompt || null),
             intentThreshold: body.intentThreshold === undefined ? undefined : (body.intentThreshold ?? null),
@@ -399,6 +410,7 @@ export class ChannelDataService {
             approvalTimeoutValue: current?.approvalTimeoutValue ?? null,
             askTimeout: current?.askTimeout ?? null,
             askTimeoutMessage: current?.askTimeoutMessage ?? null,
+            intentFilterMode: current?.intentFilterMode ?? null,
             intentModel: current?.intentModel ?? null,
             intentPrompt: current?.intentPrompt ?? null,
             intentThreshold: current?.intentThreshold ?? null,
@@ -483,6 +495,10 @@ export class ChannelDataService {
             disableWorkspaceContext: body.disableWorkspaceContext ?? null,
             disableWorkspaceSkills: body.disableWorkspaceSkills ?? null,
             disableWorkspaceMcp: body.disableWorkspaceMcp ?? null,
+            intentFilterMode: normalizeIntentFilterMode(body.intentFilterMode) ?? null,
+            intentModel: body.intentModel ?? null,
+            intentPrompt: body.intentPrompt || null,
+            intentThreshold: body.intentThreshold ?? null,
             memory: normalizeRef(body.memory),
             agenda: normalizeRef(body.agenda),
         }, { where: { id: profile.id } });
@@ -506,6 +522,10 @@ export class ChannelDataService {
         if (body.disableWorkspaceContext !== undefined) profileUpdate.disableWorkspaceContext = body.disableWorkspaceContext ?? null;
         if (body.disableWorkspaceSkills !== undefined) profileUpdate.disableWorkspaceSkills = body.disableWorkspaceSkills ?? null;
         if (body.disableWorkspaceMcp !== undefined) profileUpdate.disableWorkspaceMcp = body.disableWorkspaceMcp ?? null;
+        if (body.intentFilterMode !== undefined) profileUpdate.intentFilterMode = normalizeIntentFilterMode(body.intentFilterMode);
+        if (body.intentModel !== undefined) profileUpdate.intentModel = body.intentModel ?? null;
+        if (body.intentPrompt !== undefined) profileUpdate.intentPrompt = body.intentPrompt || null;
+        if (body.intentThreshold !== undefined) profileUpdate.intentThreshold = body.intentThreshold ?? null;
         if (body.memory !== undefined) profileUpdate.memory = normalizeRef(body.memory);
         if (body.agenda !== undefined) profileUpdate.agenda = normalizeRef(body.agenda);
         if (Object.keys(profileUpdate).length > 0) {
@@ -792,6 +812,7 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     approvalTimeoutValue: ApprovalTimeoutValue | null;
     askTimeout: number | null;
     askTimeoutMessage: string | null;
+    intentFilterMode: IntentFilterMode | null;
     intentModel: string | null;
     intentPrompt: string | null;
     intentThreshold: number | null;

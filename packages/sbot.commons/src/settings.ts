@@ -262,6 +262,12 @@ export enum ApprovalTimeoutValue {
   Deny  = 'deny',
 }
 
+export enum IntentFilterMode {
+  Off  = 'off',
+  All  = 'all',
+  Auto = 'auto',
+}
+
 export interface ChannelConfig {
   // ── 频道基础配置（不可被会话覆盖） ──
   /** 显示名称 */
@@ -300,6 +306,8 @@ export interface ChannelConfig {
   askTimeout?: number
   /** Ask 超时抛回 LLM 的错误信息，默认 'User did not answer within the allotted time' */
   askTimeoutMessage?: string
+  /** 意图过滤模式：off=不过滤，all=全部过滤，auto=智能过滤（未配置模型时等价 off） */
+  intentFilterMode?: IntentFilterMode
   /** 意图识别模型 UUID */
   intentModel?: string
   /** 自定义意图过滤 prompt */

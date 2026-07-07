@@ -5,7 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from 'sbot-ui'
 import QRCode from 'qrcode'
-import { ApprovalTimeoutValue, type ChannelConfig } from '@/shared/types'
+import { ApprovalTimeoutValue, IntentFilterMode, type ChannelConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
@@ -67,6 +67,7 @@ interface ChannelSessionRow {
   approvalTimeoutValue: ApprovalTimeoutValue | null
   askTimeout: number | null
   askTimeoutMessage: string | null
+  intentFilterMode: IntentFilterMode | null
   intentModel: string | null
   intentPrompt: string | null
   intentThreshold: number | null
@@ -179,6 +180,7 @@ interface ProfileFull extends ProfileOption {
   approvalTimeoutValue?: ApprovalTimeoutValue | null
   askTimeout?: number | null
   askTimeoutMessage?: string | null
+  intentFilterMode?: IntentFilterMode | null
   intentModel?: string | null
   intentPrompt?: string | null
   intentThreshold?: number | null
@@ -205,6 +207,7 @@ function emptyOverrides(): SessionOverrides {
     disableWorkspaceContext: null, disableWorkspaceSkills: null, disableWorkspaceMcp: null,
     approvalTimeout: null, approvalTimeoutValue: null,
     askTimeout: null, askTimeoutMessage: null,
+    intentFilterMode: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
     memory: null,
     agenda: null,
@@ -235,6 +238,7 @@ function profileToOverrides(p: ProfileFull): SessionOverrides {
     approvalTimeoutValue: p.approvalTimeoutValue ?? null,
     askTimeout: p.askTimeout ?? null,
     askTimeoutMessage: p.askTimeoutMessage ?? null,
+    intentFilterMode: p.intentFilterMode ?? null,
     intentModel: p.intentModel ?? null,
     intentPrompt: p.intentPrompt ?? null,
     intentThreshold: p.intentThreshold ?? null,
@@ -354,9 +358,10 @@ async function saveSession() {
     approvalTimeoutValue: o.approvalTimeoutValue,
     askTimeout: o.askTimeout,
     askTimeoutMessage: o.askTimeoutMessage,
+    intentFilterMode: o.intentFilterMode,
     intentModel: o.intentModel,
-    intentPrompt: o.intentModel == null ? null : o.intentPrompt,
-    intentThreshold: o.intentModel == null ? null : o.intentThreshold,
+    intentPrompt: o.intentFilterMode === IntentFilterMode.Off || o.intentFilterMode === IntentFilterMode.All || o.intentModel == null ? null : o.intentPrompt,
+    intentThreshold: o.intentFilterMode === IntentFilterMode.Off || o.intentFilterMode === IntentFilterMode.All || o.intentModel == null ? null : o.intentThreshold,
     memory: o.memory,
     agenda: o.agenda,
   }
@@ -381,9 +386,10 @@ async function saveSession() {
     approvalTimeoutValue: orig.approvalTimeoutValue,
     askTimeout: orig.askTimeout,
     askTimeoutMessage: orig.askTimeoutMessage,
+    intentFilterMode: orig.intentFilterMode,
     intentModel: orig.intentModel,
-    intentPrompt: orig.intentModel == null ? null : orig.intentPrompt,
-    intentThreshold: orig.intentModel == null ? null : orig.intentThreshold,
+    intentPrompt: orig.intentFilterMode === IntentFilterMode.Off || orig.intentFilterMode === IntentFilterMode.All || orig.intentModel == null ? null : orig.intentPrompt,
+    intentThreshold: orig.intentFilterMode === IntentFilterMode.Off || orig.intentFilterMode === IntentFilterMode.All || orig.intentModel == null ? null : orig.intentThreshold,
     memory: orig.memory,
     agenda: orig.agenda,
   }
@@ -417,6 +423,27 @@ function formatTokens(n: number): string {
   return n.toLocaleString()
 }
 
+function formatIntentFilterMode(mode?: IntentFilterMode | null): string {
+  switch (mode ?? IntentFilterMode.Auto) {
+    case IntentFilterMode.Off: return t('channels.intent_filter_mode_off')
+    case IntentFilterMode.All: return t('channels.intent_filter_mode_all')
+    case IntentFilterMode.Auto: return t('channels.intent_filter_mode_auto')
+    default: return String(mode ?? '')
+  }
+}
+
+function showIntentFilterModeChip(mode?: IntentFilterMode | null, model?: string | null): boolean {
+  const resolved = mode ?? IntentFilterMode.Auto
+  return resolved === IntentFilterMode.All || resolved === IntentFilterMode.Off || !!model
+}
+
+function intentFilterModeClass(mode?: IntentFilterMode | null): string {
+  const resolved = mode ?? IntentFilterMode.Auto
+  if (resolved === IntentFilterMode.All) return 'orange'
+  if (resolved === IntentFilterMode.Off) return 'muted'
+  return 'green'
+}
+
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
@@ -425,6 +452,7 @@ const form = ref<ChannelConfig>({
   disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false,
   approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny,
   askTimeout: 0, askTimeoutMessage: '',
+  intentFilterMode: IntentFilterMode.Auto,
   intentModel: '', intentPrompt: '', intentThreshold: 0.7,
   mergeWindow: 0,
 })
@@ -447,6 +475,7 @@ const channelDataConfig = computed<DataConfigValue>({
     approvalTimeoutValue: form.value.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny,
     askTimeout: form.value.askTimeout && form.value.askTimeout > 0 ? form.value.askTimeout : null,
     askTimeoutMessage: form.value.askTimeoutMessage || null,
+    intentFilterMode: form.value.intentFilterMode ?? IntentFilterMode.Auto,
     intentModel: form.value.intentModel || null,
     intentPrompt: form.value.intentPrompt || null,
     intentThreshold: form.value.intentThreshold ?? 0.7,
@@ -468,6 +497,7 @@ const channelDataConfig = computed<DataConfigValue>({
     form.value.approvalTimeoutValue = v.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny
     form.value.askTimeout = v.askTimeout ?? 0
     form.value.askTimeoutMessage = v.askTimeoutMessage || ''
+    form.value.intentFilterMode = v.intentFilterMode ?? IntentFilterMode.Auto
     form.value.intentModel = v.intentModel || ''
     form.value.intentPrompt = v.intentPrompt || ''
     form.value.intentThreshold = v.intentThreshold ?? 0.7
@@ -635,7 +665,7 @@ function openAdd() {
   editingId.value = null
   clearActionState()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
-  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentFilterMode: IntentFilterMode.Auto, intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formTriggerTools.value = []
   formToolsMode.value = 'default'
@@ -647,7 +677,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, disableWorkspaceMcp: !!c.disableWorkspaceMcp, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, disableWorkspaceMcp: !!c.disableWorkspaceMcp, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentFilterMode: c.intentFilterMode ?? IntentFilterMode.Auto, intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
   formTools.value = [...(c.tools ?? [])]
   formTriggerTools.value = [...(c.triggerTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
@@ -694,9 +724,10 @@ async function save() {
       approvalTimeoutValue: form.value.approvalTimeout && form.value.approvalTimeout > 0 ? form.value.approvalTimeoutValue : undefined,
       askTimeout: form.value.askTimeout && form.value.askTimeout > 0 ? form.value.askTimeout : undefined,
       askTimeoutMessage: form.value.askTimeoutMessage?.trim() || undefined,
-      intentModel: form.value.intentModel || undefined,
-      intentPrompt: form.value.intentPrompt?.trim() || undefined,
-      intentThreshold: form.value.intentModel ? form.value.intentThreshold : undefined,
+      intentFilterMode: form.value.intentFilterMode ?? IntentFilterMode.Auto,
+      intentModel: form.value.intentFilterMode === IntentFilterMode.Auto ? (form.value.intentModel || undefined) : undefined,
+      intentPrompt: form.value.intentFilterMode === IntentFilterMode.Auto ? (form.value.intentPrompt?.trim() || undefined) : undefined,
+      intentThreshold: form.value.intentFilterMode === IntentFilterMode.Auto && form.value.intentModel ? form.value.intentThreshold : undefined,
       mergeWindow: form.value.mergeWindow || undefined,
       memory: channelMemory,
       agenda: channelAgenda,
@@ -800,7 +831,8 @@ async function refresh() {
           <span v-if="c.approvalTimeout != null && c.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ c.approvalTimeout }} / {{ c.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
           <span v-if="c.askTimeout != null && c.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ c.askTimeout }}</span>
           <span v-if="c.mergeWindow != null && c.mergeWindow > 0" class="session-meta-chip">{{ t('channels.merge_window') }}: {{ c.mergeWindow }}ms</span>
-          <span v-if="c.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel }}</span>
+          <span v-if="showIntentFilterModeChip(c.intentFilterMode, c.intentModel)" class="session-meta-chip" :class="intentFilterModeClass(c.intentFilterMode)">{{ t('channels.intent_filter_mode') }}: {{ formatIntentFilterMode(c.intentFilterMode) }}</span>
+          <span v-if="(c.intentFilterMode ?? IntentFilterMode.Auto) === IntentFilterMode.Auto && c.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel }}</span>
           <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
           <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
         </template>
@@ -843,7 +875,8 @@ async function refresh() {
                   <span v-if="s.autoApproveAllTools != null" class="session-meta-chip" :class="s.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ s.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
                   <span v-if="s.approvalTimeout != null && s.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ s.approvalTimeout }} / {{ s.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
                   <span v-if="s.askTimeout != null && s.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ s.askTimeout }}</span>
-                  <span v-if="s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === s.intentModel)?.label || s.intentModel }}{{ s.intentThreshold != null ? ` · ${s.intentThreshold}` : '' }}</span>
+                  <span v-if="showIntentFilterModeChip(s.intentFilterMode, s.intentModel)" class="session-meta-chip" :class="intentFilterModeClass(s.intentFilterMode)">{{ t('channels.intent_filter_mode') }}: {{ formatIntentFilterMode(s.intentFilterMode) }}</span>
+                  <span v-if="(s.intentFilterMode ?? IntentFilterMode.Auto) === IntentFilterMode.Auto && s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === s.intentModel)?.label || s.intentModel }}{{ s.intentThreshold != null ? ` · ${s.intentThreshold}` : '' }}</span>
                 </template>
               </SEntityList>
               <SEntityList

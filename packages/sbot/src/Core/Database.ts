@@ -1,6 +1,6 @@
 import { DataTypes, type FindOptions, type ModelStatic, type UpdateOptions, Sequelize } from "sequelize";
 import { TimeUtils } from "scorpio.ai";
-import { ApprovalTimeoutValue } from "sbot.commons";
+import { ApprovalTimeoutValue, IntentFilterMode } from "sbot.commons";
 import { config } from "./Config";
 import { LoggerService } from "./LoggerService";
 
@@ -129,6 +129,7 @@ export type SessionProfileRow = {
   askTimeout: number | null;
   askTimeoutMessage: string | null;
 
+  intentFilterMode: IntentFilterMode | null;
   intentModel: string | null;
   intentPrompt: string | null;
   intentThreshold: number | null;
@@ -511,6 +512,12 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "Ask 超时抛回 LLM 的错误信息",
+        },
+        intentFilterMode: {
+          type: DataTypes.STRING(16),
+          allowNull: true,
+          defaultValue: null,
+          comment: "意图过滤模式，null = 跟随 ChannelConfig",
         },
         intentModel: {
           type: DataTypes.STRING(255),

@@ -3,6 +3,7 @@ import { MessageRole, StructuredOutputMethod, truncate, contentToString, type Me
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { loadPrompt } from "../Core/PromptLoader";
+import { channelDataService } from "../Session/ChannelDataService";
 
 const logger = LoggerService.getLogger("classifyIntent.ts");
 
@@ -20,6 +21,16 @@ const IntentSchema = z.object({
 
 type IntentResult = z.infer<typeof IntentSchema>;
 
+async function resolveSessionName(sessionId: number | string | undefined): Promise<string> {
+  const fallback = sessionId == null ? "?" : String(sessionId);
+  try {
+    const session = await channelDataService.getSession(sessionId);
+    return session?.sessionName || session?.autoSessionName || session?.sessionId || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Classify whether a group chat message needs an AI reply.
  * Returns true = should reply, false = skip silently.
@@ -30,11 +41,13 @@ export async function classifyIntent(
   intentModelId: string,
   intentPrompt: string | null,
   intentThreshold: number,
-  sessionName?: string,
+  sessionId?: number | string,
 ): Promise<boolean> {
   const modelService = config.getModelService(intentModelId);
   if (!modelService) return true;
   let text = truncate(contentToString(query), 100);
+  const modelInfo = `intentModelId=${intentModelId}`;
+  const sessionName = await resolveSessionName(sessionId);
   try {
     const systemPrompt = [
       intentPrompt || loadPrompt('intent/default.txt'),
@@ -49,13 +62,13 @@ export async function classifyIntent(
     });
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
     if (shouldReply) {
-      logger.info(`[${sessionName ?? '?'}] ✅ 意图通过: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
+      logger.info(`[${sessionName ?? '?'}] ✅ 意图通过: "${text}" (${modelInfo}, 置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
     } else {
-      logger.info(`[${sessionName ?? '?'}] 🚫 意图过滤: "${text}" (置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
+      logger.info(`[${sessionName ?? '?'}] 🚫 意图过滤: "${text}" (${modelInfo}, 置信度=${result.confidence}, 阈值=${intentThreshold}, 原因=${result.reasoning})`);
     }
     return shouldReply;
   } catch (err) {
-    logger.error(`[${sessionName ?? '?'}] 意图分类出错，默认过滤该消息, query="${text}"`, err);
+    logger.error(`[${sessionName ?? '?'}] 意图分类出错，默认过滤该消息 (${modelInfo}), query="${text}"`, err);
     return false;
   } finally {
     await modelService.dispose();
