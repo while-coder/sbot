@@ -106,7 +106,7 @@ jobs:
           gh api "/repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)\t\(.name)"' |
           while IFS=$'\t' read -r id name; do
             case "$name" in
-              "sbot_${VERSION}_android.apk"|sbot-vscode-*.vsix)
+              "sbot_${VERSION}_android.apk"|"sbot_${VERSION}_ios_unsigned.ipa"|sbot-vscode-*.vsix)
                 continue
                 ;;
               "latest.json"|"latest-app.json"|"sbot.app.tar.gz"|"sbot.app.tar.gz.sig"|sbot_*.app.tar.gz|sbot_*.app.tar.gz.sig|sbot_${VERSION}_*)
@@ -267,6 +267,64 @@ jobs:
           fi
           DEST="sbot_${VERSION}_android.apk"
           cp "$APK" "$DEST"
+          gh release upload "$TAG" "$DEST" -R "$REPO" --clobber
+
+  release-ios:
+    needs: [check, release-desktop]
+    if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/app/src-tauri/target
+          key: ios-cargo-app-${{ hashFiles('packages/app/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ios-cargo-app-
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Init iOS project
+        working-directory: packages/app
+        run: pnpm ios:init
+
+      - name: Build unsigned IPA
+        working-directory: packages/app
+        run: pnpm ios:build --target aarch64 --no-sign --ci
+
+      - name: Upload unsigned IPA to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          IPA=$(find packages/app/src-tauri/gen/apple -name '*.ipa' -type f | head -n1)
+          if [ -z "$IPA" ]; then
+            echo "::error::Unsigned iOS IPA was not found."
+            exit 1
+          fi
+          DEST="sbot_${VERSION}_ios_unsigned.ipa"
+          cp "$IPA" "$DEST"
           gh release upload "$TAG" "$DEST" -R "$REPO" --clobber
 
   publish-vscode:
