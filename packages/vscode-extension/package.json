@@ -42,7 +42,7 @@
       {
         "command": "sbot.openChat",
         "title": "sbot: Open Chat",
-        "icon": "media/icon.svg"
+        "icon": "media/icon.png"
       },
       {
         "command": "sbot.selectServer",
@@ -80,8 +80,7 @@
       "editor/title": [
         {
           "command": "sbot.openChat",
-          "group": "navigation@100",
-          "when": "resourceScheme == file || resourceScheme == untitled"
+          "group": "navigation@100"
         }
       ]
     }
