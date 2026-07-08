@@ -78,6 +78,14 @@ jobs:
       # - name: Push Docker image
       #   run: node packages/sbot/scripts/docker.js publish
 
+      - name: Delete existing GitHub Release
+        if: github.event_name == 'push'
+        uses: while-coder/workflows/.github/actions/recreate-github-release@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          create: 'false'
+
       - name: Create GitHub Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2

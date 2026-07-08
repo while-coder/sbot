@@ -61,11 +61,31 @@ jobs:
             echo "RELEASE_NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Publish to npm
+      - name: Check npm package version
+        id: npm
         if: github.event_name == 'push'
+        shell: bash
+        run: |
+          if npm view "sbot-cli@${{ steps.version.outputs.version }}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "sbot-cli@${{ steps.version.outputs.version }} is already published; skipping npm publish."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: github.event_name == 'push' && steps.npm.outputs.published != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm --filter sbot-cli publish --no-git-checks
+
+      - name: Delete existing GitHub Release
+        if: github.event_name == 'push'
+        uses: while-coder/workflows/.github/actions/recreate-github-release@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          create: 'false'
 
       - name: Create GitHub Release
         if: github.event_name == 'push'

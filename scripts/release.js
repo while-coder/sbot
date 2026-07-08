@@ -81,38 +81,7 @@ function remoteTagExists(tag) {
   return commandSucceeds(`git ls-remote --exit-code origin "refs/tags/${tag}"`);
 }
 
-function githubReleaseExists(tag) {
-  return commandSucceeds(`gh release view "${tag}"`);
-}
-
-function assertGithubCliReady() {
-  if (!commandSucceeds('gh --version')) {
-    console.error('error: GitHub CLI (gh) is required to delete an existing GitHub release');
-    process.exit(1);
-  }
-  if (!commandSucceeds('gh auth status')) {
-    console.error('error: GitHub CLI is not authenticated; run "gh auth login" before overwriting a release');
-    process.exit(1);
-  }
-}
-
-function deleteExistingRelease(tag) {
-  const hasLocalTag = tagExists(tag);
-  const hasRemoteTag = remoteTagExists(tag);
-
-  if (hasLocalTag || hasRemoteTag) {
-    assertGithubCliReady();
-    if (githubReleaseExists(tag)) {
-      run(`gh release delete "${tag}" --yes --cleanup-tag`);
-    } else {
-      console.log(`GitHub release "${tag}" not found`);
-    }
-  } else if (commandSucceeds('gh --version') && commandSucceeds('gh auth status') && githubReleaseExists(tag)) {
-    run(`gh release delete "${tag}" --yes --cleanup-tag`);
-  } else {
-    return;
-  }
-
+function deleteExistingTag(tag) {
   if (remoteTagExists(tag)) {
     run(`git push origin --delete "${tag}"`);
   }
@@ -244,7 +213,7 @@ function main() {
   }
 
   if (cfg.overwriteExistingRelease) {
-    deleteExistingRelease(tag);
+    deleteExistingTag(tag);
   }
 
   run(`git tag -a "${tag}" -m "${target} v${nextVersion}"`);
