@@ -8,7 +8,10 @@
       "type": "tauri-icons",
       "source": "icon-1024x1024.png"
     },
-    "../vscode-extension/media": [{ "from": "icon.svg", "to": "icon.svg" }]
+    "../vscode-extension/media": [
+      { "from": "icon.svg", "to": "icon.svg" },
+      { "from": "icon-128x128.png", "to": "icon.png" }
+    ]
   },
   "scripts": {
     "distribute": "node distribute.js"

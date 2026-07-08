@@ -4,6 +4,7 @@
   "description": "Chat with sbot AI server inside VS Code",
   "version": "0.0.2",
   "publisher": "while",
+  "icon": "media/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/while-coder/sbot.git",
