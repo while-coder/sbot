@@ -9,10 +9,12 @@ const TARGETS = {
     tauriConf: 'packages/app/src-tauri/tauri.conf.json',
     pkgJson: 'packages/app/package.json',
     companionPkgJsons: ['packages/vscode-extension/package.json'],
+    overwriteExistingRelease: true,
   },
   sbot: {
     tagPrefix: 'sbot-v',
     pkgJson: 'packages/sbot/package.json',
+    overwriteExistingRelease: true,
     releaseNotes: {
       en: 'packages/sbot/ReleaseNote.md',
       zh: 'packages/sbot/ReleaseNote.zh.md',
@@ -21,6 +23,7 @@ const TARGETS = {
   cli: {
     tagPrefix: 'cli-v',
     pkgJson: 'packages/cli/package.json',
+    overwriteExistingRelease: true,
   },
 };
 
@@ -39,6 +42,15 @@ function usage(msg) {
 function run(cmd, opts = {}) {
   console.log(`> ${cmd}`);
   return execSync(cmd, { stdio: 'inherit', ...opts });
+}
+
+function commandSucceeds(cmd) {
+  try {
+    execSync(cmd, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function readJson(file) {
@@ -62,11 +74,50 @@ function isWorkingTreeClean() {
 }
 
 function tagExists(tag) {
-  try {
-    execSync(`git rev-parse -q --verify "refs/tags/${tag}"`, { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
+  return commandSucceeds(`git rev-parse -q --verify "refs/tags/${tag}"`);
+}
+
+function remoteTagExists(tag) {
+  return commandSucceeds(`git ls-remote --exit-code origin "refs/tags/${tag}"`);
+}
+
+function githubReleaseExists(tag) {
+  return commandSucceeds(`gh release view "${tag}"`);
+}
+
+function assertGithubCliReady() {
+  if (!commandSucceeds('gh --version')) {
+    console.error('error: GitHub CLI (gh) is required to delete an existing GitHub release');
+    process.exit(1);
+  }
+  if (!commandSucceeds('gh auth status')) {
+    console.error('error: GitHub CLI is not authenticated; run "gh auth login" before overwriting a release');
+    process.exit(1);
+  }
+}
+
+function deleteExistingRelease(tag) {
+  const hasLocalTag = tagExists(tag);
+  const hasRemoteTag = remoteTagExists(tag);
+
+  if (hasLocalTag || hasRemoteTag) {
+    assertGithubCliReady();
+    if (githubReleaseExists(tag)) {
+      run(`gh release delete "${tag}" --yes --cleanup-tag`);
+    } else {
+      console.log(`GitHub release "${tag}" not found`);
+    }
+  } else if (commandSucceeds('gh --version') && commandSucceeds('gh auth status') && githubReleaseExists(tag)) {
+    run(`gh release delete "${tag}" --yes --cleanup-tag`);
+  } else {
+    return;
+  }
+
+  if (remoteTagExists(tag)) {
+    run(`git push origin --delete "${tag}"`);
+  }
+  if (tagExists(tag)) {
+    run(`git tag -d "${tag}"`);
   }
 }
 
@@ -145,7 +196,7 @@ function main() {
   if (notesChanged) console.log('notes   : updated from ReleaseNote files');
   console.log('');
 
-  if (tagExists(tag)) {
+  if (tagExists(tag) && !cfg.overwriteExistingRelease) {
     console.error(`error: tag "${tag}" already exists`);
     process.exit(1);
   }
@@ -190,6 +241,10 @@ function main() {
 
     run(`git add ${filesToAdd.map((f) => `"${f}"`).join(' ')}`);
     run(`git commit -m "${commitMsg}"`);
+  }
+
+  if (cfg.overwriteExistingRelease) {
+    deleteExistingRelease(tag);
   }
 
   run(`git tag -a "${tag}" -m "${target} v${nextVersion}"`);
