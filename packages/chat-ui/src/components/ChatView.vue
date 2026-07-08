@@ -189,8 +189,14 @@ function handleEvent(evt: ChatEvent) {
     case ChatEventType.ToolCall:
       pendingToolCall.value = evt.data
       break
+    case ChatEventType.ApprovalDone:
+      if (pendingToolCall.value?.approvalId === evt.data.id) pendingToolCall.value = null
+      break
     case ChatEventType.Ask:
       pendingAsk.value = evt.data
+      break
+    case ChatEventType.AskDone:
+      if (pendingAsk.value?.id === evt.data.id) pendingAsk.value = null
       break
     case ChatEventType.Queue:
       // Only adopt the server's view when the client doesn't already have a local queue.

@@ -498,7 +498,9 @@ export enum ChatEventType {
   Stream = 'stream',
   Message = 'message',
   ToolCall = 'toolCall',
+  ApprovalDone = 'approvalDone',
   Ask = 'ask',
+  AskDone = 'askDone',
   Queue = 'queue',
   Done = 'done',
   Error = 'error',
@@ -511,7 +513,9 @@ export type ChatEvent =
   | { type: ChatEventType.Stream; profileId: string; data: { content: DisplayContent } }
   | { type: ChatEventType.Message; profileId: string; data: { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number; kind?: string } }
   | { type: ChatEventType.ToolCall; profileId: string; data: ToolCallEvent }
+  | { type: ChatEventType.ApprovalDone; profileId: string; data: { id: string } }
   | { type: ChatEventType.Ask; profileId: string; data: AskEvent }
+  | { type: ChatEventType.AskDone; profileId: string; data: { id: string } }
   | { type: ChatEventType.Queue; profileId: string; data: { pendingMessages: DisplayContent[] } }
   | { type: ChatEventType.Done; profileId: string; data: { pendingMessages?: DisplayContent[] } }
   | { type: ChatEventType.Error; profileId: string; data: { message: string } }

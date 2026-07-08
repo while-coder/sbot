@@ -15,7 +15,9 @@ export enum WebChatEventType {
   Stream   = 'stream',
   Message  = 'message',
   ToolCall = 'toolCall',
+  ApprovalDone = 'approvalDone',
   Ask      = 'ask',
+  AskDone  = 'askDone',
   Done     = 'done',
   Error    = 'error',
   Queue    = 'queue',
@@ -40,7 +42,9 @@ export interface HumanData    { content: DisplayContent }
 export interface StreamData   { content: DisplayContent }
 export interface MessageData  { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number; kind?: string }
 export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any>; remainSec?: number; timeoutValue?: ApprovalTimeoutValue }
+export interface ApprovalDoneData { id: string }
 export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[]; remainSec?: number }
+export interface AskDoneData  { id: string }
 export interface DoneData     { pendingMessages?: DisplayContent[] }
 export interface ErrorData    { message: string }
 export interface QueueData    { pendingMessages: DisplayContent[] }
@@ -51,7 +55,9 @@ export type WebChatEventDataMap = {
   [WebChatEventType.Stream]:   StreamData
   [WebChatEventType.Message]:  MessageData
   [WebChatEventType.ToolCall]: ToolCallData
+  [WebChatEventType.ApprovalDone]: ApprovalDoneData
   [WebChatEventType.Ask]:      AskData
+  [WebChatEventType.AskDone]:  AskDoneData
   [WebChatEventType.Done]:     DoneData
   [WebChatEventType.Error]:    ErrorData
   [WebChatEventType.Queue]:    QueueData

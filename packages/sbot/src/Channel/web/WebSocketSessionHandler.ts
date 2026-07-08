@@ -67,8 +67,8 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
         });
     }
 
-    protected async exitApproval(_approvalId: string): Promise<void> {
-        // WebSocket clients manage their own UI — no cleanup needed
+    protected async exitApproval(approvalId: string): Promise<void> {
+        this.emit(WebChatEventType.ApprovalDone, { id: approvalId });
     }
 
     protected async enterAsk(askId: string, remainSec: number, params: AskToolParams): Promise<void> {
@@ -78,8 +78,8 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
         });
     }
 
-    protected async exitAsk(_askId: string): Promise<void> {
-        // WebSocket clients manage their own UI — no cleanup needed
+    protected async exitAsk(askId: string): Promise<void> {
+        this.emit(WebChatEventType.AskDone, { id: askId });
     }
 
     // ── Agent tools ──

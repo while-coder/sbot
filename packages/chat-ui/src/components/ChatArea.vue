@@ -157,22 +157,6 @@ defineExpose({ scrollToBottom })
 
 <template>
   <div class="chatui-chat-area">
-    <!-- Ask form -->
-    <AskForm
-      v-if="pendingAsk"
-      :ask-event="pendingAsk"
-      :labels="labels"
-      @submit="emit('answer', $event)"
-    />
-
-    <!-- Tool approval bar -->
-    <ToolApprovalBar
-      v-if="pendingToolCall"
-      :tool-call="pendingToolCall"
-      :labels="labels"
-      @approve="emit('approve', $event)"
-    />
-
     <!-- Messages -->
     <div ref="messagesEl" class="chatui-messages-scroll" @scroll.passive="updateStickToBottom">
       <MessageList
@@ -189,6 +173,22 @@ defineExpose({ scrollToBottom })
 
     <!-- Input bar (card) -->
     <div class="chatui-input-wrap" :class="{ 'chatui-compact': isCompact }">
+      <div v-if="pendingToolCall" class="chatui-input-approval">
+        <ToolApprovalBar
+          :tool-call="pendingToolCall"
+          :labels="labels"
+          @approve="emit('approve', $event)"
+        />
+      </div>
+
+      <div v-if="pendingAsk" class="chatui-input-ask">
+        <AskForm
+          :ask-event="pendingAsk"
+          :labels="labels"
+          @submit="emit('answer', $event)"
+        />
+      </div>
+
       <div
         class="chatui-input-card"
         :class="{ 'chatui-drag-over': isDragging }"
@@ -334,6 +334,27 @@ defineExpose({ scrollToBottom })
   border-top: 1px solid var(--chatui-border);
 }
 .chatui-input-wrap.chatui-compact { padding: 8px; }
+.chatui-input-approval {
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid var(--chatui-approval-border);
+  border-radius: 8px;
+  background: var(--chatui-approval-bg);
+}
+.chatui-input-approval :deep(.chatui-tool-approval) {
+  border-bottom: none;
+}
+.chatui-input-ask {
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid var(--chatui-ask-border);
+  border-radius: 8px;
+  background: var(--chatui-ask-bg);
+}
+.chatui-input-ask :deep(.chatui-ask-form) {
+  max-height: min(38vh, 320px);
+  border-bottom: none;
+}
 .chatui-input-card {
   display: flex;
   flex-direction: column;
