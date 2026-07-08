@@ -12,71 +12,18 @@ jobs:
   check:
     runs-on: ubuntu-latest
     outputs:
-      android_signed: ${{ steps.detect.outputs.android_signed }}
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
       notes: ${{ steps.release.outputs.notes }}
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          package-manager-cache: false
-
-      - id: detect
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ] &&
-             [ -n "$ANDROID_KEYSTORE_PASSWORD" ] &&
-             [ -n "$ANDROID_KEY_ALIAS" ] &&
-             [ -n "$ANDROID_KEY_PASSWORD" ]; then
-            echo "android_signed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "android_signed=false" >> "$GITHUB_OUTPUT"
-            if [ -n "$ANDROID_KEYSTORE_BASE64$ANDROID_KEYSTORE_PASSWORD$ANDROID_KEY_ALIAS$ANDROID_KEY_PASSWORD" ]; then
-              echo "::warning::Android signing secrets are incomplete; Android APK build will be skipped."
-            fi
-          fi
-
       - id: release
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          APP_VERSION="$(node -p "require('./packages/app/package.json').version")"
-          if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF_NAME}"
-            VERSION="${TAG#app-v}"
-          else
-            VERSION="$APP_VERSION"
-            TAG="app-v${VERSION}"
-          fi
-
-          if [ "$VERSION" != "$APP_VERSION" ]; then
-            echo "::error::Tag version ($VERSION) does not match packages/app/package.json version ($APP_VERSION). Run pnpm run release:app to keep them in sync."
-            exit 1
-          fi
-
-          BODY=$(awk -v v="$VERSION" '
-            $1 == "##" && $2 == v { capture=1; next }
-            capture && $1 == "##" { exit }
-            capture { print }
-          ' packages/app/CHANGELOG.md)
-          [ -z "$BODY" ] && BODY="Release $VERSION"
-
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          {
-            echo "notes<<RELEASE_NOTES_EOF"
-            echo "$BODY"
-            echo "RELEASE_NOTES_EOF"
-          } >> "$GITHUB_OUTPUT"
+        uses: while-coder/workflows/.github/actions/resolve-release-info@main
+        with:
+          tag-prefix: app-v
+          package-json: packages/app/package.json
+          changelog: packages/app/CHANGELOG.md
 
   prepare-release:
     needs: check
@@ -106,7 +53,7 @@ jobs:
           gh api "/repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)\t\(.name)"' |
           while IFS=$'\t' read -r id name; do
             case "$name" in
-              "sbot_${VERSION}_android.apk"|"sbot_${VERSION}_ios_unsigned.ipa"|sbot-vscode-*.vsix)
+              "sbot_${VERSION}_android.apk"|"sbot_${VERSION}_android.aab"|"sbot_${VERSION}_ios_unsigned.ipa"|sbot-vscode-*.vsix)
                 continue
                 ;;
               "latest.json"|"latest-app.json"|"sbot.app.tar.gz"|"sbot.app.tar.gz.sig"|sbot_*.app.tar.gz|sbot_*.app.tar.gz.sig|sbot_${VERSION}_*)
@@ -118,214 +65,47 @@ jobs:
 
   release-desktop:
     needs: [check, prepare-release]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
-            rust-target: aarch64-apple-darwin
-          - platform: macos-latest
-            args: '--target x86_64-apple-darwin'
-            rust-target: x86_64-apple-darwin
-          - platform: ubuntu-22.04
-            args: ''
-            rust-target: ''
-          - platform: windows-latest
-            args: ''
-            rust-target: ''
-          - platform: windows-latest
-            args: '--target aarch64-pc-windows-msvc'
-            rust-target: aarch64-pc-windows-msvc
-
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 10.33.0
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust-target }}
-
-      - name: Cache cargo registry
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            packages/app/src-tauri/target
-          key: ${{ matrix.platform }}-${{ matrix.rust-target || 'default' }}-cargo-app-${{ hashFiles('packages/app/src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ matrix.platform }}-${{ matrix.rust-target || 'default' }}-cargo-app-
-            ${{ matrix.platform }}-cargo-app-
-
-      - name: Install Linux deps
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - run: pnpm install --frozen-lockfile
-
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          projectPath: packages/app
-          tagName: ${{ needs.check.outputs.tag }}
-          releaseName: 'app v${{ needs.check.outputs.version }}'
-          releaseBody: ${{ needs.check.outputs.notes }}
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: false
-          args: ${{ matrix.args }}
+    uses: while-coder/workflows/.github/workflows/tauri-desktop-release.yml@main
+    with:
+      project-path: packages/app
+      cargo-lock-path: packages/app/src-tauri/Cargo.lock
+      cargo-target-path: packages/app/src-tauri/target
+      cache-key-prefix: cargo-app
+      tag-name: ${{ needs.check.outputs.tag }}
+      release-name: app v${{ needs.check.outputs.version }}
+      release-body: ${{ needs.check.outputs.notes }}
+    secrets: inherit
 
   release-android:
     needs: [check, release-desktop]
-    if: ${{ !cancelled() && needs.release-desktop.result == 'success' && needs.check.outputs.android_signed == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 10.33.0
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: |
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.11902837"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.11902837" >> "$GITHUB_ENV"
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-
-      - name: Cache cargo registry
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            packages/app/src-tauri/target
-          key: android-cargo-app-${{ hashFiles('packages/app/src-tauri/Cargo.lock') }}
-          restore-keys: |
-            android-cargo-app-
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Decode Android keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
-          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-
-      - name: Build APK
-        working-directory: packages/app
-        env:
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: pnpm android:build --apk
-
-      - name: Upload APK to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.check.outputs.tag }}
-          VERSION: ${{ needs.check.outputs.version }}
-        run: |
-          APK=$(find packages/app/src-tauri/gen/android/app/build/outputs/apk -name '*.apk' ! -name '*unsigned*' | head -n1)
-          if [ -z "$APK" ]; then
-            echo "::error::Signed APK was not found. Check Android signing configuration."
-            exit 1
-          fi
-          DEST="sbot_${VERSION}_android.apk"
-          cp "$APK" "$DEST"
-          gh release upload "$TAG" "$DEST" -R "$REPO" --clobber
+    if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
+    uses: while-coder/workflows/.github/workflows/tauri-android-release.yml@main
+    with:
+      project-path: packages/app
+      cargo-lock-path: packages/app/src-tauri/Cargo.lock
+      cargo-target-path: packages/app/src-tauri/target
+      cache-key-prefix: android-cargo-app
+      tag-name: ${{ needs.check.outputs.tag }}
+      version: ${{ needs.check.outputs.version }}
+      asset-prefix: sbot
+      build-command: pnpm android:build --apk --aab
+    secrets: inherit
 
   release-ios:
     needs: [check, release-desktop]
     if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 10.33.0
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios
-
-      - name: Cache cargo registry
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            packages/app/src-tauri/target
-          key: ios-cargo-app-${{ hashFiles('packages/app/src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ios-cargo-app-
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Init iOS project
-        working-directory: packages/app
-        run: pnpm ios:init
-
-      - name: Build unsigned IPA
-        working-directory: packages/app
-        run: pnpm ios:build --target aarch64 --no-sign --ci
-
-      - name: Upload unsigned IPA to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.check.outputs.tag }}
-          VERSION: ${{ needs.check.outputs.version }}
-        run: |
-          IPA=$(find packages/app/src-tauri/gen/apple -name '*.ipa' -type f | head -n1)
-          if [ -z "$IPA" ]; then
-            echo "::error::Unsigned iOS IPA was not found."
-            exit 1
-          fi
-          DEST="sbot_${VERSION}_ios_unsigned.ipa"
-          cp "$IPA" "$DEST"
-          gh release upload "$TAG" "$DEST" -R "$REPO" --clobber
+    uses: while-coder/workflows/.github/workflows/tauri-ios-unsigned.yml@main
+    with:
+      project-path: packages/app
+      cargo-lock-path: packages/app/src-tauri/Cargo.lock
+      cargo-target-path: packages/app/src-tauri/target
+      cache-key-prefix: ios-cargo-app
+      tag-name: ${{ needs.check.outputs.tag }}
+      version: ${{ needs.check.outputs.version }}
+      asset-prefix: sbot
+      init-command: pnpm ios:init
+      build-command: pnpm ios:build --target aarch64 --no-sign --ci
+    secrets: inherit
 
   publish-vscode:
     needs: [check, release-desktop]
@@ -374,146 +154,12 @@ jobs:
   publish-manifest:
     needs: [check, release-desktop]
     if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          package-manager-cache: false
-
-      - name: Force release body from CHANGELOG
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.check.outputs.tag }}
-          RELEASE_NOTES: ${{ needs.check.outputs.notes }}
-        shell: bash
-        run: gh release edit "$TAG" -R "$REPO" --notes "$RELEASE_NOTES"
-
-      - name: Rename desktop assets with OS tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.check.outputs.tag }}
-          ASSET_VERSION: ${{ needs.check.outputs.version }}
-        run: |
-          gh api "/repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)\t\(.name)"' |
-          while IFS=$'\t' read -r id name; do
-            new=$(printf '%s' "$name" | sed -E \
-              -e "s#^sbot_[0-9][0-9.]*_aarch64\.dmg#sbot_${ASSET_VERSION}_macos_arm64.dmg#" \
-              -e "s#^sbot_[0-9][0-9.]*_x64\.dmg#sbot_${ASSET_VERSION}_macos_x64.dmg#" \
-              -e "s#^sbot_aarch64\.app\.tar\.gz#sbot_${ASSET_VERSION}_macos_arm64.app.tar.gz#" \
-              -e "s#^sbot_x64\.app\.tar\.gz#sbot_${ASSET_VERSION}_macos_x64.app.tar.gz#" \
-              -e "s#^sbot_[0-9][0-9.]*_amd64\.(AppImage|deb)#sbot_${ASSET_VERSION}_linux_x64.\1#" \
-              -e "s#^sbot_[0-9][0-9.]*_x64-setup\.nsis\.zip#sbot_${ASSET_VERSION}_windows_x64.nsis.zip#" \
-              -e "s#^sbot_[0-9][0-9.]*_arm64-setup\.nsis\.zip#sbot_${ASSET_VERSION}_windows_arm64.nsis.zip#" \
-              -e "s#^sbot_[0-9][0-9.]*_x64-setup\.exe#sbot_${ASSET_VERSION}_windows_x64.exe#" \
-              -e "s#^sbot_[0-9][0-9.]*_arm64-setup\.exe#sbot_${ASSET_VERSION}_windows_arm64.exe#")
-            if [ "$new" != "$name" ]; then
-              echo "rename: $name -> $new"
-              gh api -X PATCH "/repos/$REPO/releases/assets/$id" -f name="$new" >/dev/null
-            fi
-          done
-
-      - name: Generate updater manifest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.check.outputs.tag }}
-          ASSET_VERSION: ${{ needs.check.outputs.version }}
-          RELEASE_NOTES: ${{ needs.check.outputs.notes }}
-        run: |
-          set -euo pipefail
-          gh api "/repos/$REPO/releases/tags/$TAG" > release.json
-          node <<'NODE'
-          const fs = require('node:fs');
-          const { execFileSync } = require('node:child_process');
-
-          const repo = process.env.REPO;
-          const version = process.env.ASSET_VERSION;
-          const release = JSON.parse(fs.readFileSync('release.json', 'utf8'));
-          const assets = new Map(release.assets.map((asset) => [asset.name, asset]));
-          const platforms = {};
-          const missing = [];
-
-          function signatureFor(assetName) {
-            const sigName = `${assetName}.sig`;
-            const sigAsset = assets.get(sigName);
-            if (!sigAsset) {
-              throw new Error(`missing signature asset: ${sigName}`);
-            }
-            return execFileSync('gh', [
-              'api',
-              `/repos/${repo}/releases/assets/${sigAsset.id}`,
-              '-H',
-              'Accept: application/octet-stream',
-            ], { encoding: 'utf8' }).trim();
-          }
-
-          function add(keys, candidates) {
-            const asset = candidates.map((name) => assets.get(name)).find(Boolean);
-            if (!asset) {
-              missing.push(candidates.join(' or '));
-              return;
-            }
-            const entry = {
-              signature: signatureFor(asset.name),
-              url: asset.browser_download_url,
-            };
-            for (const key of keys) {
-              platforms[key] = entry;
-            }
-          }
-
-          add(['darwin-x86_64', 'darwin-x86_64-app'], [
-            `sbot_${version}_macos_x64.app.tar.gz`,
-          ]);
-          add(['darwin-aarch64', 'darwin-aarch64-app'], [
-            `sbot_${version}_macos_arm64.app.tar.gz`,
-          ]);
-          add(['windows-x86_64', 'windows-x86_64-nsis'], [
-            `sbot_${version}_windows_x64.nsis.zip`,
-            `sbot_${version}_windows_x64.exe`,
-          ]);
-          add(['windows-aarch64', 'windows-aarch64-nsis'], [
-            `sbot_${version}_windows_arm64.nsis.zip`,
-            `sbot_${version}_windows_arm64.exe`,
-          ]);
-          add(['linux-x86_64', 'linux-x86_64-appimage'], [
-            `sbot_${version}_linux_x64.AppImage.tar.gz`,
-            `sbot_${version}_linux_x64.AppImage`,
-          ]);
-
-          if (missing.length > 0) {
-            throw new Error(`missing updater payload asset(s): ${missing.join(', ')}`);
-          }
-
-          fs.writeFileSync(
-            'latest-app.json',
-            `${JSON.stringify({
-              version,
-              notes: process.env.RELEASE_NOTES || `Release ${version}`,
-              pub_date: new Date().toISOString(),
-              platforms,
-            }, null, 2)}\n`,
-          );
-          NODE
-          if gh release view updater -R "$REPO" >/dev/null 2>&1; then
-            gh release upload updater latest-app.json -R "$REPO" --clobber
-          else
-            gh release create updater -R "$REPO" \
-              latest-app.json \
-              --target "$GITHUB_SHA" \
-              --title "Updater Manifests" \
-              --notes "Auto-maintained by CI. Hosts updater JSON for app and helper." \
-              --latest=false
-          fi
-
-          for stale in latest.json latest-app.json; do
-            old_id=$(gh api "/repos/$REPO/releases/tags/$TAG" --jq ".assets[] | select(.name == \"$stale\") | .id" || true)
-            if [ -n "$old_id" ]; then
-              gh api -X DELETE "/repos/$REPO/releases/assets/$old_id" >/dev/null
-            fi
-          done
+    uses: while-coder/workflows/.github/workflows/tauri-updater-manifest.yml@main
+    with:
+      product-prefix: sbot
+      tag-name: ${{ needs.check.outputs.tag }}
+      version: ${{ needs.check.outputs.version }}
+      release-notes: ${{ needs.check.outputs.notes }}
+      output-name: latest-app.json
+      updater-title: Updater Manifests
+    secrets: inherit
