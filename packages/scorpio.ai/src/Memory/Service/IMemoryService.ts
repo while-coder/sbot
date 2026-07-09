@@ -87,6 +87,9 @@ export interface IMemoryService {
     /** admin 触发：把合并/压缩现有 memory 条目的 job 入队。 */
     enqueueConsolidate(): number;
 
+    /** admin 触发：重试一条 failed extract job。返回 false 表示 job 不可重试。 */
+    retryExtractJob(id: number): boolean;
+
     /**
      * caller 释放对 service 的引用：refCount--，归零时关 SQLite store 并通知 pool
      * 把自己从 cache 摘掉。drain（checkJobs）自固定 refCount，所以 caller

@@ -4,7 +4,7 @@ import { ServerChatShell, WebSocketTransport, useServerSelection } from '@sbot/c
 import type { RemoteEntry } from '@sbot/chat-ui'
 import { SConfirm, SToast } from 'sbot-ui'
 import ThemeMenu from './ThemeMenu.vue'
-import UpdaterDialog from './UpdaterDialog.vue'
+import { UpdaterDialog } from '@while-coder/tauri-updater-vue'
 import '@sbot/chat-ui/themes/variables.css'
 import lightThemeCSS from '@sbot/chat-ui/themes/theme-light.css?inline'
 import darkThemeCSS from '@sbot/chat-ui/themes/theme-dark.css?inline'

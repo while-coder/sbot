@@ -2703,6 +2703,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-process",
  "tauri-plugin-updater",
+ "tauri-updater-kit",
 ]
 
 [[package]]
@@ -3491,6 +3492,14 @@ dependencies = [
  "webview2-com",
  "windows",
  "wry",
+]
+
+[[package]]
+name = "tauri-updater-kit"
+version = "0.0.0"
+dependencies = [
+ "tauri",
+ "tauri-plugin-updater",
 ]
 
 [[package]]

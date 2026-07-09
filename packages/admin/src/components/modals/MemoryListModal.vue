@@ -38,10 +38,10 @@ const tab = ref<'memories' | 'jobs'>('memories')
 const loading = ref(false)
 const jobsLoading = ref(false)
 const bodyLoading = ref(false)
-const running = ref(false)
 const consolidating = ref(false)
 const reconciling = ref(false)
 const deleting = ref(false)
+const retryingJobId = ref<number | null>(null)
 
 const rows = ref<MemorySummary[]>([])
 const jobs = ref<MemoryJob[]>([])
@@ -121,20 +121,6 @@ async function loadBody(slug: string) {
   }
 }
 
-async function runExtract() {
-  if (!memoryId.value || running.value) return
-  running.value = true
-  try {
-    await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/extract/run`, 'POST', {})
-    show(t('memory_profiles.extract_done'))
-    await refresh()
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    running.value = false
-  }
-}
-
 async function runConsolidate() {
   if (!memoryId.value || consolidating.value) return
   consolidating.value = true
@@ -162,6 +148,24 @@ async function runReconcile() {
     show(e.message, 'error')
   } finally {
     reconciling.value = false
+  }
+}
+
+function canRetryExtractJob(job: MemoryJob): boolean {
+  return job.type === 'extract' && job.status === 'failed'
+}
+
+async function retryExtractJob(job: MemoryJob) {
+  if (!memoryId.value || !canRetryExtractJob(job) || retryingJobId.value !== null) return
+  retryingJobId.value = job.id
+  try {
+    await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}/retry`, 'POST', {})
+    show(t('memory_profiles.retry_extract_done'))
+    await refresh()
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    retryingJobId.value = null
   }
 }
 
@@ -233,7 +237,6 @@ defineExpose({ openByMemoryId })
         <div class="memory-actions">
           <SButton type="outline" size="sm" :loading="loading || jobsLoading" @click="refresh">{{ t('common.refresh') }}</SButton>
           <SButton type="outline" size="sm" :loading="reconciling" @click="runReconcile">{{ t('memory_profiles.run_reconcile') }}</SButton>
-          <SButton type="outline" size="sm" :loading="running" @click="runExtract">{{ t('memory_profiles.run_extract') }}</SButton>
           <SButton type="outline" size="sm" :loading="consolidating" @click="runConsolidate">{{ t('memory_profiles.run_consolidate') }}</SButton>
         </div>
       </div>
@@ -292,7 +295,18 @@ defineExpose({ openByMemoryId })
         <div v-for="job in jobs" v-else :key="job.id" class="memory-job">
           <div class="memory-job-head">
             <div class="memory-job-id">#{{ job.id }}</div>
-            <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
+            <div class="memory-job-actions">
+              <SButton
+                v-if="canRetryExtractJob(job)"
+                type="outline"
+                size="sm"
+                :loading="retryingJobId === job.id"
+                @click="retryExtractJob(job)"
+              >
+                {{ t('memory_profiles.retry_extract') }}
+              </SButton>
+              <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
+            </div>
           </div>
           <div class="memory-job-grid">
             <span>{{ t('memory_profiles.job_type') }}</span><code>{{ jobTypeLabel(job.type) }}</code>
@@ -370,7 +384,8 @@ defineExpose({ openByMemoryId })
 .memory-row-head,
 .memory-row-meta,
 .memory-detail-badges,
-.memory-job-head {
+.memory-job-head,
+.memory-job-actions {
   display: flex;
   align-items: center;
   gap: var(--sui-sp-2);
@@ -379,6 +394,11 @@ defineExpose({ openByMemoryId })
 .memory-row-head,
 .memory-job-head {
   justify-content: space-between;
+}
+
+.memory-job-actions {
+  justify-content: flex-end;
+  white-space: nowrap;
 }
 
 .memory-row-slug,

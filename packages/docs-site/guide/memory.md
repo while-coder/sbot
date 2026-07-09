@@ -29,7 +29,7 @@ A **Memory Profile** defines how memories are extracted and read. Sidebar → **
 | Writer Prompt | Controls **what** gets extracted |
 | Read Prompt | How retrieved memories are formatted back into the prompt |
 
-Then, in an agent → **Memory** section, toggle Memory on and pick the profile. From the Memory Profiles page you can **View Memories**, inspect pending/failed background jobs, **Run Extract** to wake the queued extractor, **Consolidate** to queue cleanup, and **Reconcile** to rescan files and indexes.
+Then, in an agent → **Memory** section, toggle Memory on and pick the profile. From the Memory Profiles page you can **View Memories**, inspect pending/failed background jobs, retry failed extract jobs, queue **Clean Up Memories**, and use **Sync File Index** to rescan files and indexes.
 
 ## Memory vs Notes vs Wiki
 

@@ -29,7 +29,7 @@ Memory 是 Agent 的自动长期记忆。后台 **MemoryLLM** 会在每次对话
 | Writer 提示词 | 控制 **提取什么** |
 | Read 提示词 | 召回的记忆如何回填进提示词 |
 
-随后在 Agent → **Memory** 区块开启 Memory 并选择 Profile。在 Memory Profiles 页面可以 **查看记忆**、检查 pending / failed 后台任务、**Run Extract** 唤醒排队中的抽取任务、**Consolidate** 排队整理，以及 **Reconcile** 重新扫描文件与索引。
+随后在 Agent → **Memory** 区块开启 Memory 并选择 Profile。在 Memory Profiles 页面可以 **查看记忆**、检查 pending / failed 后台任务、对失败的抽取任务点 **重新抽取**，也可以用 **整理记忆** 排队合并/压缩现有记忆，用 **同步文件索引** 重新扫描文件与索引。
 
 ## Memory vs Notes vs Wiki
 

@@ -18,8 +18,10 @@
   },
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-updater": "catalog:",
     "@tauri-apps/plugin-process": "catalog:",
+    "@while-coder/tauri-updater-vue": "git+https://github.com/while-coder/tauri-updater-kit.git#main&path:packages/vue",
     "sbot-ui": "workspace:*"
   },
   "devDependencies": {

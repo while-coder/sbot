@@ -1,6 +1,8 @@
 import { ChatAnthropic } from "@langchain/anthropic";
+import { createFunctionCallingParser } from "@langchain/core/language_models/structured_output";
 import { AIMessageChunk, BaseMessage, SystemMessage } from "@langchain/core/messages";
-import { IModelService } from "./IModelService";
+import { toJsonSchema } from "@langchain/core/utils/json_schema";
+import { IModelService, StructuredOutputMethod } from "./IModelService";
 import type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelService";
 import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
@@ -63,7 +65,59 @@ export class AnthropicModelService implements IModelService {
 
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T> {
     const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    return this.model!.withStructuredOutput(schema).invoke(input, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
+    const method = options?.structuredMethod ?? StructuredOutputMethod.FunctionCalling;
+    if (method === StructuredOutputMethod.FunctionCalling) {
+      return this.invokeStructuredToolStream<T>(schema, input, options);
+    }
+
+    const structured = this.model!.withStructuredOutput(schema, {
+      method,
+    });
+    const stream = await structured.stream(input, options?.signal ? { signal: options.signal } : undefined);
+    let result: T | undefined;
+    for await (const chunk of stream) {
+      result = chunk as T;
+    }
+    if (result === undefined) throw new Error("Anthropic structured output returned no result");
+    return result;
+  }
+
+  private async invokeStructuredToolStream<T = any>(schema: any, input: string | BaseMessage[], options?: StructuredInvokeOptions): Promise<T> {
+    const isAnthropicTool = typeof schema?.name === 'string'
+      && typeof schema?.description === 'string'
+      && typeof schema?.input_schema === 'object'
+      && schema.input_schema != null;
+    const functionName = isAnthropicTool ? schema.name : 'extract';
+    const jsonSchema = isAnthropicTool ? undefined : toJsonSchema(schema);
+    const tool = isAnthropicTool
+      ? {
+          ...schema,
+          ...(options?.strict !== undefined && { strict: options.strict }),
+        }
+      : {
+          name: functionName,
+          description: jsonSchema?.description ?? "A function available to call.",
+          input_schema: jsonSchema,
+          ...(options?.strict !== undefined && { strict: options.strict }),
+        };
+    const thinkingEnabled = this.config.anthropic?.thinking?.type === 'enabled' || this.config.anthropic?.thinking?.type === 'adaptive';
+    const model = this.model!.withConfig({
+      outputVersion: "v0",
+      tools: [tool],
+      ...(!thinkingEnabled && { tool_choice: { type: "tool", name: functionName } }),
+    });
+    const stream = await model.stream(input, options?.signal ? { signal: options.signal } : undefined);
+    let accumulated: AIMessageChunk | undefined;
+    for await (const chunk of stream) {
+      accumulated = accumulated
+        ? accumulated.concat(chunk as AIMessageChunk)
+        : (chunk as AIMessageChunk);
+    }
+    if (!accumulated) throw new Error("Anthropic structured output returned no result");
+    if (!accumulated.tool_calls?.length) throw new Error("Anthropic structured output returned no tool call");
+
+    const parser = createFunctionCallingParser(schema, functionName);
+    return parser.invoke(accumulated, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
   }
 
   async stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {

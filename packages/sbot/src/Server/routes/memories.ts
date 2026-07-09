@@ -15,17 +15,6 @@ function requireMemoryId(value: unknown): string {
 export class MemoryRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
         /**
-         * 强制唤醒该 memoryId 的 pending job 队列。
-         * - 对话结束的抽取已经先入队；这里仅负责立即唤醒消费
-         * - LLM 调用在后台串行执行，接口立刻返回
-         */
-        app.post('/api/memories/:id/extract/run', api(async (req) => {
-            const memoryId = requireMemoryId(req.params.id);
-            await memoryServicePool.forceExtract(memoryId);
-            return { memoryId };
-        }));
-
-        /**
          * 列出该 memoryId 当前的所有 memory 条目（slug + title + description + 时间戳 + 读次数）。
          * 不返回 body（避免响应过大）；body 走单独的 read 路由 / agent 工具。
          */
@@ -64,6 +53,16 @@ export class MemoryRoutes {
         app.post('/api/memories/:id/consolidate/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
             const jobId = await memoryServicePool.forceConsolidate(memoryId);
+            return { memoryId, jobId };
+        }));
+
+        /** 重试一条失败的抽取任务：把 failed extract job 放回 pending 队列并立即唤醒消费。 */
+        app.post('/api/memories/:id/jobs/:jobId/retry', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const jobId = Number(req.params.jobId);
+            if (!Number.isSafeInteger(jobId) || jobId <= 0) throwBad('Invalid jobId');
+            const retried = await memoryServicePool.retryExtractJob(memoryId, jobId);
+            if (!retried) throwBad(`Job #${jobId} is not a failed extract job`);
             return { memoryId, jobId };
         }));
 

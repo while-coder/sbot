@@ -291,6 +291,12 @@ export class MemoryService implements IMemoryService {
         return id;
     }
 
+    retryExtractJob(id: number): boolean {
+        const retried = this.store.retryFailedExtractJob(id, Date.now());
+        if (retried) void this.checkJobs();
+        return retried;
+    }
+
     /**
      * 串行消费 pending job 队列：isRunning 单标志 + 循环 popPendingJob → 处理 → 删行 / 标 failed。
      *

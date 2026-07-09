@@ -95,7 +95,7 @@ export class MemoryServicePool {
      *
      * memoryId 配置错误（profile 不存在 / disabled）直接 throw —— caller 应当在调用前
      * 自行 guard。后续 acquire 不会再唤醒 drain；chat 路径靠 extractFromConversation
-     * 自启 drain，admin 走 forceExtract 时自带显式 processPending。
+     * 自启 drain，启动恢复路径走 forceExtract 时自带显式 processPending。
      */
     async acquire(memoryId: string): Promise<IMemoryService> {
         let service: MemoryService;
@@ -149,6 +149,12 @@ export class MemoryServicePool {
     async forceConsolidate(memoryId: string): Promise<number> {
         const service = await this.acquire(memoryId);
         try { return service.enqueueConsolidate(); }
+        finally { service.release(); }
+    }
+
+    async retryExtractJob(memoryId: string, jobId: number): Promise<boolean> {
+        const service = await this.acquire(memoryId);
+        try { return service.retryExtractJob(jobId); }
         finally { service.release(); }
     }
 

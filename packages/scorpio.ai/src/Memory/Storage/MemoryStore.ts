@@ -410,6 +410,19 @@ export class MemoryStore implements IMemoryStore {
         `).run({ id, errorMessage: errorMessage.slice(0, 1000), now });
     }
 
+    retryFailedExtractJob(id: number, now: number): boolean {
+        const result = this.db.prepare(`
+            UPDATE memory_pending_messages
+            SET status        = 'pending',
+                error_message = NULL,
+                updated_at    = @now
+            WHERE id = @id
+              AND status = 'failed'
+              AND job_type = @jobType
+        `).run({ id, now, jobType: MemoryPendingJobType.Extract });
+        return result.changes > 0;
+    }
+
     listPendingJobs(limit: number): PendingMemoryJobRow[] {
         const rows = this.db.prepare(`
             SELECT id, job_type, payload_json, status, attempt_count, error_message, created_at, updated_at
