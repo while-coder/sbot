@@ -140,9 +140,7 @@ async function runReconcile() {
   reconciling.value = true
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/reconcile/run`, 'POST', {})
-    const indexed = res.data?.indexed ?? 0
-    const pruned = res.data?.pruned ?? 0
-    show(t('memory_profiles.reconcile_done', { indexed, pruned }))
+    show(t('memory_profiles.reconcile_queued', { id: res.data?.jobId ?? '-' }))
     await refresh()
   } catch (e: any) {
     show(e.message, 'error')
@@ -204,6 +202,7 @@ function kindVariant(kind: string): 'success' | 'info' | 'warning' | 'danger' | 
 function jobTypeLabel(type: string): string {
   if (type === 'extract') return t('memory_profiles.job_type_extract')
   if (type === 'consolidate') return t('memory_profiles.job_type_consolidate')
+  if (type === 'reconcile') return t('memory_profiles.job_type_reconcile')
   return type
 }
 
