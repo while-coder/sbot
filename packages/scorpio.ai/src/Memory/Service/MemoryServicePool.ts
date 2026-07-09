@@ -50,7 +50,7 @@ export type MemoryServiceConfigResolver =
  * 实例并发跑 LLM CRUD，破坏 store 数据。
  *
  * 生命周期模型（纯 refCount，无强制销毁）：
- * - acquire(id)：cache miss → build 新实例；命中实例 incRef 后返回；
+ * - acquire(id)：cache miss → build 新实例并唤醒 drain；命中实例 incRef 后返回；
  *   调用方用完后 service.release() 配对归还
  * - refCount 归零自动 teardown：关 SQLite store + evict 把自己从 cache 删掉
  * - drain（checkJobs）自固定 refCount，drain 期间 caller release 不会触发 teardown
@@ -91,10 +91,8 @@ export class MemoryServicePool {
      *
      * 流程：
      * - cache miss → 同步 build + cache.set（同步路径无 await 缝隙，保证同 memoryId 只构造一次实例）
-     * - 先 incRef 持有 caller 引用，再 await service.init() —— service 自身做 once-only dedup（reconcile + 唤醒 drain），
-     *   多个并发 acquire 共享同一个 init promise，索引就绪后才返回
-     * - init 失败时 release 回滚 caller 引用并继续抛错
-     * - 命中已 resolved 的 promise 几乎零成本（一次 microtask）
+     * - incRef 持有 caller 引用后返回
+     * - 新实例首次唤醒 drain；drain 自固定 refCount，先做一次初始化对账，再消费 pending jobs
      *
      * memoryId 配置错误（profile 不存在 / disabled）直接 throw —— caller 应当在调用前
      * 自行 guard。后续 acquire 不会再唤醒 drain；chat 路径靠 extractFromConversation
@@ -102,22 +100,19 @@ export class MemoryServicePool {
      */
     async acquire(memoryId: string): Promise<IMemoryService> {
         let service: MemoryService;
+        let shouldStart = false;
         const cached = this.cache.get(memoryId);
         if (cached) {
             service = cached;
         } else {
             service = this.build(memoryId);
             this.cache.set(memoryId, service);
+            shouldStart = true;
         }
 
         service.incRef();
-        try {
-            await service.init();
-            return service;
-        } catch (e) {
-            service.release();
-            throw e;
-        }
+        if (shouldStart) service.processPending();
+        return service;
     }
 
     /**
@@ -160,6 +155,12 @@ export class MemoryServicePool {
         finally { service.release(); }
     }
 
+    async forceReconcile(memoryId: string): Promise<number> {
+        const service = await this.acquire(memoryId);
+        try { return service.enqueueReconcile(); }
+        finally { service.release(); }
+    }
+
     async retryExtractJob(memoryId: string, jobId: number): Promise<boolean> {
         const service = await this.acquire(memoryId);
         try { return service.retryExtractJob(jobId); }
@@ -173,9 +174,8 @@ export class MemoryServicePool {
     }
 
     /**
-     * 同步构造 service 实例（DI + store.init），不跑 reconcile。
-     * reconcile 由 service.init() 自身做 once-only dedup，acquire 在 cache.set 后 await 它，
-     * 所以这里保持纯同步即可。
+     * 同步构造 service 实例（DI + store 目录初始化），不跑 reconcile。
+     * 初始化对账由 service.checkJobs() 的首个 drain 串行执行，所以这里保持纯同步即可。
      *
      * memoryId 配置缺失（resolver 没配 / profile 不存在）直接 throw —— 这条路径属于配置错误，
      * caller 应当在调用前自行 guard，不应靠 build 返回 null 兜底。

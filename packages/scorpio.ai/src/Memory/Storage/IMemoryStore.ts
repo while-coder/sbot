@@ -88,6 +88,7 @@ export interface UpdateMemoryInput {
 export enum MemoryPendingJobType {
     Extract = 'extract',
     Consolidate = 'consolidate',
+    Reconcile = 'reconcile',
 }
 
 export type MemoryPendingJobStatus = 'pending' | 'failed';
@@ -161,7 +162,7 @@ export interface IMemoryStore {
      */
     reconcile(): Promise<{ indexed: number; pruned: number }>;
 
-    // ── 待处理 job 队列（每轮对话结束抽取、手动整理等入队后串行消费） ──
+    // ── 待处理 job 队列（每轮对话结束抽取、手动整理、手动对账等入队后串行消费） ──
     // 全部同步：底层 better-sqlite3 是同步 API；MemoryService 依赖
     // "push 的 SQL 在 kick 前已落库" 这一点来避免漏单。
 
@@ -170,6 +171,9 @@ export interface IMemoryStore {
 
     /** 入队一次 memory 整理 job，返回插入行 id。 */
     pushPendingConsolidate(now: number): number;
+
+    /** 入队一次 FS/DB 对账 job，返回插入行 id。 */
+    pushPendingReconcile(now: number): number;
 
     /** 取最早一条 status='pending' 的 job；没有返回 null。串行消费由 MemoryService 内部 isRunning 标志保证。 */
     popPendingJob(): PendingMemoryJobRow | null;

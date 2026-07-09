@@ -98,17 +98,12 @@ export class MemoryRoutes {
         /**
          * 手动 FS 与 DB 对账。
          * - 用于"手写 / 外部编辑 / 删除 .md 文件"后让索引立即生效
-         * - 平时只在 service 首次 build 时跑一次，活着的 service 不会自动对账
+         * - 入队为后台 job，与抽取/整理串行执行，避免并发写 FS/DB
          */
         app.post('/api/memories/:id/reconcile/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const service = await memoryServicePool.acquire(memoryId);
-            try {
-                const stats = await service.reconcile();
-                return { memoryId, ...stats };
-            } finally {
-                service.release();
-            }
+            const jobId = await memoryServicePool.forceReconcile(memoryId);
+            return { memoryId, jobId };
         }));
     }
 }

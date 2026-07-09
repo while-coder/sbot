@@ -89,7 +89,7 @@ export class MemoryStore implements IMemoryStore {
 
                 -- FTS5 全文索引由 SqliteHybridIndex 持有（前缀 memory_，docs / docs_fts 表）。
 
-                -- 待处理 job 队列：抽取与整理都入队，MemoryService 通过 isRunning 标志串行消费；
+                -- 待处理 job 队列：抽取、整理与手动对账都入队，MemoryService 通过 isRunning 标志串行消费；
                 -- 失败行保留 status='failed'，不再自动重试，由 admin 决定。
                 CREATE TABLE IF NOT EXISTS memory_pending_messages (
                     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -366,6 +366,10 @@ export class MemoryStore implements IMemoryStore {
         return this.pushPendingJob(MemoryPendingJobType.Consolidate, {}, now);
     }
 
+    pushPendingReconcile(now: number): number {
+        return this.pushPendingJob(MemoryPendingJobType.Reconcile, {}, now);
+    }
+
     private pushPendingJob(type: MemoryPendingJobType, payload: unknown, now: number): number {
         const result = this.db.prepare(`
             INSERT INTO memory_pending_messages (
@@ -379,7 +383,7 @@ export class MemoryStore implements IMemoryStore {
 
     popPendingJob(): PendingMemoryJobRow | null {
         // 单条 SQL 原子地把最早 pending 转为 processing 并返回——崩溃时不会重复消费。
-        // 'processing' 行由进程下次 init() 的 sweep 转回 'pending'。
+        // 'processing' 行由进程下次打开 DB 时的 sweep 转回 'pending'。
         const row = this.db.prepare(`
             UPDATE memory_pending_messages
             SET status = 'processing', updated_at = @now
@@ -530,9 +534,9 @@ export class MemoryStore implements IMemoryStore {
     }
 
     private normalizePendingJobType(type: string | undefined | null): MemoryPendingJobType {
-        return type === MemoryPendingJobType.Consolidate
-            ? MemoryPendingJobType.Consolidate
-            : MemoryPendingJobType.Extract;
+        if (type === MemoryPendingJobType.Consolidate) return MemoryPendingJobType.Consolidate;
+        if (type === MemoryPendingJobType.Reconcile) return MemoryPendingJobType.Reconcile;
+        return MemoryPendingJobType.Extract;
     }
 
     private normalizePendingStatus(status: string | undefined | null): MemoryPendingJobStatus {

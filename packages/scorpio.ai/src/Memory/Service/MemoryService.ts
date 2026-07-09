@@ -105,6 +105,10 @@ export const MemoryWriteOutputSchema = z.object({
 
 export type MemoryWriteOutput = z.infer<typeof MemoryWriteOutputSchema>;
 export type MemoryOp = z.infer<typeof MemoryOpSchema>;
+type MemoryJobStats = MemoryWriterOpStats & {
+    indexed?: number;
+    pruned?: number;
+};
 
 const MemoryUpdateMergeSchema = z.object({
     title: z.string().min(1).max(100).optional(),
@@ -137,13 +141,8 @@ export class MemoryService implements IMemoryService {
     private disposed = false;
     private deleteOnTeardown = false;
     private memoryName = '未知配置';
-    /**
-     * pool.acquire 第一次调用 init() 时启动；并发 caller 共享同一 promise，零成本。
-     * 失败 warn 但保留 resolved promise，避免下次 acquire 反复重试。
-     * 注意：不复用给 admin 手动 reconcile()——那条路径每次都重新扫盘。
-     */
-    private initPromise?: Promise<void>;
-
+    /** 每个 service 实例首次 drain 时先做一次 FS/DB 对账，再消费 pending jobs。 */
+    private initReconciled = false;
     constructor(
         @inject(IMemoryStore) private readonly store: IMemoryStore,
         @inject(T_MemoryReadTemplate) private readonly readTemplate: string,
@@ -236,41 +235,6 @@ export class MemoryService implements IMemoryService {
         return archive;
     }
 
-    async reconcile(): Promise<{ indexed: number; pruned: number }> {
-        const stats = await this.store.reconcile();
-        if (stats.indexed > 0 || stats.pruned > 0) {
-            this.logMemory('info', `记忆管理对账: 索引=${stats.indexed}, 清理=${stats.pruned}`);
-        }
-        return stats;
-    }
-
-    /**
-     * 由 pool 在每次 acquire 时调用：单实例只真正跑一次（reconcile + 唤醒 pending drain），
-     * 并发 caller 共享同一个 promise；后续命中已 resolved 的 promise，零成本。
-     *
-     * - reconcile 失败 warn 但保留 resolved promise（不重置）——避免反复重试稳定失败的对账，
-     *   失败时仍可用旧索引；admin 手动按钮走 reconcile() 全量重跑，不受此影响
-     * - processPending 在 reconcile 完成后唤醒一次 drain（消化进程崩溃前残留的 pending job），
-     *   不 await drain（drain self-pin refCount + LLM 调用，可能跑很久；init 只关心索引就绪）
-     */
-    init(): Promise<void> {
-        if (!this.initPromise) {
-            this.initPromise = this.store.reconcile()
-                .then(stats => {
-                    if (stats.indexed > 0 || stats.pruned > 0) {
-                        this.logMemory('info', `记忆初始化对账: 索引=${stats.indexed}, 清理=${stats.pruned}`);
-                    }
-                })
-                .catch(e => {
-                    this.logMemory('warn', `记忆初始化对账失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
-                })
-                .finally(() => {
-                    this.processPending();
-                });
-        }
-        return this.initPromise;
-    }
-
     // ── 写路径：入队 + 串行消费 ──
 
     extractFromConversation(messages: ChatMessage[]): void {
@@ -298,6 +262,12 @@ export class MemoryService implements IMemoryService {
         return id;
     }
 
+    enqueueReconcile(): number {
+        const id = this.store.pushPendingReconcile(Date.now());
+        void this.checkJobs();
+        return id;
+    }
+
     retryExtractJob(id: number): boolean {
         const retried = this.store.retryFailedExtractJob(id, Date.now());
         if (retried) void this.checkJobs();
@@ -305,10 +275,11 @@ export class MemoryService implements IMemoryService {
     }
 
     /**
-     * 串行消费 pending job 队列：isRunning 单标志 + 循环 popPendingJob → 处理 → 删行 / 标 failed。
+     * 串行消费 pending job 队列：首次先 reconcile，之后循环 popPendingJob → 处理 → 删行 / 标 failed。
      *
      * 互斥与漏单保证：
      * - 顶部 `if (isRunning) return` 同步短路重入（与下一行 isRunning=true 无 await 缝隙）；
+     * - 初始 reconcile 在同一条 drain 内执行，避免与 extract/consolidate 并发写 FS/DB；
      * - 任何 push 都是先同步 SQL INSERT 再 `void checkJobs()`：
      *   若当前 drain 还在跑，循环里下一次 pop 必然命中（同步 SQL，已落库）；
      *   若已退出，新调用直接进入新一轮 drain（finally 已置 isRunning=false）。
@@ -323,6 +294,7 @@ export class MemoryService implements IMemoryService {
         this.isRunning = true;
         this.refCount++;
         try {
+            await this.runInitialReconcile();
             while (true) {
                 let next: PendingMemoryJobRow | null;
                 try {
@@ -336,17 +308,12 @@ export class MemoryService implements IMemoryService {
                     this.logMemory('info', `${log.start}：${log.subject}`);
                     const stats = await this.runPendingJob(next);
                     this.store.deletePendingJob(next.id);
-                    const failedText = stats.failed > 0 ? `，失败=${stats.failed}` : '';
-                    this.logMemory('info', `${log.done}：${log.subject}${failedText}`);
+                    this.logMemory('info', `${log.done}：${log.subject}${this.jobDoneSuffix(stats)}`);
                 } catch (e: any) {
                     const errMsg = this.formatError(e);
                     try { this.store.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
-                    this.logMemory(
-                        'warn',
-                        `${log.failed}：${log.subject}，尝试=${next.attemptCount + 1}，` +
-                        `模型=${this.modelLabel()}，错误=${errMsg}`
-                    );
-                    if (e?.stack) this.logMemory('debug', `${log.failed}堆栈：${truncateForLog(e.stack)}`);
+                    const stackText = e?.stack ? `，堆栈=${truncateForLog(e.stack)}` : '';
+                    this.logMemory('warn',`${log.failed}：${log.subject}，尝试=${next.attemptCount + 1}，` +`模型=${this.modelLabel()}，错误=${errMsg}${stackText}`);
                 }
             }
         } finally {
@@ -355,13 +322,42 @@ export class MemoryService implements IMemoryService {
         }
     }
 
-    private async runPendingJob(job: PendingMemoryJobRow): Promise<MemoryWriterOpStats> {
+    private async runInitialReconcile(): Promise<void> {
+        if (this.initReconciled) return;
+        try {
+            const stats = await this.store.reconcile();
+            if (stats.indexed > 0 || stats.pruned > 0) {
+                this.logMemory('info', `记忆初始化对账: 索引=${stats.indexed}, 清理=${stats.pruned}`);
+            }
+        } catch (e: any) {
+            this.logMemory('warn', `记忆初始化对账失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
+        } finally {
+            this.initReconciled = true;
+        }
+    }
+
+    private async runPendingJob(job: PendingMemoryJobRow): Promise<MemoryJobStats> {
         switch (job.type) {
             case MemoryPendingJobType.Extract:
                 return this.extractFromMessages(job);
             case MemoryPendingJobType.Consolidate:
                 return this.consolidateMemories();
+            case MemoryPendingJobType.Reconcile:
+                return this.reconcileMemories();
         }
+    }
+
+    private async reconcileMemories(): Promise<MemoryJobStats> {
+        const stats = await this.store.reconcile();
+        return {
+            create: 0,
+            update: 0,
+            delete: 0,
+            noop: 0,
+            failed: 0,
+            indexed: stats.indexed,
+            pruned: stats.pruned,
+        };
     }
 
     // ── MemoryLLM CRUD 抽取（原 MemoryWriterWorker） ──
@@ -652,6 +648,14 @@ export class MemoryService implements IMemoryService {
         return truncateForLog(`${status ? `状态=${status} ` : ''}${message}${body}`);
     }
 
+    private jobDoneSuffix(stats: MemoryJobStats): string {
+        const parts: string[] = [];
+        if (stats.indexed != null) parts.push(`索引=${stats.indexed}`);
+        if (stats.pruned != null) parts.push(`清理=${stats.pruned}`);
+        if (stats.failed > 0) parts.push(`失败=${stats.failed}`);
+        return parts.length > 0 ? `，${parts.join('，')}` : '';
+    }
+
     private jobLog(job: PendingMemoryJobRow): { start: string; done: string; failed: string; subject: string } {
         switch (job.type) {
             case MemoryPendingJobType.Extract:
@@ -666,6 +670,13 @@ export class MemoryService implements IMemoryService {
                     start: '开始整理记忆',
                     done: '整理记忆完成',
                     failed: '整理记忆失败',
+                    subject: '当前记忆库',
+                };
+            case MemoryPendingJobType.Reconcile:
+                return {
+                    start: '开始同步记忆索引',
+                    done: '同步记忆索引完成',
+                    failed: '同步记忆索引失败',
                     subject: '当前记忆库',
                 };
             default:
