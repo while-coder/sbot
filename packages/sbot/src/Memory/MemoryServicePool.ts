@@ -30,6 +30,7 @@ const resolveConfig: MemoryServiceConfigResolver = (memoryId) => {
 
     const memoryDir = config.getMemoryPath(memoryId);
     return {
+        memoryName: profile.name,
         memoryDir,
         dbPath: path.join(memoryDir, "memory.db"),
         writerModel,

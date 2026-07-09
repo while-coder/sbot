@@ -19,6 +19,8 @@ import type { PendingMemoryJobRow } from "../Storage/IMemoryStore";
  * 应用层概念都由 caller 完成，pool 不参与。
  */
 export interface MemoryServiceConfig {
+    /** MemoryProfileConfig.name，用于日志与诊断。 */
+    memoryName?: string;
     /** memory 根目录（含 `memories/<slug>.md` 与 `.archive/`） */
     memoryDir: string;
     /** SQLite 文件绝对路径（含 memories 索引 + memory_pending_messages job 队列） */
@@ -89,8 +91,9 @@ export class MemoryServicePool {
      *
      * 流程：
      * - cache miss → 同步 build + cache.set（同步路径无 await 缝隙，保证同 memoryId 只构造一次实例）
-     * - 然后 await service.init() —— service 自身做 once-only dedup（reconcile + 唤醒 drain），
+     * - 先 incRef 持有 caller 引用，再 await service.init() —— service 自身做 once-only dedup（reconcile + 唤醒 drain），
      *   多个并发 acquire 共享同一个 init promise，索引就绪后才返回
+     * - init 失败时 release 回滚 caller 引用并继续抛错
      * - 命中已 resolved 的 promise 几乎零成本（一次 microtask）
      *
      * memoryId 配置错误（profile 不存在 / disabled）直接 throw —— caller 应当在调用前
@@ -107,9 +110,14 @@ export class MemoryServicePool {
             this.cache.set(memoryId, service);
         }
 
-        await service.init();
         service.incRef();
-        return service;
+        try {
+            await service.init();
+            return service;
+        } catch (e) {
+            service.release();
+            throw e;
+        }
     }
 
     /**
@@ -191,6 +199,7 @@ export class MemoryServicePool {
         // store 在 resolve 时就完成 mkdir；db/searcher 仍 lazy
         sub.resolve<IMemoryStore>(IMemoryStore);
         const service = sub.resolve<MemoryService>(IMemoryService) as MemoryService;
+        service.setMemoryName(cfg.memoryName ?? memoryId);
         this.logger?.info(`MemoryService [${memoryId}] built`);
         return service;
     }

@@ -21,6 +21,7 @@ import {
     type PendingMemoryJobRow,
 } from "../Storage/IMemoryStore";
 import { type ChatMessage, MessageRole } from "../../Saver";
+import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 import { renderConversation } from "../../Utils/conversationUtils";
 import { memoryServicePool } from "./MemoryServicePool";
 
@@ -135,6 +136,7 @@ export class MemoryService implements IMemoryService {
     private refCount = 0;
     private disposed = false;
     private deleteOnTeardown = false;
+    private memoryName = '未知配置';
     /**
      * pool.acquire 第一次调用 init() 时启动；并发 caller 共享同一 promise，零成本。
      * 失败 warn 但保留 resolved promise，避免下次 acquire 反复重试。
@@ -156,6 +158,11 @@ export class MemoryService implements IMemoryService {
 
     // ── 生命周期：refCount 配对，归零一次性 teardown ──
 
+    /** 由 MemoryServicePool 构造后注入，避免日志从 memoryDir 反推配置名。 */
+    setMemoryName(memoryName: string | undefined): void {
+        this.memoryName = memoryName?.trim() || '未知配置';
+    }
+
     /** Pool 在 acquire 时调用：refCount++。仅 pool 用，不在 IMemoryService 接口暴露。 */
     incRef(): void {
         this.refCount++;
@@ -176,13 +183,13 @@ export class MemoryService implements IMemoryService {
         try {
             this.store.dispose();
         } catch (e: any) {
-            this.logger?.warn(`memory store dispose failed: ${e?.message ?? e}`);
+            this.logMemory('warn', `记忆存储关闭失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
         }
         memoryServicePool.evict(this);
         if (this.deleteOnTeardown) {
             // dispose 已关 sqlite handle，rm 安全。fire-and-forget：调用方不需要等物理删除完成。
             this.store.deleteAll().catch(e => {
-                this.logger?.warn(`memory store deleteAll failed: ${e?.message ?? e}`);
+                this.logMemory('warn', `记忆存储删除失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
             });
         }
     }
@@ -206,7 +213,7 @@ export class MemoryService implements IMemoryService {
             await this.store.recordRead(slug, Date.now());
         } catch (e: any) {
             // recordRead 失败不该影响读取本身
-            this.logger?.warn(`MemoryService.readMemory: recordRead failed for ${slug}: ${e?.message}`);
+            this.logMemory('warn', `记忆读取计数失败: slug=${slug}, 错误=${truncateForLog(e?.message ?? String(e))}`);
         }
         return row;
     }
@@ -225,14 +232,14 @@ export class MemoryService implements IMemoryService {
 
     async deleteMemory(slug: string): Promise<string> {
         const archive = await this.store.softDelete(slug, Date.now());
-        this.logger?.info(`memory admin delete: ${slug} -> ${archive}`);
+        this.logMemory('info', `记忆管理删除: slug=${slug}, 归档=${archive}`);
         return archive;
     }
 
     async reconcile(): Promise<{ indexed: number; pruned: number }> {
         const stats = await this.store.reconcile();
         if (stats.indexed > 0 || stats.pruned > 0) {
-            this.logger?.info(`memory admin reconcile: indexed=${stats.indexed} pruned=${stats.pruned}`);
+            this.logMemory('info', `记忆管理对账: 索引=${stats.indexed}, 清理=${stats.pruned}`);
         }
         return stats;
     }
@@ -251,11 +258,11 @@ export class MemoryService implements IMemoryService {
             this.initPromise = this.store.reconcile()
                 .then(stats => {
                     if (stats.indexed > 0 || stats.pruned > 0) {
-                        this.logger?.info(`memory init reconcile: indexed=${stats.indexed} pruned=${stats.pruned}`);
+                        this.logMemory('info', `记忆初始化对账: 索引=${stats.indexed}, 清理=${stats.pruned}`);
                     }
                 })
                 .catch(e => {
-                    this.logger?.warn(`memory init reconcile failed: ${e?.message ?? e}`);
+                    this.logMemory('warn', `记忆初始化对账失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
                 })
                 .finally(() => {
                     this.processPending();
@@ -271,7 +278,7 @@ export class MemoryService implements IMemoryService {
         try {
             this.store.pushPendingMessages(messages, Date.now());
         } catch (e: any) {
-            this.logger?.warn(`Memory push pending failed: ${e?.message ?? e}`);
+            this.logMemory('warn', `记忆抽取入队失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
             return;
         }
         void this.checkJobs();
@@ -324,17 +331,22 @@ export class MemoryService implements IMemoryService {
                     break;  // forceDispose 关闭了 store → 优雅退出
                 }
                 if (!next) break;
+                const log = this.jobLog(next);
                 try {
+                    this.logMemory('info', `${log.start}：${log.subject}`);
                     const stats = await this.runPendingJob(next);
                     this.store.deletePendingJob(next.id);
-                    this.logger?.info(
-                        `memory pending ${next.type} #${next.id} done: ` +
-                        `create:${stats.create}/update:${stats.update}/delete:${stats.delete}/noop:${stats.noop}/failed:${stats.failed}`
-                    );
+                    const failedText = stats.failed > 0 ? `，失败=${stats.failed}` : '';
+                    this.logMemory('info', `${log.done}：${log.subject}${failedText}`);
                 } catch (e: any) {
-                    const errMsg = (e?.message ?? String(e)).slice(0, 1000);
+                    const errMsg = this.formatError(e);
                     try { this.store.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
-                    this.logger?.warn(`memory pending ${next.type} #${next.id} failed: ${errMsg}`);
+                    this.logMemory(
+                        'warn',
+                        `${log.failed}：${log.subject}，尝试=${next.attemptCount + 1}，` +
+                        `模型=${this.modelLabel()}，错误=${errMsg}`
+                    );
+                    if (e?.stack) this.logMemory('debug', `${log.failed}堆栈：${truncateForLog(e.stack)}`);
                 }
             }
         } finally {
@@ -346,7 +358,7 @@ export class MemoryService implements IMemoryService {
     private async runPendingJob(job: PendingMemoryJobRow): Promise<MemoryWriterOpStats> {
         switch (job.type) {
             case MemoryPendingJobType.Extract:
-                return this.extractFromMessages(job.messages ?? []);
+                return this.extractFromMessages(job);
             case MemoryPendingJobType.Consolidate:
                 return this.consolidateMemories();
         }
@@ -358,7 +370,8 @@ export class MemoryService implements IMemoryService {
      * 单轮抽取：把一组对话消息喂给 MemoryLLM，应用返回的 ops。
      * 模型调用失败会抛出，由 checkJobs 决定是否标记 pending job 为 failed。
      */
-    private async extractFromMessages(messages: ChatMessage[]): Promise<MemoryWriterOpStats> {
+    private async extractFromMessages(job: PendingMemoryJobRow): Promise<MemoryWriterOpStats> {
+        const messages = job.messages ?? [];
         if (messages.length === 0) {
             return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
         }
@@ -394,7 +407,9 @@ export class MemoryService implements IMemoryService {
 
     private async consolidateMemories(): Promise<MemoryWriterOpStats> {
         const rows = (await this.store.list()).slice(0, 100);
-        if (rows.length === 0) return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
+        if (rows.length === 0) {
+            return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
+        }
 
         // 不截断 body：consolidate 关注 "duplicated / stale / overly verbose"，verbose 检测就需要看完整内容；
         // prompt 预算靠上面的 slice(0, 100) 兜底，单条体积不在这层处理。
@@ -442,7 +457,7 @@ export class MemoryService implements IMemoryService {
         const filtered = result.ops.filter(op => op.action !== MemoryOpAction.Create);
         const capped = MemoryService.capConsolidateOps(filtered, rows.length);
         if (capped.length < filtered.length) {
-            this.logger?.warn(`consolidate ops capped: ${filtered.length} -> ${capped.length} (corpus size ${rows.length})`);
+            this.logMemory('warn', `记忆整理操作截断：原始=${filtered.length}, 保留=${capped.length}, 条目=${rows.length}`);
         }
         return this.applyOps(capped, { mergeUpdateBodies: false });
     }
@@ -494,7 +509,7 @@ export class MemoryService implements IMemoryService {
                             body: op.body,
                         }, now);
                         out.create++;
-                        this.logger?.info(`memory create: ${op.slug} — ${op.title}`);
+                        this.logMemory('info', `添加记忆：${op.slug} - ${truncateForLog(op.title)}`);
                         break;
                     case MemoryOpAction.Update:
                         const update = context.mergeUpdateBodies && op.body
@@ -510,21 +525,24 @@ export class MemoryService implements IMemoryService {
                             evidenceDelta: 1,
                         }, now);
                         out.update++;
-                        this.logger?.info(`memory update: ${op.slug} — ${op.reason}`);
+                        this.logMemory('info', `修改记忆：${op.slug} - ${truncateForLog(op.reason)}`);
                         break;
                     case MemoryOpAction.Delete:
                         await this.store.softDelete(op.slug, now);
                         out.delete++;
-                        this.logger?.info(`memory delete: ${op.slug} — ${op.reason}`);
+                        this.logMemory('info', `删除记忆：${op.slug} - ${truncateForLog(op.reason)}`);
                         break;
                     case MemoryOpAction.Noop:
                         out.noop++;
-                        this.logger?.info(`memory noop: ${op.reason}`);
                         break;
                 }
             } catch (e: any) {
                 out.failed++;
-                this.logger?.warn(`memory op ${op.action}(${('slug' in op) ? op.slug : ''}) failed: ${e?.message ?? e}`);
+                this.logMemory(
+                    'warn',
+                    `记忆操作失败：${MemoryService.opActionName(op.action)} ` +
+                    `${('slug' in op) ? op.slug : ''}，错误=${this.formatError(e)}`
+                );
             }
         }
         return out;
@@ -585,13 +603,111 @@ export class MemoryService implements IMemoryService {
                 bodyMode: merged.bodyMode ?? op.bodyMode,
             };
         } catch (e: any) {
-            this.logger?.warn(`memory update merge failed for ${op.slug}: ${e?.message ?? e}`);
+            this.logMemory('warn', `合并修改记忆失败：${op.slug}，错误=${this.formatError(e)}`);
             // 保护旧 body：merge 失败时只应用 title/description/kind，不直接替换正文。
             return {
                 ...op,
                 body: undefined,
                 bodyMode: undefined,
             };
+        }
+    }
+
+    private modelLabel(): string {
+        const cfg = this.modelService.config as any;
+        const name = cfg.name || cfg.model || '?';
+        const detail = [
+            cfg.provider,
+            cfg.model && cfg.model !== name ? cfg.model : '',
+        ].filter(Boolean).join('/');
+        return detail ? `${name}(${detail})` : name;
+    }
+
+    private memoryLabel(): string {
+        return truncateForLog(this.memoryName, 80);
+    }
+
+    private logMemory(level: 'debug' | 'info' | 'warn' | 'error', message: string): void {
+        const line = `[记忆:${this.memoryLabel()}] ${message}`;
+        switch (level) {
+            case 'debug':
+                this.logger?.debug(line);
+                break;
+            case 'info':
+                this.logger?.info(line);
+                break;
+            case 'warn':
+                this.logger?.warn(line);
+                break;
+            case 'error':
+                this.logger?.error(line);
+                break;
+        }
+    }
+
+    private formatError(error: any): string {
+        const status = error?.status ?? error?.response?.status ?? error?.cause?.status;
+        const body = error?.response?.data ? ` 响应=${JSON.stringify(error.response.data)}` : '';
+        const message = error?.message ?? String(error);
+        return truncateForLog(`${status ? `状态=${status} ` : ''}${message}${body}`);
+    }
+
+    private jobLog(job: PendingMemoryJobRow): { start: string; done: string; failed: string; subject: string } {
+        switch (job.type) {
+            case MemoryPendingJobType.Extract:
+                return {
+                    start: '开始解析记忆',
+                    done: '解析记忆完成',
+                    failed: '解析记忆失败',
+                    subject: MemoryService.messagePreview(job.messages ?? []),
+                };
+            case MemoryPendingJobType.Consolidate:
+                return {
+                    start: '开始整理记忆',
+                    done: '整理记忆完成',
+                    failed: '整理记忆失败',
+                    subject: '当前记忆库',
+                };
+            default:
+                return {
+                    start: '开始处理记忆',
+                    done: '处理记忆完成',
+                    failed: '处理记忆失败',
+                    subject: String(job.type),
+                };
+        }
+    }
+
+    private static opActionName(action: MemoryOpAction): string {
+        switch (action) {
+            case MemoryOpAction.Create:
+                return '新建';
+            case MemoryOpAction.Update:
+                return '更新';
+            case MemoryOpAction.Delete:
+                return '删除';
+            case MemoryOpAction.Noop:
+                return '无变更';
+            default:
+                return String(action);
+        }
+    }
+
+    private static messagePreview(messages: ChatMessage[]): string {
+        const message = [...messages].reverse().find(m => m.role === MessageRole.Human) ?? messages[messages.length - 1];
+        if (!message) return '空消息';
+        const text = MemoryService.contentToText(message.content).replace(/\s+/g, ' ').trim();
+        if (!text) return '空消息';
+        return truncateForLog(text);
+    }
+
+    private static contentToText(content: ChatMessage['content']): string {
+        const text = contentToString(content);
+        if (text) return text;
+        try {
+            return JSON.stringify(content);
+        } catch {
+            return String(content);
         }
     }
 }
