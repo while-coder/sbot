@@ -483,7 +483,7 @@ export class AgendaStore implements IAgendaStore {
 
     popPendingJob(): PendingAgendaJobRow | null {
         // 单条 SQL 原子地把最早 pending 转为 processing 并返回。崩溃时 'processing' 行
-        // 由进程下次 init() 的 sweep 转回 'pending'——不会丢 job 也不会重复消费。
+        // 由进程下次打开 DB 时的 sweep 转回 'pending'——不会丢 job 也不会重复消费。
         const row = this.db.prepare(`
             UPDATE agenda_pending_jobs
             SET status = 'processing', updated_at = @now

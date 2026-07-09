@@ -1,6 +1,7 @@
 import { ServiceContainer } from "scorpio.di";
 import { T_AgendaToolDescs } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
+import { truncateForLog } from "../../Utils/contentUtils";
 import { DEFAULT_PENDING_JOB_LIMIT } from "../limits";
 import { IAgendaStore, type PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
@@ -39,7 +40,7 @@ export type AgendaServiceConfigResolver =
  * 同 agendaId 全局唯一实例下成立。多实例并发跑 LLM 抽取会造成重复 create / 浪费 token。
  *
  * 生命周期模型（纯 refCount，无强制销毁）：
- * - acquire(id)：cache miss → build 新实例；命中实例 incRef 后返回；
+ * - acquire(id)：cache miss → build 新实例并唤醒 drain；命中实例 incRef 后返回；
  *   调用方用完后 service.release() 配对归还
  * - refCount 归零自动 evict（仅清 cache，不 dispose store —— store 由 sbot 侧 agendaStorePool 拥有）
  * - drain（checkJobs）自固定 refCount，drain 期间 caller release 不会触发 evict
@@ -78,26 +79,27 @@ export class AgendaServicePool {
      *
      * 流程：
      * - cache miss → 同步 build + cache.set（同步路径无 await 缝隙，保证同 agendaId 只构造一次实例）
-     * - 然后 await service.init() —— service 自身做 once-only dedup（首次唤醒 drain），
-     *   多个并发 acquire 共享同一个 init promise
-     * - 命中已 resolved 的 promise 几乎零成本（一次 microtask）
+     * - incRef 持有 caller 引用后返回
+     * - 新实例首次唤醒 drain；drain 自固定 refCount，消费进程崩溃前残留的 pending jobs
      *
      * agendaId 配置错误（profile 不存在 / disabled）直接 throw —— caller 应当在调用前
      * 自行 guard。后续 acquire 不会再唤醒 drain；chat 路径靠 extractFromConversation
      * 自启 drain，admin 走 forceExtract 时自带显式 processPending。
      */
-    async acquire(agendaId: string): Promise<IAgendaService> {
+    acquire(agendaId: string): IAgendaService {
         let service: AgendaService;
+        let shouldStart = false;
         const cached = this.cache.get(agendaId);
         if (cached) {
             service = cached;
         } else {
             service = this.build(agendaId);
             this.cache.set(agendaId, service);
+            shouldStart = true;
         }
 
-        await service.init();
         service.incRef();
+        if (shouldStart) service.processPending();
         return service;
     }
 
@@ -113,14 +115,20 @@ export class AgendaServicePool {
     }
 
     /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 自行轮询 listPendingJobs 看进度）。 */
-    async forceExtract(agendaId: string): Promise<void> {
-        const service = await this.acquire(agendaId);
-        try { service.processPending(); }
-        finally { service.release(); }
+    forceExtract(agendaId: string): void {
+        let service: IAgendaService | undefined;
+        try {
+            service = this.acquire(agendaId);
+            service.processPending();
+        } catch (e: any) {
+            this.logActionFailed('唤醒日程队列', agendaId, e);
+        } finally {
+            this.releaseQuietly(service, '唤醒日程队列', agendaId);
+        }
     }
 
-    async listPendingJobs(agendaId: string, limit = DEFAULT_PENDING_JOB_LIMIT): Promise<PendingAgendaJobRow[]> {
-        const service = await this.acquire(agendaId);
+    listPendingJobs(agendaId: string, limit = DEFAULT_PENDING_JOB_LIMIT): PendingAgendaJobRow[] {
+        const service = this.acquire(agendaId);
         try { return service.listPending(limit); }
         finally { service.release(); }
     }
@@ -146,6 +154,17 @@ export class AgendaServicePool {
         const service = sub.resolve<AgendaService>(IAgendaService) as AgendaService;
         this.logger?.info(`AgendaService [${agendaId}] built`);
         return service;
+    }
+
+    private releaseQuietly(service: IAgendaService | undefined, action: string, agendaId: string): void {
+        if (!service) return;
+        try { service.release(); }
+        catch (e: any) { this.logActionFailed(`${action} release`, agendaId, e); }
+    }
+
+    private logActionFailed(action: string, agendaId: string, e: any): void {
+        const err = truncateForLog(e?.message ?? String(e));
+        this.logger?.warn(`日程后台任务失败：agendaId=${agendaId}，动作=${action}，错误=${err}`);
     }
 }
 

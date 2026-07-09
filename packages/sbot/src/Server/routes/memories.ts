@@ -45,14 +45,15 @@ export class MemoryRoutes {
         app.get('/api/memories/:id/jobs', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
             const limit = Math.max(1, Math.min(Number(req.query.limit ?? 50) || 50, 200));
-            const jobs = await memoryServicePool.listPendingJobs(memoryId, limit);
+            const jobs = memoryServicePool.listPendingJobs(memoryId, limit);
             return { memoryId, jobs };
         }));
 
         /** 手动整理：入队合并重复、删除明显冗余、压缩过长 memory 的后台 job。 */
         app.post('/api/memories/:id/consolidate/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const jobId = await memoryServicePool.forceConsolidate(memoryId);
+            const jobId = memoryServicePool.forceConsolidate(memoryId);
+            if (jobId == null) throw new Error('Failed to queue memory consolidate job');
             return { memoryId, jobId };
         }));
 
@@ -61,7 +62,8 @@ export class MemoryRoutes {
             const memoryId = requireMemoryId(req.params.id);
             const jobId = Number(req.params.jobId);
             if (!Number.isSafeInteger(jobId) || jobId <= 0) throwBad('Invalid jobId');
-            const retried = await memoryServicePool.retryExtractJob(memoryId, jobId);
+            const retried = memoryServicePool.retryExtractJob(memoryId, jobId);
+            if (retried == null) throw new Error(`Failed to retry memory extract job #${jobId}`);
             if (!retried) throwBad(`Job #${jobId} is not a failed extract job`);
             return { memoryId, jobId };
         }));
@@ -102,7 +104,8 @@ export class MemoryRoutes {
          */
         app.post('/api/memories/:id/reconcile/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const jobId = await memoryServicePool.forceReconcile(memoryId);
+            const jobId = memoryServicePool.forceReconcile(memoryId);
+            if (jobId == null) throw new Error('Failed to queue memory reconcile job');
             return { memoryId, jobId };
         }));
     }

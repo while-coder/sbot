@@ -48,7 +48,7 @@ const logger = LoggerService.getLogger("Memory/MemoryServicePool.ts");
  * 启动时对所有已启用的 memoryProfile 触发一次 forceExtract，把上次进程残留的
  * pending 抽取队列消化掉，避免依赖第一次对话或 admin 手动按钮。
  *
- * forceExtract 现在是 async（acquire 后唤醒 drain）。这里 fire-and-forget
+ * forceExtract 同步 acquire 并唤醒 drain，内部记录触发失败；启动时不等待后台 drain 完成。
  * 启动时不阻塞主流程；每个 profile 各自独立 build → 初始对账 → drain，
  * 进程启动时间不受 memory profile 数量影响。
  */
@@ -58,9 +58,7 @@ export function startupExtractAll(): void {
     for (const [id, profile] of Object.entries(profiles)) {
         if (!profile?.enabled) continue;
         scheduled++;
-        memoryServicePool.forceExtract(id).catch(e => {
-            logger.warn(`Memory startup extract [${id}] failed: ${e?.message ?? String(e)}`);
-        });
+        memoryServicePool.forceExtract(id);
     }
     if (scheduled > 0) logger.info(`Memory startup extract scheduled for ${scheduled} profile(s)`);
 }

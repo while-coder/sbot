@@ -75,12 +75,6 @@ export interface IAgendaService {
     incRef(): void;
 
     /**
-     * Pool 在每次 acquire 时调用：单实例只真正跑一次（首次唤醒 drain 消化崩溃残留），
-     * 并发 caller 共享同一个 promise；后续命中已 resolved 的 promise，零成本。
-     */
-    init(): Promise<void>;
-
-    /**
      * caller 释放对 service 的引用：refCount--，归零时通知 pool 把自己从 cache 摘掉。
      * drain（checkJobs）自固定 refCount，所以 caller release 不会中断在跑的抽取。
      * 与 pool.acquire 配对调用：每次 acquire 必须对应一次 release。

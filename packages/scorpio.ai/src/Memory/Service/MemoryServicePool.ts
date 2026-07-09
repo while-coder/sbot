@@ -7,6 +7,7 @@ import {
 } from "../../Core/tokens";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
+import { truncateForLog } from "../../Utils/contentUtils";
 import { IMemoryStore } from "../Storage/IMemoryStore";
 import { MemoryStore } from "../Storage/MemoryStore";
 import { IMemoryService } from "./IMemoryService";
@@ -98,7 +99,7 @@ export class MemoryServicePool {
      * 自行 guard。后续 acquire 不会再唤醒 drain；chat 路径靠 extractFromConversation
      * 自启 drain，启动恢复路径走 forceExtract 时自带显式 processPending。
      */
-    async acquire(memoryId: string): Promise<IMemoryService> {
+    acquire(memoryId: string): IMemoryService {
         let service: MemoryService;
         let shouldStart = false;
         const cached = this.cache.get(memoryId);
@@ -125,8 +126,8 @@ export class MemoryServicePool {
      *
      * 统一一条 lifecycle 路径，caller 不需要写 fs.rm fallback。
      */
-    async markForDeletion(memoryId: string): Promise<void> {
-        const service = (await this.acquire(memoryId)) as MemoryService;
+    markForDeletion(memoryId: string): void {
+        const service = this.acquire(memoryId) as MemoryService;
         try { service.markForDeletion(); }
         finally { service.release(); }
     }
@@ -143,32 +144,62 @@ export class MemoryServicePool {
     }
 
     /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 自行轮询 listPendingJobs 看进度）。 */
-    async forceExtract(memoryId: string): Promise<void> {
-        const service = await this.acquire(memoryId);
-        try { service.processPending(); }
-        finally { service.release(); }
+    forceExtract(memoryId: string): void {
+        let service: IMemoryService | undefined;
+        try {
+            service = this.acquire(memoryId);
+            service.processPending();
+        } catch (e: any) {
+            this.logActionFailed('唤醒记忆队列', memoryId, e);
+        } finally {
+            this.releaseQuietly(service, '唤醒记忆队列', memoryId);
+        }
     }
 
-    async forceConsolidate(memoryId: string): Promise<number> {
-        const service = await this.acquire(memoryId);
-        try { return service.enqueueConsolidate(); }
-        finally { service.release(); }
+    /** 返回 null 表示触发失败，错误已在 pool 中记录。 */
+    forceConsolidate(memoryId: string): number | null {
+        let service: IMemoryService | undefined;
+        try {
+            service = this.acquire(memoryId);
+            return service.enqueueConsolidate();
+        } catch (e: any) {
+            this.logActionFailed('整理记忆入队', memoryId, e);
+            return null;
+        } finally {
+            this.releaseQuietly(service, '整理记忆入队', memoryId);
+        }
     }
 
-    async forceReconcile(memoryId: string): Promise<number> {
-        const service = await this.acquire(memoryId);
-        try { return service.enqueueReconcile(); }
-        finally { service.release(); }
+    /** 返回 null 表示触发失败，错误已在 pool 中记录。 */
+    forceReconcile(memoryId: string): number | null {
+        let service: IMemoryService | undefined;
+        try {
+            service = this.acquire(memoryId);
+            return service.enqueueReconcile();
+        } catch (e: any) {
+            this.logActionFailed('同步记忆索引入队', memoryId, e);
+            return null;
+        } finally {
+            this.releaseQuietly(service, '同步记忆索引入队', memoryId);
+        }
     }
 
-    async retryExtractJob(memoryId: string, jobId: number): Promise<boolean> {
-        const service = await this.acquire(memoryId);
-        try { return service.retryExtractJob(jobId); }
-        finally { service.release(); }
+    /** 返回 null 表示触发失败，错误已在 pool 中记录；false 表示该 job 不可重试。 */
+    retryExtractJob(memoryId: string, jobId: number): boolean | null {
+        let service: IMemoryService | undefined;
+        try {
+            service = this.acquire(memoryId);
+            return service.retryExtractJob(jobId);
+        } catch (e: any) {
+            this.logActionFailed(`重试记忆抽取 #${jobId}`, memoryId, e);
+            return null;
+        } finally {
+            this.releaseQuietly(service, `重试记忆抽取 #${jobId}`, memoryId);
+        }
     }
 
-    async listPendingJobs(memoryId: string, limit = 50): Promise<PendingMemoryJobRow[]> {
-        const service = await this.acquire(memoryId);
+    listPendingJobs(memoryId: string, limit = 50): PendingMemoryJobRow[] {
+        const service = this.acquire(memoryId);
         try { return service.listPending(limit); }
         finally { service.release(); }
     }
@@ -202,6 +233,17 @@ export class MemoryServicePool {
         service.setMemoryName(cfg.memoryName ?? memoryId);
         this.logger?.info(`MemoryService [${memoryId}] built`);
         return service;
+    }
+
+    private releaseQuietly(service: IMemoryService | undefined, action: string, memoryId: string): void {
+        if (!service) return;
+        try { service.release(); }
+        catch (e: any) { this.logActionFailed(`${action} release`, memoryId, e); }
+    }
+
+    private logActionFailed(action: string, memoryId: string, e: any): void {
+        const err = truncateForLog(e?.message ?? String(e));
+        this.logger?.warn(`记忆后台任务失败：memoryId=${memoryId}，动作=${action}，错误=${err}`);
     }
 }
 
