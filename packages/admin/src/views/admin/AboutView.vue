@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { marked } from 'marked'
-import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, GITHUB_README_URL, GITHUB_README_ZH_URL, NPM_URL, DOCKER_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
+import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, NPM_URL, DOCKER_URL, fetchLatestRelease, compareSemver } from 'sbot.commons'
 import { SCard, SPageToolbar, SPageContent, SInfoTable, SInfoRow } from 'sbot-ui'
 
 const { t, locale } = useI18n()
@@ -11,7 +11,8 @@ const { t, locale } = useI18n()
 const currentVersion = ref('')
 const currentNoteEn = ref('')
 const currentNoteZh = ref('')
-const readmeHtml = ref('')
+const readmeEn = ref('')
+const readmeZh = ref('')
 const loadingReadme = ref(true)
 const newRelease = ref<{ tag: string; releasenoteEn: string; releasenoteZh: string; url: string } | null>(null)
 
@@ -23,28 +24,28 @@ const latestNoteHtml = computed(() => {
   const note = (locale.value === 'zh' ? newRelease.value?.releasenoteZh : newRelease.value?.releasenoteEn) || newRelease.value?.releasenoteEn || ''
   return note ? (marked.parse(note) as string) : ''
 })
+const readmeHtml = computed(() => {
+  const readme = (locale.value === 'zh' ? readmeZh.value : readmeEn.value) || readmeEn.value || readmeZh.value
+  return readme ? (marked.parse(readme) as string) : ''
+})
 
 onMounted(async () => {
   try {
-    const res = await apiFetch('/api/about')
+    const res = await apiFetch('/api/about?readme=1')
     currentVersion.value = res.data?.version || ''
     currentNoteEn.value = res.data?.releasenoteEn || ''
     currentNoteZh.value = res.data?.releasenoteZh || ''
-  } catch {}
-
-  const readmeUrl = locale.value === 'zh' ? GITHUB_README_ZH_URL : GITHUB_README_URL
-  const [readmeResult, releaseResult] = await Promise.allSettled([
-    fetch(readmeUrl).then(r => r.text()),
-    fetchLatestRelease(),
-  ])
-
-  if (readmeResult.status === 'fulfilled') {
-    readmeHtml.value = marked.parse(readmeResult.value) as string
+    readmeEn.value = res.data?.readmeEn || ''
+    readmeZh.value = res.data?.readmeZh || ''
+  } catch {
+    readmeEn.value = ''
+    readmeZh.value = ''
+  } finally {
+    loadingReadme.value = false
   }
-  loadingReadme.value = false
 
-  if (releaseResult.status === 'fulfilled' && releaseResult.value && currentVersion.value) {
-    const data = releaseResult.value
+  const data = await fetchLatestRelease()
+  if (data && currentVersion.value) {
     const tag = data.tag || ''
     if (tag && compareSemver(currentVersion.value, tag) < 0) {
       newRelease.value = { tag, releasenoteEn: data.releasenoteEn, releasenoteZh: data.releasenoteZh, url: data.url }

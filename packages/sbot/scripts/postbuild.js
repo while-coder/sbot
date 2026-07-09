@@ -218,12 +218,17 @@ if (fs.existsSync(licenseSrc)) {
 const readmeSrc = path.join(monorepoRoot, 'README.md');
 const readmeZhSrc = path.join(monorepoRoot, 'README.zh.md');
 const readmeDst = path.join(distDir, 'README.md');
+const readmeZhDst = path.join(distDir, 'README.zh.md');
 if (fs.existsSync(readmeSrc)) {
   fs.copyFileSync(readmeSrc, readmeDst);
   console.log(`readme: ${readmeSrc} -> ${readmeDst}`);
 } else if (fs.existsSync(readmeZhSrc)) {
   fs.copyFileSync(readmeZhSrc, readmeDst);
   console.log(`readme: ${readmeZhSrc} -> ${readmeDst}`);
+}
+if (fs.existsSync(readmeZhSrc)) {
+  fs.copyFileSync(readmeZhSrc, readmeZhDst);
+  console.log(`readme zh: ${readmeZhSrc} -> ${readmeZhDst}`);
 }
 
 // 复制 ReleaseNote* 到 dist/

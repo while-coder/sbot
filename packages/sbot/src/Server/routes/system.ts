@@ -1,5 +1,7 @@
 import express from 'express';
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
 import { Op } from 'sequelize';
 import { config } from '../../Core/Config';
 import { LoggerService } from '../../Core/LoggerService';
@@ -12,11 +14,40 @@ import type { RouteContext } from './types';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
+function readBundledMarkdown(name: 'README.md' | 'README.zh.md'): string {
+    const candidates = [
+        // Compiled package layout: dist/dist/Server/routes -> dist/
+        path.resolve(__dirname, '../../../', name),
+        // Source/dev layout when run directly from the monorepo.
+        path.resolve(__dirname, '../../../../../', name),
+        path.resolve(process.cwd(), name),
+    ];
+    for (const file of candidates) {
+        try {
+            if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8');
+        } catch {
+            // Optional About-page content; ignore unreadable candidates.
+        }
+    }
+    return '';
+}
+
 export class SystemRoutes {
     register(app: express.Application, ctx: RouteContext): void {
-        app.get('/api/about', api(() =>
-            ({ version: config.pkg.version, name: config.pkg.name, description: config.pkg.description, releasenoteEn: config.pkg.releasenoteEn || '', releasenoteZh: config.pkg.releasenoteZh || '' })
-        ));
+        app.get('/api/about', api(req => {
+            const data = {
+                version: config.pkg.version,
+                name: config.pkg.name,
+                description: config.pkg.description,
+                releasenoteEn: config.pkg.releasenoteEn || '',
+                releasenoteZh: config.pkg.releasenoteZh || '',
+            };
+            if (req.query.readme !== '1') return data;
+
+            const readmeEn = readBundledMarkdown('README.md');
+            const readmeZh = readBundledMarkdown('README.zh.md') || readmeEn;
+            return { ...data, readmeEn, readmeZh };
+        }));
 
         app.post('/api/reload', api(() => {
             config.reloadSettings();
