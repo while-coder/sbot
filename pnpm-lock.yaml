@@ -166,6 +166,9 @@ importers:
       '@tauri-apps/plugin-updater':
         specifier: 'catalog:'
         version: 2.10.1
+      '@while-coder/tauri-updater-vue':
+        specifier: git+https://github.com/while-coder/tauri-updater-kit.git#main&path:packages/vue
+        version: https://codeload.github.com/while-coder/tauri-updater-kit/tar.gz/a6f9040e6cf13f26da89037fdff8458b3e67e117#path:packages/vue(@tauri-apps/api@2.11.0)(@tauri-apps/plugin-process@2.3.1)(@tauri-apps/plugin-updater@2.10.1)(vue@3.5.38(typescript@6.0.3))
       sbot-ui:
         specifier: workspace:*
         version: link:../sbot-ui
@@ -3162,6 +3165,15 @@ packages:
 
   '@wecom/aibot-node-sdk@1.0.7':
     resolution: {integrity: sha512-51w+sTqunry6GD3HFvmuh0gArMSJDFE418vyvR1wMJHj1N6DaFuGD3HuaY2fazZs3mb9FWeQFX3+vU5t0Qhwmw==}
+
+  '@while-coder/tauri-updater-vue@https://codeload.github.com/while-coder/tauri-updater-kit/tar.gz/a6f9040e6cf13f26da89037fdff8458b3e67e117#path:packages/vue':
+    resolution: {path: packages/vue, tarball: https://codeload.github.com/while-coder/tauri-updater-kit/tar.gz/a6f9040e6cf13f26da89037fdff8458b3e67e117}
+    version: 0.0.0
+    peerDependencies:
+      '@tauri-apps/api': ^2
+      '@tauri-apps/plugin-process': ^2
+      '@tauri-apps/plugin-updater': ^2
+      vue: ^3.5.0
 
   '@xterm/addon-fit@0.11.0':
     resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
@@ -8320,6 +8332,13 @@ snapshots:
       - debug
       - supports-color
       - utf-8-validate
+
+  '@while-coder/tauri-updater-vue@https://codeload.github.com/while-coder/tauri-updater-kit/tar.gz/a6f9040e6cf13f26da89037fdff8458b3e67e117#path:packages/vue(@tauri-apps/api@2.11.0)(@tauri-apps/plugin-process@2.3.1)(@tauri-apps/plugin-updater@2.10.1)(vue@3.5.38(typescript@6.0.3))':
+    dependencies:
+      '@tauri-apps/api': 2.11.0
+      '@tauri-apps/plugin-process': 2.3.1
+      '@tauri-apps/plugin-updater': 2.10.1
+      vue: 3.5.38(typescript@6.0.3)
 
   '@xterm/addon-fit@0.11.0': {}
 
