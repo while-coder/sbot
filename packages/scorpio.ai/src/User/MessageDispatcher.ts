@@ -44,33 +44,41 @@ export abstract class MessageDispatcher {
         if (this.isProcessingQueue) return;
         this.isProcessingQueue = true;
 
-        while (this.messageQueue.length > 0) {
-            const { query, args } = this.messageQueue.shift()!;
-            const queryText = typeof query === 'string' ? query : summarizeMultimodal(query);
-            const messageType = typeof query === 'string' && query.trimStart().startsWith('/') ? MessageType.Command : MessageType.AI;
-            const startLabel = await this.onProcessStart(query, args, messageType);
-            const logSuffix = startLabel != null ? `(${startLabel})` : '';
-            let error: any;
-            try {
-                this.logger?.info(`开始处理[${logSuffix}]: ${queryText} (剩余队列: ${this.messageQueue.length})`);
-                if (messageType === MessageType.Command) {
-                    await this.processCommand(query as string, args);
-                } else {
-                    await this.processAI(query, args);
+        try {
+            while (this.messageQueue.length > 0) {
+                const { query, args } = this.messageQueue.shift()!;
+                const queryText = typeof query === 'string' ? query : summarizeMultimodal(query);
+                const messageType = typeof query === 'string' && query.trimStart().startsWith('/') ? MessageType.Command : MessageType.AI;
+                let logSuffix = '';
+                let error: any;
+                try {
+                    const startLabel = await this.onProcessStart(query, args, messageType);
+                    logSuffix = startLabel != null ? `(${startLabel})` : '';
+                    this.logger?.info(`开始处理[${logSuffix}]: ${queryText} (剩余队列: ${this.messageQueue.length})`);
+                    if (messageType === MessageType.Command) {
+                        await this.processCommand(query as string, args);
+                    } else {
+                        await this.processAI(query, args);
+                    }
+                    this.logger?.info(`处理完成[${logSuffix}]: ${queryText}`);
+                } catch (e: any) {
+                    if (e instanceof AgentCancelledError) {
+                        this.logger?.info(`处理已取消[${logSuffix}]: ${queryText}`);
+                    } else {
+                        this.logger?.error(`处理出错[${logSuffix}]: ${queryText} : ${truncateForLog(e.message)}\n${truncateForLog(e.stack)}`);
+                    }
+                    error = e;
+                } finally {
+                    try {
+                        await this.onProcessEnd(query, args, messageType, error);
+                    } catch (e: any) {
+                        this.logger?.error(`结束处理出错: ${queryText} : ${truncateForLog(e.message)}\n${truncateForLog(e.stack)}`);
+                    }
                 }
-                this.logger?.info(`处理完成[${logSuffix}]: ${queryText}`);
-            } catch (e: any) {
-                if (e instanceof AgentCancelledError) {
-                    this.logger?.info(`处理已取消[${logSuffix}]: ${queryText}`);
-                } else {
-                    this.logger?.error(`处理出错[${logSuffix}]: ${queryText} : ${truncateForLog(e.message)}\n${truncateForLog(e.stack)}`);
-                }
-                error = e;
-            } finally {
-                await this.onProcessEnd(query, args, messageType, error);
             }
+        } finally {
+            this.isProcessingQueue = false;
         }
-        this.isProcessingQueue = false;
     }
 
 
