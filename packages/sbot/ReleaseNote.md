@@ -1,13 +1,17 @@
-This release includes the following main changes since 0.2.3:
+This release includes the following main changes:
 
 ### Added
 
-1. Added completion events for web chat tool approvals and ask prompts, so the client can close pending action panels as soon as they finish.
+1. Web chat now closes completed approval and question prompts automatically.
+2. The About page can show the bundled English and Chinese project documentation.
 
 ### Improved
 
-1. Moved tool approval and ask panels into the input area, keeping pending actions close to the reply box and leaving the message timeline cleaner.
+1. Approval and question prompts now appear above the input box, keeping active actions closer to where you reply.
+2. The About page loads project documentation more reliably and follows the current display language.
 
 ### Fixed
 
-1. Fixed stale tool approval and ask panels remaining in web chat after the approval or question had already been completed.
+1. Fixed completed approval or question prompts sometimes staying visible in web chat.
+2. Fixed an issue where some errors could stop later messages from continuing to process.
+3. Fixed an issue where English and Chinese project documentation could be mixed together.

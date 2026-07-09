@@ -1,9 +1,9 @@
 {
   "name": "@qingfeng346/sbot",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Self-hosted AI agent server. Open-source alternative to OpenAI, Claude, and Gemini interfaces. Run LLM agents locally with MCP tool support, memory, multi-channel integrations (Lark/Feishu), and a built-in web UI.",
-  "releasenoteEn": "This release includes the following main changes since 0.2.3:\n\n### Added\n\n1. Added completion events for web chat tool approvals and ask prompts, so the client can close pending action panels as soon as they finish.\n\n### Improved\n\n1. Moved tool approval and ask panels into the input area, keeping pending actions close to the reply box and leaving the message timeline cleaner.\n\n### Fixed\n\n1. Fixed stale tool approval and ask panels remaining in web chat after the approval or question had already been completed.",
-  "releasenoteZh": "本次主要更新如下，自 0.2.3 之后：\n\n### 新增\n\n1. Web 聊天事件新增工具审批完成、提问完成通知，前端可以在操作结束后立即收起待处理面板。\n\n### 优化\n\n1. 工具审批和提问面板移动到输入区上方，待处理操作更靠近回复区域，消息列表也更清爽。\n\n### 修复\n\n1. 修复 Web 聊天中工具审批或提问完成后，待审批/待回答面板仍然残留的问题。",
+  "releasenoteEn": "This release includes the following main changes:\n\n### Added\n\n1. Web chat now closes completed approval and question prompts automatically.\n2. The About page can show the bundled English and Chinese project documentation.\n\n### Improved\n\n1. Approval and question prompts now appear above the input box, keeping active actions closer to where you reply.\n2. The About page loads project documentation more reliably and follows the current display language.\n\n### Fixed\n\n1. Fixed completed approval or question prompts sometimes staying visible in web chat.\n2. Fixed an issue where some errors could stop later messages from continuing to process.\n3. Fixed an issue where English and Chinese project documentation could be mixed together.",
+  "releasenoteZh": "本次主要更新如下：\n\n### 新增\n\n1. Web 聊天会自动收起已经完成的工具审批和提问面板。\n2. 关于页面可以展示内置的中英文项目说明。\n\n### 优化\n\n1. 工具审批和提问面板移动到输入区上方，待处理操作更靠近回复区域，消息列表也更清爽。\n2. 关于页面的项目说明加载更稳定，并会跟随当前语言显示中文或英文。\n\n### 修复\n\n1. 修复 Web 聊天中工具审批或提问完成后，待审批/待回答面板仍然残留的问题。\n2. 修复某些异常情况下，后续消息可能不再继续处理的问题。\n3. 修复内置项目说明的语言内容可能混在一起的问题，中英文说明会保持独立。",
   "license": "MIT",
   "repository": {
     "type": "git",
