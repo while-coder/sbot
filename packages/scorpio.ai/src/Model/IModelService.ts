@@ -1,18 +1,11 @@
 import { type ChatMessage } from "../Saver/IAgentSaverService";
 import { ModelConfig } from "./types";
 
-export enum StructuredOutputMethod {
-  FunctionCalling = "functionCalling",
-  JsonMode = "jsonMode",
-  JsonSchema = "jsonSchema",
-}
-
 export interface ModelInvokeOptions {
   signal?: AbortSignal;
 }
 
 export interface StructuredInvokeOptions extends ModelInvokeOptions {
-  structuredMethod?: StructuredOutputMethod;
   strict?: boolean;
 }
 

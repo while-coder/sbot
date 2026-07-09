@@ -5,6 +5,7 @@ import type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelServic
 import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
 import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
+import { getInvokeConfig, StructuredOutputMethod, toStructuredInput } from "./structuredOutput";
 
 /**
  * Ollama 模型服务实现
@@ -42,8 +43,9 @@ export class OllamaModelService implements IModelService {
   }
 
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T> {
-    const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    return this.model!.withStructuredOutput(schema).invoke(input, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
+    const method = StructuredOutputMethod.JsonSchema;
+    const input = toStructuredInput(prompt, method, schema);
+    return this.model!.withStructuredOutput(schema, { method }).invoke(input, getInvokeConfig(options)) as Promise<T>;
   }
 
   async stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {

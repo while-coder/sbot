@@ -1,6 +1,7 @@
 import { ModelConfig } from "./types";
 import { type ChatMessage, MessageRole } from "../Saver/IAgentSaverService";
 import { GeminiModelService } from "./GeminiModelService";
+import type { StructuredInvokeOptions } from "./IModelService";
 
 /**
  * Gemini 图片生成模型服务
@@ -26,5 +27,9 @@ export class GeminiImageModelService extends GeminiModelService {
 
   override bindTools(_tools: any[]): void {
     // 图片生成模型不支持 tools，忽略
+  }
+
+  override async invokeStructured<T = any>(_schema: any, _prompt: string | ChatMessage[], _options?: StructuredInvokeOptions): Promise<T> {
+    throw new Error("Gemini image model does not support structured output");
   }
 }

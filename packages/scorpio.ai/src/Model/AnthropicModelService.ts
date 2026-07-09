@@ -2,11 +2,12 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { createFunctionCallingParser } from "@langchain/core/language_models/structured_output";
 import { AIMessageChunk, BaseMessage, SystemMessage } from "@langchain/core/messages";
 import { toJsonSchema } from "@langchain/core/utils/json_schema";
-import { IModelService, StructuredOutputMethod } from "./IModelService";
+import { IModelService } from "./IModelService";
 import type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelService";
 import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
 import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
+import { getInvokeConfig, StructuredOutputMethod, toStructuredInput } from "./structuredOutput";
 
 const enum CachePosition {
   First = 'first',
@@ -64,8 +65,8 @@ export class AnthropicModelService implements IModelService {
   }
 
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T> {
-    const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    const method = options?.structuredMethod ?? StructuredOutputMethod.FunctionCalling;
+    const method = this.defaultStructuredMethod();
+    const input = toStructuredInput(prompt, method, schema);
     if (method === StructuredOutputMethod.FunctionCalling) {
       return this.invokeStructuredToolStream<T>(schema, input, options);
     }
@@ -73,13 +74,19 @@ export class AnthropicModelService implements IModelService {
     const structured = this.model!.withStructuredOutput(schema, {
       method,
     });
-    const stream = await structured.stream(input, options?.signal ? { signal: options.signal } : undefined);
+    const stream = await structured.stream(input, getInvokeConfig(options));
     let result: T | undefined;
     for await (const chunk of stream) {
       result = chunk as T;
     }
     if (result === undefined) throw new Error("Anthropic structured output returned no result");
     return result;
+  }
+
+  private defaultStructuredMethod(): StructuredOutputMethod {
+    return this.isThinkingEnabled()
+      ? StructuredOutputMethod.JsonSchema
+      : StructuredOutputMethod.FunctionCalling;
   }
 
   private async invokeStructuredToolStream<T = any>(schema: any, input: string | BaseMessage[], options?: StructuredInvokeOptions): Promise<T> {
@@ -100,13 +107,12 @@ export class AnthropicModelService implements IModelService {
           input_schema: jsonSchema,
           ...(options?.strict !== undefined && { strict: options.strict }),
         };
-    const thinkingEnabled = this.config.anthropic?.thinking?.type === 'enabled' || this.config.anthropic?.thinking?.type === 'adaptive';
     const model = this.model!.withConfig({
       outputVersion: "v0",
       tools: [tool],
-      ...(!thinkingEnabled && { tool_choice: { type: "tool", name: functionName } }),
+      ...(!this.isThinkingEnabled() && { tool_choice: { type: "tool", name: functionName } }),
     });
-    const stream = await model.stream(input, options?.signal ? { signal: options.signal } : undefined);
+    const stream = await model.stream(input, getInvokeConfig(options));
     let accumulated: AIMessageChunk | undefined;
     for await (const chunk of stream) {
       accumulated = accumulated
@@ -117,7 +123,12 @@ export class AnthropicModelService implements IModelService {
     if (!accumulated.tool_calls?.length) throw new Error("Anthropic structured output returned no tool call");
 
     const parser = createFunctionCallingParser(schema, functionName);
-    return parser.invoke(accumulated, options?.signal ? { signal: options.signal } : undefined) as Promise<T>;
+    return parser.invoke(accumulated, getInvokeConfig(options)) as Promise<T>;
+  }
+
+  private isThinkingEnabled(): boolean {
+    const type = this.config.anthropic?.thinking?.type;
+    return type === 'enabled' || type === 'adaptive';
   }
 
   async stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {

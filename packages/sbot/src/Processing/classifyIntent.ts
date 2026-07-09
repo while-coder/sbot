@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MessageRole, StructuredOutputMethod, truncate, contentToString, type MessageContent } from "scorpio.ai";
+import { MessageRole, truncate, contentToString, type MessageContent } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -58,7 +58,6 @@ export async function classifyIntent(
       { role: MessageRole.Human, content: query },
     ], {
       signal: AbortSignal.timeout(120_000),
-      structuredMethod: StructuredOutputMethod.JsonMode,
     });
     const shouldReply = result.shouldReply && result.confidence >= intentThreshold;
     if (shouldReply) {
