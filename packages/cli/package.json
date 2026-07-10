@@ -20,7 +20,7 @@
   "dependencies": {
     "ansi-escapes": "^7.3.0",
     "axios": "catalog:",
-    "ink": "^7.0.1",
+    "ink": "7.0.3",
     "ink-spinner": "^5.0.0",
     "marked": "catalog:",
     "marked-terminal": "^7.3.0",

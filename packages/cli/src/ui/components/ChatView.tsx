@@ -19,6 +19,8 @@ import { HistoryItem } from './HistoryItem.js';
 import { PendingZone } from './PendingZone.js';
 import { InputPrompt, type PendingAttachment } from './InputPrompt.js';
 import { ErrorBoundary } from './ErrorBoundary.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { useResizeSettleRepaint } from '../hooks/useResizeSettleRepaint.js';
 
 interface ChatViewProps {
   store: AppStateStore;
@@ -42,6 +44,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const isIdle = streamingState === StreamingState.Idle;
   const [remountKey, setRemountKey] = useState(0);
+  const { columns: terminalWidth } = useTerminalSize();
+
+  const repaintStatic = useCallback(() => {
+    process.stdout.write(ansiEscapes.clearTerminal);
+    setRemountKey(k => k + 1);
+  }, []);
+
+  // Static history keeps its old line wrapping until it is fully replayed.
+  useResizeSettleRepaint(terminalWidth, repaintStatic);
 
   useEffect(() => {
     void restoreSessionStatus(store);
@@ -69,13 +80,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const handleGlobalKey = useCallback(
     (key: Key) => {
       if (key.name === 'tab') {
-        process.stdout.write(ansiEscapes.clearTerminal);
+        repaintStatic();
         store.setState({ toolCallsExpanded: !store.getState().toolCallsExpanded });
-        setRemountKey(k => k + 1);
       }
       if (key.ctrl && key.name === 'l') {
-        process.stdout.write(ansiEscapes.clearTerminal);
-        setRemountKey(k => k + 1);
+        repaintStatic();
       }
       if (key.ctrl && key.name === 'c') {
         if (!isIdle) {
@@ -85,7 +94,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
       }
     },
-    [store, isIdle, onExit],
+    [store, isIdle, onExit, repaintStatic],
   );
 
   useKeypress(handleGlobalKey, { isActive: true });
