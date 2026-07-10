@@ -4,7 +4,7 @@ import { StreamingState } from '../ui/types.js';
 
 export interface AppState {
   connection: { baseUrl: string; workPath: string } | null;
-  sessionId: string | null;
+  profileId: string | null;
   agentName: string;
   saverName: string;
 
@@ -22,7 +22,7 @@ export interface AppState {
 
 const INITIAL_STATE: AppState = {
   connection: null,
-  sessionId: null,
+  profileId: null,
   agentName: '',
   saverName: '',
   history: [],

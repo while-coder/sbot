@@ -3,6 +3,7 @@ import type { AppStateStore } from '../store/AppStateStore.js';
 export interface Command {
   name: string;
   description: string;
+  usage?: string;
   aliases?: string[];
   type: 'local' | 'prompt';
   handler: (ctx: CommandContext) => void | Promise<void>;

@@ -49,11 +49,12 @@ export interface SessionItem {
 }
 
 export interface SessionStatus {
-  threadId: string;
-  status: 'thinking' | 'waiting_approval' | 'waiting_ask';
   pendingApproval?: {
     id: string;
     tool: { name: string; args: Record<string, any> };
+    startedAt: string;
+    remainSec?: number;
+    timeoutValue?: 'allow' | 'deny';
   };
   pendingAsk?: {
     id: string;
@@ -63,12 +64,25 @@ export interface SessionStatus {
       | { type: 'checkbox'; label: string; options: string[] }
       | { type: 'input'; label: string; placeholder?: string }
     >;
+    startedAt: string;
+    remainSec?: number;
   };
+  pendingMessages?: unknown[];
+}
+
+export interface ServerCommandInfo {
+  name: string;
+  description: string;
+  args?: Array<{
+    name: string;
+    description: string;
+    required: boolean;
+  }>;
 }
 
 // ── Persistent WebSocket with auto-reconnect ─────────────────────────────────
 
-type WsListener = (event: WebChatEvent & { sessionId?: string }) => void;
+type WsListener = (event: WebChatEvent) => void;
 
 class PersistentWs {
   private ws: WebSocket | null = null;
@@ -182,7 +196,12 @@ export class SbotClient {
     return res.data.data;
   }
 
-  /** Create a session on the server and return its ID */
+  async fetchCommands(): Promise<ServerCommandInfo[]> {
+    const res = await this.http.get<{ data: ServerCommandInfo[] }>('/api/commands');
+    return res.data.data ?? [];
+  }
+
+  /** Create a session on the server and return its profile ID. */
   async createSession(agentId: string, saverId: string, noteIds: string[], workPath: string): Promise<string> {
     const body: any = {
       agent: agentId,
@@ -196,11 +215,11 @@ export class SbotClient {
   }
 
   /** Fetch current session status (pending approval/ask). Returns null if no active run. */
-  async fetchSessionStatus(sessionId: string): Promise<SessionStatus | null> {
+  async fetchSessionStatus(profileId: string): Promise<SessionStatus | null> {
     try {
       const res = await this.http.get<SessionStatus | null>(
         '/api/session-status',
-        { params: { sessionId } },
+        { params: { profileId } },
       );
       return res.data;
     } catch {
@@ -209,19 +228,31 @@ export class SbotClient {
   }
 
   /** Send a command (approval / ask / abort) through the persistent WS. */
-  send(sessionId: string, msg: Record<string, any>): void {
-    this.ws.send({ ...msg, sessionId });
+  send(profileId: string, msg: Record<string, any>): void {
+    this.ws.send({ ...msg, profileId });
+  }
+
+  approveToolCall(profileId: string, approvalId: string, approval: string): void {
+    this.send(profileId, { type: WsCommandType.Approval, id: approvalId, approval });
+  }
+
+  answerAsk(profileId: string, askId: string, answers: Record<string, string | string[]>): void {
+    this.send(profileId, { type: WsCommandType.Ask, id: askId, answers });
+  }
+
+  abort(profileId: string): void {
+    this.send(profileId, { type: WsCommandType.Abort });
   }
 
   /** Open a chat session that uses the persistent WS. */
   openChatSession(
     query: string,
-    sessionId: string,
+    profileId: string,
     signal: AbortSignal,
     parts?: ContentPart[],
     attachments?: Attachment[],
   ): ChatSession {
-    return new ChatSession(this, query, sessionId, signal, parts, attachments);
+    return new ChatSession(this, query, profileId, signal, parts, attachments);
   }
 
   dispose(): void {
@@ -243,23 +274,23 @@ export class ChatSession {
   private error: Error | null = null;
   private listener: WsListener;
   private readonly client: SbotClient;
-  private readonly sessionId: string;
+  private readonly profileId: string;
   readonly ready: Promise<void>;
 
   constructor(
     client: SbotClient,
     query: string,
-    sessionId: string,
+    profileId: string,
     signal: AbortSignal,
     parts?: ContentPart[],
     attachments?: Attachment[],
   ) {
     this.client = client;
-    this.sessionId = sessionId;
+    this.profileId = profileId;
 
-    // Subscribe to events from the shared WS, filtered by sessionId
+    // The server broadcasts all chat events, so each client must filter by profileId.
     this.listener = (event) => {
-      if (event.sessionId && event.sessionId !== sessionId) return;
+      if (event.profileId !== profileId) return;
       this.events.push(event);
       this.resolve?.();
     };
@@ -279,7 +310,7 @@ export class ChatSession {
         parts: parts ?? [{ type: 'text', text: query }],
       };
       if (attachments?.length) payload.attachments = attachments;
-      client.send(sessionId, payload);
+      client.send(profileId, payload);
     });
   }
 
@@ -303,24 +334,6 @@ export class ChatSession {
     } finally {
       this.cleanup();
     }
-  }
-
-  /** Send tool-call approval back to server. */
-  sendApproval(id: string, approval: string): void {
-    this.client.send(this.sessionId, {
-      type: WsCommandType.Approval,
-      id,
-      approval,
-    });
-  }
-
-  /** Send ask answers back to server. */
-  sendAsk(id: string, answers: Record<string, string | string[]>): void {
-    this.client.send(this.sessionId, {
-      type: WsCommandType.Ask,
-      id,
-      answers,
-    });
   }
 
   private cleanup(): void {

@@ -1,12 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
-import { WsCommandType, WebChatEventType } from 'sbot.commons';
+import { WebChatEventType } from 'sbot.commons';
 import type { AppStateStore } from './AppStateStore.js';
 import type { PendingAttachment } from '../ui/utils/fileAttachment.js';
 import { prepareMessage } from '../ui/utils/fileAttachment.js';
 import type { HistoryItem, PendingApproval, PendingAsk } from '../ui/types.js';
 import { StreamingState } from '../ui/types.js';
-import { findSafeSplitPoint, shouldSplit } from '../ui/utils/markdownSplit.js';
-import type { ChatSession } from '../api/sbotClient.js';
 
 function extractText(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -18,10 +16,7 @@ function extractText(content: unknown): string {
   return '';
 }
 
-let approvalResolve: (() => void) | null = null;
-let askResolve: (() => void) | null = null;
 let abortController: AbortController | null = null;
-let currentSession: ChatSession | null = null;
 let restoredFromServer = false;
 
 function commitText(store: AppStateStore, text: string): void {
@@ -31,13 +26,13 @@ function commitText(store: AppStateStore, text: string): void {
 
 export async function restoreSessionStatus(store: AppStateStore): Promise<void> {
   const { client } = store;
-  const sessionId = store.getState().sessionId;
-  if (!client || !sessionId) return;
+  const profileId = store.getState().profileId;
+  if (!client || !profileId) return;
 
-  const info = await client.fetchSessionStatus(sessionId);
+  const info = await client.fetchSessionStatus(profileId);
   if (!info) return;
 
-  if (info.status === 'waiting_approval' && info.pendingApproval) {
+  if (info.pendingApproval) {
     const pa = info.pendingApproval;
     store.appendHistory({
       type: 'toolCall',
@@ -51,7 +46,7 @@ export async function restoreSessionStatus(store: AppStateStore): Promise<void> 
       streamingState: StreamingState.Approval,
     });
     restoredFromServer = true;
-  } else if (info.status === 'waiting_ask' && info.pendingAsk) {
+  } else if (info.pendingAsk) {
     const ask = info.pendingAsk;
     store.setState({
       pendingAsk: { id: ask.id, title: ask.title, questions: ask.questions },
@@ -68,7 +63,7 @@ export async function submitQuery(
 ): Promise<void> {
   const state = store.getState();
   if (state.streamingState !== StreamingState.Idle) return;
-  if (!store.client || !state.sessionId) return;
+  if (!store.client || !state.profileId) return;
 
   const attNames = pendingAttachments?.map(a => a.name);
   const userMsg: HistoryItem = {
@@ -84,11 +79,11 @@ export async function submitQuery(
   const prepared = prepareMessage(query, pendingAttachments ?? []);
   const abort = new AbortController();
   abortController = abort;
+  restoredFromServer = false;
 
   const chat = store.client.openChatSession(
-    query, state.sessionId, abort.signal, prepared.parts, prepared.attachments,
+    query, state.profileId, abort.signal, prepared.parts, prepared.attachments,
   );
-  currentSession = chat;
 
   let accumulated = '';
 
@@ -99,53 +94,40 @@ export async function submitQuery(
 
         if (event.type === WebChatEventType.Stream) {
           accumulated = extractText(d.content);
-          if (shouldSplit(accumulated)) {
-            const splitAt = findSafeSplitPoint(accumulated);
-            if (splitAt > 0) {
-              const completed = accumulated.substring(0, splitAt);
-              accumulated = accumulated.substring(splitAt);
-              commitText(store, completed);
-            }
-          }
           store.setState({ pendingContent: accumulated });
 
         } else if (event.type === WebChatEventType.ToolCall) {
-          if (accumulated) {
-            commitText(store, accumulated);
-            accumulated = '';
-            store.setState({ pendingContent: '' });
-          }
           store.appendHistory({
             type: 'toolCall',
             id: uuidv4(),
-            toolCallId: d.id,
+            toolCallId: d.toolCallId ?? d.approvalId,
             name: d.name ?? '',
             args: d.args ?? {},
           });
-          const pending: PendingApproval = { id: d.id, name: d.name ?? '', args: d.args ?? {} };
+          const pending: PendingApproval = {
+            id: d.approvalId,
+            name: d.name ?? '',
+            args: d.args ?? {},
+          };
           store.setState({ pendingApproval: pending, streamingState: StreamingState.Approval });
-          await new Promise<void>((resolve) => { approvalResolve = resolve; });
-          approvalResolve = null;
-          store.setState({ streamingState: StreamingState.Responding });
+
+        } else if (event.type === WebChatEventType.ApprovalDone) {
+          if (store.getState().pendingApproval?.id === d.id) {
+            store.setState({ pendingApproval: null, streamingState: StreamingState.Responding });
+          }
 
         } else if (event.type === WebChatEventType.Ask) {
-          if (accumulated) {
-            commitText(store, accumulated);
-            accumulated = '';
-            store.setState({ pendingContent: '' });
-          }
           const pending: PendingAsk = { id: d.id, title: d.title, questions: d.questions ?? [] };
           store.setState({ pendingAsk: pending, streamingState: StreamingState.Asking });
-          await new Promise<void>((resolve) => { askResolve = resolve; });
-          askResolve = null;
-          store.setState({ streamingState: StreamingState.Responding });
+
+        } else if (event.type === WebChatEventType.AskDone) {
+          if (store.getState().pendingAsk?.id === d.id) {
+            store.setState({ pendingAsk: null, streamingState: StreamingState.Responding });
+          }
 
         } else if (event.type === WebChatEventType.Message) {
-          if (accumulated) {
-            commitText(store, accumulated);
-            accumulated = '';
-            store.setState({ pendingContent: '' });
-          }
+          accumulated = '';
+          store.setState({ pendingContent: '' });
           const msg = d.message;
           const content = extractText(msg?.content);
           const toolCallId = msg?.tool_call_id as string | undefined;
@@ -210,27 +192,22 @@ export async function submitQuery(
       pendingAsk: null,
     });
     abortController = null;
-    currentSession = null;
   }
 }
 
 export function resolveApproval(store: AppStateStore, approval: string): void {
   const state = store.getState();
   const pending = state.pendingApproval;
-  if (!pending || !store.client || !state.sessionId) return;
+  if (!pending || !store.client || !state.profileId) return;
 
-  store.client.send(state.sessionId, {
-    type: WsCommandType.Approval,
-    id: pending.id,
-    approval,
+  store.client.approveToolCall(state.profileId, pending.id, approval);
+
+  store.setState({
+    pendingApproval: null,
+    streamingState: restoredFromServer ? StreamingState.Idle : StreamingState.Responding,
   });
-
-  store.setState({ pendingApproval: null });
   if (restoredFromServer) {
     restoredFromServer = false;
-    store.setState({ streamingState: StreamingState.Idle });
-  } else {
-    approvalResolve?.();
   }
 }
 
@@ -240,13 +217,9 @@ export function resolveAsk(
 ): void {
   const state = store.getState();
   const pending = state.pendingAsk;
-  if (!pending || !store.client || !state.sessionId) return;
+  if (!pending || !store.client || !state.profileId) return;
 
-  store.client.send(state.sessionId, {
-    type: WsCommandType.Ask,
-    id: pending.id,
-    answers,
-  });
+  store.client.answerAsk(state.profileId, pending.id, answers);
 
   const answerDisplay: Record<string, string | string[]> = {};
   for (const [key, val] of Object.entries(answers)) {
@@ -262,17 +235,25 @@ export function resolveAsk(
     answers: answerDisplay,
   });
 
-  store.setState({ pendingAsk: null });
+  store.setState({
+    pendingAsk: null,
+    streamingState: restoredFromServer ? StreamingState.Idle : StreamingState.Responding,
+  });
   if (restoredFromServer) {
     restoredFromServer = false;
-    store.setState({ streamingState: StreamingState.Idle });
-  } else {
-    askResolve?.();
   }
 }
 
 export function cancelRequest(store: AppStateStore): void {
-  approvalResolve?.();
-  askResolve?.();
+  const { profileId } = store.getState();
+  if (store.client && profileId) store.client.abort(profileId);
   abortController?.abort();
+  abortController = null;
+  restoredFromServer = false;
+  store.setState({
+    pendingContent: '',
+    pendingApproval: null,
+    pendingAsk: null,
+    streamingState: StreamingState.Idle,
+  });
 }

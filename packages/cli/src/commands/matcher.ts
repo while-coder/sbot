@@ -3,7 +3,11 @@ import type { Command, CommandMatch } from './types.js';
 export function matchCommands(commands: Command[], input: string): CommandMatch[] {
   const trimmed = input.startsWith('/') ? input.slice(1) : input;
   const query = trimmed.split(/\s/)[0].toLowerCase();
-  if (!query) return [];
+  if (!query) {
+    return commands
+      .map(command => ({ command, score: 2, matchType: 'prefix' as const }))
+      .sort((a, b) => a.command.name.localeCompare(b.command.name));
+  }
 
   const results: CommandMatch[] = [];
 
@@ -25,5 +29,5 @@ export function matchCommands(commands: Command[], input: string): CommandMatch[
     }
   }
 
-  return results.sort((a, b) => a.score - b.score);
+  return results.sort((a, b) => a.score - b.score || a.command.name.localeCompare(b.command.name));
 }

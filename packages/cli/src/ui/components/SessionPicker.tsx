@@ -7,7 +7,7 @@ import type { SessionItem } from '../../api/sbotClient.js';
 interface SessionPickerProps {
   sessions: SessionItem[];
   agentNames: Record<string, string>;
-  onSelect: (sessionId: string, agentName: string, saverName: string) => void;
+  onSelect: (profileId: string, agentName: string, saverName: string) => void;
   onCreateNew: () => void;
 }
 

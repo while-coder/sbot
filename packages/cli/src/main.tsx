@@ -10,7 +10,12 @@ process.on('unhandledRejection', (reason) => {
 import React, { useState, useMemo, useCallback } from 'react';
 import { render, useApp, Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import { SbotClient, type SbotSettings, type SessionItem } from './api/sbotClient.js';
+import {
+  SbotClient,
+  type SbotSettings,
+  type SessionItem,
+  type ServerCommandInfo,
+} from './api/sbotClient.js';
 import { KeypressProvider } from './ui/contexts/KeypressContext.js';
 import { useKeypress, type Key } from './ui/hooks/useKeypress.js';
 import { ConnectionWizard, type ConnectionTarget } from './ui/components/ConnectionWizard.js';
@@ -21,6 +26,7 @@ import { theme } from './ui/colors.js';
 import { AppStateStore } from './store/AppStateStore.js';
 import { StoreContext } from './store/useStore.js';
 import { CommandRegistry } from './commands/registry.js';
+import type { Command } from './commands/types.js';
 import {
   createHelpCommand,
   clearCommand,
@@ -39,6 +45,19 @@ type BootState =
   | { phase: 'create'; settings: SbotSettings }
   | { phase: 'chat' }
   | { phase: 'error'; message: string };
+
+function toPromptCommand(command: ServerCommandInfo): Command {
+  const usage = command.args
+    ?.map(arg => arg.required ? `<${arg.name}>` : `[${arg.name}]`)
+    .join(' ');
+  return {
+    name: command.name,
+    description: command.description,
+    usage,
+    type: 'prompt',
+    handler() {},
+  };
+}
 
 interface BootProps {
   baseUrl: string;
@@ -80,6 +99,9 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
         return;
       }
 
+      const serverCommands = await client.fetchCommands().catch(() => []);
+      globalRegistry.replacePromptCommands(serverCommands.map(toPromptCommand));
+
       let sessions: SessionItem[];
       try {
         sessions = await client.fetchSessions(workPath);
@@ -92,8 +114,8 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSessionSelect = (sessionId: string, agentName: string, saverName: string) => {
-    globalStore.setState({ sessionId, agentName, saverName });
+  const handleSessionSelect = (profileId: string, agentName: string, saverName: string) => {
+    globalStore.setState({ profileId, agentName, saverName });
     setState({ phase: 'chat' });
   };
 
@@ -111,8 +133,8 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
     saverName: string,
   ) => {
     try {
-      const sessionId = await client.createSession(agentId, saverId, noteIds, workPath);
-      globalStore.setState({ sessionId, agentName, saverName });
+      const profileId = await client.createSession(agentId, saverId, noteIds, workPath);
+      globalStore.setState({ profileId, agentName, saverName });
       setState({ phase: 'chat' });
     } catch (e: any) {
       setState({ phase: 'error', message: `Failed to create session: ${e.message}` });

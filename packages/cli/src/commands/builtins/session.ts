@@ -8,7 +8,7 @@ export const sessionCommand: Command = {
   handler({ store }) {
     const state = store.getState();
     const lines = [
-      `**Session:** ${state.sessionId ?? 'none'}`,
+      `**Profile:** ${state.profileId ?? 'none'}`,
       `**Agent:** ${state.agentName || 'unknown'}`,
       `**Saver:** ${state.saverName || 'unknown'}`,
       `**Connection:** ${state.connection?.baseUrl ?? 'none'}`,

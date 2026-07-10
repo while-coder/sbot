@@ -12,7 +12,8 @@ export function createHelpCommand(registry: CommandRegistry): Command {
       const commands = registry.getAll();
       const lines = commands.map(c => {
         const aliases = c.aliases?.length ? ` (${c.aliases.join(', ')})` : '';
-        return `  /${c.name}${aliases} — ${c.description}`;
+        const usage = c.usage ? ` ${c.usage}` : '';
+        return `  /${c.name}${usage}${aliases} — ${c.description}`;
       });
       store.appendHistory({
         type: 'assistant',

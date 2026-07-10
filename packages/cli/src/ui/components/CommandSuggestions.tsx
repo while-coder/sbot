@@ -20,10 +20,11 @@ export const CommandSuggestions: React.FC<CommandSuggestionsProps> = ({
       {visible.map((m, i) => {
         const focused = i === selectedIndex;
         const aliases = m.command.aliases?.length ? ` (${m.command.aliases.join(', ')})` : '';
+        const usage = m.command.usage ? ` ${m.command.usage}` : '';
         return (
           <Box key={m.command.name}>
             <Text color={focused ? theme.text.accent : theme.text.primary} bold={focused}>
-              {focused ? '> ' : '  '}/{m.command.name}{aliases}
+              {focused ? '> ' : '  '}/{m.command.name}{usage}{aliases}
             </Text>
             <Text color={theme.text.muted}>  {m.command.description}</Text>
           </Box>

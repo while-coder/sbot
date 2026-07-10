@@ -59,12 +59,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
   );
 
   const handleCancel = useCallback(() => {
-    if (streamingState === StreamingState.Responding) {
+    if (!isIdle) {
       cancelRequest(store);
     } else {
       onExit();
     }
-  }, [store, streamingState, onExit]);
+  }, [store, isIdle, onExit]);
 
   const handleGlobalKey = useCallback(
     (key: Key) => {
@@ -78,14 +78,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
         setRemountKey(k => k + 1);
       }
       if (key.ctrl && key.name === 'c') {
-        if (streamingState === StreamingState.Responding) {
+        if (!isIdle) {
           cancelRequest(store);
-        } else if (isIdle) {
+        } else {
           onExit();
         }
       }
     },
-    [store, streamingState, isIdle, onExit],
+    [store, isIdle, onExit],
   );
 
   useKeypress(handleGlobalKey, { isActive: true });
