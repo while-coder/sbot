@@ -5,6 +5,7 @@ import { StreamingState } from '../ui/types.js';
 export interface AppState {
   connection: { baseUrl: string; workPath: string } | null;
   profileId: string | null;
+  sessionName: string;
   agentName: string;
   saverName: string;
 
@@ -23,6 +24,7 @@ export interface AppState {
 const INITIAL_STATE: AppState = {
   connection: null,
   profileId: null,
+  sessionName: '',
   agentName: '',
   saverName: '',
   history: [],

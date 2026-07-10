@@ -25,7 +25,7 @@ export function matchCommands(commands: Command[], input: string): CommandMatch[
       continue;
     }
     if (cmd.aliases?.some(a => a.startsWith(query))) {
-      results.push({ command: cmd, score: 3, matchType: 'alias' });
+      results.push({ command: cmd, score: 3, matchType: 'aliasPrefix' });
     }
   }
 

@@ -33,18 +33,22 @@ export class CommandRegistry {
     return matchCommands(this.getAll(), input);
   }
 
+  resolve(input: string): Command | undefined {
+    return this.match(input).find(
+      match => match.matchType === 'exact' || match.matchType === 'alias',
+    )?.command;
+  }
+
   async execute(input: string, store: AppStateStore): Promise<boolean> {
     const trimmed = input.startsWith('/') ? input.slice(1) : input;
     const parts = trimmed.split(/\s+/);
     const args = parts.slice(1).join(' ');
 
-    const matches = this.match(input);
-    const exact = matches.find(m => m.matchType === 'exact' || m.matchType === 'alias');
-    if (!exact) return false;
-    if (exact.command.type === 'prompt') return false;
+    const command = this.resolve(input);
+    if (!command || command.type === 'prompt') return false;
 
     const ctx: CommandContext = { store, args, rawInput: input };
-    await exact.command.handler(ctx);
+    await command.handler(ctx);
     return true;
   }
 }

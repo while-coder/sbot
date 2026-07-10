@@ -7,13 +7,20 @@ import type { SessionItem } from '../../api/sbotClient.js';
 interface SessionPickerProps {
   sessions: SessionItem[];
   agentNames: Record<string, string>;
-  onSelect: (profileId: string, agentName: string, saverName: string) => void;
+  saverNames: Record<string, string>;
+  onSelect: (
+    profileId: string,
+    sessionName: string,
+    agentName: string,
+    saverName: string,
+  ) => void;
   onCreateNew: () => void;
 }
 
 export const SessionPicker: React.FC<SessionPickerProps> = ({
   sessions,
   agentNames,
+  saverNames,
   onSelect,
   onCreateNew,
 }) => {
@@ -29,13 +36,26 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
       } else if (key.name === 'return') {
         if (selectedIndex < sessions.length) {
           const s = sessions[selectedIndex]!;
-          onSelect(s.id, agentNames[s.agent] ?? s.agent, s.name ?? s.id);
+          onSelect(
+            s.id,
+            s.name ?? s.id,
+            agentNames[s.agent] ?? s.agent,
+            saverNames[s.saver] ?? s.saver,
+          );
         } else {
           onCreateNew();
         }
       }
     },
-    [selectedIndex, sessions, totalItems, agentNames, onSelect, onCreateNew],
+    [
+      selectedIndex,
+      sessions,
+      totalItems,
+      agentNames,
+      saverNames,
+      onSelect,
+      onCreateNew,
+    ],
   );
 
   useKeypress(handleKeypress, { isActive: true });
@@ -52,7 +72,9 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
           >
             {i === selectedIndex ? '▶ ' : '  '}
             {s.name ?? s.id}
-            <Text color={theme.text.muted}> ({agentNames[s.agent] ?? s.agent})</Text>
+            <Text color={theme.text.muted}>
+              {' '}({(agentNames[s.agent] ?? s.agent) || '未设置'} · {(saverNames[s.saver] ?? s.saver) || '未设置'})
+            </Text>
           </Text>
         ))}
         <Text

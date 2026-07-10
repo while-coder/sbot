@@ -3,6 +3,8 @@ import { Box, Text } from 'ink';
 import { theme } from '../colors.js';
 import type { CommandMatch } from '../../commands/types.js';
 
+const MAX_VISIBLE_COMMANDS = 5;
+
 interface CommandSuggestionsProps {
   matches: CommandMatch[];
   selectedIndex: number;
@@ -13,13 +15,19 @@ export const CommandSuggestions: React.FC<CommandSuggestionsProps> = ({
   selectedIndex,
 }) => {
   if (matches.length === 0) return null;
-  const visible = matches.slice(0, 5);
+  const startIndex = Math.min(
+    Math.max(0, selectedIndex - MAX_VISIBLE_COMMANDS + 1),
+    Math.max(0, matches.length - MAX_VISIBLE_COMMANDS),
+  );
+  const visible = matches.slice(startIndex, startIndex + MAX_VISIBLE_COMMANDS);
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor={theme.text.muted} paddingX={1}>
       {visible.map((m, i) => {
-        const focused = i === selectedIndex;
-        const aliases = m.command.aliases?.length ? ` (${m.command.aliases.join(', ')})` : '';
+        const focused = startIndex + i === selectedIndex;
+        const aliases = m.command.aliases?.length
+          ? ` (${m.command.aliases.map(alias => `/${alias}`).join(', ')})`
+          : '';
         const usage = m.command.usage ? ` ${m.command.usage}` : '';
         return (
           <Box key={m.command.name}>
@@ -30,6 +38,12 @@ export const CommandSuggestions: React.FC<CommandSuggestionsProps> = ({
           </Box>
         );
       })}
+      <Text color={theme.text.muted}>
+        {matches.length > MAX_VISIBLE_COMMANDS
+          ? `${selectedIndex + 1}/${matches.length}  `
+          : ''}
+        ↑↓ 选择 · Tab 补全 · Enter 选择/执行 · Esc 关闭
+      </Text>
     </Box>
   );
 };

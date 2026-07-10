@@ -19,6 +19,7 @@ interface InputPromptProps {
   isActive: boolean;
   onSubmit: (text: string, attachments: PendingAttachment[]) => void;
   onCancel: () => void;
+  onToggleToolCalls: () => void;
   commandRegistry?: CommandRegistry;
   placeholder?: string;
 }
@@ -27,6 +28,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   isActive,
   onSubmit,
   onCancel,
+  onToggleToolCalls,
   commandRegistry,
   placeholder = 'Type your message... (Shift+Enter for newline, / for commands)',
 }) => {
@@ -58,7 +60,13 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   useEffect(() => { suggestionIndexRef.current = suggestionIndex; }, [suggestionIndex]);
 
   useEffect(() => {
-    if (commandRegistry && input.startsWith('/') && !attachMode) {
+    const isEnteringCommandName = !/\s/.test(input.slice(1));
+    if (
+      commandRegistry &&
+      input.startsWith('/') &&
+      isEnteringCommandName &&
+      !attachMode
+    ) {
       const matches = commandRegistry.match(input);
       setCommandMatches(matches);
       setSuggestionIndex(0);
@@ -112,20 +120,34 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
       if (inputRef.current.startsWith('/') && commandMatchesRef.current.length > 0) {
         if (key.name === 'up') {
-          setSuggestionIndex(i => (i > 0 ? i - 1 : Math.min(commandMatchesRef.current.length, 5) - 1));
+          setSuggestionIndex(i =>
+            i > 0 ? i - 1 : commandMatchesRef.current.length - 1,
+          );
           return;
         }
         if (key.name === 'down') {
-          setSuggestionIndex(i => (i < Math.min(commandMatchesRef.current.length, 5) - 1 ? i + 1 : 0));
+          setSuggestionIndex(i =>
+            i < commandMatchesRef.current.length - 1 ? i + 1 : 0,
+          );
           return;
         }
-        if (key.name === 'tab') {
+        if (key.name === 'tab' || (key.name === 'return' && !key.shift)) {
           const match = commandMatchesRef.current[suggestionIndexRef.current];
           if (match) {
-            setInput('/' + match.command.name + ' ');
+            const query = inputRef.current.slice(1).toLowerCase();
+            const isExact = match.command.name === query ||
+              match.command.aliases?.includes(query);
+            if (key.name === 'tab' || !isExact) {
+              setInput('/' + match.command.name + ' ');
+              return;
+            }
           }
-          return;
         }
+      }
+
+      if (key.name === 'tab') {
+        onToggleToolCalls();
+        return;
       }
 
       if (key.ctrl && key.name === 'c') {
@@ -195,6 +217,14 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           }
         }
 
+        if (
+          trimmed.startsWith('/') &&
+          commandRegistry &&
+          !commandRegistry.resolve(trimmed)
+        ) {
+          return;
+        }
+
         if (trimmed || atts.length > 0) {
           if (trimmed) {
             setInputHistory(prev => [...prev, trimmed]);
@@ -261,10 +291,17 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         setInput(prev => prev + key.sequence);
       }
     },
-    [onSubmit, onCancel],
+    [onSubmit, onCancel, onToggleToolCalls, commandRegistry],
   );
 
   useKeypress(handleKeypress, { isActive });
+
+  const unknownCommand =
+    input.startsWith('/') &&
+    input.length > 1 &&
+    commandMatches.length === 0 &&
+    commandRegistry !== undefined &&
+    commandRegistry.resolve(input) === undefined;
 
   return (
     <Box flexDirection="column" marginTop={1}>
@@ -295,10 +332,17 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         ) : input.length === 0 && attachments.length === 0 ? (
           <Text color={theme.text.muted}>{placeholder}</Text>
         ) : (
-          <Text color={input.startsWith('/') ? theme.status.info : theme.text.primary}>
-            {input}
-            {isActive && <Text color={theme.text.accent}>▊</Text>}
-          </Text>
+          <Box flexDirection="column">
+            <Text color={input.startsWith('/') ? theme.status.info : theme.text.primary}>
+              {input}
+              {isActive && <Text color={theme.text.accent}>▊</Text>}
+            </Text>
+            {unknownCommand && (
+              <Text color={theme.status.error}>
+                未知命令，按 Esc 清除或输入 / 查看可用命令
+              </Text>
+            )}
+          </Box>
         )}
       </Box>
     </Box>

@@ -18,5 +18,5 @@ export interface CommandContext {
 export interface CommandMatch {
   command: Command;
   score: number;
-  matchType: 'exact' | 'prefix' | 'alias';
+  matchType: 'exact' | 'prefix' | 'alias' | 'aliasPrefix';
 }

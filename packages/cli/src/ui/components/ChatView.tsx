@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Box, Static, Text } from 'ink';
+import { Box, Static, Text, useWindowSize } from 'ink';
 import ansiEscapes from 'ansi-escapes';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
 import { useStore } from '../../store/useStore.js';
@@ -19,7 +19,6 @@ import { HistoryItem } from './HistoryItem.js';
 import { PendingZone } from './PendingZone.js';
 import { InputPrompt, type PendingAttachment } from './InputPrompt.js';
 import { ErrorBoundary } from './ErrorBoundary.js';
-import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useResizeSettleRepaint } from '../hooks/useResizeSettleRepaint.js';
 
 interface ChatViewProps {
@@ -38,13 +37,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const streamingState = useStore(s => s.streamingState);
   const pendingApproval = useStore(s => s.pendingApproval);
   const pendingAsk = useStore(s => s.pendingAsk);
+  const sessionName = useStore(s => s.sessionName);
   const agentName = useStore(s => s.agentName);
   const saverName = useStore(s => s.saverName);
   const toolCallsExpanded = useStore(s => s.toolCallsExpanded);
 
   const isIdle = streamingState === StreamingState.Idle;
   const [remountKey, setRemountKey] = useState(0);
-  const { columns: terminalWidth } = useTerminalSize();
+  const { columns: terminalWidth } = useWindowSize();
 
   const repaintStatic = useCallback(() => {
     process.stdout.write(ansiEscapes.clearTerminal);
@@ -77,12 +77,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   }, [store, isIdle, onExit]);
 
+  const handleToggleToolCalls = useCallback(() => {
+    repaintStatic();
+    store.setState({
+      toolCallsExpanded: !store.getState().toolCallsExpanded,
+    });
+  }, [store, repaintStatic]);
+
   const handleGlobalKey = useCallback(
     (key: Key) => {
-      if (key.name === 'tab') {
-        repaintStatic();
-        store.setState({ toolCallsExpanded: !store.getState().toolCallsExpanded });
-      }
       if (key.ctrl && key.name === 'l') {
         repaintStatic();
       }
@@ -100,11 +103,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
   useKeypress(handleGlobalKey, { isActive: true });
 
   const staticItems = useMemo(() => [
-    <Header key="header" agentName={agentName} saverName={saverName} />,
+    <Header
+      key="header"
+      sessionName={sessionName}
+      agentName={agentName}
+      saverName={saverName}
+    />,
     ...history.map((item) => (
       <HistoryItem key={item.id} item={item} toolCallsExpanded={toolCallsExpanded} />
     )),
-  ], [history, toolCallsExpanded, agentName, saverName]);
+  ], [history, toolCallsExpanded, sessionName, agentName, saverName]);
 
   return (
     <ErrorBoundary>
@@ -127,6 +135,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             isActive={isIdle}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
+            onToggleToolCalls={handleToggleToolCalls}
             commandRegistry={registry}
           />
         )}

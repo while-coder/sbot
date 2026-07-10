@@ -33,7 +33,6 @@ import {
   sessionCommand,
   createExitCommand,
   compactCommand,
-  approveAllCommand,
 } from './commands/builtins/index.js';
 
 const globalStore = new AppStateStore();
@@ -81,7 +80,6 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
     globalRegistry.register(sessionCommand);
     globalRegistry.register(createExitCommand(exit));
     globalRegistry.register(compactCommand);
-    globalRegistry.register(approveAllCommand);
   }, [exit]);
 
   React.useEffect(() => {
@@ -114,8 +112,13 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSessionSelect = (profileId: string, agentName: string, saverName: string) => {
-    globalStore.setState({ profileId, agentName, saverName });
+  const handleSessionSelect = (
+    profileId: string,
+    sessionName: string,
+    agentName: string,
+    saverName: string,
+  ) => {
+    globalStore.setState({ profileId, sessionName, agentName, saverName });
     setState({ phase: 'chat' });
   };
 
@@ -134,7 +137,8 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
   ) => {
     try {
       const profileId = await client.createSession(agentId, saverId, noteIds, workPath);
-      globalStore.setState({ profileId, agentName, saverName });
+      const sessionName = workPath.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || workPath;
+      globalStore.setState({ profileId, sessionName, agentName, saverName });
       setState({ phase: 'chat' });
     } catch (e: any) {
       setState({ phase: 'error', message: `Failed to create session: ${e.message}` });
@@ -159,10 +163,15 @@ function Boot({ baseUrl, workPath, onBack }: BootProps) {
     for (const [id, a] of Object.entries(state.settings.agents ?? {})) {
       agentNames[id] = a.name ?? id;
     }
+    const saverNames: Record<string, string> = {};
+    for (const [id, saver] of Object.entries(state.settings.savers ?? {})) {
+      saverNames[id] = saver.name ?? id;
+    }
     return (
       <SessionPicker
         sessions={state.sessions}
         agentNames={agentNames}
+        saverNames={saverNames}
         onSelect={handleSessionSelect}
         onCreateNew={handleCreateNew}
       />
@@ -215,7 +224,10 @@ const { waitUntilExit } = render(
       <App />
     </KeypressProvider>
   </StoreContext.Provider>,
-  { exitOnCtrlC: false },
+  {
+    exitOnCtrlC: false,
+    kittyKeyboard: { mode: 'enabled' },
+  },
 );
 
 waitUntilExit().then(() => process.exit(0)).catch((err) => {

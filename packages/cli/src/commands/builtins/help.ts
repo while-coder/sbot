@@ -9,16 +9,21 @@ export function createHelpCommand(registry: CommandRegistry): Command {
     aliases: ['h', '?'],
     type: 'local',
     handler({ store }) {
-      const commands = registry.getAll();
+      const commands = registry.getAll().sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
       const lines = commands.map(c => {
-        const aliases = c.aliases?.length ? ` (${c.aliases.join(', ')})` : '';
+        const aliases = c.aliases?.length
+          ? ` (${c.aliases.map(alias => `\`/${alias}\``).join(', ')})`
+          : '';
         const usage = c.usage ? ` ${c.usage}` : '';
-        return `  /${c.name}${usage}${aliases} — ${c.description}`;
+        return `- \`/${c.name}${usage}\`${aliases} — ${c.description}`;
       });
       store.appendHistory({
         type: 'assistant',
         id: uuidv4(),
-        content: '**Available commands:**\n' + lines.join('\n'),
+        content: '## 可用命令\n\n' + lines.join('\n') +
+          '\n\n输入 `/` 可浏览命令，使用 ↑↓ 选择、Tab 补全。',
       });
     },
   };

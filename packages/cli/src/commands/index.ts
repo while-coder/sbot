@@ -7,5 +7,4 @@ export {
   sessionCommand,
   createExitCommand,
   compactCommand,
-  approveAllCommand,
 } from './builtins/index.js';

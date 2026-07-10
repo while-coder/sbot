@@ -1,12 +1,10 @@
-import { useStdin } from 'ink';
+import { useInput, type Key as InkKey } from 'ink';
 import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useRef,
 } from 'react';
-import readline from 'node:readline';
 
 export interface Key {
   name: string;
@@ -25,6 +23,23 @@ interface KeypressContextValue {
 
 const KeypressContext = createContext<KeypressContextValue | undefined>(undefined);
 
+function getKeyName(input: string, key: InkKey): string {
+  if (input === '\\\r' || input === '\\\r\n') return 'return';
+  if (key.return) return 'return';
+  if (key.escape) return 'escape';
+  if (key.upArrow) return 'up';
+  if (key.downArrow) return 'down';
+  if (key.leftArrow) return 'left';
+  if (key.rightArrow) return 'right';
+  if (key.tab) return 'tab';
+  if (key.backspace) return 'backspace';
+  if (key.delete) return 'delete';
+  if (key.home) return 'home';
+  if (key.end) return 'end';
+  if (input === ' ') return 'space';
+  return input.length === 1 ? input.toLowerCase() : 'undefined';
+}
+
 export function useKeypressContext(): KeypressContextValue {
   const context = useContext(KeypressContext);
   if (!context) {
@@ -34,7 +49,6 @@ export function useKeypressContext(): KeypressContextValue {
 }
 
 export function KeypressProvider({ children }: { children?: React.ReactNode }) {
-  const { stdin, setRawMode } = useStdin();
   const subscribers = useRef<Set<KeypressHandler>>(new Set()).current;
 
   const subscribe = useCallback(
@@ -47,26 +61,18 @@ export function KeypressProvider({ children }: { children?: React.ReactNode }) {
     [subscribers],
   );
 
-  useEffect(() => {
-    if (!stdin.isTTY) return;
-    const wasRaw = stdin.isRaw;
-    if (!wasRaw) setRawMode(true);
-
-    const handleKeypress = (_: unknown, key: Key) => {
-      if (!key) return;
-      for (const handler of subscribers) handler(key);
+  useInput((input, key) => {
+    if (key.eventType === 'release') return;
+    const isSoftReturn = input === '\\\r' || input === '\\\r\n';
+    const normalized: Key = {
+      name: getKeyName(input, key),
+      ctrl: key.ctrl,
+      meta: key.meta,
+      shift: key.shift || isSoftReturn,
+      sequence: isSoftReturn ? '\r' : input,
     };
-
-    const rl = readline.createInterface({ input: stdin, escapeCodeTimeout: 50 });
-    readline.emitKeypressEvents(stdin, rl);
-    stdin.on('keypress', handleKeypress);
-
-    return () => {
-      stdin.removeListener('keypress', handleKeypress);
-      rl.close();
-      if (!wasRaw) setRawMode(false);
-    };
-  }, [stdin, setRawMode, subscribers]);
+    for (const handler of subscribers) handler(normalized);
+  });
 
   return (
     <KeypressContext.Provider value={{ subscribe, unsubscribe }}>
