@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "sbot",
+  "productName": "SBot",
   "version": "../package.json",
   "identifier": "com.sbot.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "sbot",
+        "title": "SBot",
         "width": 480,
         "height": 720,
         "minWidth": 360,

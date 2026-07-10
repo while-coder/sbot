@@ -48,6 +48,7 @@ jobs:
       tag-name: ${{ needs.check.outputs.tag }}
       release-name: app v${{ needs.check.outputs.version }}
       release-body: ${{ needs.check.outputs.notes }}
+      asset-prefix: sbot-client
     secrets: inherit
 
   release-android:
@@ -61,7 +62,7 @@ jobs:
       cache-key-prefix: android-cargo-app
       tag-name: ${{ needs.check.outputs.tag }}
       version: ${{ needs.check.outputs.version }}
-      asset-prefix: sbot
+      asset-prefix: sbot-client
       build-command: pnpm android:build --apk --aab
     secrets: inherit
 
@@ -76,7 +77,7 @@ jobs:
       cache-key-prefix: ios-cargo-app
       tag-name: ${{ needs.check.outputs.tag }}
       version: ${{ needs.check.outputs.version }}
-      asset-prefix: sbot
+      asset-prefix: sbot-client
       init-command: pnpm ios:init
       build-command: pnpm ios:build --target aarch64 --no-sign --ci
     secrets: inherit
@@ -130,7 +131,7 @@ jobs:
     if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
     uses: while-coder/workflows/.github/workflows/tauri-updater-manifest.yml@main
     with:
-      product-prefix: sbot
+      product-prefix: sbot-client
       tag-name: ${{ needs.check.outputs.tag }}
       version: ${{ needs.check.outputs.version }}
       release-notes: ${{ needs.check.outputs.notes }}
