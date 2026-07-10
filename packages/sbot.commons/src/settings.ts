@@ -333,6 +333,8 @@ export interface Settings {
   autoApproveAllTools?: boolean
   /** 启动后立即执行的命令行列表，依次同步执行 */
   startupCommands?: string[]
+  /** 是否自动检查新版本，默认 true */
+  autoCheckUpdate?: boolean
   /** 下次检查更新的时间戳（ms），0 或 undefined 表示立即检查 */
   checkUpdateTime?: number
   /** 图片最大尺寸（px），max(width,height) 超过此值时按比例缩小；不设置则不压缩 */

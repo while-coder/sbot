@@ -19,7 +19,7 @@ export class SettingsRoutes {
         app.get('/api/settings', api(() => ctx.settingsWithAgents()));
 
         app.put('/api/settings/general', api(req => {
-            const { httpPort, httpUrl, maxImageSize, autoApproveTools, autoApproveAllTools, startupCommands, contextFileNames } = req.body;
+            const { httpPort, httpUrl, maxImageSize, autoApproveTools, autoApproveAllTools, startupCommands, autoCheckUpdate, contextFileNames } = req.body;
             if (httpPort !== undefined) config.settings.httpPort = httpPort || undefined;
             if (httpUrl !== undefined) config.settings.httpUrl = httpUrl || undefined;
             if (maxImageSize !== undefined) {
@@ -29,6 +29,7 @@ export class SettingsRoutes {
             if (autoApproveTools !== undefined) config.settings.autoApproveTools = autoApproveTools;
             if (autoApproveAllTools !== undefined) config.settings.autoApproveAllTools = autoApproveAllTools;
             if (startupCommands !== undefined) config.settings.startupCommands = startupCommands;
+            if (autoCheckUpdate !== undefined) config.settings.autoCheckUpdate = autoCheckUpdate;
             if (contextFileNames !== undefined) {
                 if (!Array.isArray(contextFileNames)) throwBad('contextFileNames must be an array');
                 const cleaned = (contextFileNames as unknown[])

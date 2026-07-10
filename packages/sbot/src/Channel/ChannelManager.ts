@@ -54,7 +54,7 @@ async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Prom
         ].join('\n');
         await sendMessage(message);
         const next = new Date();
-        next.setDate(next.getDate() + 5);
+        next.setDate(next.getDate() + 3);
         next.setHours(0, 0, 0, 0);
         config.setCheckUpdateTime(next.getTime());
     }
@@ -96,7 +96,7 @@ async function doInitSession(channelId: string, ctx: import("channel.base").Init
         metadata,
     });
 
-    if (sendUpdate) checkForUpdate(sendUpdate).catch(() => {});
+    if (sendUpdate && config.settings.autoCheckUpdate !== false) checkForUpdate(sendUpdate).catch(() => {});
     return { dbUserId: dbUser.id, dbSessionId: dbSession.id };
 }
 

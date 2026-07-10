@@ -15,6 +15,7 @@ const maxImageSize = ref<number | ''>('')
 const autoApproveAllTools = ref(false)
 const autoApproveToolsText = ref('')
 const startupCommands = ref<string[]>([])
+const autoCheckUpdate = ref(true)
 const contextFileNames = ref<string[]>([])
 
 watch(() => store.settings, (s) => {
@@ -24,6 +25,7 @@ watch(() => store.settings, (s) => {
   autoApproveAllTools.value = s.autoApproveAllTools ?? false
   autoApproveToolsText.value = (s.autoApproveTools ?? []).join(', ')
   startupCommands.value = [...(s.startupCommands ?? [])]
+  autoCheckUpdate.value = s.autoCheckUpdate !== false
   contextFileNames.value = [...(s.contextFileNames ?? [])]
 }, { immediate: true, deep: true })
 
@@ -94,6 +96,7 @@ async function save() {
       autoApproveAllTools: autoApproveAllTools.value,
       autoApproveTools: tools,
       startupCommands: cmds,
+      autoCheckUpdate: autoCheckUpdate.value,
       contextFileNames: ctxNames,
     })
     Object.assign(store.settings, res.data)
@@ -238,6 +241,12 @@ function fmtItem(category: string, item: any): string {
             <SInput v-model.number="maxImageSize" type="number" placeholder="1024" min="0" />
           </SFormItem>
         </div>
+      </SCard>
+      <SCard :title="t('settings.version_updates')">
+        <SCheckCard v-model="autoCheckUpdate">
+          {{ t('settings.auto_check_update') }}
+        </SCheckCard>
+        <div class="form-hint" style="margin-top:6px">{{ t('settings.auto_check_update_hint') }}</div>
       </SCard>
       <SCard :title="t('settings.context_discovery')">
         <div class="form-hint">{{ t('settings.context_discovery_hint') }}</div>
