@@ -1,4 +1,4 @@
-// 计算某个资源（事项/记忆档案、笔记库、知识库、存储）被频道 / 会话档案 / 智能体引用的情况，
+// 计算配置资源被频道、会话档案、会话及其他配置资源引用的情况，
 // 供各资源页复刻 AgentsView 的「被引用情况」展示（见 ResourceRefs.vue）。
 import { ref } from 'vue'
 import { apiFetch } from '@/shared/api'
@@ -10,6 +10,7 @@ interface ProfileLite {
   name: string
   agentId: string | null
   saver: string | null
+  intentModel: string | null
   notes: string | null   // JSON 字符串
   wikis: string | null   // JSON 字符串
   memory: string | null
@@ -31,6 +32,7 @@ interface SessionLite {
   autoSessionName: string
   agentId: string | null
   saver: string | null
+  intentModel: string | null
   notes: string[] | null
   wikis: string[] | null
   memory: string | null
@@ -40,12 +42,16 @@ interface SessionLite {
 /** 单个引用方。 */
 export interface RefItem { id: string | number; name: string; sessionCount?: number }
 
-/** 某资源的全部引用方，分频道 / 会话档案 / 会话 / 智能体四类。 */
+/** 某资源的全部引用方，按引用方类型分类。 */
 export interface ResourceRefsValue {
   channels: RefItem[]
   profiles: RefItem[]
   sessions: RefItem[]
   agents: RefItem[]
+  memoryProfiles: RefItem[]
+  agendaProfiles: RefItem[]
+  notes: RefItem[]
+  wikis: RefItem[]
   total: number
 }
 
@@ -59,6 +65,10 @@ export interface RefMatchers {
   profile: (p: ProfileLite, id: string) => boolean
   session?: (s: SessionLite, id: string) => boolean
   agent?: (a: any, id: string) => boolean
+  memoryProfile?: (p: any, id: string) => boolean
+  agendaProfile?: (p: any, id: string) => boolean
+  note?: (n: any, id: string) => boolean
+  wiki?: (w: any, id: string) => boolean
 }
 
 /** 会话档案的 notes/wikis 是 JSON 字符串，解析为 string[]（同 SessionProfilesView 的 parseList）。 */
@@ -105,9 +115,30 @@ export function useResourceRefs() {
             .filter(([, a]) => matchers.agent!(a as any, id))
             .map(([aid, a]) => ({ id: aid, name: (a as any).name || aid }))
         : []
+      const memoryProfiles = matchers.memoryProfile
+        ? Object.entries(store.settings.memoryProfiles || {})
+            .filter(([, p]) => matchers.memoryProfile!(p as any, id))
+            .map(([pid, p]) => ({ id: pid, name: (p as any).name || pid }))
+        : []
+      const agendaProfiles = matchers.agendaProfile
+        ? Object.entries(store.settings.agendaProfiles || {})
+            .filter(([, p]) => matchers.agendaProfile!(p as any, id))
+            .map(([pid, p]) => ({ id: pid, name: (p as any).name || pid }))
+        : []
+      const notes = matchers.note
+        ? Object.entries(store.settings.notes || {})
+            .filter(([, n]) => matchers.note!(n as any, id))
+            .map(([nid, n]) => ({ id: nid, name: (n as any).name || nid }))
+        : []
+      const wikis = matchers.wiki
+        ? Object.entries(store.settings.wikis || {})
+            .filter(([, w]) => matchers.wiki!(w as any, id))
+            .map(([wid, w]) => ({ id: wid, name: (w as any).name || wid }))
+        : []
       return {
-        channels, profiles, sessions, agents,
-        total: channels.length + profiles.length + sessions.length + agents.length,
+        channels, profiles, sessions, agents, memoryProfiles, agendaProfiles, notes, wikis,
+        total: channels.length + profiles.length + sessions.length + agents.length
+          + memoryProfiles.length + agendaProfiles.length + notes.length + wikis.length,
       }
     }
   }

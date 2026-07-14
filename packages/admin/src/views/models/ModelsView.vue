@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
@@ -7,6 +7,8 @@ import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPag
 import type { STableColumn } from 'sbot-ui'
 import { ModelProvider } from '@/shared/types'
 import type { ModelConfig } from '@/shared/types'
+import ResourceRefs from '@/components/ResourceRefs.vue'
+import { useResourceRefs } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -23,6 +25,18 @@ const modelColumns = computed<STableColumn[]>(() => [
   { key: 'model',    label: t('models.model') },
   { key: 'ops',      label: t('common.ops'), ops: true },
 ])
+
+const { loadProfiles, makeResourceRefs } = useResourceRefs()
+const refs = makeResourceRefs({
+  channel: (c, id) => c.intentModel === id,
+  profile: (p, id) => p.intentModel === id,
+  session: (s, id) => s.intentModel === id,
+  agent: (a, id) => a.model === id || a.compactModel === id,
+  memoryProfile: (p, id) => p.writerModel === id,
+  agendaProfile: (p, id) => p.syncModel === id,
+})
+const expandedIds = ref<string[]>([])
+onMounted(loadProfiles)
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
@@ -168,6 +182,7 @@ async function refresh() {
   try {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
+    await loadProfiles()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -181,11 +196,26 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('models.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable :columns="modelColumns" :rows="modelRows" row-key="id" :empty-text="t('models.empty')">
-        <template #name="{ row }">{{ row.name || row.id }}</template>
+      <STable
+        :columns="modelColumns"
+        :rows="modelRows"
+        row-key="id"
+        expandable
+        v-model:expandedKeys="expandedIds"
+        :empty-text="t('models.empty')"
+      >
+        <template #name="{ row }">
+          {{ row.name || row.id }}
+          <ResourceRefs mode="badge" :refs="refs(row.id)" />
+        </template>
         <template #ops="{ row }">
           <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+        </template>
+        <template #_expanded="{ row }">
+          <div class="refs-expanded">
+            <ResourceRefs mode="card" :refs="refs(row.id)" />
+          </div>
         </template>
       </STable>
     </SPageContent>
@@ -273,6 +303,10 @@ async function refresh() {
 </template>
 
 <style scoped>
+.refs-expanded {
+  padding: var(--sui-sp-4) var(--sui-sp-6);
+  background: var(--sui-bg-subtle);
+}
 .apikey-field, .model-field {
   display: flex;
   gap: var(--sui-sp-2);
