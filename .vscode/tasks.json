@@ -2,6 +2,45 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "admin:kill",
+      "type": "shell",
+      "command": "npx kill-port 5173",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "admin:dev",
+      "type": "shell",
+      "isBackground": true,
+      "command": "pnpm",
+      "args": [
+        "--filter",
+        "sbot-admin",
+        "run",
+        "debug",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": ""
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "(ready in|Local:).*"
+        }
+      }
+    },
+    {
       "label": "debug:cli",
       "type": "shell",
       "command": "pnpm run debug:cli",
@@ -46,7 +85,7 @@
     },
     {
       "label": "launch:sbot",
-      "dependsOn": ["debug:sbot"],
+      "dependsOn": ["admin:kill", "debug:sbot", "admin:dev"],
       "dependsOrder": "sequence"
     }
   ]
