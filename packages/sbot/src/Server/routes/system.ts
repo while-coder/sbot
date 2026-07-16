@@ -14,6 +14,43 @@ import type { RouteContext } from './types';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
+// 解析 usage 查询的时间参数：纯数字当毫秒时间戳，否则当 ISO 字符串；解析失败回退默认值。
+function parseUsageTime(v: unknown, def: number): number {
+    if (!v) return def;
+    const s = String(v);
+    const n = Number(s);
+    return Number.isFinite(n) && /^\d+$/.test(s) ? n : new Date(s).getTime() || def;
+}
+
+function applyUsageFilters(where: Record<string, any>, query: Record<string, any>): void {
+    for (const key of ['agentId', 'modelId', 'provider', 'channelId'] as const) {
+        const value = query[key];
+        if (typeof value === 'string' && value) where[key] = value;
+    }
+}
+
+type UsageAggregate = {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+    calls: number;
+};
+
+function createUsageAggregate(): UsageAggregate {
+    return { inputTokens: 0, outputTokens: 0, totalTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, calls: 0 };
+}
+
+function accrueUsage(target: UsageAggregate, row: UsageLogRow): void {
+    target.inputTokens += row.inputTokens;
+    target.outputTokens += row.outputTokens;
+    target.totalTokens += row.totalTokens;
+    target.cacheCreationTokens += row.cacheCreationTokens;
+    target.cacheReadTokens += row.cacheReadTokens;
+    target.calls += 1;
+}
+
 function readBundledMarkdown(name: 'README.md' | 'README.zh.md'): string {
     const candidates = [
         // Compiled package layout: dist/dist/Server/routes -> dist/
@@ -82,47 +119,123 @@ export class SystemRoutes {
             upstream.data.pipe(res);
         }));
 
-        app.get('/api/usage-stats', api(async (req) => {
-            const today = new Date().toISOString().slice(0, 10);
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const start = (req.query.start as string) || thirtyDaysAgo.toISOString().slice(0, 10);
-            const end = (req.query.end as string) || today;
-            const agentId = req.query.agentId as string | undefined;
-            const modelId = req.query.modelId as string | undefined;
-
-            const where: any = { date: { [Op.between]: [start, end] } };
-            if (agentId) where.agentId = agentId;
-            if (modelId) where.modelId = modelId;
+        // Token 用量总览：一次返回汇总、趋势、维度明细和筛选项。
+        app.get('/api/usage-overview', api(async (req) => {
+            const now = Date.now();
+            const endMs = parseUsageTime(req.query.end, now);
+            const startMs = parseUsageTime(req.query.start, now - 30 * 24 * 3600_000);
+            const granularity = req.query.granularity === 'hourly' ? 'hourly' : 'daily';
+            const where: any = { timestamp: { [Op.gte]: startMs, [Op.lt]: endMs } };
+            applyUsageFilters(where, req.query);
 
             const rows = await database.findAll<UsageLogRow>(database.usageLogs, {
                 where,
-                order: [['date', 'ASC']],
+                order: [['timestamp', 'ASC']],
             });
 
-            const dailyMap = new Map<string, { date: string; inputTokens: number; outputTokens: number; totalTokens: number; cacheCreationTokens: number; cacheReadTokens: number }>();
-            const summary = { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
+            type Breakdown = UsageAggregate & { key: string; label: string };
+            type TrendBucket = UsageAggregate & { date?: string; hour?: string; startMs: number; endMs: number };
+            const summary = createUsageAggregate();
+            const trend = new Map<string, TrendBucket>();
+            const model = new Map<string, Breakdown>();
+            const agent = new Map<string, Breakdown>();
+            const provider = new Map<string, Breakdown>();
+            const channel = new Map<string, Breakdown>();
 
-            for (const r of rows) {
-                summary.totalTokens += r.totalTokens;
-                summary.inputTokens += r.inputTokens;
-                summary.outputTokens += r.outputTokens;
-                summary.cacheCreationTokens += r.cacheCreationTokens;
-                summary.cacheReadTokens += r.cacheReadTokens;
-
-                let day = dailyMap.get(r.date);
-                if (!day) {
-                    day = { date: r.date, inputTokens: 0, outputTokens: 0, totalTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
-                    dailyMap.set(r.date, day);
+            const accrueBreakdown = (map: Map<string, Breakdown>, key: string, label: string, row: UsageLogRow) => {
+                let item = map.get(key);
+                if (!item) {
+                    item = { key, label, ...createUsageAggregate() };
+                    map.set(key, item);
                 }
-                day.inputTokens += r.inputTokens;
-                day.outputTokens += r.outputTokens;
-                day.totalTokens += r.totalTokens;
-                day.cacheCreationTokens += r.cacheCreationTokens;
-                day.cacheReadTokens += r.cacheReadTokens;
+                if (label) item.label = label;
+                accrueUsage(item, row);
+            };
+
+            for (const row of rows) {
+                accrueUsage(summary, row);
+                accrueBreakdown(model, row.modelId, row.modelName, row);
+                accrueBreakdown(agent, row.agentId, row.agentName, row);
+                accrueBreakdown(provider, row.provider, row.provider, row);
+                accrueBreakdown(channel, row.channelId, config.getChannel(row.channelId)?.name || '', row);
+
+                const date = new Date(Number(row.timestamp));
+                const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                const hour = `${day}T${String(date.getHours()).padStart(2, '0')}`;
+                const key = granularity === 'hourly' ? hour : day;
+                let bucket = trend.get(key);
+                if (!bucket) {
+                    const bucketStart = granularity === 'hourly'
+                        ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).getTime()
+                        : new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+                    const bucketEnd = granularity === 'hourly'
+                        ? bucketStart + 3600_000
+                        : new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
+                    bucket = {
+                        ...(granularity === 'hourly' ? { hour } : { date: day }),
+                        startMs: bucketStart,
+                        endMs: bucketEnd,
+                        ...createUsageAggregate(),
+                    };
+                    trend.set(key, bucket);
+                }
+                accrueUsage(bucket, row);
             }
 
-            return { summary, daily: Array.from(dailyMap.values()) };
+            // 筛选项只受时间范围影响，避免选择某项后其他候选项消失。
+            const optionRows = await database.findAll<UsageLogRow>(database.usageLogs, {
+                where: { timestamp: { [Op.gte]: startMs, [Op.lt]: endMs } },
+                attributes: ['agentId', 'agentName', 'modelId', 'modelName', 'provider', 'channelId'],
+                group: ['agentId', 'agentName', 'modelId', 'modelName', 'provider', 'channelId'],
+            });
+
+            const agents = new Map<string, string>();
+            const models = new Map<string, string>();
+            const providers = new Set<string>();
+            const channels = new Set<string>();
+            for (const row of optionRows) {
+                if (row.agentId) agents.set(row.agentId, row.agentName || row.agentId);
+                if (row.modelId) models.set(row.modelId, row.modelName || row.modelId);
+                if (row.provider) providers.add(row.provider);
+                if (row.channelId) channels.add(row.channelId);
+            }
+            const byLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);
+            const sortDesc = (map: Map<string, Breakdown>) => Array.from(map.values()).sort((a, b) => b.totalTokens - a.totalTokens);
+            return {
+                summary,
+                trend: Array.from(trend.values()).sort((a, b) => a.startMs - b.startMs),
+                byModel: sortDesc(model),
+                byAgent: sortDesc(agent),
+                byProvider: sortDesc(provider),
+                byChannel: sortDesc(channel),
+                filterOptions: {
+                    agents: Array.from(agents, ([id, label]) => ({ id, label })).sort(byLabel),
+                    models: Array.from(models, ([id, label]) => ({ id, label })).sort(byLabel),
+                    providers: Array.from(providers).sort(),
+                    channels: Array.from(channels, id => ({ id, label: config.getChannel(id)?.name || '' })).sort(byLabel),
+                },
+            };
+        }));
+
+        // 调用明细分页，按时间倒序。
+        app.get('/api/usage-logs', api(async (req) => {
+            const now = Date.now();
+            const endMs = parseUsageTime(req.query.end, now);
+            const startMs = parseUsageTime(req.query.start, now - 7 * 24 * 3600_000);
+            const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+            const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+            const where: any = { timestamp: { [Op.gte]: startMs, [Op.lt]: endMs } };
+            applyUsageFilters(where, req.query);
+
+            const total = await database.count(database.usageLogs, { where });
+            const rows = await database.findAll<UsageLogRow>(database.usageLogs, {
+                where,
+                order: [['timestamp', 'DESC']],
+                limit,
+                offset,
+            });
+            return { rows, total };
         }));
 
         // 按 threadId/profileId 查询 token 用量。
