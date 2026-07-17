@@ -160,7 +160,7 @@ export function createWebFetchTool(): StructuredToolInterface {
                     return createErrorResult(`Request timed out after ${timeoutMs / 1000} seconds: ${url}`)
                 }
                 logger.error(`WebFetch error for ${url}: ${formatError(err, true)}`)
-                return createErrorResult(`Failed to fetch ${url}: ${formatError(err)}`)
+                return createErrorResult(formatError(err))
             } finally {
                 clearTimeout(timeoutId)
             }

@@ -51,7 +51,7 @@ export function createChannelSendTool(): StructuredToolInterface {
                 return createSuccessResult(createTextContent('ok'));
             } catch (e: any) {
                 logger.error(`${CHANNEL_SEND_TOOL_NAME} failed: ${formatError(e, true)}`);
-                return createErrorResult(`Send failed: ${formatError(e)}`);
+                return createErrorResult(formatError(e));
             }
         },
     });

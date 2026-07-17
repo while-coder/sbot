@@ -67,7 +67,7 @@ export function createSessionSearchTool(saver: SearchableSaver | null): Structur
                 }).join('\n\n---\n\n');
                 return createSuccessResult(createTextContent(`Found ${results.length} results:\n\n${formatted}`));
             } catch (e: any) {
-                return createErrorResult(`Search failed for query=${JSON.stringify(query)}: ${formatError(e)}`);
+                return createErrorResult(formatError(e));
             }
         },
     });

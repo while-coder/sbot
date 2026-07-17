@@ -109,7 +109,7 @@ export function createWebDownloadTool(): StructuredToolInterface {
             }
 
             return createErrorResult(
-                `Download failed after ${maxRetries} attempt(s). Last error: ${formatError(lastError)}\nURL: ${url}`,
+                `Download failed after ${maxRetries} attempt(s). Last error: ${formatError(lastError)}`,
             )
         },
     })

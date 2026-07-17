@@ -173,7 +173,7 @@ export class SkillService implements ISkillService {
           return await runShellCommand(command, cwd, timeout, label, stdin);
         } catch (error: any) {
           this.logger?.error(`Error executing skill ${skillName}: ${formatError(error, true)}`);
-          return createErrorResult(`Error: ${formatError(error)}`);
+          return createErrorResult(formatError(error));
         }
       }
     });
