@@ -3,7 +3,7 @@ import AdmZip from 'adm-zip';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../FileSystem/utils';
 import { loadPrompt } from '../../Core/PromptLoader';
 
@@ -45,8 +45,8 @@ export function createZipReadFileTool(): StructuredToolInterface {
                 logger.info(`zip_read_file: ${zipAbs}!${entryPath}`);
                 return createSuccessResult(createTextContent(buf.toString('utf-8')));
             } catch (e: any) {
-                logger.error(`zip_read_file: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`zip_read_file: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         },
     });

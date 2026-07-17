@@ -1,6 +1,6 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
 import { WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { channelDataService, type ChannelSessionWithProfile } from '../../Session/ChannelDataService';
 import { channelManager } from '../../Channel/ChannelManager';
@@ -73,8 +73,8 @@ export function createChannelListTool(currentChannelId?: string): StructuredTool
                     `<channels count="${channels.length}">\n${channelBlocks.join('\n')}\n</channels>`
                 ));
             } catch (e: any) {
-                logger.error(`${CHANNEL_LIST_TOOL_NAME} failed: ${e.message}`);
-                return createErrorResult(`Failed to list: ${e.message}`);
+                logger.error(`${CHANNEL_LIST_TOOL_NAME} failed: ${formatError(e, true)}`);
+                return createErrorResult(`Failed to list: ${formatError(e)}`);
             }
         },
     });

@@ -65,7 +65,7 @@ export class SkillService implements ISkillService {
           if (entry.isDirectory() && entry.name !== '.archive') allSkillDirs.push(path.join(dir, entry.name));
         }
       } catch (e: any) {
-        this.logger?.error(`读取技能目录失败 ${dir}: ${e.message}`);
+        this.logger?.error(`读取技能目录失败 ${dir}: ${formatError(e, true)}`);
       }
     }
 
@@ -85,7 +85,7 @@ export class SkillService implements ISkillService {
         if (usage?.state === UsageState.Archived) continue;
         skills.push(skill);
       } catch (e: any) {
-        this.logger?.error(`加载 skill 失败 ${skillDir}: ${e.message}`);
+        this.logger?.error(`加载 skill 失败 ${skillDir}: ${formatError(e, true)}`);
       }
     }
 

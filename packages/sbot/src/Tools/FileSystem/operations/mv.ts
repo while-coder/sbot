@@ -3,7 +3,7 @@ import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
@@ -68,8 +68,8 @@ export function createMvTool(): StructuredToolInterface {
 
                 return createSuccessResult(createTextContent(results.join('\n')));
             } catch (e: any) {
-                logger.error(`mv: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`mv: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         }
     });

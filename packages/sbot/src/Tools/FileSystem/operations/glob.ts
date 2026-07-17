@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkDir, EXCLUDE_DIRS, checkRg } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
@@ -128,7 +128,7 @@ async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boo
         if (expired()) return false;
         let entries;
         try { entries = await fsAsync.readdir(d, { withFileTypes: true }); }
-        catch (e: any) { logger.warn(`Cannot access ${d}: ${e.message}`); return true; }
+        catch (e: any) { logger.warn(`Cannot access ${d}: ${formatError(e)}`); return true; }
         for (const entry of entries) {
             if (results.length >= LIMIT || expired()) return false;
             if (!includeHidden && entry.name.startsWith('.')) continue;
@@ -194,8 +194,8 @@ export function createGlobTool(): StructuredToolInterface {
                 }
                 return createSuccessResult(createTextContent(lines.join('\n')));
             } catch (e: any) {
-                logger.error(`glob ${searchPath}: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`glob ${searchPath}: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         },
     });

@@ -1,6 +1,6 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult, type IAgentSaverService } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult, type IAgentSaverService } from 'scorpio.ai';
 import { loadPrompt } from '../../Core/PromptLoader';
 
 export const SESSION_SEARCH_TOOL_NAME = 'session_search' as const;
@@ -67,7 +67,7 @@ export function createSessionSearchTool(saver: SearchableSaver | null): Structur
                 }).join('\n\n---\n\n');
                 return createSuccessResult(createTextContent(`Found ${results.length} results:\n\n${formatted}`));
             } catch (e: any) {
-                return createErrorResult(`Search failed for query=${JSON.stringify(query)}: ${e.message}`);
+                return createErrorResult(`Search failed for query=${JSON.stringify(query)}: ${formatError(e)}`);
             }
         },
     });

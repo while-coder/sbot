@@ -1,7 +1,7 @@
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult, formatWalkTree, DEFAULT_WALK_MAX_DEPTH, DEFAULT_WALK_LIMIT } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult, formatWalkTree, DEFAULT_WALK_MAX_DEPTH, DEFAULT_WALK_LIMIT } from 'scorpio.ai';
 import { checkDir } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
@@ -32,8 +32,8 @@ export function createLsTool(): StructuredToolInterface {
                 const ignoreSet = new Set<string>([...IGNORE_PATTERNS, ...(ignore ?? [])]);
                 return createSuccessResult(createTextContent(formatWalkTree(abs, { maxDepth, limit, ignore: ignoreSet })));
             } catch (e: any) {
-                logger.error(`ls ${dirPath}: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`ls ${dirPath}: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         }
     });

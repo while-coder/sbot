@@ -5,7 +5,7 @@ import { spawn } from 'child_process';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkDir, globToRegex, EXCLUDE_DIRS, checkRg } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
@@ -144,7 +144,7 @@ async function searchWithNodeJs(
         if (expired()) return;
         let entries;
         try { entries = await fsAsync.readdir(d, { withFileTypes: true }); }
-        catch (e: any) { logger.warn(`Cannot access ${d}: ${e.message}`); return; }
+        catch (e: any) { logger.warn(`Cannot access ${d}: ${formatError(e)}`); return; }
         for (const entry of entries) {
             if (expired()) return;
             if (!includeHidden && entry.name.startsWith('.')) continue;
@@ -245,8 +245,8 @@ export function createGrepFilesTool(): StructuredToolInterface {
                 if (result.results.length === 0) return createSuccessResult(createTextContent('No matches found'));
                 return createSuccessResult(createTextContent(formatResults(result.results, result.reachedLimit, maxMatches)));
             } catch (e: any) {
-                logger.error(`grep_files ${searchPath}: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`grep_files ${searchPath}: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         }
     });

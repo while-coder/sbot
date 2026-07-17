@@ -2,7 +2,7 @@ import fs from 'fs';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
@@ -37,8 +37,8 @@ export function createMkdirTool(): StructuredToolInterface {
                     results.length > 0 ? `Created:\n${results.join('\n')}` : 'No directories created'
                 ));
             } catch (e: any) {
-                logger.error(`mkdir: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`mkdir: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         }
     });

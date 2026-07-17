@@ -100,11 +100,7 @@ export function createWebDownloadTool(): StructuredToolInterface {
                     )
                 } catch (err: any) {
                     lastError = err
-                    const errorMsg =
-                        err.code === 'ECONNRESET' ? 'Connection reset' :
-                        err.code === 'ETIMEDOUT'  ? 'Connection timed out' :
-                        err.message
-                    logger.error(`Download failed (attempt ${attempt}/${maxRetries}): ${errorMsg}`)
+                    logger.error(`Download failed (attempt ${attempt}/${maxRetries}): ${formatError(err, true)}`)
 
                     if (fs.existsSync(normalizedPath)) {
                         try { fs.unlinkSync(normalizedPath) } catch { /* ignore */ }
@@ -113,7 +109,7 @@ export function createWebDownloadTool(): StructuredToolInterface {
             }
 
             return createErrorResult(
-                `Download failed after ${maxRetries} attempt(s). Last error: ${lastError?.message}\nURL: ${url}`,
+                `Download failed after ${maxRetries} attempt(s). Last error: ${formatError(lastError)}\nURL: ${url}`,
             )
         },
     })

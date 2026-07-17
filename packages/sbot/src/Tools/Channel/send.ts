@@ -1,7 +1,7 @@
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
 import { channelManager } from '../../Channel/ChannelManager';
 import { LoggerService } from '../../Core/LoggerService';
 import { loadPrompt } from '../../Core/PromptLoader';
@@ -50,8 +50,8 @@ export function createChannelSendTool(): StructuredToolInterface {
                 }
                 return createSuccessResult(createTextContent('ok'));
             } catch (e: any) {
-                logger.error(`${CHANNEL_SEND_TOOL_NAME} failed: ${e.message}`);
-                return createErrorResult(`Send failed: ${e.message}`);
+                logger.error(`${CHANNEL_SEND_TOOL_NAME} failed: ${formatError(e, true)}`);
+                return createErrorResult(`Send failed: ${formatError(e)}`);
             }
         },
     });

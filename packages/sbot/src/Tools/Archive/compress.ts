@@ -4,7 +4,7 @@ import AdmZip from 'adm-zip';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
 import { resolvePath, formatSize } from '../FileSystem/utils';
 import { loadPrompt } from '../../Core/PromptLoader';
 
@@ -53,8 +53,8 @@ export function createZipCompressTool(): StructuredToolInterface {
                     createTextContent(`Created: ${destAbs} (${formatSize(size)}, ${entryCount} entries)`),
                 );
             } catch (e: any) {
-                logger.error(`zip_compress: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`zip_compress: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         },
     });

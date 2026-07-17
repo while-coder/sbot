@@ -4,7 +4,7 @@ import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
@@ -204,8 +204,8 @@ export function createReadTool(): StructuredToolInterface {
                 }
                 return readLines(lines, from, stopAt);
             } catch (e: any) {
-                logger.error(`read ${filePath}: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`read ${filePath}: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         }
     });

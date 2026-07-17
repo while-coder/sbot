@@ -3,7 +3,7 @@ import { createTwoFilesPatch } from 'diff';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkFile, normalizeLineEndings, writeAtomic } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
@@ -332,8 +332,8 @@ export function createEditFileTool(): StructuredToolInterface {
                 }
                 return createSuccessResult(createTextContent(diffs.join('')));
             } catch (e: any) {
-                logger.error(`edit_file: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`edit_file: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         }
     });

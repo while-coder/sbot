@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
 import {
     createTextContent, createImageContent, createAudioContent, createDocumentContent,
-    createErrorResult, createSuccessResult, detectImageMimeType, type MCPToolResult,
+    createErrorResult, createSuccessResult, detectImageMimeType, formatError, type MCPToolResult,
 } from 'scorpio.ai';
 import { checkFile, formatSize } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
@@ -84,8 +84,8 @@ export function createReadMediaFileTool(): StructuredToolInterface {
                         );
                 }
             } catch (e: any) {
-                logger.error(`read_media_file ${filePath}: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`read_media_file ${filePath}: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         },
     });

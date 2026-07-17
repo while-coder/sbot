@@ -5,7 +5,7 @@ import { createTwoFilesPatch } from 'diff';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath, writeAtomic, normalizeLineEndings } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
@@ -44,8 +44,8 @@ export function createWriteTool(): StructuredToolInterface {
                 while (diff.includes('`'.repeat(ticks))) ticks++;
                 return createSuccessResult(createTextContent(`${'`'.repeat(ticks)}diff\n${diff}${'`'.repeat(ticks)}`));
             } catch (e: any) {
-                logger.error(`write ${filePath}: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`write ${filePath}: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         }
     });

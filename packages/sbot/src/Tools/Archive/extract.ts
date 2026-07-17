@@ -3,7 +3,7 @@ import AdmZip from 'adm-zip';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai';
+import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../FileSystem/utils';
 import { loadPrompt } from '../../Core/PromptLoader';
 
@@ -38,8 +38,8 @@ export function createZipExtractTool(): StructuredToolInterface {
                     createTextContent(`Extracted to: ${outAbs} (${dirCount} directories, ${fileCount} files)`),
                 );
             } catch (e: any) {
-                logger.error(`zip_extract: ${e.message}`);
-                return createErrorResult(e.message);
+                logger.error(`zip_extract: ${formatError(e, true)}`);
+                return createErrorResult(formatError(e));
             }
         },
     });
