@@ -1,4 +1,5 @@
 import { IModelService } from "./IModelService";
+import { ModelServiceBase } from "./ModelServiceBase";
 import { OpenAIModelService } from "./OpenAIModelService";
 import { OpenAIResponseModelService } from "./OpenAIResponseModelService";
 import { OllamaModelService } from "./OllamaModelService";
@@ -26,38 +27,29 @@ export class ModelServiceFactory {
    * @returns 模型服务实例
    */
   static getModelService(config: ModelConfig): IModelService {
+    let service: ModelServiceBase;
     switch (config.provider) {
-      case ModelProvider.Anthropic: {
-        const service = new AnthropicModelService(config);
-        service.initialize();
-        return new RetryModelServiceProxy(service);
-      }
-      case ModelProvider.Ollama: {
-        const service = new OllamaModelService(config);
-        service.initialize();
-        return new RetryModelServiceProxy(service);
-      }
-      case ModelProvider.OpenAIResponse: {
-        const service = new OpenAIResponseModelService(config);
-        service.initialize();
-        return new RetryModelServiceProxy(service);
-      }
-      case ModelProvider.GeminiImage: {
-        const service = new GeminiImageModelService(config);
-        service.initialize();
-        return new RetryModelServiceProxy(service);
-      }
-      case ModelProvider.Gemini: {
-        const service = new GeminiModelService(config);
-        service.initialize();
-        return new RetryModelServiceProxy(service);
-      }
+      case ModelProvider.Anthropic:
+        service = new AnthropicModelService(config);
+        break;
+      case ModelProvider.Ollama:
+        service = new OllamaModelService(config);
+        break;
+      case ModelProvider.OpenAIResponse:
+        service = new OpenAIResponseModelService(config);
+        break;
+      case ModelProvider.GeminiImage:
+        service = new GeminiImageModelService(config);
+        break;
+      case ModelProvider.Gemini:
+        service = new GeminiModelService(config);
+        break;
       // OpenAI, Azure, Groq, Mistral, DeepSeek, and any OpenAI-compatible provider
-      default: {
-        const service = new OpenAIModelService(config);
-        service.initialize();
-        return new RetryModelServiceProxy(service);
-      }
+      default:
+        service = new OpenAIModelService(config);
+        break;
     }
+    service.initialize();
+    return new RetryModelServiceProxy(service);
   }
 }

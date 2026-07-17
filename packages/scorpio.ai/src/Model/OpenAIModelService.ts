@@ -1,26 +1,24 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { AIMessageChunk } from "@langchain/core/messages";
-import { IModelService, type ModelInvokeOptions, type StructuredInvokeOptions } from "./IModelService";
-import { ModelConfig } from "./types";
+import { ModelServiceBase } from "./ModelServiceBase";
+import { type StructuredInvokeOptions } from "./IModelService";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
-import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
 import { getInvokeConfig, StructuredOutputMethod, toStructuredInput } from "./structuredOutput";
 
 /**
  * OpenAI 模型服务实现
  * 封装 @langchain/openai 的 ChatOpenAI
  */
-export class OpenAIModelService implements IModelService {
-  protected model?: ChatOpenAI;
-  private boundModel?: any;
-
-  constructor(public readonly config: ModelConfig) {}
+export class OpenAIModelService extends ModelServiceBase<ChatOpenAI> {
 
   protected buildChatOpenAIOptions(): ConstructorParameters<typeof ChatOpenAI>[0] {
     return {
       configuration: {
         baseURL: this.config.baseURL,
         apiKey: this.config.apiKey,
+        // 部分 OpenAI 兼容接口返回 { message/msg/detail }，而不是标准 { error: ... }。
+        // OpenAI SDK 会丢弃这些 JSON 的具体内容并只抛出 "status code (no body)"，
+        // 因此在 SDK 解析前将非标准错误体包进 error 字段，保留服务端真实原因。
+        fetch: OpenAIModelService.compatibleFetch,
       },
       apiKey: this.config.apiKey,
       model: this.config.model,
@@ -30,24 +28,46 @@ export class OpenAIModelService implements IModelService {
     };
   }
 
-  initialize(): void {
-    this.model = new ChatOpenAI(this.buildChatOpenAIOptions());
+  private static async compatibleFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+    const response = await globalThis.fetch(input, init);
+    if (response.ok) return response;
+
+    let raw = '';
+    try {
+      raw = await response.clone().text();
+    } catch {
+      return response;
+    }
+    if (!raw.trim()) return response;
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // 纯文本错误本来就能被 OpenAI SDK 保留，无需改写。
+      return response;
+    }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.error != null) {
+      return response;
+    }
+
+    const error = parsed && typeof parsed === 'object'
+      ? parsed
+      : { message: typeof parsed === 'string' ? parsed : raw };
+    const headers = new Headers(response.headers);
+    headers.set('content-type', 'application/json');
+    // 正文已改写，原长度/压缩信息不再有效。
+    headers.delete('content-length');
+    headers.delete('content-encoding');
+    return new Response(JSON.stringify({ error }), {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   }
 
-  async dispose(): Promise<void> {
-    this.model = undefined;
-    this.boundModel = undefined;
-  }
-
-  async invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage> {
-    const m = this.boundModel ?? this.model!;
-    const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    const result = await m.invoke(input, options?.signal ? { signal: options.signal } : undefined);
-    return toChatMessage(result);
-  }
-
-  bindTools(tools: any[]): void {
-    this.boundModel = this.model!.bindTools(tools);
+  protected createModel(): ChatOpenAI {
+    return new ChatOpenAI(this.buildChatOpenAIOptions());
   }
 
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T> {
@@ -103,19 +123,6 @@ export class OpenAIModelService implements IModelService {
       err?.response?.data && JSON.stringify(err.response.data),
     ].filter(Boolean).join("\n");
     return /400|422|tool|function|structured|schema|response_format|parse|json/i.test(message);
-  }
-
-  async stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {
-    const m = this.boundModel ?? this.model!;
-    const input = typeof messages === 'string' ? messages : toBaseMessages(messages);
-    const lcStream = await m.stream(input, options?.signal ? { signal: options.signal } : undefined);
-    return (async function* () {
-      let accumulated: AIMessageChunk | undefined;
-      for await (const chunk of lcStream) {
-        accumulated = accumulated ? accumulated.concat(chunk) : (chunk as AIMessageChunk);
-        yield toChatMessage(accumulated!);
-      }
-    })();
   }
 
 }

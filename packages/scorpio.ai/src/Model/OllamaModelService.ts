@@ -1,24 +1,16 @@
 import { ChatOllama } from "@langchain/ollama";
-import { AIMessageChunk } from "@langchain/core/messages";
-import { IModelService } from "./IModelService";
-import type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelService";
-import { ModelConfig } from "./types";
+import { ModelServiceBase } from "./ModelServiceBase";
+import type { StructuredInvokeOptions } from "./IModelService";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
-import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
 import { getInvokeConfig, StructuredOutputMethod, toStructuredInput } from "./structuredOutput";
 
 /**
  * Ollama 模型服务实现
  * 封装 @langchain/ollama 的 ChatOllama，支持本地部署模型
  */
-export class OllamaModelService implements IModelService {
-  private model?: ChatOllama;
-  private boundModel?: any;
-
-  constructor(public readonly config: ModelConfig) {}
-
-  initialize(): void {
-    this.model = new ChatOllama({
+export class OllamaModelService extends ModelServiceBase<ChatOllama> {
+  protected createModel(): ChatOllama {
+    return new ChatOllama({
       baseUrl: this.config.baseURL,
       model: this.config.model,
       temperature: this.config.temperature,
@@ -26,39 +18,10 @@ export class OllamaModelService implements IModelService {
     });
   }
 
-  async dispose(): Promise<void> {
-    this.model = undefined;
-    this.boundModel = undefined;
-  }
-
-  async invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage> {
-    const m = this.boundModel ?? this.model!;
-    const input = typeof prompt === 'string' ? prompt : toBaseMessages(prompt);
-    const result = await m.invoke(input, options?.signal ? { signal: options.signal } : undefined);
-    return toChatMessage(result);
-  }
-
-  bindTools(tools: any[]): void {
-    this.boundModel = this.model!.bindTools(tools);
-  }
-
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T> {
     const method = StructuredOutputMethod.JsonSchema;
     const input = toStructuredInput(prompt, method, schema);
     return this.model!.withStructuredOutput(schema, { method }).invoke(input, getInvokeConfig(options)) as Promise<T>;
-  }
-
-  async stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {
-    const m = this.boundModel ?? this.model!;
-    const input = typeof messages === 'string' ? messages : toBaseMessages(messages);
-    const lcStream = await m.stream(input, options?.signal ? { signal: options.signal } : undefined);
-    return (async function* () {
-      let accumulated: AIMessageChunk | undefined;
-      for await (const chunk of lcStream) {
-        accumulated = accumulated ? accumulated.concat(chunk) : (chunk as AIMessageChunk);
-        yield toChatMessage(accumulated!);
-      }
-    })();
   }
 
 }

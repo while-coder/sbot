@@ -3,9 +3,10 @@
  * 提供 LLM 模型服务接口和实现
  */
 
-// ===== 接口 + Symbol Token =====
+// ===== 接口 + DI Token + 公共基类 =====
 export { IModelService } from "./IModelService";
 export type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelService";
+export { ModelServiceBase } from "./ModelServiceBase";
 
 // ===== 实现类 =====
 export { OpenAIModelService } from "./OpenAIModelService";

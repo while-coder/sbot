@@ -2,11 +2,11 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { createFunctionCallingParser } from "@langchain/core/language_models/structured_output";
 import { AIMessageChunk, BaseMessage, SystemMessage } from "@langchain/core/messages";
 import { toJsonSchema } from "@langchain/core/utils/json_schema";
-import { IModelService } from "./IModelService";
-import type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelService";
+import { ModelServiceBase } from "./ModelServiceBase";
+import type { StructuredInvokeOptions } from "./IModelService";
 import { ModelConfig } from "./types";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
-import { toChatMessage, toBaseMessages } from "../Saver/messageConverter";
+import { toBaseMessages } from "../Saver/messageConverter";
 import { getInvokeConfig, StructuredOutputMethod, toStructuredInput } from "./structuredOutput";
 
 const enum CachePosition {
@@ -18,19 +18,18 @@ const enum CachePosition {
  * Anthropic 模型服务实现
  * 封装 @langchain/anthropic 的 ChatAnthropic（Claude 系列）
  */
-export class AnthropicModelService implements IModelService {
-  private model?: ChatAnthropic;
-  private boundModel?: any;
+export class AnthropicModelService extends ModelServiceBase<ChatAnthropic> {
   private cacheControl?: { type: "ephemeral" };
 
-  constructor(public readonly config: ModelConfig) {
+  constructor(config: ModelConfig) {
+    super(config);
     if (config.anthropic?.promptCaching) {
       this.cacheControl = { type: "ephemeral" };
     }
   }
 
-  initialize(): void {
-    this.model = new ChatAnthropic({
+  protected createModel(): ChatAnthropic {
+    return new ChatAnthropic({
       anthropicApiKey: this.config.apiKey,
       anthropicApiUrl: this.config.baseURL,
       model: this.config.model,
@@ -40,18 +39,8 @@ export class AnthropicModelService implements IModelService {
     });
   }
 
-  async dispose(): Promise<void> {
-    this.model = undefined;
-    this.boundModel = undefined;
-  }
-
-  async invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage> {
-    const m = this.boundModel ?? this.model!;
-    const input = typeof prompt === 'string' ? prompt : this.applyCache(toBaseMessages(prompt));
-    const result = await m.invoke(input, {
-      ...(options?.signal && { signal: options.signal }),
-    });
-    return toChatMessage(result);
+  protected override prepareInput(input: string | ChatMessage[]): string | BaseMessage[] {
+    return typeof input === 'string' ? input : this.applyCache(toBaseMessages(input));
   }
 
   bindTools(tools: any[]): void {
@@ -129,23 +118,6 @@ export class AnthropicModelService implements IModelService {
   private isThinkingEnabled(): boolean {
     const type = this.config.anthropic?.thinking?.type;
     return type === 'enabled' || type === 'adaptive';
-  }
-
-  async stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {
-    const m = this.boundModel ?? this.model!;
-    const input = typeof messages === 'string' ? messages : this.applyCache(toBaseMessages(messages));
-    const lcStream = await m.stream(input, {
-      ...(options?.signal && { signal: options.signal }),
-    });
-    return (async function* () {
-      let accumulated: AIMessageChunk | undefined;
-      for await (const chunk of lcStream) {
-        accumulated = accumulated
-          ? accumulated.concat(chunk as AIMessageChunk)
-          : (chunk as AIMessageChunk);
-        yield toChatMessage(accumulated);
-      }
-    })();
   }
 
   private applyCache(messages: BaseMessage[]): BaseMessage[] {

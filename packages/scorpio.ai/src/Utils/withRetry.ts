@@ -1,6 +1,10 @@
 function isRetryable(error: any): boolean {
     if (error?.name === 'AbortError') return false;
-    const status = error?.status ?? error?.response?.status;
+    const status = error?.status
+        ?? error?.status_code
+        ?? error?.response?.status
+        ?? error?.cause?.status
+        ?? error?.cause?.status_code;
     if (status === 429 || status === 500 || status === 502 || status === 503) return true;
     const msg = (error?.message ?? '').toLowerCase();
     return /rate.?limit|timeout|econnreset|econnrefused|socket hang up|network|fetch failed/.test(msg);

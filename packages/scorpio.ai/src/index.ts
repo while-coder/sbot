@@ -89,8 +89,9 @@ export {
 // Model - 模型服务
 // ========================================
 export {
-  // 接口 + Symbol Token
+  // 接口 + DI Token + 公共基类
   IModelService,
+  ModelServiceBase,
 
   // 实现类
   OpenAIModelService,
