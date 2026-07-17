@@ -1,7 +1,7 @@
 import express from 'express';
 import { randomUUID } from 'crypto';
 import { config } from '../../Core/Config';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 
 export interface SettingsCrudOptions {
     label?: string;

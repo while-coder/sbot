@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { config } from '../../Core/Config';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 export class LogRoutes {

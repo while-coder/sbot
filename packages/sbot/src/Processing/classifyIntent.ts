@@ -3,7 +3,7 @@ import { MessageRole, truncate, contentToString, type MessageContent } from "sco
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { loadPrompt } from "../Core/PromptLoader";
-import { channelDataService } from "../Session/ChannelDataService";
+import { getSessionName } from "../utils";
 
 const logger = LoggerService.getLogger("classifyIntent.ts");
 
@@ -21,16 +21,6 @@ const IntentSchema = z.object({
 
 type IntentResult = z.infer<typeof IntentSchema>;
 
-async function resolveSessionName(sessionId: number | string | undefined): Promise<string> {
-  const fallback = sessionId == null ? "?" : String(sessionId);
-  try {
-    const session = await channelDataService.getSession(sessionId);
-    return session?.sessionName || session?.autoSessionName || session?.sessionId || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 /**
  * Classify whether a group chat message needs an AI reply.
  * Returns true = should reply, false = skip silently.
@@ -47,7 +37,7 @@ export async function classifyIntent(
   if (!modelService) return true;
   let text = truncate(contentToString(query), 100);
   const modelInfo = `intentModelId=${intentModelId}`;
-  const sessionName = await resolveSessionName(sessionId);
+  const sessionName = await getSessionName(sessionId);
   try {
     const systemPrompt = [
       intentPrompt || loadPrompt('intent/default.txt'),

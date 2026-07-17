@@ -83,10 +83,9 @@ export function formatError(error: unknown, withStack = false): string {
         if (text) { bodyText = text; break; }
     }
 
-    // SDK 的 error.message 有时已含详情；只有当它不只是裸状态码时才采用
-    const msg = typeof e.message === 'string' && e.message.trim() && !/^\d+$/.test(e.message.trim())
-        ? e.message.trim()
-        : undefined;
+    // SDK 的 error.message 有时已含详情；只有当它不只是无信息量文本（裸状态码 / "no body" 等）时才采用
+    const rawMsg = typeof e.message === 'string' ? e.message.trim() : '';
+    const msg = rawMsg && !isUninformative(rawMsg) ? rawMsg : undefined;
 
     const parts = [
         name,
@@ -97,6 +96,13 @@ export function formatError(error: unknown, withStack = false): string {
 
     let text = parts.length ? parts.join(' ') : String(error);
 
+    // 既提取不到错误体、又没有可用 message（错误不透明，如 message 只是裸 "400" / "no body"）时，
+    // 兜底把原始对象所有自有属性 dump 出来，确保能看到具体原因。有 message 的普通错误不打 raw，避免噪声。
+    if (!bodyText && !msg) {
+        const raw = dumpErrorObject(e);
+        if (raw && raw !== '{}') text += ` raw=${raw}`;
+    }
+
     // 日志场景：追加完整堆栈（不截断）
     if (withStack) {
         const stack = typeof e.stack === 'string' ? e.stack.trim() : '';
@@ -106,20 +112,70 @@ export function formatError(error: unknown, withStack = false): string {
     return text;
 }
 
-/** 把响应体对象/字符串规整成可读文本。日志场景不截断，展示场景截断到 800 字符。 */
+/** 判断一段错误文本是否无信息量（裸状态码 / 空响应占位 / 通用兜底语），用于决定是否触发 raw dump。 */
+function isUninformative(text: string): boolean {
+    const t = text.trim().toLowerCase();
+    if (!t) return true;
+    if (/^\d+$/.test(t)) return true;                       // 纯状态码，如 "400"
+    return /^(no body|no response|no content|bad request|error|failed|failure|none|null|undefined|\[object object\]|\{\})$/.test(t);
+}
+
+/** 把响应体对象/字符串规整成可读文本。无信息量（"no body" 等）返回 undefined，交给 raw 兜底。日志场景不截断，展示场景截断到 800 字符。 */
 function describeErrorBody(body: any, full = false): string | undefined {
     if (body == null) return undefined;
+    let text: string | undefined;
     if (typeof body === 'string') {
-        const t = body.trim();
-        return t ? (full ? t : truncate(t, 800)) : undefined;
-    }
-    if (typeof body === 'object') {
+        text = body.trim() || undefined;
+    } else if (typeof body === 'object') {
         // 常见形状：{ error: { message, type } } 或 { message } 或 { error: "..." }
         const inner = body.error ?? body;
         const msg = typeof inner === 'string' ? inner : inner?.message;
         const type = typeof inner === 'object' ? inner?.type : undefined;
-        const text = [type, msg].filter(Boolean).join(': ') || JSON.stringify(body);
-        return full ? text : truncate(text, 800);
+        text = [type, msg].filter(Boolean).join(': ') || JSON.stringify(body);
     }
-    return undefined;
+    if (!text || isUninformative(text)) return undefined;
+    return full ? text : truncate(text, 800);
+}
+
+/**
+ * 把 error 对象的所有自有属性（含 SDK 常用的非枚举字段，如 status / error / code / response）
+ * 序列化成 JSON。作为 formatError 抓不到错误体时的兜底，确保能看到原始错误结构。
+ * 自动跳过 stack（已由 formatError(err, true) 追加），并安全处理循环引用与不可序列化值。
+ */
+function dumpErrorObject(error: unknown): string {
+    const e = error as any;
+    if (e == null) return String(error);
+    try {
+        const seen = new WeakSet();
+        const dumpOwn = (v: any): Record<string, any> => {
+            const out: Record<string, any> = {};
+            for (const k of Object.getOwnPropertyNames(v)) {
+                if (k === 'stack') continue;
+                try {
+                    let val = v[k];
+                    if (typeof val === 'object' && val !== null) {
+                        if (seen.has(val)) { out[k] = '[Circular]'; continue; }
+                        seen.add(val);
+                        if (val instanceof Error) {
+                            out[k] = { name: val.name, message: val.message, ...dumpOwn(val) };
+                        } else {
+                            try { out[k] = JSON.parse(JSON.stringify(val)); }
+                            catch { out[k] = dumpOwn(val); }
+                        }
+                    } else {
+                        out[k] = val;
+                    }
+                } catch {
+                    out[k] = '<unreadable>';
+                }
+            }
+            return out;
+        };
+        const obj = e instanceof Error
+            ? { name: e.name, message: e.message, ...dumpOwn(e) }
+            : dumpOwn(e);
+        return JSON.stringify(obj);
+    } catch {
+        return String(e);
+    }
 }

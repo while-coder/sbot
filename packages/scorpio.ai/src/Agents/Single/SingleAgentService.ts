@@ -266,7 +266,11 @@ export class SingleAgentService extends AgentServiceBase {
             await emitStream();
         } catch (err: any) {
             if (err instanceof AgentCancelledError) throw err;
-            this.logger?.error(`模型调用失败 ${formatError(err, true)}\n${SingleAgentService.dumpRequest(messages, state.tools)}`);
+            const cfg = this.modelService.config;
+            this.logger?.error(
+                `模型调用失败 [provider=${cfg.provider} model=${cfg.model} baseURL=${cfg.baseURL ?? ''}] ${formatError(err, true)}\n` +
+                `${SingleAgentService.dumpRequest(messages, state.tools)}`,
+            );
             throw err;
         }
         if (!lastChunk) return { messages: [] };

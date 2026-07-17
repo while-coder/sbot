@@ -9,7 +9,7 @@ import { WEB_CHANNEL_ID } from 'sbot.commons';
 import { getKnownModels } from '../modelCatalog';
 import { modelInfoHelper } from '../helpers/modelInfo';
 import { settingsCrudHelper } from '../helpers/settingsCrud';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import { agentRoutes } from './agents';
 import { acpRoutes } from './acp';
 import type { RouteContext } from './types';

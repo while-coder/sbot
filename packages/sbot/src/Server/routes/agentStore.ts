@@ -1,5 +1,5 @@
 import express from 'express';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 export class AgentStoreRoutes {

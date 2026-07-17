@@ -2,7 +2,7 @@ import express from 'express';
 import { TunnelProviderType, type TunnelConfig } from 'sbot.commons';
 import { config } from '../../Core/Config';
 import { tunnelService } from '../../Tunnel';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 const VALID_PROVIDERS: ReadonlySet<string> = new Set(Object.values(TunnelProviderType));

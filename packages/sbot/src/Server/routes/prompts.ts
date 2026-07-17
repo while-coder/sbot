@@ -5,7 +5,7 @@ import { config } from '../../Core/Config';
 import { refreshBuiltinTools } from '../../Agent/GlobalAgentToolService';
 import { loadPromptMeta, type PromptVarMeta } from '../../Core/PromptLoader';
 import { promptTreeHelper, type PromptNode } from '../helpers/promptTree';
-import { api, safeRelPath } from '../utils';
+import { api, safeRelPath } from '../../utils';
 import type { RouteContext } from './types';
 
 export class PromptRoutes {

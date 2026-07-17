@@ -10,7 +10,7 @@ import {
 } from 'scorpio.ai';
 import { agendaServicePool, agendaStorePool, agendaTriggerEnginePool } from '../../Agenda';
 import { config } from '../../Core/Config';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 function num(v: unknown): number | undefined {

@@ -4,6 +4,7 @@ import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandl
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { config } from "../Core/Config";
 import { channelDataService, type EffectiveSession } from "./ChannelDataService";
+import { getSessionName } from "../utils";
 import { channelManager } from "../Channel/ChannelManager";
 import { createProcessAIHandler } from "../Processing/createProcessAIHandler";
 import { SaverPool } from "../Agent/SaverPool";
@@ -51,7 +52,8 @@ class SbotSession extends SessionService {
     protected async onProcessStart(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType): Promise<string | void> {
         await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
         const channelName = config.getChannel(args.channelId)?.name;
-        return [args.channelType, channelName ?? args.channelId, this.threadId].filter(Boolean).join('/');
+        const sessionName = await getSessionName(args.dbSessionId);
+        return [args.channelType, channelName ?? args.channelId, sessionName].filter(Boolean).join('/');
     }
 
     protected async processAI(query: MessageContent, args: ChannelRouteArgs): Promise<void> {

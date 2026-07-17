@@ -1,6 +1,6 @@
 import express from 'express';
 import { ACPAgentPool } from '../../Agent/ACPAgentPool';
-import { api } from '../utils';
+import { api } from '../../utils';
 import type { RouteContext } from './types';
 
 export class AcpRoutes {

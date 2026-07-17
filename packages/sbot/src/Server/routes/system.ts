@@ -9,7 +9,7 @@ import { refreshGlobalSkillService } from '../../Agent/GlobalSkillService';
 import { refreshGlobalAgentToolService } from '../../Agent/GlobalAgentToolService';
 import { database, type UsageLogRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 const logger = LoggerService.getLogger('HttpServer.ts');

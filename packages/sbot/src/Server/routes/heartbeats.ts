@@ -1,6 +1,6 @@
 import express from 'express';
 import { heartbeatService } from '../../Heartbeat/HeartbeatService';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 export class HeartbeatRoutes {

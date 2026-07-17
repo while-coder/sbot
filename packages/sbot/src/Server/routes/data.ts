@@ -7,7 +7,7 @@ import { database, type ChannelSessionRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
 import { wikiPluginRegistry } from '../../Wiki/WikiPluginRegistry';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 type SaverResolver = (req: Request) => Promise<{ saverId: string; threadId: string }> | { saverId: string; threadId: string };

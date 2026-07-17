@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
-import { LoggerService } from '../Core/LoggerService';
+import { LoggerService } from './Core/LoggerService';
+import { channelDataService } from './Session/ChannelDataService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -85,4 +86,19 @@ export function api(fn: (req: Request, res: Response) => any) {
             logger.warn(`${req.method} ${req.path} ${status} ${Date.now() - start}ms — ${e.message}`);
         }
     };
+}
+
+/**
+ * 全局取会话可读名：sessionName → autoSessionName → sessionId → String(id)。
+ * 内部 try-catch，查不到或出错时回退：有 id 用 String(id)，id 为空用 "?"。
+ * 永不返回空串，调用方无需再 `|| "?"` 兜底。任何文件 `import { getSessionName }` 即可。
+ */
+export async function getSessionName(id: number | string | null | undefined): Promise<string> {
+    const fallback = id == null ? '?' : String(id);
+    try {
+        const row = await channelDataService.getSession(id);
+        return row ? (row.sessionName || row.autoSessionName || row.sessionId || fallback) : fallback;
+    } catch {
+        return fallback;
+    }
 }

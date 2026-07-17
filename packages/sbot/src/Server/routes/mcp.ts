@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { AgentToolService } from 'scorpio.ai';
 import { config } from '../../Core/Config';
 import { globalAgentToolService, refreshGlobalAgentToolService, BuiltinProvider } from '../../Agent/GlobalAgentToolService';
-import { api, throwBad, toJsonSchema } from '../utils';
+import { api, throwBad, toJsonSchema } from '../../utils';
 import type { RouteContext } from './types';
 
 export class McpRoutes {

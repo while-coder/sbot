@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { dirFirstByName } from '../utils';
+import { dirFirstByName } from '../../utils';
 
 export type PromptNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; isUserOnly?: boolean; children?: PromptNode[] };
 

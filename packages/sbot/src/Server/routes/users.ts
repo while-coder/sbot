@@ -2,7 +2,7 @@ import express from 'express';
 import { config } from '../../Core/Config';
 import { channelManager } from '../../Channel/ChannelManager';
 import { channelDataService } from '../../Session/ChannelDataService';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 export class UserRoutes {

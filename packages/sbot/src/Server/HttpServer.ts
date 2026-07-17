@@ -13,7 +13,7 @@ import { tunnelService } from '../Tunnel';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
 import { webService } from '../Channel/web/WebService';
 import { ptyService, listShells } from '../Channel/web/PtyService';
-import { api } from './utils';
+import { api } from '../utils';
 
 import type { RouteContext } from './routes/types';
 import { systemRoutes } from './routes/system';

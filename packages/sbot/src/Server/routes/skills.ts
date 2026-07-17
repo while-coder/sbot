@@ -3,7 +3,7 @@ import path from 'path';
 import { config } from '../../Core/Config';
 import { globalSkillService, refreshGlobalSkillService, getSkillsDirsMap } from '../../Agent/GlobalSkillService';
 import { skillHelper } from '../helpers/skillsHelpers';
-import { api } from '../utils';
+import { api } from '../../utils';
 import type { RouteContext } from './types';
 
 export class SkillRoutes {

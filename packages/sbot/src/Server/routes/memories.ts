@@ -1,7 +1,7 @@
 import express from 'express';
 import { config } from '../../Core/Config';
 import { memoryServicePool } from '../../Memory/MemoryServicePool';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
 
 function requireMemoryId(value: unknown): string {

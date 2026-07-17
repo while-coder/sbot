@@ -5,7 +5,7 @@ import path from 'path';
 import multer from 'multer';
 import { FsApi } from '../FsApi';
 import { gitHelper } from '../helpers/git';
-import { api, throwBad, parseRangeQuery, resolveExistingDir, safeRelPath, isPathInside, MAX_FILE_READ_SIZE } from '../utils';
+import { api, throwBad, parseRangeQuery, resolveExistingDir, safeRelPath, isPathInside, MAX_FILE_READ_SIZE } from '../../utils';
 import type { RouteContext } from './types';
 
 export class FilesystemRoutes {

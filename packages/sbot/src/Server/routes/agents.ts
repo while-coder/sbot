@@ -1,6 +1,6 @@
 import express from 'express';
 import { config, isValidAgentId, AgentMode } from '../../Core/Config';
-import { api, throwBad } from '../utils';
+import { api, throwBad } from '../../utils';
 import { resolveAgentMcp, resolveAgentSkills } from './agentCapabilities';
 import type { RouteContext } from './types';
 

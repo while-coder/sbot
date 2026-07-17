@@ -2,7 +2,7 @@ import express from 'express';
 import { config } from '../../Core/Config';
 import { refreshGlobalSkillService } from '../../Agent/GlobalSkillService';
 import { installSkillFromZip } from '../../SkillHub/bundle';
-import { api } from '../utils';
+import { api } from '../../utils';
 import type { RouteContext } from './types';
 
 export class SkillHubRoutes {
