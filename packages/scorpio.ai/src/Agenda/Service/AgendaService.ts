@@ -1,5 +1,5 @@
 import { inject } from "scorpio.di";
-import { T_AgendaToolDescs } from "../../Core";
+import { T_AgendaToolDescs, formatError } from "../../Core";
 import { ILoggerService, type ILogger } from "../../Logger";
 import type { ChatMessage } from "../../Saver";
 import {
@@ -348,7 +348,7 @@ export class AgendaService implements IAgendaService {
         try {
             this.agendaStore.pushPendingMessages(channelSessionId, messages, Date.now());
         } catch (e: any) {
-            this.logger?.warn(`Agenda push pending failed: ${e?.message ?? e}`);
+            this.logger?.warn(`Agenda push pending failed: ${formatError(e, true)}`);
             return;
         }
         void this.checkJobs();
@@ -388,7 +388,7 @@ export class AgendaService implements IAgendaService {
                     this.agendaStore.deletePendingJob(next.id);
                     this.logger?.info(`agenda pending ${next.type} #${next.id} done: ${applied} action(s) applied`);
                 } catch (e: any) {
-                    const errMsg = (e?.message ?? String(e)).slice(0, ERROR_MESSAGE_MAX_LEN);
+                    const errMsg = formatError(e).slice(0, ERROR_MESSAGE_MAX_LEN);
                     try { this.agendaStore.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
                     this.logger?.warn(`agenda pending ${next.type} #${next.id} failed: ${errMsg}`);
                 }

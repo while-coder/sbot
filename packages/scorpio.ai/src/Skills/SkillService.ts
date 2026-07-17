@@ -3,7 +3,7 @@ import { parseSkill, isValidSkillDirectory } from "./parser";
 import { formatSkillItems } from "./formatSkillItems";
 import { ISkillService } from "./ISkillService";
 import { ILoggerService } from "../Logger";
-import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc } from "../Core";
+import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc, formatError } from "../Core";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import fs from "fs";
@@ -130,8 +130,8 @@ export class SkillService implements ISkillService {
           const content = fs.readFileSync(fullPath, "utf-8");
           return createSuccessResult(createTextContent(content));
         } catch (error: any) {
-          this.logger?.error(`Error reading skill file ${skillName}/${filePath}: ${error.message}`);
-          return createErrorResult(error.message);
+          this.logger?.error(`Error reading skill file ${skillName}/${filePath}: ${formatError(error, true)}`);
+          return createErrorResult(formatError(error));
         }
       }
     });
@@ -172,8 +172,8 @@ export class SkillService implements ISkillService {
 
           return await runShellCommand(command, cwd, timeout, label, stdin);
         } catch (error: any) {
-          this.logger?.error(`Error executing skill ${skillName}: ${error.message}`);
-          return createErrorResult(`Error: ${error.message}`);
+          this.logger?.error(`Error executing skill ${skillName}: ${formatError(error, true)}`);
+          return createErrorResult(`Error: ${formatError(error)}`);
         }
       }
     });
@@ -202,8 +202,8 @@ export class SkillService implements ISkillService {
           const ignoreSet = new Set<string>([...SkillService.IGNORED_NAMES, ...(ignore ?? [])]);
           return createSuccessResult(createTextContent(formatWalkTree(fullPath, { maxDepth, limit, ignore: ignoreSet })));
         } catch (error: any) {
-          this.logger?.error(`Error listing skill files ${skillName}/${subPath}: ${error.message}`);
-          return createErrorResult(error.message);
+          this.logger?.error(`Error listing skill files ${skillName}/${subPath}: ${formatError(error, true)}`);
+          return createErrorResult(formatError(error));
         }
       }
     });

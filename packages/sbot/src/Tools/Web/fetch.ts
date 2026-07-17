@@ -9,6 +9,7 @@ import {
     createErrorResult,
     createSuccessResult,
     type MCPToolResult,
+    formatError,
 } from 'scorpio.ai'
 import { loadPrompt } from '../../Core/PromptLoader'
 import { LoggerService } from '../../Core/LoggerService'
@@ -158,8 +159,8 @@ export function createWebFetchTool(): StructuredToolInterface {
                 if (err.name === 'AbortError') {
                     return createErrorResult(`Request timed out after ${timeoutMs / 1000} seconds: ${url}`)
                 }
-                logger.error(`WebFetch error for ${url}: ${err.message}`)
-                return createErrorResult(`Failed to fetch ${url}: ${err.message}`)
+                logger.error(`WebFetch error for ${url}: ${formatError(err, true)}`)
+                return createErrorResult(`Failed to fetch ${url}: ${formatError(err)}`)
             } finally {
                 clearTimeout(timeoutId)
             }

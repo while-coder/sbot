@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { MCPContentType, type MCPContent, type MCPToolResult } from './mcp';
+import { formatError } from '../../Core';
 
 const MAX_CHARS = 32 * 1024;
 
@@ -55,7 +56,7 @@ export async function truncateMCPToolResult(
             await fs.writeFile(filePath, fullText, 'utf8');
             spillNote = `full file saved to: ${filePath}`;
         } catch (err: any) {
-            spillNote = `spill failed: ${err?.message ?? err}`;
+            spillNote = `spill failed: ${formatError(err)}`;
         }
 
         newContent.push({

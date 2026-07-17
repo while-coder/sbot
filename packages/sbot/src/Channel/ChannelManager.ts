@@ -1,6 +1,6 @@
 import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo, ChannelCapability } from "channel.base";
 import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
-import { TimeUtils } from "scorpio.ai";
+import { TimeUtils, formatError } from "scorpio.ai";
 import { Op } from "sequelize";
 import { sessionManager } from "../Session/SessionManager";
 import { channelDataService } from "../Session/ChannelDataService";
@@ -238,8 +238,8 @@ export class ChannelManager {
             await service.sendTextToSession(row.sessionId, text);
             return { ok: true };
         } catch (e: any) {
-            const error = e?.message ?? String(e);
-            logger.warn(`sendTextToSession(${dbSessionId}) failed: ${e}`);
+            const error = formatError(e);
+            logger.warn(`sendTextToSession(${dbSessionId}) failed: ${formatError(e, true)}`);
             return { ok: false, error };
         }
     }
@@ -253,8 +253,8 @@ export class ChannelManager {
             await service.sendFileToSession(row.sessionId, file, fileName);
             return { ok: true };
         } catch (e: any) {
-            const error = e?.message ?? String(e);
-            logger.warn(`sendFileToSession(${dbSessionId}) failed: ${e}`);
+            const error = formatError(e);
+            logger.warn(`sendFileToSession(${dbSessionId}) failed: ${formatError(e, true)}`);
             return { ok: false, error };
         }
     }
@@ -268,8 +268,8 @@ export class ChannelManager {
             await service.sendTextToUser(row.userId, text);
             return { ok: true };
         } catch (e: any) {
-            const error = e?.message ?? String(e);
-            logger.warn(`sendTextToUser(${dbUserId}) failed: ${e}`);
+            const error = formatError(e);
+            logger.warn(`sendTextToUser(${dbUserId}) failed: ${formatError(e, true)}`);
             return { ok: false, error };
         }
     }
@@ -283,8 +283,8 @@ export class ChannelManager {
             await service.sendFileToUser(row.userId, file, fileName);
             return { ok: true };
         } catch (e: any) {
-            const error = e?.message ?? String(e);
-            logger.warn(`sendFileToUser(${dbUserId}) failed: ${e}`);
+            const error = formatError(e);
+            logger.warn(`sendFileToUser(${dbUserId}) failed: ${formatError(e, true)}`);
             return { ok: false, error };
         }
     }

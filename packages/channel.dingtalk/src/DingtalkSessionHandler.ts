@@ -3,6 +3,7 @@ import type { DingtalkConversationType, DingtalkService } from './DingtalkServic
 import {
   ChannelSessionHandler, SessionService,
   type ChannelMessageArgs, type MessageType, type MessageContent,
+  formatError,
 } from 'channel.base';
 
 export interface DingtalkMessageArgs extends ChannelMessageArgs {
@@ -31,7 +32,7 @@ export class DingtalkSessionHandler extends ChannelSessionHandler<DingtalkChatPr
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error && this.provider) {
-      this.provider.setMessage(`Error generating reply: ${error.message}`);
+      this.provider.setMessage(`Error generating reply: ${formatError(error)}`);
     }
     await this.provider?.flush();
   }

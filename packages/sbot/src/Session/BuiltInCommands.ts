@@ -1,6 +1,6 @@
 import path from "path"
 import fs from "fs/promises"
-import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, GlobalLoggerService, MessageRole, type StoredMessage, type MessageContent } from "scorpio.ai"
+import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, GlobalLoggerService, MessageRole, formatError, type StoredMessage, type MessageContent } from "scorpio.ai"
 import { SessionService } from "channel.base"
 import { channelDataService, type EffectiveSession } from "./ChannelDataService"
 import { database, parseNotes } from "../Core/Database"
@@ -180,7 +180,7 @@ export class ClearCommand implements ICommand {
         try {
             handle = await SaverPool.getInstance().acquireByDBSessionId(dbSessionId);
         } catch (e: any) {
-            return mdTitle('无法获取 saver', mdText(e?.message ?? e));
+            return mdTitle('无法获取 saver', mdText(formatError(e)));
         }
         try {
             await handle.saver.clearMessages();
@@ -222,7 +222,7 @@ export class CompactCommand implements ICommand {
         try {
             handle = await SaverPool.getInstance().acquireByDBSessionId(dbSessionId);
         } catch (e: any) {
-            return mdTitle('无法获取 saver', mdText(e?.message ?? e));
+            return mdTitle('无法获取 saver', mdText(formatError(e)));
         }
         try {
             const compactor = new ConversationCompactor(
@@ -889,7 +889,7 @@ export class HistoryCommand implements ICommand {
         try {
             handle = await SaverPool.getInstance().acquireByDBSessionId(dbSessionId);
         } catch (e: any) {
-            return mdTitle('无法获取 saver', mdText(e?.message ?? e));
+            return mdTitle('无法获取 saver', mdText(formatError(e)));
         }
         try {
             const all = await handle.saver.getAllMessages();

@@ -4,6 +4,7 @@ import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
 } from "../../Core/tokens";
+import { formatError } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import {
@@ -182,13 +183,13 @@ export class MemoryService implements IMemoryService {
         try {
             this.store.dispose();
         } catch (e: any) {
-            this.logMemory('warn', `记忆存储关闭失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
+            this.logMemory('warn', `记忆存储关闭失败: 错误=${formatError(e, true)}`);
         }
         memoryServicePool.evict(this);
         if (this.deleteOnTeardown) {
             // dispose 已关 sqlite handle，rm 安全。fire-and-forget：调用方不需要等物理删除完成。
             this.store.deleteAll().catch(e => {
-                this.logMemory('warn', `记忆存储删除失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
+                this.logMemory('warn', `记忆存储删除失败: 错误=${formatError(e, true)}`);
             });
         }
     }
@@ -212,7 +213,7 @@ export class MemoryService implements IMemoryService {
             await this.store.recordRead(slug, Date.now());
         } catch (e: any) {
             // recordRead 失败不该影响读取本身
-            this.logMemory('warn', `记忆读取计数失败: slug=${slug}, 错误=${truncateForLog(e?.message ?? String(e))}`);
+            this.logMemory('warn', `记忆读取计数失败: slug=${slug}, 错误=${formatError(e, true)}`);
         }
         return row;
     }
@@ -242,7 +243,7 @@ export class MemoryService implements IMemoryService {
         try {
             this.store.pushPendingMessages(messages, Date.now());
         } catch (e: any) {
-            this.logMemory('warn', `记忆抽取入队失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
+            this.logMemory('warn', `记忆抽取入队失败: 错误=${formatError(e, true)}`);
             return;
         }
         void this.checkJobs();
@@ -310,10 +311,9 @@ export class MemoryService implements IMemoryService {
                     this.store.deletePendingJob(next.id);
                     this.logMemory('info', `${log.done}：${log.subject}${this.jobDoneSuffix(stats)}`);
                 } catch (e: any) {
-                    const errMsg = this.formatError(e);
+                    const errMsg = truncateForLog(formatError(e));
                     try { this.store.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
-                    const stackText = e?.stack ? `，堆栈=${truncateForLog(e.stack)}` : '';
-                    this.logMemory('warn',`${log.failed}：${log.subject}，尝试=${next.attemptCount + 1}，` +`模型=${this.modelLabel()}，错误=${errMsg}${stackText}`);
+                    this.logMemory('warn',`${log.failed}：${log.subject}，尝试=${next.attemptCount + 1}，` +`模型=${this.modelLabel()}，错误=${formatError(e, true)}`);
                 }
             }
         } finally {
@@ -330,7 +330,7 @@ export class MemoryService implements IMemoryService {
                 this.logMemory('info', `记忆初始化对账: 索引=${stats.indexed}, 清理=${stats.pruned}`);
             }
         } catch (e: any) {
-            this.logMemory('warn', `记忆初始化对账失败: 错误=${truncateForLog(e?.message ?? String(e))}`);
+            this.logMemory('warn', `记忆初始化对账失败: 错误=${formatError(e, true)}`);
         } finally {
             this.initReconciled = true;
         }
@@ -537,7 +537,7 @@ export class MemoryService implements IMemoryService {
                 this.logMemory(
                     'warn',
                     `记忆操作失败：${MemoryService.opActionName(op.action)} ` +
-                    `${('slug' in op) ? op.slug : ''}，错误=${this.formatError(e)}`
+                    `${('slug' in op) ? op.slug : ''}，错误=${formatError(e, true)}`
                 );
             }
         }
@@ -599,7 +599,7 @@ export class MemoryService implements IMemoryService {
                 bodyMode: merged.bodyMode ?? op.bodyMode,
             };
         } catch (e: any) {
-            this.logMemory('warn', `合并修改记忆失败：${op.slug}，错误=${this.formatError(e)}`);
+            this.logMemory('warn', `合并修改记忆失败：${op.slug}，错误=${formatError(e, true)}`);
             // 保护旧 body：merge 失败时只应用 title/description/kind，不直接替换正文。
             return {
                 ...op,
@@ -639,13 +639,6 @@ export class MemoryService implements IMemoryService {
                 this.logger?.error(line);
                 break;
         }
-    }
-
-    private formatError(error: any): string {
-        const status = error?.status ?? error?.response?.status ?? error?.cause?.status;
-        const body = error?.response?.data ? ` 响应=${JSON.stringify(error.response.data)}` : '';
-        const message = error?.message ?? String(error);
-        return truncateForLog(`${status ? `状态=${status} ` : ''}${message}${body}`);
     }
 
     private jobDoneSuffix(stats: MemoryJobStats): string {

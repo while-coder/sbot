@@ -4,6 +4,7 @@ import { IWikiService } from "../Wiki";
 import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, ContentPartType, MessageKind, MessageRole, type MessageContent, type ContentPart, type TokenUsage } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
 import { resizeImageIfNeeded, detectImageMimeType } from "../Utils/contentUtils";
+import { formatError } from "../Core";
 
 
 export const DEFAULT_MAX_HISTORY_TOKENS = 150_000;
@@ -163,8 +164,7 @@ export abstract class AgentServiceBase {
      */
     protected async recordException(error: unknown, options?: { thinkId?: string }): Promise<void> {
         if (error instanceof AgentCancelledError) return;
-        const e = error as { name?: string; message?: string };
-        const text = `[${e?.name ?? 'Error'}] ${e?.message ?? String(error)}`;
+        const text = `[Error] ${formatError(error)}`;
         try {
             await this.saverService.pushMessage(
                 { role: MessageRole.System, content: text },

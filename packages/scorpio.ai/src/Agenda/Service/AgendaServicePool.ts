@@ -1,7 +1,6 @@
 import { ServiceContainer } from "scorpio.di";
-import { T_AgendaToolDescs } from "../../Core";
+import { T_AgendaToolDescs, formatError } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
-import { truncateForLog } from "../../Utils/contentUtils";
 import { DEFAULT_PENDING_JOB_LIMIT } from "../limits";
 import { IAgendaStore, type PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
@@ -163,7 +162,7 @@ export class AgendaServicePool {
     }
 
     private logActionFailed(action: string, agendaId: string, e: any): void {
-        const err = truncateForLog(e?.message ?? String(e));
+        const err = formatError(e, true);
         this.logger?.warn(`日程后台任务失败：agendaId=${agendaId}，动作=${action}，错误=${err}`);
     }
 }

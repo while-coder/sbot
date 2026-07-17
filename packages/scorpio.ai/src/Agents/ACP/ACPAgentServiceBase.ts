@@ -4,6 +4,7 @@ import { ClientSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
 import type * as schema from "@agentclientprotocol/sdk";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
+import { formatError } from "../../Core";
 import { INoteService } from "../../Note";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole, ToolApproval } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
@@ -221,7 +222,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         if (!sessionId || !this.connection) return;
 
         await this.connection.closeSession({ sessionId }).catch(e => {
-            this.logger?.debug(`[ACP] closeSession ignored: ${e?.message ?? e}`);
+            this.logger?.debug(`[ACP] closeSession ignored: ${formatError(e, true)}`);
         });
         if (this.sessionId === sessionId) this.sessionId = null;
     }

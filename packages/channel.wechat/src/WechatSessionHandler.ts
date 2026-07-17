@@ -4,6 +4,7 @@ import {
   type StructuredToolInterface,
   type MessageType,
   type ChannelMessageArgs, type MessageContent,
+  formatError,
 } from "channel.base";
 import { WechatChatProvider } from "./WechatChatProvider";
 import type { WechatService, WechatMessageArgs } from "./WechatService";
@@ -20,7 +21,7 @@ export class WechatSessionHandler extends ChannelSessionHandler<WechatChatProvid
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error) {
-      this.provider?.setMessage(`处理出错: ${error.message}`);
+      this.provider?.setMessage(`处理出错: ${formatError(error)}`);
     }
     await this.provider?.finish();
   }

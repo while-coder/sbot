@@ -7,6 +7,7 @@ import {
   GlobalLoggerService, AskQuestionType, summarizeMultimodal, AgentCancelledError, ToolApproval,
   type StructuredToolInterface,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
+  formatError,
 } from "channel.base";
 
 const getLogger = () => GlobalLoggerService.getLogger('LarkSessionHandler.ts');
@@ -98,7 +99,7 @@ export class LarkSessionHandler extends ChannelSessionHandler<LarkChatProvider> 
       if (error instanceof AgentCancelledError || error?.name === 'AbortError' || error?.name === 'TimeoutError') {
         this.provider.setMessage('已中断');
       } else {
-        this.provider.setMessage(`Error generating reply: ${error.message}\n${error.stack}`);
+        this.provider.setMessage(`Error generating reply: ${formatError(error)}`);
       }
     }
   }

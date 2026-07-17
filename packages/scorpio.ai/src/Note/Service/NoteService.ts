@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, T_NoteSystemPromptTemplate, T_NoteToolDescs, T_NoteCachePath } from "../../Core";
+import { inject, T_NoteSystemPromptTemplate, T_NoteToolDescs, T_NoteCachePath, formatError } from "../../Core";
 import { TimeUtils } from "../../Utils/TimeUtils";
 import { NoteResult } from "../types";
 import { INoteDatabase } from "../Storage/INoteDatabase";
@@ -95,7 +95,7 @@ export class NoteService implements INoteService {
       }
       return ranked;
     } catch (error: any) {
-      this.logger?.warn(`Failed to retrieve notes: ${error.message}`);
+      this.logger?.warn(`Failed to retrieve notes: ${formatError(error, true)}`);
       return [];
     }
   }

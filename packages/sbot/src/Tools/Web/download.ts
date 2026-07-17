@@ -5,7 +5,7 @@ import https from 'https'
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools'
 import { z } from 'zod'
 import axios from 'axios'
-import { createTextContent, createErrorResult, createSuccessResult, type MCPToolResult } from 'scorpio.ai'
+import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai'
 import { loadPrompt } from '../../Core/PromptLoader'
 import { LoggerService } from '../../Core/LoggerService'
 
@@ -42,7 +42,7 @@ export function createWebDownloadTool(): StructuredToolInterface {
             try {
                 fs.mkdirSync(path.dirname(normalizedPath), { recursive: true })
             } catch (err: any) {
-                return createErrorResult(`Failed to create directory: ${err.message}`)
+                return createErrorResult(`Failed to create directory: ${formatError(err)}`)
             }
 
             logger.info(`Starting download: ${url} -> ${normalizedPath}`)

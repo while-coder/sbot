@@ -5,7 +5,7 @@ import { ILoggerService, ILogger } from "../../Logger";
 import { MessageRole, type ChatMessage } from "../../Saver";
 import { renderConversation } from "../../Utils/conversationUtils";
 import { TimeUtils } from "../../Utils/TimeUtils";
-import { T_AgendaExtractorSystemPrompt } from "../../Core";
+import { T_AgendaExtractorSystemPrompt, formatError } from "../../Core";
 import {
     AgendaPriority,
     AgendaTimeUnit,
@@ -109,8 +109,7 @@ export class AgendaExtractor implements IAgendaExtractor {
             );
             return actions;
         } catch (error: any) {
-            const detail = error?.response?.data ? ` body=${JSON.stringify(error.response.data)}` : '';
-            this.logger?.warn(`Agenda extraction failed: ${error.message}${detail}`);
+            this.logger?.warn(`Agenda extraction failed: ${formatError(error, true)}`);
             return [];
         }
     }

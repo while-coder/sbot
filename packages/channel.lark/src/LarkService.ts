@@ -1,6 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, TimeUtils, parseJson, readMediaAsContentPart, type ILogger, type MessageContent } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, TimeUtils, parseJson, readMediaAsContentPart, formatError, type ILogger, type MessageContent } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -275,15 +275,15 @@ export class LarkService implements IChannelService {
         data: { content: this.buildCardJson(elements, header) },
       });
     } catch (error: any) {
-      const responseData = error?.response?.data ? `\nresponse: ${JSON.stringify(error.response.data, null, 2)}` : '';
-      this.logger?.error(`Failed to updateCardMessage: ${error.message}${responseData}\n${error.stack}`);
+      const errText = formatError(error);
+      this.logger?.error(`Failed to updateCardMessage: ${formatError(error, true)}`);
       try {
         await this.larkClient.im.message.patch({
           path: { message_id: messageId },
-          data: { content: this.buildMarkdownContent(`消息更新失败: ${error.message}${responseData}`, header) },
+          data: { content: this.buildMarkdownContent(`消息更新失败: ${errText}`, header) },
         });
       } catch (fallbackError: any) {
-        this.logger?.error(`Failed to patch error card: ${fallbackError.message}`);
+        this.logger?.error(`Failed to patch error card: ${formatError(fallbackError, true)}`);
       }
       if (replyFileOnFailure) {
         try {
@@ -399,7 +399,7 @@ export class LarkService implements IChannelService {
       }
       return { items, hasMore: false };
     } catch (error: any) {
-      this.logger?.error(`Error getting message history: ${error.message}\n${error.stack}\ncurrentItem: ${JSON.stringify(currentItem, null, 2)}\ncurrentPage: ${JSON.stringify(currentPage, null, 2)}`);
+      this.logger?.error(`Error getting message history: ${formatError(error, true)}\ncurrentItem: ${JSON.stringify(currentItem, null, 2)}\ncurrentPage: ${JSON.stringify(currentPage, null, 2)}`);
       return { items: [], hasMore: false };
     }
   }
@@ -424,7 +424,7 @@ export class LarkService implements IChannelService {
       this.tokenExpireTime = TimeUtils.now() + (response.expire - 300) * 1000;
       return this.tenantAccessToken;
     } catch (error: any) {
-      this.logger?.error(`Failed to get tenant_access_token: ${error.message}`);
+      this.logger?.error(`Failed to get tenant_access_token: ${formatError(error, true)}`);
       throw error;
     }
   }
@@ -447,7 +447,7 @@ export class LarkService implements IChannelService {
       }
       return response.file_key;
     } catch (error: any) {
-      this.logger?.error(`Failed to upload file: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Failed to upload file: ${formatError(error, true)}`);
       throw error;
     }
   }
@@ -462,7 +462,7 @@ export class LarkService implements IChannelService {
       }, Lark.withTenantToken(token)) as any;
       await response.writeFile(savePath);
     } catch (error: any) {
-      this.logger?.error(`Failed to download message file: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Failed to download message file: ${formatError(error, true)}`);
       throw error;
     }
   }
@@ -511,7 +511,7 @@ export class LarkService implements IChannelService {
       }
       return response.data?.user;
     } catch (error: any) {
-      this.logger?.error(`Error getting user info: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Error getting user info: ${formatError(error, true)}`);
     }
   }
 
@@ -527,7 +527,7 @@ export class LarkService implements IChannelService {
       }
       return response.data as LarkChatInfo;
     } catch (error: any) {
-      this.logger?.error(`Error getting chat info: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Error getting chat info: ${formatError(error, true)}`);
     }
   }
 
@@ -546,7 +546,7 @@ export class LarkService implements IChannelService {
         this.logger?.error(`Failed to get bot info: ${JSON.stringify(data)}`);
       }
     } catch (error: any) {
-      this.logger?.error(`Error fetching bot info: ${error.message}\n${error.stack}`);
+      this.logger?.error(`Error fetching bot info: ${formatError(error, true)}`);
     }
     return this.botOpenId;
   }

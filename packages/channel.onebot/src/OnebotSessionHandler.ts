@@ -3,6 +3,7 @@ import {
   type StructuredToolInterface,
   type ChannelMessageArgs,
   type MessageContent, type MessageType,
+  formatError,
 } from 'channel.base';
 import { OnebotChatProvider } from './OnebotChatProvider';
 import type { OnebotService, OnebotMessageArgs } from './OnebotService';
@@ -22,7 +23,7 @@ export class OnebotSessionHandler extends ChannelSessionHandler<OnebotChatProvid
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error) {
-      this.provider?.setMessage(`处理出错: ${error.message}`);
+      this.provider?.setMessage(`处理出错: ${formatError(error)}`);
     }
     await this.provider?.finish();
   }

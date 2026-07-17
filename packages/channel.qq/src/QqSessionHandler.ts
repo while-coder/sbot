@@ -3,6 +3,7 @@ import { QqService } from './QqService';
 import {
   ChannelSessionHandler, SessionService,
   type ChannelMessageArgs, type MessageType, type MessageContent,
+  formatError,
 } from 'channel.base';
 
 export interface QqMessageArgs extends ChannelMessageArgs {
@@ -31,7 +32,7 @@ export class QqSessionHandler extends ChannelSessionHandler<QqChatProvider> {
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error && this.provider) {
-      this.provider.setMessage(`Error generating reply: ${error.message}`);
+      this.provider.setMessage(`Error generating reply: ${formatError(error)}`);
     }
     await this.provider?.flush();
   }

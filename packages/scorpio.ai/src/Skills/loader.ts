@@ -8,6 +8,7 @@ import path from 'path';
 import { Skill } from './types';
 import { parseSkill, isValidSkillDirectory } from './parser';
 import { ILoggerService } from '../Logger';
+import { formatError } from '../Core';
 
 /**
  * 从指定目录加载所有 skills
@@ -63,7 +64,7 @@ export function loadSkills(skillsDir: string | undefined, loggerService: ILogger
         return skills;
 
     } catch (error: any) {
-        logger.error(`Error loading skills from ${skillsDir}: ${error.message}`);
+        logger.error(`Error loading skills from ${skillsDir}: ${formatError(error, true)}`);
         return skills;
     }
 }
@@ -101,7 +102,7 @@ export function readSkillContent(skill: Skill, loggerService?: ILoggerService): 
     } catch (error: any) {
         if (loggerService) {
             const logger = loggerService.getLogger('Skills/loader');
-            logger.error(`Failed to read SKILL.md for ${skill.name}: ${error.message}`);
+            logger.error(`Failed to read SKILL.md for ${skill.name}: ${formatError(error, true)}`);
         }
         return null;
     }

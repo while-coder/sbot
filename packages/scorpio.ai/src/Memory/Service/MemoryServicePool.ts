@@ -5,9 +5,9 @@ import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
 } from "../../Core/tokens";
+import { formatError } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
-import { truncateForLog } from "../../Utils/contentUtils";
 import { IMemoryStore } from "../Storage/IMemoryStore";
 import { MemoryStore } from "../Storage/MemoryStore";
 import { IMemoryService } from "./IMemoryService";
@@ -242,7 +242,7 @@ export class MemoryServicePool {
     }
 
     private logActionFailed(action: string, memoryId: string, e: any): void {
-        const err = truncateForLog(e?.message ?? String(e));
+        const err = formatError(e, true);
         this.logger?.warn(`记忆后台任务失败：memoryId=${memoryId}，动作=${action}，错误=${err}`);
     }
 }

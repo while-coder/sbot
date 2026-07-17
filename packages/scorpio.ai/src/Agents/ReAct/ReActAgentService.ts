@@ -1,5 +1,5 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate } from "../../Core";
+import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { contentToString } from "../../Utils/contentUtils";
 import { INoteService } from "../../Note";
 import { IWikiService } from "../../Wiki";
@@ -198,8 +198,8 @@ export class ReActAgentService extends SingleAgentService {
         await this.updateTaskRecord(resolvedTaskId, TaskStatus.Done, textParts.join('\n'));
         return { content, _meta: { thinkId, taskId: resolvedTaskId } };
       } catch (error: any) {
-        await this.updateTaskRecord(resolvedTaskId, TaskStatus.Error, error?.message);
-        return { ...createErrorResult(`Execution failed: ${error.message}`), _meta: { thinkId, taskId: resolvedTaskId } };
+        await this.updateTaskRecord(resolvedTaskId, TaskStatus.Error, formatError(error));
+        return { ...createErrorResult(`Execution failed: ${formatError(error)}`), _meta: { thinkId, taskId: resolvedTaskId } };
       } finally {
         await agentService?.dispose();
       }
@@ -236,7 +236,7 @@ export class ReActAgentService extends SingleAgentService {
       if (!raw) return new Map();
       return new Map(JSON.parse(raw) as [string, TaskRecord][]);
     } catch (err: any) {
-      this.logger?.warn(`读取子任务注册表失败: ${err?.message ?? err}`);
+      this.logger?.warn(`读取子任务注册表失败: ${formatError(err, true)}`);
       return new Map();
     }
   }
@@ -249,7 +249,7 @@ export class ReActAgentService extends SingleAgentService {
         JSON.stringify([...reg.entries()]),
       );
     } catch (err: any) {
-      this.logger?.warn(`写入子任务注册表失败: ${err?.message ?? err}`);
+      this.logger?.warn(`写入子任务注册表失败: ${formatError(err, true)}`);
     }
   }
 

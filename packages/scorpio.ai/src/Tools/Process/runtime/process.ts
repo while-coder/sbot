@@ -5,6 +5,7 @@ import os from 'os';
 import { setTimeout as sleep } from 'timers/promises';
 import { StringDecoder } from 'string_decoder';
 import { GlobalLoggerService } from '../../../Logger';
+import { formatError } from '../../../Core';
 
 const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/process');
 
@@ -213,7 +214,7 @@ export async function resolveWorkingDir(workingDir: string | undefined): Promise
     } catch (e: any) {
         if (e?.code === 'ENOENT')    return { error: `Working directory not found: ${cwd}` };
         if (e?.code === 'ETIMEDOUT') return { error: e.message };
-        return { error: `Failed to check working directory: ${e?.message ?? e}` };
+        return { error: `Failed to check working directory: ${formatError(e)}` };
     }
 }
 

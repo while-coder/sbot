@@ -3,6 +3,7 @@ import { SlackService } from "./SlackService";
 import {
   ChannelSessionHandler, SessionService,
   type ChannelMessageArgs, type MessageType, type MessageContent,
+  formatError,
 } from "channel.base";
 
 export interface SlackMessageArgs extends ChannelMessageArgs {
@@ -23,7 +24,7 @@ export class SlackSessionHandler extends ChannelSessionHandler<SlackChatProvider
 
   async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
     if (error) {
-      this.provider?.setMessage(`Error generating reply: ${error.message}`);
+      this.provider?.setMessage(`Error generating reply: ${formatError(error)}`);
     }
   }
 }

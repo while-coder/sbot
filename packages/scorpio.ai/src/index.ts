@@ -82,6 +82,7 @@ export {
   truncate,
   listThreadIds,
   listSubDirs,
+  formatError,
 } from "./Core";
 
 // ========================================

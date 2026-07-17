@@ -10,6 +10,7 @@ import {
     MessageKind,
 } from "./IAgentSaverService";
 import { ILoggerService, ILogger } from "../Logger";
+import { formatError } from "../Core";
 import { inject } from "scorpio.di";
 import { T_DBPath } from "../Core/tokens";
 
@@ -141,7 +142,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取历史消息失败: ${error.message}`);
+            this.logger?.warn(`获取历史消息失败: ${formatError(error, true)}`);
             return [];
         }
     }
@@ -189,7 +190,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 kind: MessageKind.Archive,
             }));
         } catch (error: any) {
-            this.logger?.warn(`FTS5 搜索失败: ${error.message}`);
+            this.logger?.warn(`FTS5 搜索失败: ${formatError(error, true)}`);
             return [];
         }
     }
@@ -211,7 +212,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 kind: MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取 think 消息失败: ${error.message}`);
+            this.logger?.warn(`获取 think 消息失败: ${formatError(error, true)}`);
             return [];
         }
     }
@@ -249,7 +250,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取 task 历史失败: ${error.message}`);
+            this.logger?.warn(`获取 task 历史失败: ${formatError(error, true)}`);
             return [];
         }
     }
@@ -303,7 +304,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
         try {
             this._db?.close();
         } catch (error: any) {
-            this.logger?.error(`AgentSqliteSaver 释放失败: ${error.message}`);
+            this.logger?.error(`AgentSqliteSaver 释放失败: ${formatError(error, true)}`);
         }
     }
 }

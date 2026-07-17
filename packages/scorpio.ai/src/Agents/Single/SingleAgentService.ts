@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
-import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate } from "../../Core";
+import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
@@ -266,7 +266,7 @@ export class SingleAgentService extends AgentServiceBase {
             await emitStream();
         } catch (err: any) {
             if (err instanceof AgentCancelledError) throw err;
-            this.logger?.error(`模型调用失败 status=${err?.status ?? '?'} message=${err?.message}\n${SingleAgentService.dumpRequest(messages, state.tools)}`);
+            this.logger?.error(`模型调用失败 ${formatError(err, true)}\n${SingleAgentService.dumpRequest(messages, state.tools)}`);
             throw err;
         }
         if (!lastChunk) return { messages: [] };
@@ -342,8 +342,8 @@ export class SingleAgentService extends AgentServiceBase {
                     if (error instanceof AgentCancelledError) {
                         toolMessages[idx] = cancelledMsg(toolCall);
                     } else {
-                        this.logger?.info(`执行工具错误 ${toolCall.name} 错误: ${truncateForLog(error.message)}`);
-                        toolMessages[idx] = { role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${truncateForLog(error.message)}`, status: "error" };
+                        this.logger?.info(`执行工具错误 ${toolCall.name} 错误: ${formatError(error, true)}`);
+                        toolMessages[idx] = { role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Execute Tool ${toolCall.name} Error: ${truncateForLog(formatError(error))}`, status: "error" };
                     }
                 } finally {
                     sem.release();
@@ -389,7 +389,7 @@ export class SingleAgentService extends AgentServiceBase {
                 toolName: tool.name,
             });
         } catch (err: any) {
-            this.logger?.warn(`工具结果截断失败 ${tool.name}: ${err?.message ?? err}`);
+            this.logger?.warn(`工具结果截断失败 ${tool.name}: ${formatError(err, true)}`);
         }
 
         const resultStr = JSON.stringify(mcpResult);

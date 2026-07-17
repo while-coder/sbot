@@ -2,6 +2,7 @@ import { StructuredToolInterface } from "@langchain/core/tools";
 import { IAgentToolService, type ProviderResolveEntry } from "./IAgentToolService";
 import { MCPServers } from "./MCPServerConfig";
 import { ILoggerService } from "../Logger";
+import { formatError } from "../Core";
 import { inject } from "../Core";
 import type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceTemplate, ProviderResult } from "./MCPTypes";
 import { RecoverableMcpClient } from "./RecoverableMcpClient";
@@ -161,7 +162,7 @@ export class AgentToolService implements IAgentToolService {
         }).catch((error: any) => {
             if (this.loadingPromises.get(key) !== promise) return;
             this.loadingPromises.delete(key);
-            this.logger?.error(`Failed to load provider "${name}": ${error.message}`);
+            this.logger?.error(`Failed to load provider "${name}": ${formatError(error, true)}`);
         });
 
         this.loadingPromises.set(key, promise);

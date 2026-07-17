@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ChatMessage, MessageType, type MessageContent } from "scorpio.ai";
+import { ChatMessage, MessageType, type MessageContent, formatError } from "scorpio.ai";
 import {
     ChannelSessionHandler, ToolCallStatus, SessionService, AskQuestionType, createAskTool,
     ToolApproval,
@@ -39,7 +39,7 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     async onProcessEnd(_query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
         if (error) {
-            this.emit(WebChatEventType.Error, { message: error.message });
+            this.emit(WebChatEventType.Error, { message: formatError(error) });
         }
         this.emit(WebChatEventType.Done, { pendingMessages: args?.pendingMessages ?? [] });
     }

@@ -10,6 +10,7 @@ import {
     MessageKind,
 } from "./IAgentSaverService";
 import { ILoggerService, ILogger } from "../Logger";
+import { formatError } from "../Core";
 import { inject } from "scorpio.di";
 import { T_DBPath } from "../Core/tokens";
 
@@ -88,7 +89,7 @@ export class AgentFileSaver implements IAgentSaverService {
                 this.cache.nextId = nextId;
             }
         } catch (error: any) {
-            this.logger?.warn(`读取文件失败: ${error.message}`);
+            this.logger?.warn(`读取文件失败: ${formatError(error, true)}`);
             this.cache = { messages: [], thinks: {}, tasks: {}, metadata: {}, nextId: 1 };
         }
         return this.cache!;

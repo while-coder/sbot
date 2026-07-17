@@ -1,6 +1,7 @@
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { StructuredToolInterface } from "@langchain/core/tools";
 import type { ILogger } from "../Logger";
+import { formatError } from "../Core";
 
 // 远端 MCP 服务（HTTP / SSE / streamable_http）重启 / 进程重建 / 网络抖动后，
 // 缓存的 client 上的请求会失败。codex 的设计是在 transport 层精准识别 HTTP 404
@@ -126,7 +127,7 @@ export class RecoverableMcpClient {
             return await op(client);
         } catch (err) {
             if (!isStaleMcpConnectionError(err)) throw err;
-            this.logger?.warn(`MCP "${this.name}" stale connection (${(err as any)?.message ?? err}); reinitializing`);
+            this.logger?.warn(`MCP "${this.name}" stale connection (${formatError(err, true)}); reinitializing`);
             await this.recover(version);
             const after = await this.ensureReady();
             return await op(after.client);

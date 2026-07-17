@@ -5,6 +5,7 @@ import {
     DEFAULT_GRACE_MS,
     SessionDeliveryMode,
     TimeUtils,
+    formatError,
     type IAgendaStore,
     type IAgendaTriggerEngine,
     type AgendaItem,
@@ -228,8 +229,8 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
             if (!result.ok) logger.warn(`Agenda trigger [${trigger.id}] delivery failed`);
             return { ok: result.ok };
         } catch (e: any) {
-            const error = e?.message ?? String(e);
-            logger.warn(`Agenda trigger [${trigger.id}] failed: ${error}`);
+            const error = formatError(e);
+            logger.warn(`Agenda trigger [${trigger.id}] failed: ${formatError(e, true)}`);
             return { ok: false, error };
         }
     }

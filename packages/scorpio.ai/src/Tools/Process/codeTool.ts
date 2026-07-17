@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { createErrorResult, type MCPToolResult } from '../Core';
+import { formatError } from '../../Core';
 import { runProgram, runShellCommand } from './runtime/foreground';
 import { isCommandAvailable, resolveWorkingDir } from './runtime/process';
 import { processManager, formatProcessResult } from './runtime/processManager';
@@ -122,7 +123,7 @@ async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Prom
     try {
         await fs.promises.writeFile(tmpFile, input.code, 'utf8');
     } catch (e: any) {
-        return createErrorResult(`Failed to write temp script: ${e?.message ?? e}`);
+        return createErrorResult(`Failed to write temp script: ${formatError(e)}`);
     }
 
     let cleanupByBackgroundManager = false;

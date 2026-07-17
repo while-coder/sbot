@@ -2,6 +2,7 @@ import { type ChildProcess } from 'child_process';
 import { type Writable } from 'stream';
 import { GlobalLoggerService } from '../../../Logger';
 import { createTextContent, type MCPToolResult } from '../../Core';
+import { formatError } from '../../../Core';
 import {
     appendOutputBuffer,
     createOutputBuffer,
@@ -168,7 +169,7 @@ export class ProcessManager {
                 running: !session.exited,
                 stdout: '',
                 stderr: '',
-                note: `Failed to write stdin to process ${processId}: ${e?.message ?? e}`,
+                note: `Failed to write stdin to process ${processId}: ${formatError(e)}`,
                 isError: true,
             };
         }
@@ -218,7 +219,7 @@ export class ProcessManager {
 
         let spawnError: string | null = null;
         proc.once('error', (err: Error) => {
-            spawnError = err.message;
+            spawnError = formatError(err);
             session.exited = true;
             session.stdinOpen = false;
             this.cleanup(session);
@@ -268,7 +269,7 @@ export class ProcessManager {
         session.cleanup = undefined;
         Promise.resolve()
             .then(cleanup)
-            .catch((e) => logger?.error(`background session cleanup failed: ${e?.message ?? e}`));
+            .catch((e) => logger?.error(`background session cleanup failed: ${formatError(e, true)}`));
     }
 
     private wireStreams(session: ProcSession): void {

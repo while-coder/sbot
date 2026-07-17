@@ -1,5 +1,6 @@
 import { GlobalLoggerService } from '../../../Logger';
 import { createTextContent, MCPToolResult } from '../../Core';
+import { formatError } from '../../../Core';
 import {
     appendOutputBuffer,
     createOutputBuffer,
@@ -119,8 +120,8 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
             settled = true;
             clearTimeout(timeoutTimer);
             if (drainTimer) clearTimeout(drainTimer);
-            logger?.error(`Error executing ${label}: ${error.message}`);
-            resolve({ content: [createTextContent(`Error: ${error.message}`)], isError: true });
+            logger?.error(`Error executing ${label}: ${formatError(error, true)}`);
+            resolve({ content: [createTextContent(`Error: ${formatError(error)}`)], isError: true });
         });
     });
 }
