@@ -138,12 +138,21 @@ async function save() {
       if (form.value.sessionMode !== ACPSessionMode.Persistent) config.sessionMode = form.value.sessionMode
       if (form.value.initTimeout != null && form.value.initTimeout > 0) config.initTimeout = form.value.initTimeout
     }
-    // 保留在专属页面配置的字段（generative/acp 模式无工具/技能，不保留）
-    const existing = editingId.value ? agents.value[editingId.value] : null
-    if (type !== AgentMode.Generative && type !== AgentMode.ACP) {
-      if (existing?.mcp)    config.mcp    = existing.mcp
-      if (existing?.skills) config.skills = existing.skills
-      if ((existing as any)?.autoApproveTools) (config as any).autoApproveTools = (existing as any).autoApproveTools
+    // 后端会整体替换 agent.json，自动带回本表单未管理的字段，避免新增字段时遗漏。
+    // 当前表单管理的字段不能带回旧值，否则用户清空字段后无法保存；模式不支持的字段同样不保留。
+    const existing = (editingId.value ? agents.value[editingId.value] : null) as any
+    const managedFields = new Set([...Object.keys(form.value), 'agents'])
+    const unsupportedFields = new Set<string>()
+    if (type === AgentMode.Generative || type === AgentMode.ACP) {
+      for (const key of ['mcp', 'mcpExclude', 'mcpParams', 'skills', 'skillsExclude', 'autoApproveTools']) {
+        unsupportedFields.add(key)
+      }
+    }
+    if (type !== AgentMode.Generative) unsupportedFields.add('maxHistoryRounds')
+    for (const [key, value] of Object.entries(existing || {})) {
+      if (!managedFields.has(key) && !unsupportedFields.has(key)) {
+        (config as any)[key] = value
+      }
     }
 
     if (form.value.name.trim()) (config as any).name = form.value.name.trim()
