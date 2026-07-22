@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-app-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -44,11 +48,9 @@ jobs:
       project-path: packages/app
       cargo-lock-path: packages/app/src-tauri/Cargo.lock
       cargo-target-path: packages/app/src-tauri/target
-      cache-key-prefix: cargo-app
       tag-name: ${{ needs.check.outputs.tag }}
       release-name: app v${{ needs.check.outputs.version }}
       release-body: ${{ needs.check.outputs.notes }}
-      asset-prefix: sbot-client
     secrets: inherit
 
   release-android:
@@ -59,7 +61,6 @@ jobs:
       project-path: packages/app
       cargo-lock-path: packages/app/src-tauri/Cargo.lock
       cargo-target-path: packages/app/src-tauri/target
-      cache-key-prefix: android-cargo-app
       tag-name: ${{ needs.check.outputs.tag }}
       version: ${{ needs.check.outputs.version }}
       asset-prefix: sbot-client
@@ -74,7 +75,6 @@ jobs:
       project-path: packages/app
       cargo-lock-path: packages/app/src-tauri/Cargo.lock
       cargo-target-path: packages/app/src-tauri/target
-      cache-key-prefix: ios-cargo-app
       tag-name: ${{ needs.check.outputs.tag }}
       version: ${{ needs.check.outputs.version }}
       asset-prefix: sbot-client
@@ -89,14 +89,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 10.33.0
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
+      - uses: while-coder/workflows/.github/actions/setup-pnpm@main
 
       - run: pnpm install --frozen-lockfile
 
@@ -132,6 +125,7 @@ jobs:
     uses: while-coder/workflows/.github/workflows/tauri-updater-manifest.yml@main
     with:
       product-prefix: sbot-client
+      source-product-name: SBot
       tag-name: ${{ needs.check.outputs.tag }}
       version: ${{ needs.check.outputs.version }}
       release-notes: ${{ needs.check.outputs.notes }}

@@ -8,21 +8,17 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-sbot-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release-sbot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
+      - uses: while-coder/workflows/.github/actions/setup-pnpm@main
 
       - run: pnpm install --frozen-lockfile
 
@@ -78,20 +74,11 @@ jobs:
       # - name: Push Docker image
       #   run: node packages/sbot/scripts/docker.js publish
 
-      - name: Delete existing GitHub Release
+      - name: Recreate GitHub Release
         if: github.event_name == 'push'
         uses: while-coder/workflows/.github/actions/recreate-github-release@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
-          create: 'false'
-
-      - name: Create GitHub Release
-        if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: 'sbot v${{ steps.version.outputs.version }}'
-          body: ${{ steps.notes.outputs.body }}
-          draft: false
-          prerelease: false
+          title: sbot v${{ steps.version.outputs.version }}
+          notes: ${{ steps.notes.outputs.body }}

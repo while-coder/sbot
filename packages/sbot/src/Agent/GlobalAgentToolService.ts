@@ -6,13 +6,10 @@ export enum BuiltinProvider {
     FileSystem = 'builtin_filesystem',
     WebFetch = 'builtin_webfetch',
     Archive = 'builtin_archive',
-    Sleep = 'builtin_sleep',
 
     SessionSearch = 'builtin_session_search',
     Channel = 'builtin_channel',
 
-    Playwright = 'builtin_playwright',
-    Markitdown = 'builtin_markitdown',
     Exa = 'builtin_exa',
 }
 
@@ -35,10 +32,6 @@ export function initGlobalAgentToolService() {
         const { createArchiveTools } = await import("../Tools/Archive/index.js");
         return createArchiveTools();
     }, 'ZIP 压缩/解压');
-    globalAgentToolService.registerToolFactory(BuiltinProvider.Sleep, async (_params) => {
-        const { createSleepTool } = await import("../Tools/Sleep/index.js");
-        return [createSleepTool()];
-    }, '等待/暂停执行');
     globalAgentToolService.registerToolFactory(BuiltinProvider.SessionSearch, async (_params) => {
         const { createSessionSearchTool } = await import("../Tools/SessionSearch/index.js");
         return [createSessionSearchTool(null)];
@@ -50,17 +43,6 @@ export function initGlobalAgentToolService() {
         return createChannelTools();
     }, '查询/发消息/发文件 跨 channel 会话');
     globalAgentToolService.registerMcpServers({
-        [BuiltinProvider.Playwright]: {
-            "command": "npx",
-            "args": ["@playwright/mcp@latest"],
-            "description": "Playwright 浏览器自动化",
-        },
-        [BuiltinProvider.Markitdown]: {
-            "type": "stdio",
-            "command": "uvx",
-            "args": ["markitdown-mcp@0.0.1a4"],
-            "description": "文档转 Markdown",
-        },
         [BuiltinProvider.Exa]: {
             "type": "http",
             "url": "https://mcp.exa.ai/mcp",
@@ -81,6 +63,5 @@ export function refreshBuiltinTools() {
         BuiltinProvider.FileSystem,
         BuiltinProvider.WebFetch,
         BuiltinProvider.Archive,
-        BuiltinProvider.Sleep,
     );
 }

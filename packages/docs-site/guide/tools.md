@@ -29,11 +29,6 @@ These tools are available as built-in providers without installing external pack
 - Fetch URLs and convert HTML to clean Markdown
 - Download files from the web
 
-## Sleep
-
-- Pause execution for a bounded number of seconds
-- Useful when an agent needs to wait for an external process, file, or service
-
 ## Session Search
 
 - Search previous conversation history when the active Saver supports archive search

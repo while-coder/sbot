@@ -1,1 +1,0 @@
-Wait for a specified number of seconds before continuing. Use when you need to pause execution, e.g. waiting for an external process to complete.
