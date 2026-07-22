@@ -20,8 +20,7 @@ export { createGlobTool } from './operations/glob';
 export { createLsTool } from './operations/ls';
 export { createRmTool } from './operations/rm';
 export { createMkdirTool } from './operations/mkdir';
-export { createMvTool } from './operations/mv';
-export { createCpTool } from './operations/cp';
+export { createMoveTool } from './operations/move';
 
 import { createReadTool } from './content/read';
 import { createReadMediaFileTool } from './content/readMediaFile';
@@ -32,8 +31,7 @@ import { createGlobTool } from './operations/glob';
 import { createLsTool } from './operations/ls';
 import { createRmTool } from './operations/rm';
 import { createMkdirTool } from './operations/mkdir';
-import { createMvTool } from './operations/mv';
-import { createCpTool } from './operations/cp';
+import { createMoveTool } from './operations/move';
 
 export interface FileSystemToolParams {
     /** 只读模式：仅暴露读类工具，过滤掉 write/edit/mkdir/rm/mv/cp。admin 端传字符串 "true"/"false"，所以这里要兼容两种形态 */
@@ -62,7 +60,6 @@ export function createFileSystemTools(params?: FileSystemToolParams): Structured
         createEditFileTool(),
         createMkdirTool(),
         createRmTool(),
-        createMvTool(),
-        createCpTool(),
+        createMoveTool(),
     ];
 }

@@ -1,0 +1,7 @@
+Move/rename or copy files and directories, like bash mv / cp. Supports multiple sources.
+- move [src] [dest]: if dest is an existing directory, src is moved/copied into it; otherwise src is renamed/copied to dest.
+- move [src1] [src2] ... [destDir]: moves/copies all sources into an existing directory.
+- Set copy=true to copy (cp) instead of move (mv).
+- Copying a directory requires recursive=true (-r); moving a directory does not.
+- Set overwrite=false to skip existing destinations instead of overwriting (-n).
+Parent directories of dest are created automatically. All paths must be absolute.

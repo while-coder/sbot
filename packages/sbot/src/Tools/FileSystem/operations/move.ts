@@ -7,7 +7,7 @@ import { createTextContent, createErrorResult, createSuccessResult, formatError,
 import { resolvePath } from '../utils';
 import { loadPrompt } from '../../../Core/PromptLoader';
 
-const logger = LoggerService.getLogger('Tools/FileSystem/operations/mv.ts');
+const logger = LoggerService.getLogger('Tools/FileSystem/operations/move.ts');
 
 function moveOne(src: string, dst: string): void {
     try {
@@ -23,23 +23,28 @@ function moveOne(src: string, dst: string): void {
     }
 }
 
-/** Move or rename files/directories, like bash mv */
-export function createMvTool(): StructuredToolInterface {
+/** Move/rename or copy files and directories, like bash mv / cp. Supports multiple sources. */
+export function createMoveTool(): StructuredToolInterface {
     return new DynamicStructuredTool({
-        name: 'mv',
-        description: loadPrompt('tools/fs/mv.txt'),
+        name: 'move',
+        description: loadPrompt('tools/fs/move.txt'),
         schema: z.object({
             sources: z.array(z.string()).min(1).describe('One or more absolute source paths'),
             dest: z.string().describe('Absolute destination path (directory or new name)'),
-            noClobber: z.boolean().optional().default(false).describe('Do not overwrite existing files (-n), default false'),
+            copy: z.boolean().optional().default(false).describe('Copy instead of move (cp). Default false (mv)'),
+            recursive: z.boolean().optional().default(false).describe('Copy directories recursively (-r). Only meaningful with copy=true. Default false'),
+            overwrite: z.boolean().optional().default(true).describe('Overwrite existing destination files. Default true (matches bash mv/cp)'),
         }) as any,
-        func: async ({ sources, dest, noClobber = false }: any): Promise<MCPToolResult> => {
+        func: async ({ sources, dest, copy = false, recursive = false, overwrite = true }: any): Promise<MCPToolResult> => {
             try {
                 const srcs = (sources as string[]).map(resolvePath);
                 const dst = resolvePath(dest);
 
                 for (const src of srcs) {
                     if (!fs.existsSync(src)) throw new Error(`Source path does not exist: ${src}`);
+                    if (copy && fs.statSync(src).isDirectory() && !recursive) {
+                        return createErrorResult(`${src} is a directory. Set recursive=true to copy directories`);
+                    }
                 }
 
                 const dstExists = fs.existsSync(dst);
@@ -54,7 +59,7 @@ export function createMvTool(): StructuredToolInterface {
                 for (const src of srcs) {
                     const finalDst = dstIsDir ? path.join(dst, path.basename(src)) : dst;
 
-                    if (fs.existsSync(finalDst) && noClobber) {
+                    if (fs.existsSync(finalDst) && !overwrite) {
                         results.push(`Skipped (destination already exists): ${finalDst}`);
                         continue;
                     }
@@ -62,13 +67,17 @@ export function createMvTool(): StructuredToolInterface {
                     const parentDir = path.dirname(finalDst);
                     if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
 
-                    moveOne(src, finalDst);
+                    if (copy) {
+                        fs.cpSync(src, finalDst, { recursive, force: overwrite });
+                    } else {
+                        moveOne(src, finalDst);
+                    }
                     results.push(`${src} -> ${finalDst}`);
                 }
 
                 return createSuccessResult(createTextContent(results.join('\n')));
             } catch (e: any) {
-                logger.error(`mv: ${formatError(e, true)}`);
+                logger.error(`move: ${formatError(e, true)}`);
                 return createErrorResult(formatError(e));
             }
         }
