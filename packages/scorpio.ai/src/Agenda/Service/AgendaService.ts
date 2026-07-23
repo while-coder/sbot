@@ -1,5 +1,5 @@
 import { inject } from "scorpio.di";
-import { T_AgendaToolDescs, formatError } from "../../Core";
+import { T_AgendaToolDescs, formatError, runtimeActivity } from "../../Core";
 import { ILoggerService, type ILogger } from "../../Logger";
 import type { ChatMessage } from "../../Saver";
 import {
@@ -374,6 +374,7 @@ export class AgendaService implements IAgendaService {
         if (this.isRunning) return;
         this.isRunning = true;
         this.refCount++;
+        const releaseActivity = runtimeActivity.retain();
         try {
             while (true) {
                 let next: PendingAgendaJobRow | null;
@@ -396,6 +397,7 @@ export class AgendaService implements IAgendaService {
         } finally {
             this.isRunning = false;
             this.release();  // 配对开头 refCount++；归零自动 evict
+            releaseActivity();
         }
     }
 

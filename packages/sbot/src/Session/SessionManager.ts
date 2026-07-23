@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ICommand, MessageType, MessageRole, MessageKind, type MessageContent, trimContent, isEmptyContent } from "scorpio.ai";
+import { ICommand, MessageType, MessageRole, MessageKind, type MessageContent, trimContent, isEmptyContent, runtimeActivity } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { config } from "../Core/Config";
@@ -189,6 +189,7 @@ export class SbotSessionManager extends SessionManager {
     // ── Channel entry points ──
 
     async onReceiveChannelMessage(query: MessageContent, args: ChannelRouteArgs): Promise<void> {
+        if (runtimeActivity.isStopping) return;
         query = trimContent(query);
         if (isEmptyContent(query)) return;
 
@@ -231,6 +232,7 @@ export class SbotSessionManager extends SessionManager {
     }
 
     private async dispatchToSession(threadId: string, query: MessageContent, args: ChannelRouteArgs): Promise<void> {
+        if (runtimeActivity.isStopping) return;
         const ctx: MessageContext = { query, args, threadId, filtered: false };
         await this.messagePipeline.execute(ctx, async (c) => {
             if (c.filtered) return;

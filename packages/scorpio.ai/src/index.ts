@@ -83,6 +83,7 @@ export {
   listThreadIds,
   listSubDirs,
   formatError,
+  runtimeActivity,
 } from "./Core";
 
 // ========================================

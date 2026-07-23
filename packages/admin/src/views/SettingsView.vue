@@ -17,6 +17,7 @@ const autoApproveToolsText = ref('')
 const startupCommands = ref<string[]>([])
 const autoCheckUpdate = ref(true)
 const contextFileNames = ref<string[]>([])
+const shutdownLoading = ref(false)
 
 watch(() => store.settings, (s) => {
   httpPort.value = s.httpPort ?? ''
@@ -103,6 +104,18 @@ async function save() {
     show(t('common.saved'))
   } catch (e: any) {
     show(e.message, 'error')
+  }
+}
+
+async function shutdown() {
+  if (!await confirm(t('settings.shutdown_confirm'), { danger: true })) return
+  shutdownLoading.value = true
+  try {
+    await apiFetch('/api/shutdown', 'POST')
+    show(t('settings.shutdown_started'))
+  } catch (e: any) {
+    show(e.message, 'error')
+    shutdownLoading.value = false
   }
 }
 
@@ -240,6 +253,12 @@ function fmtItem(category: string, item: any): string {
           <SFormItem :label="t('settings.max_image_size')" :hint="t('settings.max_image_size_hint')">
             <SInput v-model.number="maxImageSize" type="number" placeholder="1024" min="0" />
           </SFormItem>
+        </div>
+        <div class="service-actions">
+          <div class="form-hint">{{ t('settings.shutdown_hint') }}</div>
+          <SButton type="danger" size="sm" :disabled="shutdownLoading" @click="shutdown">
+            {{ t('settings.shutdown') }}
+          </SButton>
         </div>
       </SCard>
       <SCard :title="t('settings.version_updates')">
@@ -397,9 +416,20 @@ function fmtItem(category: string, item: any): string {
 
 .inline-form { display: flex; gap: var(--sui-sp-7); flex-wrap: wrap; }
 .inline-form > * { flex: 1; min-width: 200px; }
+.service-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sui-sp-4);
+  margin-top: var(--sui-sp-4);
+  padding-top: var(--sui-sp-4);
+  border-top: 1px solid var(--sui-border);
+}
+.service-actions .form-hint { margin-bottom: 0; }
 
 @media (max-width: 768px) {
   .inline-form { flex-direction: column; }
+  .service-actions { align-items: flex-start; flex-direction: column; }
 }
 
 .cleanup-actions {

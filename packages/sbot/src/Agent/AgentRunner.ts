@@ -23,6 +23,7 @@ import {
     T_ChannelSessionId,
     TimeUtils,
     type MessageContent,
+    runtimeActivity,
 } from "scorpio.ai";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config } from "../Core/Config";
@@ -76,6 +77,13 @@ export interface AgentRunOptions {
 
 export class AgentRunner {
     static async run(options: AgentRunOptions): Promise<void> {
+        if (runtimeActivity.isStopping) {
+            throw new Error("Service is shutting down; new agent tasks are not accepted");
+        }
+        return runtimeActivity.track(this.runInternal(options));
+    }
+
+    private static async runInternal(options: AgentRunOptions): Promise<void> {
         const { query, callbacks, agentId, saverId, threadId, dbSessionId, extraInfo, channelPrompt, notes, wikis, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");

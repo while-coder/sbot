@@ -97,9 +97,9 @@ export class SystemRoutes {
 
         app.post('/api/shutdown', api(async () => {
             logger.info('Shutdown requested via API');
-            // 先返回响应，再异步关闭服务
-            setTimeout(() => ctx.shutdown(), 500);
-            return { message: 'Shutting down...' };
+            // 进入排空状态后拒绝新任务；现有 Agent / memory / agenda 工作完成后再退出。
+            void ctx.shutdown();
+            return { message: 'Shutdown initiated; waiting for active work to finish...' };
         }));
 
         // 清理跨表引用孤儿数据。默认 dryRun：只返回报告不删，?apply=1 才真正清。

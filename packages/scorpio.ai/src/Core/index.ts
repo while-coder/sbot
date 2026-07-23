@@ -12,3 +12,4 @@ export { T_StaticSystemPrompts, T_DynamicSystemPrompts, T_DBPath, T_DBUrl, T_DBT
 
 // 工具函数
 export { parseJson, truncate, listThreadIds, listSubDirs, formatError } from "./utils";
+export { runtimeActivity } from "./RuntimeActivity";

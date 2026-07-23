@@ -8,6 +8,8 @@ import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database } from '../Core/Database';
 import { agendaStorePool, agendaTriggerEnginePool } from '../Agenda';
+import { heartbeatService } from '../Heartbeat/HeartbeatService';
+import { runtimeActivity } from 'scorpio.ai';
 import { channelManager } from '../Channel/ChannelManager';
 import { tunnelService } from '../Tunnel';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
@@ -39,11 +41,24 @@ class HttpServer {
     private readonly skillHubService = new SkillHubService();
     private readonly agentStoreService = new AgentStoreService();
     private server?: http.Server;
+    private shutdownPromise?: Promise<void>;
 
     async shutdown(): Promise<void> {
-        logger.info('Shutting down services...');
+        if (!this.shutdownPromise) this.shutdownPromise = this.shutdownInternal();
+        return this.shutdownPromise;
+    }
+
+    private async shutdownInternal(): Promise<void> {
+        runtimeActivity.beginShutdown();
+        logger.info(`Shutting down services: stopped accepting new work; waiting for ${runtimeActivity.active} active task(s)...`);
         try {
             agendaTriggerEnginePool.stopAll();
+            heartbeatService.stopAll();
+            // 立即停止接收新连接；已建立的 HTTP / WebSocket 连接会保留到现有任务排空。
+            const closeServer = this.server
+                ? new Promise<void>((resolve, reject) => this.server!.close(err => err ? reject(err) : resolve()))
+                : Promise.resolve();
+            await runtimeActivity.waitForIdle();
             agendaStorePool.disposeAll();
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
@@ -51,11 +66,7 @@ class HttpServer {
             try { await tunnelService.stopAll(); } catch (e: any) {
                 logger.warn(`tunnel stop error: ${e?.message ?? e}`);
             }
-            if (this.server) {
-                await new Promise<void>((resolve, reject) =>
-                    this.server!.close(err => err ? reject(err) : resolve()),
-                );
-            }
+            await closeServer;
             await database.sequelize.close();
             logger.info('All services stopped');
         } catch (e: any) {

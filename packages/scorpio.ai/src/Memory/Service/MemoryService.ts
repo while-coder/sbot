@@ -4,7 +4,7 @@ import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
 } from "../../Core/tokens";
-import { formatError } from "../../Core";
+import { formatError, runtimeActivity } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import {
@@ -294,6 +294,7 @@ export class MemoryService implements IMemoryService {
         if (this.isRunning) return;
         this.isRunning = true;
         this.refCount++;
+        const releaseActivity = runtimeActivity.retain();
         try {
             await this.runInitialReconcile();
             while (true) {
@@ -319,6 +320,7 @@ export class MemoryService implements IMemoryService {
         } finally {
             this.isRunning = false;
             this.release();  // 配对开头 refCount++；归零自动 teardown
+            releaseActivity();
         }
     }
 
