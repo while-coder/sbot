@@ -23,8 +23,7 @@
     "debug:admin": "pnpm run build:deps && pnpm --filter sbot-admin run debug",
     "build:admin": "pnpm run build:deps && pnpm --filter sbot-admin run build",
 
-    "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run build",
-    "install:vscode": "pnpm run build:vscode && pnpm --filter sbot-vscode run install-ext",
+    "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run package",
 
     "debug:app": "pnpm run assets && pnpm --filter @sbot/app run dev",
     "build:app:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run macos:build",

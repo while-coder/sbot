@@ -22,7 +22,8 @@ type ChatViewLayout = 'auto' | 'compact' | 'wide';
 export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   public static readonly viewType = 'sbot.chatView';
 
-  private view: vscode.WebviewView | undefined;
+  private view: vscode.WebviewView | vscode.WebviewPanel | undefined;
+  private sidebarView: vscode.WebviewView | undefined;
   private client: SbotClient | undefined;
   private viewDisposables: vscode.Disposable[] = [];
   /** Active pty proxy sockets, keyed by the webview-assigned id. */
@@ -43,6 +44,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.sidebarView = webviewView;
+    this.resolveWebview(webviewView);
+  }
+
+  resolveWebviewPanel(webviewPanel: vscode.WebviewPanel): void {
+    this.sidebarView = undefined;
+    this.resolveWebview(webviewPanel);
+  }
+
+  private resolveWebview(webviewView: vscode.WebviewView | vscode.WebviewPanel): void {
     this.viewDisposables.forEach(d => d.dispose());
     this.viewDisposables = [];
 
@@ -61,6 +72,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     this.viewDisposables.push(vscode.window.onDidChangeActiveTextEditor(() => this.postConfig()));
     webviewView.onDidDispose(() => {
       if (this.view === webviewView) this.view = undefined;
+      if (this.sidebarView === webviewView) this.sidebarView = undefined;
       this.disposeClient();
       this.viewDisposables.forEach(d => d.dispose());
       this.viewDisposables = [];
@@ -68,8 +80,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
   }
 
   show(): void {
-    if (this.view) {
-      this.view.show();
+    if (this.sidebarView) {
+      this.sidebarView.show();
       return;
     }
     void vscode.commands.executeCommand(`${ChatViewProvider.viewType}.focus`);

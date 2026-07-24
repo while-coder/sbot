@@ -41,7 +41,12 @@
     "commands": [
       {
         "command": "sbot.openChat",
-        "title": "sbot: Open Chat",
+        "title": "sbot: Open Chat in Sidebar",
+        "icon": "media/icon.png"
+      },
+      {
+        "command": "sbot.openChatInEditor",
+        "title": "sbot: Open Chat in Editor",
         "icon": "media/icon.png"
       },
       {
@@ -79,7 +84,7 @@
     "menus": {
       "editor/title": [
         {
-          "command": "sbot.openChat",
+          "command": "sbot.openChatInEditor",
           "group": "navigation@100"
         }
       ]
@@ -92,7 +97,8 @@
     "watch:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "watch:webview": "vite build --watch",
     "dev": "concurrently \"pnpm run watch:ext\" \"pnpm run watch:webview\"",
-    "install-ext": "node scripts/install.mjs"
+    "install-ext": "node scripts/install.mjs",
+    "package": "pnpm run build && vsce package --no-dependencies --skip-license"
   },
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",
@@ -105,6 +111,7 @@
     "@types/node": "catalog:",
     "@types/vscode": "1.85.0",
     "@types/ws": "catalog:",
+    "@vscode/vsce": "^3.9.2",
     "@vitejs/plugin-vue": "catalog:",
     "concurrently": "^10.0.3",
     "esbuild": "^0.28.1",

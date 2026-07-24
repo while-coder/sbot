@@ -5,7 +5,7 @@ import { homedir } from 'os';
 
 const root = resolve(import.meta.dirname, '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8'));
-const extId = `${pkg.name}-${pkg.version}`;
+const extId = `${pkg.publisher}.${pkg.name}-${pkg.version}`;
 const extensionsDir = join(homedir(), '.vscode', 'extensions');
 const targetDir = join(extensionsDir, extId);
 
