@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const { execSync } = require('child_process');
+const readline = require('readline');
 const path = require('path');
 const fs = require('fs');
 
@@ -81,16 +82,37 @@ function remoteTagExists(tag) {
   return commandSucceeds(`git ls-remote --exit-code origin "refs/tags/${tag}"`);
 }
 
-function deleteExistingTag(tag) {
-  if (remoteTagExists(tag)) {
+function confirmTagOverwrite(tag, existing) {
+  const locations = [
+    existing.local ? '本地' : '',
+    existing.remote ? 'origin 远程' : '',
+  ].filter(Boolean).join('、');
+  const prompt = `⚠ tag ${tag} 已存在（${locations}）。删除后重新打 tag 并推送？[y/N] `;
+  const input = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    const finish = (answer) => {
+      if (resolved) return;
+      resolved = true;
+      input.close();
+      resolve(answer);
+    };
+    input.once('close', () => finish(false));
+    input.question(prompt, (answer) => finish(answer.trim().toLowerCase() === 'y'));
+  });
+}
+
+function deleteExistingTag(tag, existing) {
+  if (existing.remote) {
     run(`git push origin --delete "${tag}"`);
   }
-  if (tagExists(tag)) {
+  if (existing.local) {
     run(`git tag -d "${tag}"`);
   }
 }
 
-function main() {
+async function main() {
   const target = process.argv[2];
   const arg = process.argv[3];
 
@@ -165,9 +187,20 @@ function main() {
   if (notesChanged) console.log('notes   : updated from ReleaseNote files');
   console.log('');
 
-  if (tagExists(tag) && !cfg.overwriteExistingRelease) {
-    console.error(`error: tag "${tag}" already exists`);
-    process.exit(1);
+  const existingTag = {
+    local: tagExists(tag),
+    remote: remoteTagExists(tag),
+  };
+  if (existingTag.local || existingTag.remote) {
+    if (!cfg.overwriteExistingRelease) {
+      console.error(`error: tag "${tag}" already exists`);
+      process.exit(1);
+    }
+    if (!(await confirmTagOverwrite(tag, existingTag))) {
+      console.log('✗ 已取消，未删除任何 tag，发版中止');
+      process.exitCode = 1;
+      return;
+    }
   }
 
   if (mutate) {
@@ -212,8 +245,8 @@ function main() {
     run(`git commit -m "${commitMsg}"`);
   }
 
-  if (cfg.overwriteExistingRelease) {
-    deleteExistingTag(tag);
+  if (existingTag.local || existingTag.remote) {
+    deleteExistingTag(tag, existingTag);
   }
 
   run(`git tag -a "${tag}" -m "${target} v${nextVersion}"`);
@@ -225,4 +258,7 @@ function main() {
   console.log(`✓ pushed tag ${tag} — workflow "${workflowName}" triggered`);
 }
 
-main();
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+});
