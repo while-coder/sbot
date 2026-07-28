@@ -3,6 +3,7 @@ export {
   DISPATCH_TASK_TOOL_NAME,
   TaskContextMode,
   type DispatchTaskToolParams,
+  type RunDispatchTaskArgs,
   type RunDispatchTaskFn,
 } from './DispatchTaskTool';
 

@@ -113,15 +113,18 @@ export class ReActAgentService extends SingleAgentService {
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
-    const runFn: RunDispatchTaskFn = async ({ agentId, task, systemPrompt, taskId, contextMode }) => {
+    const runFn: RunDispatchTaskFn = async ({ agentId, task, systemPrompt, contextMode, thinkId: inputThinkId, taskId: inputTaskId, onCreateThink }) => {
       let agentService: AgentServiceBase | null = null;
-      const thinkId = uuidv4();
-      const resolvedTaskId = taskId ?? uuidv4();
+      // thinkId 优先用框架预留的那个（配合 onCreateThink 可在子任务执行中就让用户查看思考过程），
+      // 无注入时（直接调用 runFn 的场景）自行生成，退化为仅在结果里回传。
+      // taskId 由 LLM 传入即续接已有子会话，否则新建一个。
+      const resolvedThinkId = inputThinkId ?? uuidv4();
+      const resolvedTaskId = inputTaskId ?? uuidv4();
 
       // P7 派生护栏：超深度直接拒绝，不创建子 agent（防嵌套 ReAct 无限递归）。
       const childDepth = this.spawnDepth + 1;
       if (childDepth > ReActAgentService.MAX_SPAWN_DEPTH) {
-        return { ...createErrorResult(`Spawn depth limit reached (max ${ReActAgentService.MAX_SPAWN_DEPTH}); cannot dispatch deeper sub-agents.`), _meta: { thinkId, taskId: resolvedTaskId } };
+        return { ...createErrorResult(`Spawn depth limit reached (max ${ReActAgentService.MAX_SPAWN_DEPTH}); cannot dispatch deeper sub-agents.`), _meta: { thinkId: resolvedThinkId, taskId: resolvedTaskId } };
       }
 
       // P4 注册表：进入即标记 running（续接则 turns++）。每次从 saver 现取-改-写回。
@@ -139,9 +142,16 @@ export class ReActAgentService extends SingleAgentService {
       });
       await this.writeRegistry(reg);
 
+      // 声明 think 开启：子 agent 的消息在执行过程中就已实时写入父 saver 的 thinks
+      // （见 TaskBackedSaver），但 thinkId 原先只随完成后的 ToolMessage 返回，用户要等子任务
+      // 跑完才能查看思考过程。这里在派发前声明一次，框架即把 thinkId/taskId 关联到本次
+      // tool_call 通知渠道（见 SingleAgentService.runSingleTool）。放在深度护栏之后，
+      // 被拒的派发不会留下悬挂的「思考中」入口。
+      await onCreateThink?.(resolvedTaskId);
+
       try {
         const parentSaver = this.saverService;
-        const taskSaver = new TaskBackedSaver(resolvedTaskId, thinkId, parentSaver);
+        const taskSaver = new TaskBackedSaver(resolvedTaskId, resolvedThinkId, parentSaver);
         const subContainer = new ServiceContainer();
         subContainer.registerInstance(IAgentSaverService, taskSaver);
         // 子任务 SingleAgentService 同样要 T_ChannelSessionId（必传），从父继承一份。
@@ -163,7 +173,7 @@ export class ReActAgentService extends SingleAgentService {
         }
 
         // P1 上下文继承：仅新建会话（无 taskId）时按档注入。续接路径忽略 contextMode——子会话已有自己的历史。
-        if (!taskId && contextMode === TaskContextMode.State) {
+        if (!inputTaskId && contextMode === TaskContextMode.State) {
           const snippet = this.buildParentContextSnippet(await this.saverService.getMessages());
           if (snippet) agentService.addDynamicSystemPrompts([snippet]);
         }
@@ -196,10 +206,10 @@ export class ReActAgentService extends SingleAgentService {
         }
         // P4：成功 → done + 记录摘要
         await this.updateTaskRecord(resolvedTaskId, TaskStatus.Done, textParts.join('\n'));
-        return { content, _meta: { thinkId, taskId: resolvedTaskId } };
+        return { content, _meta: { thinkId: resolvedThinkId, taskId: resolvedTaskId } };
       } catch (error: any) {
         await this.updateTaskRecord(resolvedTaskId, TaskStatus.Error, formatError(error));
-        return { ...createErrorResult(`Execution failed: ${formatError(error)}`), _meta: { thinkId, taskId: resolvedTaskId } };
+        return { ...createErrorResult(`Execution failed: ${formatError(error)}`), _meta: { thinkId: resolvedThinkId, taskId: resolvedTaskId } };
       } finally {
         await agentService?.dispose();
       }

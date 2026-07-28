@@ -13,9 +13,10 @@ import { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKEN
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
-import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, ChatToolCall, MessageRole, type TokenUsage } from "../AgentServiceBase";
-import { ContentPartType, type MessageContent, type ContentPart } from "../../Saver/IAgentSaverService";
+import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, ChatToolCall, MessageRole, type TokenUsage, type OnCreateThinkFn } from "../AgentServiceBase";
+import { ContentPartType, MessageKind, type MessageContent, type ContentPart } from "../../Saver/IAgentSaverService";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
+import { v4 as uuidv4 } from "uuid";
 
 export {
     GraphNodeType,
@@ -275,6 +276,15 @@ export class SingleAgentService extends AgentServiceBase {
         }
         if (!lastChunk) return { messages: [] };
 
+        // 部分 provider（Ollama / 某些 OpenAI 兼容端点）不返回 tool_call.id，补一个 uuid。
+        // 必须补在入 saver 之前：callToolsNode 从 saver 重读 tool_calls，补齐后
+        // saver / 回调下发 / 工具执行三方看到同一个 id，AIMessage 与 ToolMessage 的配对也才稳定。
+        if (lastChunk.tool_calls?.length) {
+            for (const tc of lastChunk.tool_calls) {
+                if (!tc.id) tc.id = uuidv4();
+            }
+        }
+
         if (lastChunk.usage) {
             if (this.compactor) {
                 await this.saverService.setMetadata(METADATA_KEY_INPUT_TOKENS, String(lastChunk.usage.input_tokens));
@@ -341,7 +351,7 @@ export class SingleAgentService extends AgentServiceBase {
                 await sem.acquire();
                 try {
                     if (state.signal?.aborted) { toolMessages[idx] = cancelledMsg(toolCall); return; }
-                    toolMessages[idx] = await this.runSingleTool(toolCall, toolMap, idx, state.signal);
+                    toolMessages[idx] = await this.runSingleTool(toolCall, toolMap, idx, state.signal, callback);
                 } catch (error: any) {
                     if (error instanceof AgentCancelledError) {
                         toolMessages[idx] = cancelledMsg(toolCall);
@@ -373,6 +383,7 @@ export class SingleAgentService extends AgentServiceBase {
         toolMap: Map<string, StructuredToolInterface>,
         i: number,
         signal?: AbortSignal,
+        callback?: IAgentCallback,
     ): Promise<ChatMessage> {
         const tool = toolMap.get(toolCall.name);
         if (!tool) throw new Error(`Tool not found`);
@@ -380,7 +391,51 @@ export class SingleAgentService extends AgentServiceBase {
         // LLM 有时会将数组/对象参数 JSON 序列化成字符串，先做一次反解析
         const parsedArgs = SingleAgentService.parseStringArgs(toolCall.args);
         this.logger?.info(`开始执行工具 ${tool.name} 参数: ${truncate(JSON.stringify(parsedArgs), 300)}`);
-        const result = await raceCancel(tool.invoke(parsedArgs), signal);
+
+        // think 预留：thinkId 在这里生成并随 config 透传给工具。会开启子思考流的工具
+        // （如 _dispatch_task 派发子 agent）在流程真正启动时调 onCreateThink 声明一次，此处
+        // 立刻把 thinkId/taskId 关联到本次 tool_call 落库 + 下发 —— 用户因此无需等子任务结束
+        // 就能查看思考过程（子 agent 的消息本就实时写入 thinks，见 TaskBackedSaver，缺的
+        // 只是 thinkId 的告知时机）。
+        // 落库用 MessageKind.Command：think 可能长时间运行，期间刷新页面仍要能进入；
+        // 该 kind 不进 LLM 上下文与压缩（getMessages 只取 Normal），故不污染对话。
+        // thinkId/taskId 按既有约定存独立列（见 stream 里的 pushOptions），不进消息体；
+        // 下发给渠道的那份仍挂在 additional_kwargs 上（ws handler 从那里读）。
+        // 绝大多数工具不调用 onCreateThink，预留的 id 直接丢弃，无任何副作用。
+        const thinkId = uuidv4();
+        let thinkCreated = false;
+        const onCreateThink: OnCreateThinkFn = async (createdTaskId) => {
+            if (thinkCreated) return;
+            thinkCreated = true;
+            const placeholder: ChatMessage = {
+                role: MessageRole.Tool,
+                tool_call_id: toolCall.id || "",
+                content: "",
+                status: "running",
+            };
+            try {
+                await this.saverService.pushMessage(placeholder, {
+                    kind: MessageKind.Command,
+                    thinkId,
+                    taskId: createdTaskId,
+                });
+            } catch (err: any) {
+                this.logger?.warn(`落库 think 运行中占位消息失败 ${tool.name}: ${formatError(err, true)}`);
+            }
+            try {
+                await callback?.onMessage?.({
+                    ...placeholder,
+                    additional_kwargs: { thinkId, taskId: createdTaskId },
+                });
+            } catch (err: any) {
+                this.logger?.warn(`推送 think 运行中占位消息失败 ${tool.name}: ${formatError(err, true)}`);
+            }
+        };
+
+        const result = await raceCancel(
+            tool.invoke(parsedArgs, { configurable: { thinkId, onCreateThink } }),
+            signal,
+        );
 
         // 标准化为 MCP 格式（自动检测和转换各种格式）
         let mcpResult = normalizeToMCPResult(result);
@@ -399,7 +454,8 @@ export class SingleAgentService extends AgentServiceBase {
         const resultStr = JSON.stringify(mcpResult);
         this.logger?.info(`执行工具结束 ${tool.name} 结果: ${truncate(resultStr, 300)}`);
 
-        const thinkId = mcpResult._meta?.thinkId;
+        // 优先用工具经 onCreateThink 声明的预留 id；兼容仅在 _meta 里回传 thinkId 的工具。
+        const resultThinkId = thinkCreated ? thinkId : mcpResult._meta?.thinkId;
         const taskId = mcpResult._meta?.taskId;
         // 将 MCP 结果转为 MessageContent：单条纯文本直接用 string，否则转为多模态数组。
         // MCPContent 与 ContentPart 形状大体兼容（image_url 顶层 url/image_url 两种形态由 resizeImagesInContent 统一处理）
@@ -409,7 +465,7 @@ export class SingleAgentService extends AgentServiceBase {
         const content = await this.resizeImagesInContent(rawContent);
 
         const extra: Record<string, unknown> = {};
-        if (thinkId) extra.thinkId = thinkId;
+        if (resultThinkId) extra.thinkId = resultThinkId;
         if (taskId) extra.taskId = taskId;
         return {
             role: MessageRole.Tool,

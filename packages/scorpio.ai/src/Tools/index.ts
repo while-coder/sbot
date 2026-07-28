@@ -27,6 +27,7 @@ export {
     DISPATCH_TASK_TOOL_NAME,
     TaskContextMode,
     type DispatchTaskToolParams,
+    type RunDispatchTaskArgs,
     type RunDispatchTaskFn,
     createListTasksTool,
     LIST_TASKS_TOOL_NAME,

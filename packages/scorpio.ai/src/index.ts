@@ -383,6 +383,7 @@ export {
 export type {
   AgentSubNode,
   CreateAgentFn,
+  OnCreateThinkFn,
 } from "./Agents";
 
 // ========================================
@@ -404,6 +405,7 @@ export {
   createDispatchTaskTool,
   DISPATCH_TASK_TOOL_NAME,
   type DispatchTaskToolParams,
+  type RunDispatchTaskArgs,
   type RunDispatchTaskFn,
 
   // 工具函数

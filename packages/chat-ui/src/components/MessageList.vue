@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { MessageRole, MessageKind } from '../types'
 import type { StoredMessage, ToolCall, ChatLabels, DisplayContent } from '../types'
 
@@ -36,7 +36,7 @@ const props = withDefaults(defineProps<{
   queuedMessages?: DisplayContent[]
   labels?: ChatLabels
   fetchFn?: (url: string) => Promise<any>
-  onThinkClick?: (thinkId: string, taskId?: string) => void
+  onThinkClick?: (thinkId: string, taskId?: string, opts?: { live?: boolean }) => void
 }>(), {
   thinksUrlPrefix: null,
   tasksUrlPrefix: null,
@@ -110,14 +110,39 @@ const lightboxRef = ref<InstanceType<typeof ImageLightbox>>()
 const openLightbox = (src: string) => lightboxRef.value?.open(src)
 
 const thinkDrawerRef = ref<InstanceType<typeof ThinkDrawer>>()
-function openThink(thinkId: string, taskId?: string) {
-  if (props.onThinkClick) props.onThinkClick(thinkId, taskId)
-  else thinkDrawerRef.value?.open(thinkId, taskId)
+function openThink(thinkId: string, taskId?: string, opts?: { live?: boolean }) {
+  if (props.onThinkClick) props.onThinkClick(thinkId, taskId, opts)
+  else thinkDrawerRef.value?.open(thinkId, taskId, opts)
 }
 
 function findToolResult(toolCallId: string): StoredMessage | undefined {
   return toolResultMap.value.get(toolCallId)
 }
+
+/**
+ * 子任务进行中：开启 think 流时后端先落一条 `status: 'running'` 的占位工具消息
+ * （带 thinkId/taskId，kind 为 command 不进 LLM 上下文），完成后被真实结果按
+ * tool_call_id 覆盖 —— 故这里只看 toolResultMap 里的最终态。
+ */
+function isToolRunning(toolCallId: string): boolean {
+  return findToolResult(toolCallId)?.message.status === 'running'
+}
+
+/** 运行中的 thinkId 集合，用于在子任务结束时通知已打开的 Drawer 停止轮询。 */
+const runningThinkIds = computed(() => {
+  const ids = new Set<string>()
+  for (const msg of toolResultMap.value.values()) {
+    if (msg.message.status === 'running' && msg.thinkId) ids.add(msg.thinkId)
+  }
+  return ids
+})
+
+watch(runningThinkIds, (now, prev) => {
+  if (!prev) return
+  for (const id of prev) {
+    if (!now.has(id)) thinkDrawerRef.value?.setLive(id, false)
+  }
+})
 
 /** True when the row should be skipped (tool results are rendered nested inside their AI parent). */
 function isEmbeddedTool(msg: StoredMessage): boolean {
@@ -202,7 +227,15 @@ function contentCharLen(content?: DisplayContent): number {
                 <span class="tool-call-name">{{ tc.name }}</span>
                 <span class="tool-call-summary">
                   <span v-if="inlineArgs(tc)" class="tool-call-inline-args" :title="inlineArgs(tc)">{{ inlineArgs(tc) }}</span>
-                  <span v-if="toolResultPreviewMap.get(tc.id)" class="tool-call-result-preview" :title="toolResultPreviewMap.get(tc.id)">↳ {{ toolResultPreviewMap.get(tc.id) }}</span>
+                  <!-- 子任务进行中：不必先展开 tool_call，直接从这里进思考过程 -->
+                  <span
+                    v-if="isToolRunning(tc.id) && findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
+                    class="think-toggle think-toggle-running"
+                    @click.stop="openThink(findToolResult(tc.id)!.thinkId!, findToolResult(tc.id)!.taskId, { live: true })"
+                  >
+                    <span class="think-live-dot" /><span>{{ L.thinking }}</span>
+                  </span>
+                  <span v-else-if="toolResultPreviewMap.get(tc.id)" class="tool-call-result-preview" :title="toolResultPreviewMap.get(tc.id)">↳ {{ toolResultPreviewMap.get(tc.id) }}</span>
                 </span>
               </button>
               <div class="tool-call-detail" :class="{ show: isToolCallExpanded(tc.id) }">
@@ -210,14 +243,16 @@ function contentCharLen(content?: DisplayContent): number {
                 <template v-if="findToolResult(tc.id)">
                   <div class="tool-call-result">
                     <div class="tool-call-result-top">
-                      <div class="tool-call-result-label">{{ L.toolResult }}</div>
-                      <span class="msg-char-len" :title="`${contentCharLen(findToolResult(tc.id)!.message.content)} chars`">{{ contentCharLen(findToolResult(tc.id)!.message.content) }} chars</span>
+                      <div class="tool-call-result-label">{{ isToolRunning(tc.id) ? L.thinking : L.toolResult }}</div>
+                      <span v-if="!isToolRunning(tc.id)" class="msg-char-len" :title="`${contentCharLen(findToolResult(tc.id)!.message.content)} chars`">{{ contentCharLen(findToolResult(tc.id)!.message.content) }} chars</span>
                       <div v-if="findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
-                        class="think-toggle" @click="openThink(findToolResult(tc.id)!.thinkId!, findToolResult(tc.id)!.taskId)">
-                        <span>▸</span><span>{{ L.think }}</span>
+                        class="think-toggle" :class="{ 'think-toggle-running': isToolRunning(tc.id) }"
+                        @click="openThink(findToolResult(tc.id)!.thinkId!, findToolResult(tc.id)!.taskId, { live: isToolRunning(tc.id) })">
+                        <span v-if="isToolRunning(tc.id)" class="think-live-dot" /><span v-else>▸</span><span>{{ L.think }}</span>
                       </div>
                     </div>
-                    <ContentParts :content="findToolResult(tc.id)!.message.content"
+                    <!-- 进行中的占位没有 content，不渲染结果体 -->
+                    <ContentParts v-if="!isToolRunning(tc.id)" :content="findToolResult(tc.id)!.message.content"
                       text-class="md-content tool-result-content"
                       @open-image="openLightbox" />
                   </div>
@@ -559,6 +594,20 @@ function contentCharLen(content?: DisplayContent): number {
 }
 .think-toggle:hover {
   background: rgba(124, 58, 237, 0.18);
+}
+.think-toggle-running {
+  font-weight: 500;
+}
+.think-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: think-live-pulse 1.2s ease-in-out infinite;
+}
+@keyframes think-live-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
 }
 .think-toggle-human {
   background: rgba(255, 255, 255, 0.15);

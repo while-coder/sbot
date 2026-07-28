@@ -49,6 +49,8 @@ export interface ChatMessage {
   tool_calls?: ToolCall[]
   tool_call_id?: string
   name?: string
+  /** 工具消息的执行状态：`success` / `error` / `running`。`running` 是 think 进行中的占位，完成后被真结果按 `tool_call_id` 覆盖。 */
+  status?: string
 }
 
 /**

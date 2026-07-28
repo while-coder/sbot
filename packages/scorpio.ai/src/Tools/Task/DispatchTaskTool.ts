@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import type { MCPToolResult } from "../Core";
+// 仅类型导入（编译期擦除），不构成 Tools ↔ Agents 的运行时循环依赖
+import type { OnCreateThinkFn } from "../../Agents/AgentServiceBase";
 
 // -- Types -------------------------------------------------------------------
 
@@ -20,7 +22,15 @@ export interface DispatchTaskToolParams {
   taskId?: string;
 }
 
-export type RunDispatchTaskFn = (params: DispatchTaskToolParams) => Promise<MCPToolResult>;
+/** runFn 的实参：LLM 填的 schema 字段 + 运行期由框架注入的上下文（不对模型暴露）。 */
+export type RunDispatchTaskArgs = DispatchTaskToolParams & {
+  /** 框架预留的 think 记录 id：子 agent 的消息应实时写入该 id 下。缺省时实现方自行生成。 */
+  thinkId?: string;
+  /** 声明本次派发确实开启了 think 流，框架据此把 thinkId 关联到本次 tool_call 通知渠道。 */
+  onCreateThink?: OnCreateThinkFn;
+};
+
+export type RunDispatchTaskFn = (params: RunDispatchTaskArgs) => Promise<MCPToolResult>;
 
 // -- Factory -----------------------------------------------------------------
 
@@ -53,6 +63,13 @@ export function createDispatchTaskTool(agentIds: string[], runFn: RunDispatchTas
     name: DISPATCH_TASK_TOOL_NAME,
     description: description,
     schema: schema as any,
-    func: async (params: any): Promise<MCPToolResult> => runFn(params),
+    // 第三参是 invoke 时传入的 RunnableConfig，SingleAgentService 在其 configurable 里
+    // 预置 thinkId 与 onCreateThink（见 runSingleTool），这里透传给实现方。
+    func: async (params: any, _runManager?: any, config?: any): Promise<MCPToolResult> =>
+      runFn({
+        ...params,
+        thinkId: config?.configurable?.thinkId,
+        onCreateThink: config?.configurable?.onCreateThink,
+      }),
   });
 }
