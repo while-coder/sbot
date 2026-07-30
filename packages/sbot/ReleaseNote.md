@@ -5,10 +5,15 @@ This release includes the following main changes:
 1. Token Usage now provides full analysis: filter by time, agent, model, provider, and channel, then review trends, breakdowns, and individual calls.
 2. Model and embedding settings now show their references from agents, memory profiles, agenda profiles, notes, and wikis before you change a configuration.
 3. The unified `move` file-system tool can move, rename, or copy files and directories.
+4. Subtask thinking can be opened while the subtask is still running, and refreshes live instead of only after it finishes.
+5. Settings now has a Stop Service action: it stops accepting new tasks and exits once active agent, memory, and agenda work has completed.
+6. The VS Code extension adds "Open Chat in Editor" so the chat can live in an editor tab; the sidebar entry is unchanged.
 
 ### Improved
 
 1. OpenAI-compatible model providers now preserve the server's detailed error message when a request fails, making model setup issues easier to diagnose.
+2. Tool-call one-line summaries now pick the arguments that actually distinguish a call, so repeated calls to the same tool are easier to tell apart.
+3. Expanding tool-call details no longer shifts the block's width, and now animates.
 
 ### Fixed
 
