@@ -66,6 +66,18 @@
       "name": "Launch app",
       "command": "pnpm dev",
       "cwd": "${workspaceFolder}/packages/app"
+    },
+    {
+      "name": "Launch AdminUI",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5173/webui/",
+      "webRoot": "${workspaceFolder}/packages/admin",
+      "sourceMapPathOverrides": {
+        "webpack:///./*": "${webRoot}/*",
+        "/@fs/*": "/*"
+      },
+      "preLaunchTask": "launch:adminui"
     }
   ]
 }

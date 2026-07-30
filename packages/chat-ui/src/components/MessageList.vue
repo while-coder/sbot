@@ -227,9 +227,10 @@ function contentCharLen(content?: DisplayContent): number {
                 <span class="tool-call-name">{{ tc.name }}</span>
                 <span class="tool-call-summary">
                   <span v-if="inlineArgs(tc)" class="tool-call-inline-args" :title="inlineArgs(tc)">{{ inlineArgs(tc) }}</span>
-                  <!-- 子任务进行中：不必先展开 tool_call，直接从这里进思考过程 -->
+                  <!-- 子任务进行中且未展开：不必先展开 tool_call，直接从这里进思考过程。
+                       展开后详情区已有同样的入口，这里就不再重复 -->
                   <span
-                    v-if="isToolRunning(tc.id) && findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
+                    v-if="isToolRunning(tc.id) && !isToolCallExpanded(tc.id) && findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
                     class="think-toggle think-toggle-running"
                     @click.stop="openThink(findToolResult(tc.id)!.thinkId!, findToolResult(tc.id)!.taskId, { live: true })"
                   >
@@ -238,25 +239,30 @@ function contentCharLen(content?: DisplayContent): number {
                   <span v-else-if="toolResultPreviewMap.get(tc.id)" class="tool-call-result-preview" :title="toolResultPreviewMap.get(tc.id)">↳ {{ toolResultPreviewMap.get(tc.id) }}</span>
                 </span>
               </button>
+              <!-- inner 包一层：grid-template-rows: 0fr 的折叠动画只能约束单个子元素 -->
               <div class="tool-call-detail" :class="{ show: isToolCallExpanded(tc.id) }">
-                <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
-                <template v-if="findToolResult(tc.id)">
-                  <div class="tool-call-result">
-                    <div class="tool-call-result-top">
-                      <div class="tool-call-result-label">{{ isToolRunning(tc.id) ? L.thinking : L.toolResult }}</div>
-                      <span v-if="!isToolRunning(tc.id)" class="msg-char-len" :title="`${contentCharLen(findToolResult(tc.id)!.message.content)} chars`">{{ contentCharLen(findToolResult(tc.id)!.message.content) }} chars</span>
-                      <div v-if="findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
-                        class="think-toggle" :class="{ 'think-toggle-running': isToolRunning(tc.id) }"
-                        @click="openThink(findToolResult(tc.id)!.thinkId!, findToolResult(tc.id)!.taskId, { live: isToolRunning(tc.id) })">
-                        <span v-if="isToolRunning(tc.id)" class="think-live-dot" /><span v-else>▸</span><span>{{ L.think }}</span>
+                <div class="tool-call-detail-inner">
+                  <div class="tool-call-args">{{ JSON.stringify(tc.args, null, 2) }}</div>
+                  <template v-if="findToolResult(tc.id)">
+                    <!-- 进行中时没有结果体，只剩一个入口按钮：去掉水平内边距，让它与上方 args 块左对齐 -->
+                    <div class="tool-call-result" :class="{ 'is-running': isToolRunning(tc.id) }">
+                      <div class="tool-call-result-top">
+                        <!-- 进行中时不显示标题：按钮本身就写着"思考中" -->
+                        <div v-if="!isToolRunning(tc.id)" class="tool-call-result-label">{{ L.toolResult }}</div>
+                        <span v-if="!isToolRunning(tc.id)" class="msg-char-len" :title="`${contentCharLen(findToolResult(tc.id)!.message.content)} chars`">{{ contentCharLen(findToolResult(tc.id)!.message.content) }} chars</span>
+                        <div v-if="findToolResult(tc.id)?.thinkId && thinksUrlPrefix"
+                          class="think-toggle" :class="{ 'think-toggle-running': isToolRunning(tc.id) }"
+                          @click="openThink(findToolResult(tc.id)!.thinkId!, findToolResult(tc.id)!.taskId, { live: isToolRunning(tc.id) })">
+                          <span v-if="isToolRunning(tc.id)" class="think-live-dot" /><span v-else>▸</span><span>{{ isToolRunning(tc.id) ? L.thinking : L.think }}</span>
+                        </div>
                       </div>
+                      <!-- 进行中的占位没有 content，不渲染结果体 -->
+                      <ContentParts v-if="!isToolRunning(tc.id)" :content="findToolResult(tc.id)!.message.content"
+                        text-class="md-content tool-result-content"
+                        @open-image="openLightbox" />
                     </div>
-                    <!-- 进行中的占位没有 content，不渲染结果体 -->
-                    <ContentParts v-if="!isToolRunning(tc.id)" :content="findToolResult(tc.id)!.message.content"
-                      text-class="md-content tool-result-content"
-                      @open-image="openLightbox" />
-                  </div>
-                </template>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -459,6 +465,8 @@ function contentCharLen(content?: DisplayContent): number {
 :deep(.inline-audio audio) { max-width: 100%; border-radius: 6px; }
 
 /* Tool calls */
+/* 宽度由布局给定，不由内容决定：否则折叠态是 "grep" 的窄宽度，
+   展开态是 args JSON 最长行的宽度，切换时整块会横向跳变。 */
 .msg-tool-calls {
   background: var(--chatui-bg-ai);
   border: 1px solid var(--chatui-border);
@@ -466,7 +474,9 @@ function contentCharLen(content?: DisplayContent): number {
   padding: 10px 12px;
   margin-top: 6px;
   font-size: 12px;
+  width: 100%;
   max-width: 90%;
+  box-sizing: border-box;
 }
 .msg-role.has-think {
   display: flex;
@@ -478,6 +488,8 @@ function contentCharLen(content?: DisplayContent): number {
   border-radius: 6px;
   margin-top: 6px;
   overflow: hidden;
+  /* min-width 默认是 max-content，不归零会让长内容顶穿上面的宽度约束 */
+  min-width: 0;
 }
 .tool-call-header {
   width: 100%;
@@ -521,6 +533,9 @@ function contentCharLen(content?: DisplayContent): number {
   overflow: hidden;
   padding-top: 2px;
 }
+/* 按钮按内容宽度收缩。注意不能改父级的 align-items：摘要行要靠 stretch 拿到
+   确定宽度，text-overflow: ellipsis 才生效。 */
+.tool-call-summary > .think-toggle { align-self: flex-start; }
 .tool-call-inline-args {
   font-family: monospace;
   font-size: 11px;
@@ -540,13 +555,29 @@ function contentCharLen(content?: DisplayContent): number {
   opacity: 0.85;
 }
 .tool-call-header.expanded .tool-call-result-preview { display: none; }
-.tool-call-detail { display: none; }
-.tool-call-detail.show { display: block; }
+/* 展开只改变高度，从不改变宽度 */
+.tool-call-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.18s ease;
+  min-width: 0;
+}
+.tool-call-detail.show { grid-template-rows: 1fr; }
+.tool-call-detail-inner {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-call-detail { transition: none; }
+}
 .tool-call-args {
   font-family: monospace;
   font-size: 11px;
   white-space: pre-wrap;
-  word-break: break-all;
+  /* anywhere 而非 break-all：优先在正常断点折行，只在长 token 无处可断时才切开 */
+  overflow-wrap: anywhere;
+  min-width: 0;
   color: var(--chatui-fg-primary);
   background: var(--chatui-bg-code);
   padding: 6px 8px;
@@ -558,6 +589,8 @@ function contentCharLen(content?: DisplayContent): number {
   padding: 8px;
   border-top: 1px solid var(--chatui-border);
 }
+/* 进行中：只有入口按钮，与上方 args 块共用左基线 */
+.tool-call-result.is-running { padding: 8px 0; }
 .tool-call-result-top {
   display: flex;
   align-items: center;
