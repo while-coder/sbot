@@ -1,0 +1,22 @@
+{
+  "name": "channel.agent-bridge",
+  "version": "0.0.1",
+  "description": "External tool-capable agent client channel for sbot",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "@langchain/core": "catalog:",
+    "channel.base": "workspace:*",
+    "ws": "catalog:"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}
