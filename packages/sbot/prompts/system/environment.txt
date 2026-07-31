@@ -3,21 +3,22 @@ vars:
   timezone: 时区 (如 Asia/Shanghai)
   os: 操作系统 (如 Linux 5.15.0 linux)
   assetsDir: 资源文件目录绝对路径
+  assetsUrl: 资源文件目录对外访问 URL 前缀
   workPath: Agent 工作目录绝对路径
-  workUrl: 工作目录对外访问 URL 前缀 (workPath 不在 assets 下时为空)
 
 ---
 <environment>
   <timezone>{timezone}</timezone>
   <os>{os}</os>
   <paths>
-    <working-directory dir="{workPath}" url="{workUrl}">This is your primary workspace. By default, scope all file operations — both read and write — to this directory. Accessing or modifying files outside this directory is permitted only when the user explicitly requests it or the task cannot be completed otherwise. Always prefer operating within this directory first.
-
-IMPORTANT — delivering files to users: saving a file into this directory is the ONLY way to deliver it. Whenever you generate, export, or produce any file intended for the user (images, documents, archives, reports, etc.), save it here and give the user its download URL. Never send raw file content inline, never invent any other path or method.
-
-To build that URL, take the file's path RELATIVE to this directory and append it to this directory's `url` (above), joined with "/". This works for any nesting depth. Examples (assuming url="{workUrl}"):
-  - saved "report.pdf"      → {workUrl}/report.pdf
-  - saved "img/chart.png"   → {workUrl}/img/chart.png
-Do NOT drop or guess intermediate path segments — copy the relative path exactly as you wrote the file. If `url` is empty, this workspace is not publicly served, so no download link is available.</working-directory>
+    <working-directory dir="{workPath}">Your primary workspace. Scope file operations — read and write — here by default; go outside only when the user explicitly asks or the task cannot be done otherwise.</working-directory>
+    <assets-root dir="{assetsDir}" url="{assetsUrl}">Everything under this root — at any depth — is served over HTTP at that url. Nothing outside it is served.</assets-root>
   </paths>
+  <file-delivery>Saving a file under the assets root is the ONLY way to deliver it. Whenever you generate, export, or produce a file for the user (image, document, archive, report, etc.), save it — inside the working directory when that itself is under the assets root — and give the user its URL. Never send raw file content inline, never invent any other path or method.
+
+To build the URL, take the file's ABSOLUTE path, strip the assets-root `dir` prefix, and prepend the assets-root `url` (switching any \ to /). One rule, regardless of which directory you wrote it in:
+  - "{assetsDir}" + "/11/img/chart.png"        → {assetsUrl}/11/img/chart.png
+  - "{assetsDir}" + "/2/daily/index.html"      → {assetsUrl}/2/daily/index.html
+
+Always derive the link from where the file ACTUALLY is — never from where you expected it to be, or from a path seen elsewhere in the conversation; that yields a dead link. Copying a file somewhere else to make a link work is never the fix. If the working directory is NOT under the assets root, files written there are unreachable: put deliverables under the assets root instead.</file-delivery>
 </environment>

@@ -92,16 +92,13 @@ export class AgentRunner {
         const signal = sessionManager.getOrCreate(threadId).signal;
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const assetsDir = config.getConfigPath('assets', true);
-        const httpUrl = config.getHttpUrl();
-        const workPath = options.workPath ?? `${assetsDir}/${threadId}`;
+        // assetsDir 整体挂在 /assets 下（见 HttpServer），所以其下任意文件的链接
+        // = assetsUrl + '/' + 文件相对 assetsDir 的路径。这是唯一的链接推导规则：
+        // 工作目录内外的产出同样适用，不再单独给工作目录一个 URL 前缀（两个前缀会让
+        // Agent 拿工作目录的前缀去套工作目录外的文件，算出打不开的链接）。
+        const assetsUrl = `${config.getHttpUrl()}/assets`;
+        const workPath = options.workPath ?? path.join(assetsDir, threadId);
         if (!existsSync(workPath)) mkdirSync(workPath, { recursive: true });
-
-        // 工作目录对外可访问的 URL 前缀：仅当 workPath 位于 assetsDir 之下时才有。
-        // 文件存进工作目录后，其链接 = workUrl + '/' + 文件相对工作目录的路径（任意层级）。
-        const relToAssets = path.relative(assetsDir, workPath);
-        const workUrl = relToAssets && !relToAssets.startsWith('..') && !path.isAbsolute(relToAssets)
-            ? `${httpUrl}/assets/${relToAssets.split(path.sep).join('/')}`
-            : '';
 
         /** 静态 system prompts（可缓存）：instruction → environment → channel */
         const extraPrompts: string[] = [
@@ -110,8 +107,8 @@ export class AgentRunner {
                 timezone,
                 os: `${os.type()} ${os.release()} (${os.platform()})`,
                 assetsDir,
+                assetsUrl,
                 workPath,
-                workUrl,
             }),
             ...(channelPrompt?.trim() ? [channelPrompt] : []),
         ];

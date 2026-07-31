@@ -25,7 +25,11 @@ export const AGENDA_COMPLETE_TOOL_NAME = 'agenda_complete' as const;
 export const AGENDA_CANCEL_TOOL_NAME = 'agenda_cancel' as const;
 export const AGENDA_WIKI_TOOL_NAME = 'agenda_wiki' as const;
 
-const AGENDA_WIKI_TOOL_DESCRIPTION = `Agenda system decision rules / deep manual. Call when uncertain about any agenda operation — meaning, parameter choice, edge case, cross-tool sync. No parameters.`;
+const AGENDA_WIKI_TOOL_DESCRIPTION = [
+    'Agenda system decision rules / deep manual.',
+    'Call when uncertain about any agenda operation — meaning, parameter choice, edge case, cross-tool sync.',
+    'No parameters.',
+].join('\n');
 
 export enum AgendaTriggerOp {
     Add = 'add',
@@ -39,11 +43,30 @@ const RelativeTimeSchema = z.object({
     unit: z.enum(AgendaTimeUnit).describe('minute / hour / day / week.'),
 });
 
-const ActionSchema = z.enum(AgendaTriggerAction).optional().describe('notify (default, plain-text reminder) / notify_and_record (also records the fire into the conversation history) / invoke (AI actively produces at fire time, e.g. "generate/summarize/write/organize for me"). Details → agenda_wiki §8.');
+const ActionSchema = z.enum(AgendaTriggerAction).optional().describe([
+    'What happens when this trigger fires:',
+    '- notify (default) = plain-text reminder',
+    '- notify_and_record = also records the fire into the conversation history',
+    '- invoke = AI actively produces at fire time, e.g. "generate/summarize/write/organize for me"',
+    'Details → agenda_wiki §7.',
+].join('\n'));
 
-const MessageSchema = z.string().min(1).describe('REQUIRED per-trigger fire-time text — the exact words delivered WHEN this trigger fires, phrased as a present-moment ping ("Time to drink water"), NOT as a request to set a reminder ("remind me to drink water in 2 min" ✗). No fallback to content; if no special wording, restate content. Recorded fires re-enter the conversation, so request-like wording can make the post-turn sync create a duplicate agenda.');
+const MessageSchema = z.string().min(1).describe([
+    'REQUIRED per-trigger fire-time text — the exact words delivered WHEN this trigger fires.',
+    'Phrase it as a present-moment ping ("Time to drink water"), not a request to set one ("remind me to drink water in 2 min" ✗).',
+    'No fallback to content; if there is no special wording, restate content.',
+    'Recorded fires re-enter the conversation, so request-like wording can make the post-turn sync create a duplicate agenda.',
+    'Keep it portable: name directories RELATIVE to the working directory ("under daily_games/"), never absolute.',
+    'The workdir is per-session, so a baked-in path later writes into a stale directory and breaks delivered links (agenda_wiki §9).',
+].join('\n'));
 
-const AssigneeSchema = z.enum(AgendaAssignee).optional().describe('Who owns this todo — decide EXPLICITLY: user (default, the user does it themselves) / ai (you the AI do it, e.g. "you help me summarize/generate") / other (a third party like a colleague, put their name in assigneeName). Orthogonal to trigger.action.');
+const AssigneeSchema = z.enum(AgendaAssignee).optional().describe([
+    'Who owns this todo — decide EXPLICITLY:',
+    '- user (default) = the user does it themselves',
+    '- ai = you the AI do it, e.g. "you help me summarize/generate"',
+    '- other = a third party like a colleague; put their name in assigneeName',
+    'Orthogonal to trigger.action.',
+].join('\n'));
 const AssigneeNameSchema = z.string().optional().describe('Third-party name; only meaningful with assignee=other, ignored otherwise.');
 
 const StartAtSchema = z.string().optional().describe('ISO of FIRST fire; omit for default.');
@@ -86,7 +109,10 @@ export class AgendaToolProvider {
                 name: AGENDA_CREATE_TOOL_NAME,
                 description: descs.create,
                 schema: z.object({
-                    content: z.string().describe('Self-contained title, match user language. Just the thing itself ("Drink water" / "Submit weekly report") — do NOT bake in relative time or schedule ("remind me to drink water in 2 min" ✗); timing lives in triggers.'),
+                    content: z.string().describe([
+                        'Self-contained title, match user language. Just the thing itself ("Drink water" / "Submit weekly report").',
+                        'Do NOT bake in relative time or schedule ("remind me to drink water in 2 min" ✗) — timing lives in triggers.',
+                    ].join('\n')),
                     priority: z.enum(AgendaPriority).optional().describe('Default normal. high = urgent; low = casual.'),
                     assignee: AssigneeSchema,
                     assigneeName: AssigneeNameSchema,
@@ -114,7 +140,10 @@ export class AgendaToolProvider {
                 schema: z.object({
                     status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, 'all']).optional().describe('Default pending. "all" = no filter.'),
                     priority: z.enum(AgendaPriority).optional(),
-                    assignee: z.enum(AgendaAssignee).optional().describe('Filter by owner: user = the user\'s own todos, ai = ones assigned to you, other = third-party. Use to answer "how many do I / do you have left".'),
+                    assignee: z.enum(AgendaAssignee).optional().describe([
+                        'Filter by owner: user = the user\'s own todos / ai = ones assigned to you / other = third-party.',
+                        'Use to answer "how many do I / do you have left".',
+                    ].join('\n')),
                     limit: z.number().int().positive().optional().describe(`Default ${DEFAULT_LIST_LIMIT}.`),
                 }),
                 func: async (filter: AgendaListFilter) => {
@@ -149,10 +178,19 @@ export class AgendaToolProvider {
                 name: AGENDA_TRIGGER_TOOL_NAME,
                 description: descs.trigger,
                 schema: z.object({
-                    op: z.enum(AgendaTriggerOp).describe('add = append ONE trigger / update = rewrite ONE existing trigger / remove = disable ONE trigger / replace_all = replace the FULL active trigger list.'),
+                    op: z.enum(AgendaTriggerOp).describe([
+                        '- add = append ONE trigger',
+                        '- update = rewrite ONE existing trigger',
+                        '- remove = disable ONE trigger',
+                        '- replace_all = replace the FULL active trigger list',
+                        'Choosing between them → agenda_wiki §5.',
+                    ].join('\n')),
                     itemId: z.number().optional().describe('Existing item id. Required for op=add / op=replace_all.'),
                     triggerId: z.number().optional().describe('Existing trigger id (from <existing-agenda> XML). Required for op=update / op=remove.'),
-                    trigger: TriggerSpecSchema.optional().describe('Spec to append (op=add) or COMPLETE replacement spec (op=update; resets fireCount). Shape = create.triggers[i].'),
+                    trigger: TriggerSpecSchema.optional().describe([
+                        'Spec to append (op=add) or COMPLETE replacement spec (op=update; resets fireCount).',
+                        'Shape = create.triggers[i].',
+                    ].join('\n')),
                     triggers: z.array(TriggerSpecSchema).optional().describe('Final active list for op=replace_all. [] clears all.'),
                 }),
                 func: async (args: { op: AgendaTriggerOp } & Record<string, any>) => {
