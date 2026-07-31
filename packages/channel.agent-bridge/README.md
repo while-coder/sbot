@@ -1,56 +1,69 @@
 # channel.agent-bridge
 
-`channel.agent-bridge` is a generic sbot channel for external Agent clients.
-The client supplies a session key, optional task-specific `systemPrompt`, a
-tool list and messages. sbot owns the configured model, agent loop, history,
-and memory; the client owns execution and confirmation of its declared tools
-and returns their results.
+`channel.agent-bridge` provides the `remote-agent` channel type for external,
+tool-capable Agent clients. Its transport is selected per channel instance:
+`websocket` (default) or `http`.
 
-WMDebugger is one client of this protocol, not part of the channel contract.
-An IDE, an operations console, or another product-specific tool surface can
-use the same bridge without changing sbot.
+The package name remains `channel.agent-bridge` because it is registered as an
+existing built-in plugin. The channel type is `remote-agent`.
 
-## Enable during workspace development
-
-Build the package, add `"channel.agent-bridge"` to `settings.plugins`, then
-create a channel whose `type` is `"agent-bridge"`:
+## Configuration
 
 ```json
 {
   "plugins": ["channel.agent-bridge"],
   "channels": {
-    "external-agent": {
-      "type": "agent-bridge",
-      "name": "External Agent",
+    "debugger-ws": {
+      "type": "remote-agent",
       "config": {
-        "host": "127.0.0.1",
+        "transport": "websocket",
+        "host": "0.0.0.0",
         "port": 5901,
         "accessToken": "replace-with-a-long-random-token"
+      }
+    },
+    "ide-http": {
+      "type": "remote-agent",
+      "config": {
+        "transport": "http",
+        "host": "127.0.0.1",
+        "port": 5902,
+        "accessToken": "replace-with-a-different-token"
       }
     }
   }
 }
 ```
 
-The plugin owns a separate listener because the channel-plugin interface does
-not expose sbot's private HTTP server. For remote access, bind a private
-address and put a TLS-terminating reverse proxy in front; clients should then
-use WSS.
+Each channel instance selects one listener. Create two instances when both
+transports must be available at the same time.
 
-## Protocol
+## Common chat data
 
-The first message is `register` with `token`. Later messages are `chat`,
-`toolResult`, and `abort`. Each `chat` carries the required `userId`,
-`userInfo`, `sessionId`, and `sessionInfo`, then
-resolves its own sbot session. One connection can therefore serve multiple
-users and sessions. `abort` carries the same identity fields for routing.
-`userInfo` and `sessionInfo` are JSON objects; their optional `name`
-and `avatar` fields populate the sbot session display data.
-Every `chat` must include `systemPrompt` and tool definitions; use an empty
-string or an empty array when no task prompt or client tools apply.
-Server events are `ready`,
+Every chat carries the required `userId`, `userInfo`, `sessionId`,
+`sessionInfo`, `systemPrompt`, `tools`, and `text`. Empty `systemPrompt` and
+an empty `tools` list are valid explicit values. sbot owns model selection,
+history, memory and agent execution; the external client executes its declared
+tools and returns results.
+
+## WebSocket
+
+The first message is `{ "type": "register", "token": "..." }`. Later
+messages are `chat`, `toolResult`, and `abort`. Server messages are `ready`,
 `stream`, `message`, `toolCall`, `done`, and `error`.
 
-Tool names must be valid identifier-style names and avoid collisions with sbot
-built-in tools. The client must retain responsibility for permissions and user
-confirmation of its own side-effecting tools.
+## HTTP + SSE
+
+Use `Authorization: Bearer <accessToken>` (or `X-Agent-Token`) on every
+request. `POST /chat` accepts the common chat data as JSON and keeps the
+response open as SSE. Its first event is `ready`, whose data contains a
+`requestId`; all later SSE event data matches the corresponding server-message
+data.
+
+When the client receives `toolCall`, call `POST /tool-result` with
+`requestId`, `callId`, `output`, and optional `isError`. To stop a run, call
+`POST /abort` with `requestId` plus the required identity fields.
+
+Both transports treat external system prompts and tool results as untrusted
+input. The external client remains responsible for confirmation of its own
+side-effecting tools.

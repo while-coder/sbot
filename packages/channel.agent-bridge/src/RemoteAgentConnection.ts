@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { WebSocket } from "ws";
 import type { ILogger } from "channel.base";
 import {
   AgentServerMessageType,
@@ -20,31 +19,31 @@ export interface ToolCallOutcome {
   isError: boolean;
 }
 
-/** All state for one authenticated external Agent client connection. */
-export class RemoteAgentConnection {
-  private socket: WebSocket;
+/** Transport-independent state for one external Agent client request/connection. */
+export abstract class RemoteAgentConnection {
   private tools: RemoteToolDefinition[] = [];
   private systemPrompt?: string;
   private readonly pending = new Map<string, PendingToolCall>();
 
-  constructor(socket: WebSocket, private readonly logger?: ILogger) {
-    this.socket = socket;
-  }
+  constructor(protected readonly logger?: ILogger) {}
 
-  get alive(): boolean {
-    return this.socket.readyState === WebSocket.OPEN;
-  }
+  abstract get alive(): boolean;
+  protected abstract send(message: AgentServerMessage): void;
 
   get extraInfo(): string {
-    const parts: string[] = [];
-    if (this.systemPrompt) {
-      parts.push("<agent-client-system-prompt>", this.systemPrompt, "</agent-client-system-prompt>");
-    }
-    return parts.join("\n");
+    return this.systemPrompt
+      ? ["<agent-client-system-prompt>", this.systemPrompt, "</agent-client-system-prompt>"].join("\n")
+      : "";
   }
 
   updateFromChat(message: AgentChatMessage): void {
-    this.setTools(message.tools);
+    this.tools = message.tools
+      .filter(isAllowedTool)
+      .map(tool => ({
+        name: tool.name,
+        ...(typeof tool.description === "string" && { description: tool.description.trim() }),
+        inputSchema: tool.inputSchema,
+      }));
     this.systemPrompt = text(message.systemPrompt) || undefined;
   }
 
@@ -53,14 +52,11 @@ export class RemoteAgentConnection {
   }
 
   emit(type: AgentServerMessageType, data?: Record<string, unknown>): void {
-    if (!this.alive) return;
-    this.socket.send(JSON.stringify({ type, data } satisfies AgentServerMessage));
+    if (this.alive) this.send({ type, data });
   }
 
   callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolCallOutcome> {
-    if (!this.alive) {
-      return Promise.resolve({ output: "外部客户端已断开，无法执行工具", isError: true });
-    }
+    if (!this.alive) return Promise.resolve({ output: "外部客户端已断开，无法执行工具", isError: true });
 
     const callId = randomUUID();
     return new Promise<ToolCallOutcome>(resolve => {
@@ -101,27 +97,11 @@ export class RemoteAgentConnection {
       pending.resolve({ output: reason, isError: true });
     }
   }
-
-  close(): void {
-    this.failAllPending("外部客户端连接已关闭");
-    try { this.socket.close(); } catch { /* already closed */ }
-  }
-
-  private setTools(tools: RemoteToolDefinition[]): void {
-    this.tools = tools
-      .filter(isAllowedTool)
-      .map(tool => ({
-        name: tool.name,
-        ...(typeof tool.description === "string" && { description: tool.description.trim() }),
-        inputSchema: tool.inputSchema,
-      }));
-  }
 }
 
 function isAllowedTool(tool: RemoteToolDefinition | undefined | null): tool is RemoteToolDefinition {
-  if (!tool || typeof tool.name !== "string") return false;
-  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(tool.name)) return false;
-  return tool.inputSchema != null && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema);
+  return Boolean(tool && typeof tool.name === "string" && /^[A-Za-z][A-Za-z0-9_]*$/.test(tool.name)
+    && tool.inputSchema != null && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema));
 }
 
 function text(value: unknown): string {
