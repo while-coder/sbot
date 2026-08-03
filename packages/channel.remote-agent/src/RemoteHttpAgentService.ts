@@ -62,10 +62,12 @@ export class RemoteHttpAgentService extends RemoteAgentService {
     response.once("close", () => this.connections.delete(connection.requestId));
     connection.open();
     const message = { ...body, type: AgentClientMessageType.Chat } as AgentChatMessage;
+    // 不能在 handleChat 返回时关流：会话把消息投进队列就返回，回复和 done 都还没发出。
+    // 响应流由 done / error 事件自己收尾，见 RemoteHttpAgentConnection.send。
     void this.handleChat(connection, message).catch(error => {
       this.httpOptions.logger?.warn(`Remote-agent HTTP chat failed: ${error instanceof Error ? error.message : String(error)}`);
       this.sendError(connection, "请求处理失败");
-    }).finally(() => connection.close());
+    });
   }
 
   private toolResult(response: import("node:http").ServerResponse, body: Record<string, unknown>): void {
