@@ -23,6 +23,7 @@
         "${workspaceFolder}/packages/channel.xiaoai/dist/**/*.js",
         "${workspaceFolder}/packages/channel.dingtalk/dist/**/*.js",
         "${workspaceFolder}/packages/channel.qq/dist/**/*.js",
+        "${workspaceFolder}/packages/channel.remote-agent/dist/**/*.js",
         "${workspaceFolder}/packages/wiki.base/dist/**/*.js",
         "${workspaceFolder}/packages/wiki.local/dist/**/*.js",
         "${workspaceFolder}/packages/wiki.gdrive/dist/**/*.js"

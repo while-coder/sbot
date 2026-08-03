@@ -92,9 +92,7 @@ export class PluginLoader {
       }
       return plugin;
     } catch (e: any) {
-      if (source !== "built-in" || e?.code !== "MODULE_NOT_FOUND") {
-        logger.warn(`[${source}] Failed to load plugin "${nameOrPath}": ${e?.message}`);
-      }
+      logger.warn(`[${source}] Failed to load plugin "${nameOrPath}": ${e?.message}`);
       return undefined;
     }
   }
