@@ -9,7 +9,7 @@ import { channelPluginRegistry } from "./ChannelPluginRegistry";
 
 const logger = LoggerService.getLogger("PluginLoader.ts");
 
-const BUILTIN_PLUGINS = ["channel.lark", "channel.slack", "channel.wecom", "channel.wechat", "channel.onebot", "channel.xiaoai", "channel.dingtalk", "channel.qq", "channel.agent-bridge"];
+const BUILTIN_PLUGINS = ["channel.lark", "channel.slack", "channel.wecom", "channel.wechat", "channel.onebot", "channel.xiaoai", "channel.dingtalk", "channel.qq", "channel.remote-agent"];
 /** 内置 wiki 数据源插件（第一方，随 sbot 打包）。第三方 wiki 插件仍走 config.settings.plugins / 本地目录。 */
 const BUILTIN_WIKI_PLUGINS = ["wiki.local", "wiki.gdrive"];
 

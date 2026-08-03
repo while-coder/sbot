@@ -1,5 +1,5 @@
 {
-  "name": "channel.agent-bridge",
+  "name": "channel.remote-agent",
   "version": "0.0.1",
   "description": "External tool-capable agent client channel for sbot",
   "main": "dist/index.js",

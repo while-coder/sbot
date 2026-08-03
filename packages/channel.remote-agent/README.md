@@ -1,17 +1,14 @@
-# channel.agent-bridge
+# channel.remote-agent
 
-`channel.agent-bridge` provides the `remote-agent` channel type for external,
+`channel.remote-agent` provides the `remote-agent` channel type for external,
 tool-capable Agent clients. Its transport is selected per channel instance:
 `websocket` (default) or `http`.
-
-The package name remains `channel.agent-bridge` because it is registered as an
-existing built-in plugin. The channel type is `remote-agent`.
 
 ## Configuration
 
 ```json
 {
-  "plugins": ["channel.agent-bridge"],
+  "plugins": ["channel.remote-agent"],
   "channels": {
     "debugger-ws": {
       "type": "remote-agent",

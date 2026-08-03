@@ -302,6 +302,31 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  packages/channel.remote-agent:
+    dependencies:
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
+      channel.base:
+        specifier: workspace:*
+        version: link:../channel.base
+      ws:
+        specifier: 'catalog:'
+        version: 8.21.0
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.1
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/channel.slack:
     dependencies:
       '@slack/bolt':
@@ -538,6 +563,9 @@ importers:
       channel.qq:
         specifier: workspace:*
         version: link:../channel.qq
+      channel.remote-agent:
+        specifier: workspace:*
+        version: link:../channel.remote-agent
       channel.slack:
         specifier: workspace:*
         version: link:../channel.slack
