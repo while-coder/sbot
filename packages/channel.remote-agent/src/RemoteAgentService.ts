@@ -5,8 +5,11 @@ import {
   type ILogger,
   type MessageContent,
   type SessionService,
+  appendAttachmentsToMessageContent,
+  isEmptyContent,
 } from "channel.base";
 import { RemoteAgentConnection } from "./RemoteAgentConnection";
+import { saveRemoteAgentAttachment } from "./RemoteAgentAttachmentStore";
 import {
   RemoteAgentSessionHandler,
   type RemoteAgentActionArgs,
@@ -46,12 +49,13 @@ export abstract class RemoteAgentService implements IChannelService {
   }
 
   protected async handleChat(connection: RemoteAgentConnection, message: AgentChatMessage): Promise<void> {
-    const content = text(message.text);
-    if (!content) return this.sendError(connection, "消息不能为空");
     const identity = this.readIdentity(connection, message);
     if (!identity) return;
+    if (typeof message.content !== "string" && !Array.isArray(message.content)) return this.sendError(connection, "缺少 content");
     if (typeof message.systemPrompt !== "string") return this.sendError(connection, "缺少 systemPrompt");
     if (!Array.isArray(message.tools)) return this.sendError(connection, "缺少 tools");
+    const content = await appendAttachmentsToMessageContent(message.content, message.attachments, saveRemoteAgentAttachment);
+    if (isEmptyContent(content)) return this.sendError(connection, "消息不能为空");
 
     connection.updateFromChat(message);
     await this.options.onReceiveMessage(identity.userId, identity.userInfo, identity.sessionInfo, {

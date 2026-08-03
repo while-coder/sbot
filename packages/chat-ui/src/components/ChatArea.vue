@@ -51,7 +51,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  send: [parts: ContentPart[], attachments: Attachment[]]
+  send: [content: ContentPart[], attachments: Attachment[]]
   approve: [payload: ToolApprovalPayload]
   answer: [payload: AskAnswerPayload]
   abort: []
@@ -140,11 +140,11 @@ function onInputBarDrop(e: DragEvent) {
 function send() {
   const input = richInputRef.value
   if (!input) return
-  const { parts } = input.getContent()
+  const { content } = input.getContent()
   const files = drainAttachments()
-  if (parts.length === 0 && files.length === 0) return
+  if (content.length === 0 && files.length === 0) return
   input.clear()
-  emit('send', parts, files)
+  emit('send', content, files)
 }
 
 onBeforeUnmount(() => {

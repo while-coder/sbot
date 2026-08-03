@@ -1,7 +1,69 @@
-import { ContentPartType, type ContentPart, type MessageContent } from "../Saver/IAgentSaverService";
+import { ContentPartType, type AttachmentInput, type ContentPart, type MessageContent } from "../Saver/IAgentSaverService";
 
 type TextPart = Extract<ContentPart, { type: typeof ContentPartType.Text }>;
 const isTextPart = (p: ContentPart): p is TextPart => p.type === ContentPartType.Text;
+
+/**
+ * Appends inline attachments to a standard message content value.
+ * The channel owns persistence through `saveAttachment`; this utility owns the
+ * shared MessageContent conversion and preserves multimodal parts.
+ */
+export async function appendAttachmentsToMessageContent(
+    content: MessageContent,
+    attachments: readonly AttachmentInput[] | undefined,
+    saveAttachment: (attachment: AttachmentInput) => Promise<string>,
+): Promise<MessageContent> {
+    const parts: ContentPart[] = typeof content === 'string'
+        ? [{ type: ContentPartType.Text, text: content }]
+        : content.filter(isContentPart);
+    let hasMultimodal = parts.some(part => part.type !== ContentPartType.Text);
+
+    for (const attachment of attachments ?? []) {
+        if (!attachment || typeof attachment.name !== 'string') continue;
+        const name = safeAttachmentName(attachment.name);
+        if (isImageDataUrl(attachment.dataUrl)) {
+            parts.push({ type: ContentPartType.ImageUrl, image_url: { url: attachment.dataUrl } });
+            hasMultimodal = true;
+        } else if (typeof attachment.dataUrl === 'string' || typeof attachment.content === 'string') {
+            const filePath = await saveAttachment({ ...attachment, name });
+            parts.push({ type: ContentPartType.Text, text: `[file: ${name}](${filePath})` });
+        }
+    }
+
+    if (parts.length === 0) return '';
+    return hasMultimodal ? parts : parts
+        .filter(isTextPart)
+        .map(part => part.text)
+        .join('\n');
+}
+
+/** Write an inline attachment to a channel-selected file path. */
+export async function writeAttachmentInput(filePath: string, attachment: AttachmentInput): Promise<void> {
+    const { writeFile } = await import('node:fs/promises');
+    if (typeof attachment.dataUrl === 'string') {
+        const match = /^data:[^;,]+;base64,([\s\S]*)$/i.exec(attachment.dataUrl);
+        if (!match) throw new Error(`附件 ${attachment.name} 不是 base64 data URL`);
+        await writeFile(filePath, Buffer.from(match[1], 'base64'));
+        return;
+    }
+    if (typeof attachment.content === 'string') {
+        await writeFile(filePath, attachment.content);
+        return;
+    }
+    throw new Error(`附件 ${attachment.name} 没有内容`);
+}
+
+function isContentPart(value: unknown): value is ContentPart {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value) && typeof (value as { type?: unknown }).type === 'string');
+}
+
+function isImageDataUrl(value: unknown): value is string {
+    return typeof value === 'string' && /^data:image\//i.test(value);
+}
+
+function safeAttachmentName(value: string): string {
+    return value.split(/[\\/]/).at(-1)?.trim() || 'attachment';
+}
 
 /** Extract a plain-text representation from MessageContent. */
 export function contentToString(content: MessageContent): string {

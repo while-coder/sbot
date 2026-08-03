@@ -1,4 +1,4 @@
-import type { IChatTransport, ChatEvent, ContentPart, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, FsWriteResult, GitStatusResult, GitDiffResult, RemoteEntry, FsUploadOptions, FsUploadProgress, ShellOption } from '@sbot/chat-ui'
+import type { IChatTransport, ChatEvent, MessageContent, Attachment, SessionItem, CreateSessionOpts, StoredMessage, UsageInfo, AppSettings, SessionStatus, ToolApprovalPayload, AskAnswerPayload, DirListResult, DriveEntry, QuickDir, FsTreeResult, FsReadResult, FsWriteResult, GitStatusResult, GitDiffResult, RemoteEntry, FsUploadOptions, FsUploadProgress, ShellOption } from '@sbot/chat-ui'
 
 declare function acquireVsCodeApi(): { postMessage(msg: any): void }
 const vscode = acquireVsCodeApi()
@@ -127,7 +127,7 @@ export class VsCodeTransport implements IChatTransport {
   deleteSession(profileId: string): Promise<void> { return rpc('deleteSession', profileId) }
   updateSession(profileId: string, patch: Partial<SessionItem>): Promise<void> { return rpc('updateSession', profileId, patch) }
 
-  sendMessage(profileId: string, parts: ContentPart[], attachments?: Attachment[]): void { cmd('sendMessage', profileId, parts, attachments) }
+  sendMessage(profileId: string, content: MessageContent, attachments?: Attachment[]): void { cmd('sendMessage', profileId, content, attachments) }
   getHistory(profileId: string): Promise<StoredMessage[]> { return rpc('getHistory', profileId) }
   clearHistory(profileId: string): Promise<void> { return rpc('clearHistory', profileId) }
 

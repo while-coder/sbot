@@ -15,6 +15,7 @@ export {
     type ChatToolCall,
     type ChatMessageOptions,
     type MessageContent,
+    type AttachmentInput,
     type ContentPart,
     type TokenUsage,
 } from "./IAgentSaverService";

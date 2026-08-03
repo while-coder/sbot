@@ -94,8 +94,12 @@ export interface DisplayPart {
 
 export type ContentPart =
   | { type: 'text'; text: string }
-  | { type: 'image'; dataUrl: string }
-  | { type: 'audio'; dataUrl: string };
+  | { type: 'image'; data: string; mimeType?: string }
+  | { type: 'image_url'; image_url: { url: string }; mimeType?: string }
+  | { type: 'audio'; data: string; mimeType?: string };
+
+/** Wire-compatible with scorpio.ai MessageContent. */
+export type MessageContent = string | ContentPart[];
 
 // ── Attachment ──
 

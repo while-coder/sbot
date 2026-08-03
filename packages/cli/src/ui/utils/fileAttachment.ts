@@ -72,21 +72,21 @@ export function validateFilePath(input: string): string | null {
 // ── Prepare ──────────────────────────────────────────────────────────────────
 
 export interface PreparedMessage {
-  parts: ContentPart[];
+  content: ContentPart[];
   attachments: Attachment[];
 }
 
 /**
- * Build the server-compatible { parts, attachments } payload from
+ * Build the server-compatible { content, attachments } payload from
  * user text and pending file attachments.
  */
 export function prepareMessage(text: string, pending: PendingAttachment[]): PreparedMessage {
-  const parts: ContentPart[] = [];
+  const content: ContentPart[] = [];
   const attachments: Attachment[] = [];
 
   // Text part
   if (text) {
-    parts.push({ type: 'text', text });
+    content.push({ type: 'text', text });
   }
 
   for (const att of pending) {
@@ -95,7 +95,7 @@ export function prepareMessage(text: string, pending: PendingAttachment[]): Prep
     if (att.isImage) {
       const mime = getMimeType(att.filePath);
       const dataUrl = `data:${mime};base64,${buf.toString('base64')}`;
-      parts.push({ type: 'image', dataUrl });
+      content.push({ type: 'image_url', image_url: { url: dataUrl } });
     } else if (isTextFile(att.filePath)) {
       attachments.push({ name: att.name, content: buf.toString('utf-8') });
     } else {
@@ -104,5 +104,5 @@ export function prepareMessage(text: string, pending: PendingAttachment[]): Prep
     }
   }
 
-  return { parts, attachments };
+  return { content, attachments };
 }

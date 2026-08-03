@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import type {
   ChatLabels, SessionItem, AppSettings,
-  StoredMessage, UsageInfo, UsageData, ContentPart, Attachment,
+  StoredMessage, UsageInfo, UsageData, MessageContent, Attachment,
   ToolCallEvent, ToolApprovalPayload,
   AskEvent, AskAnswerPayload,
   DisplayContent, ChatEvent, ChatLayoutMode,
@@ -622,7 +622,8 @@ function filterPendingCommands(pending: DisplayContent[]): DisplayContent[] {
   return pending.filter(m => !(typeof m === 'string' && isCommandText(m)))
 }
 
-function partsToDisplayText(parts: ContentPart[]): string {
+function partsToDisplayText(parts: MessageContent): string {
+  if (typeof parts === 'string') return parts || '[attachment]'
   const text = parts
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
     .map(p => p.text)
@@ -631,11 +632,11 @@ function partsToDisplayText(parts: ContentPart[]): string {
   return text || '[attachment]'
 }
 
-function onSend(parts: ContentPart[], attachments: Attachment[]) {
+function onSend(content: MessageContent, attachments: Attachment[]) {
   const id = activeProfileId.value
   if (!id || !hasSaver.value) return
-  if (parts.length === 0 && attachments.length === 0) return
-  const display = partsToDisplayText(parts)
+  if ((typeof content === 'string' ? !content : content.length === 0) && attachments.length === 0) return
+  const display = partsToDisplayText(content)
   if (isCommandText(display)) {
     messages.value.push({ message: { role: MessageRole.Human, content: display }, createdAt: Date.now() / 1000, kind: MessageKind.Normal })
     nextTick(() => chatAreaRef.value?.scrollToBottom(true))
@@ -644,7 +645,7 @@ function onSend(parts: ContentPart[], attachments: Attachment[]) {
     queuedMessages.value.push(display)
   }
   isStreaming.value = true
-  props.transport.sendMessage(id, parts, attachments.length > 0 ? attachments : undefined)
+  props.transport.sendMessage(id, content, attachments.length > 0 ? attachments : undefined)
 }
 
 function onApprove(payload: ToolApprovalPayload) {

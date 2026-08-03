@@ -315,10 +315,10 @@ export class SbotClient {
     }
   }
 
-  sendParts(profileId: string, parts: any[], attachments?: any[], workPath?: string): void {
+  sendMessage(profileId: string, content: any, attachments?: any[], workPath?: string): void {
     this.send(profileId, {
       type: WsCommandType.Query,
-      parts,
+      content,
       attachments: attachments?.length ? attachments : undefined,
       ...(workPath ? { workPath } : {}),
     });

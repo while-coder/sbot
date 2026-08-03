@@ -6,6 +6,7 @@ export type {
   NoteOption,
   StoredMessage,
   ContentPart,
+  MessageContent,
   Attachment,
   ChatLayoutMode,
   ChatLabels,

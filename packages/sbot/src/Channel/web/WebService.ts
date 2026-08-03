@@ -3,7 +3,7 @@ import path from 'path';
 import http from 'http';
 import { randomUUID } from 'crypto';
 import { WebSocket, WebSocketServer } from 'ws';
-import { isEmptyContent, MessageRole, MessageKind, type ChatMessage, type MessageContent } from "scorpio.ai";
+import { appendAttachmentsToMessageContent, isEmptyContent, MessageRole, MessageKind, type AttachmentInput, type ChatMessage, type MessageContent, writeAttachmentInput } from "scorpio.ai";
 import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
 import { WsCommandType, WebChatEventType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from 'sbot.commons';
 import { database, type ChannelSessionRow, type SessionProfileRow } from "../../Core/Database";
@@ -14,51 +14,17 @@ import { WebSocketSessionHandler } from "./WebSocketSessionHandler";
 
 const logger = LoggerService.getLogger("WebService.ts");
 
-type AttachmentInput = { name: string; dataUrl?: string; content?: string };
-type ContentPartInput = { type: 'text'; text: string } | { type: 'image'; dataUrl: string };
-
-function isImageDataUrl(dataUrl: string): boolean {
-    return /^data:image\//.test(dataUrl);
-}
-
 /**
- * 将编辑器交错的 text/image parts + 附件文件构造为 MessageContent。
- * - parts 保持编辑器顺序
+ * 将标准 MessageContent 与附件构造为实际用户消息。
+ * - content 保持客户端传入的 part 顺序
  * - 非内联的文件附件追加在末尾，落盘到 uploadDir 后以 markdown 文件链接的形式插入文本
  */
-async function processMessage(parts: ContentPartInput[], attachments: AttachmentInput[] | undefined, uploadDir: string): Promise<MessageContent> {
-    const msgParts: Array<{ type: string; text?: string;[key: string]: any }> = [];
-    let hasImage = false;
-
-    for (const p of parts) {
-        if (p.type === 'text') {
-            msgParts.push({ type: 'text', text: p.text });
-        } else if (p.type === 'image' && p.dataUrl) {
-            msgParts.push({ type: 'image_url', image_url: { url: p.dataUrl } });
-            hasImage = true;
-        }
-    }
-
-    if (attachments?.length) {
-        for (const att of attachments) {
-            if (att.dataUrl && isImageDataUrl(att.dataUrl)) {
-                msgParts.push({ type: 'image_url', image_url: { url: att.dataUrl } });
-                hasImage = true;
-            } else if (att.dataUrl) {
-                const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-                fs.writeFileSync(filePath, Buffer.from(att.dataUrl.replace(/^data:[^;]+;base64,/, ''), 'base64'));
-                msgParts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
-            } else if (att.content != null) {
-                const filePath = path.join(uploadDir, `${randomUUID()}-${att.name}`);
-                fs.writeFileSync(filePath, att.content);
-                msgParts.push({ type: 'text', text: `[file: ${att.name}](${filePath})` });
-            }
-        }
-    }
-
-    if (msgParts.length === 0) return '';
-    if (!hasImage) return msgParts.map(p => p.text!).join('\n');
-    return msgParts;
+async function processMessage(content: MessageContent, attachments: AttachmentInput[] | undefined, uploadDir: string): Promise<MessageContent> {
+    return appendAttachmentsToMessageContent(content, attachments, async (attachment) => {
+        const filePath = path.join(uploadDir, `${randomUUID()}-${attachment.name}`);
+        await writeAttachmentInput(filePath, attachment);
+        return filePath;
+    });
 }
 
 /**
@@ -112,7 +78,7 @@ export class WebService implements IChannelService {
                     const { session, profileId, channelSessionId } = await this.resolveIncomingSession(msg);
                     switch (msg.type) {
                         case WsCommandType.Query: {
-                            const partsCount = msg.parts?.length ?? 0;
+                            const contentCount = Array.isArray(msg.content) ? msg.content.length : typeof msg.content === 'string' ? 1 : 0;
                             const attCount = msg.attachments?.length ?? 0;
                             // 客户端（如 vscode 插件）可在每次 Query 携带 workPath，按消息粒度
                             // 覆盖 profile.workPath；vscode 借此免去按 cwd 过滤会话和建会话时绑路径
@@ -123,9 +89,9 @@ export class WebService implements IChannelService {
                                     logger.debug(`ws workPath override: profileId=${session.profileId} "${profile.workPath ?? ''}" -> "${msg.workPath}"`);
                                 }
                             }
-                            const enriched = await processMessage(msg.parts ?? [], msg.attachments, uploadDir);
+                            const enriched = await processMessage(msg.content ?? '', msg.attachments, uploadDir);
                             if (isEmptyContent(enriched)) {
-                                logger.debug(`ws query empty: profileId=${profileId} parts=${partsCount} attachments=${attCount}`);
+                                logger.debug(`ws query empty: profileId=${profileId} content=${contentCount} attachments=${attCount}`);
                                 break;
                             }
                             sessionManager.onReceiveChannelMessage(enriched, {

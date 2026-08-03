@@ -110,6 +110,13 @@ export interface ChatMessage {
 /** Reusable alias for ChatMessage.content — text or multimodal content parts. */
 export type MessageContent = ChatMessage['content'];
 
+/** Inline file attachment supplied alongside a channel message. */
+export interface AttachmentInput {
+    name: string;
+    dataUrl?: string;
+    content?: string;
+}
+
 // ─── Push options ────────────────────────────────────────────────────────────
 
 export interface ChatMessageOptions {

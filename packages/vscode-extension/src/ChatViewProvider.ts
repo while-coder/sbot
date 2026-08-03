@@ -215,7 +215,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       case 'disconnect':
         break;
       case 'sendMessage':
-        client.sendParts(args[0], args[1], args[2], this.isLocalServer ? this.getWorkspaceFolder() : undefined);
+        client.sendMessage(args[0], args[1], args[2], this.isLocalServer ? this.getWorkspaceFolder() : undefined);
         break;
       case 'approveToolCall':
         client.send(args[0], { type: WsCommandType.Approval, id: args[1].approvalId, approval: args[1].approval });

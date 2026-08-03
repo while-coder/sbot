@@ -82,7 +82,7 @@ export async function submitQuery(
   restoredFromServer = false;
 
   const chat = store.client.openChatSession(
-    query, state.profileId, abort.signal, prepared.parts, prepared.attachments,
+    query, state.profileId, abort.signal, prepared.content, prepared.attachments,
   );
 
   let accumulated = '';

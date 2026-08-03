@@ -7,12 +7,16 @@ import { DEFAULT_PORT, WsCommandType, WebChatEventType, type Settings, type WebC
 
 export { DEFAULT_PORT, type WebChatEvent } from 'sbot.commons';
 
-/** Content part matching server's ContentPartInput */
+/** Content part compatible with scorpio.ai MessageContent. */
 export type ContentPart =
   | { type: 'text'; text: string }
-  | { type: 'image'; dataUrl: string };
+  | { type: 'image'; data: string; mimeType?: string }
+  | { type: 'image_url'; image_url: { url: string }; mimeType?: string }
+  | { type: 'audio'; data: string; mimeType?: string };
 
-/** Attachment matching server's AttachmentInput */
+export type MessageContent = string | ContentPart[];
+
+/** Attachment matching scorpio.ai AttachmentInput. */
 export interface Attachment {
   name: string;
   dataUrl?: string;
@@ -249,10 +253,10 @@ export class SbotClient {
     query: string,
     profileId: string,
     signal: AbortSignal,
-    parts?: ContentPart[],
+    content?: MessageContent,
     attachments?: Attachment[],
   ): ChatSession {
-    return new ChatSession(this, query, profileId, signal, parts, attachments);
+    return new ChatSession(this, query, profileId, signal, content, attachments);
   }
 
   dispose(): void {
@@ -282,7 +286,7 @@ export class ChatSession {
     query: string,
     profileId: string,
     signal: AbortSignal,
-    parts?: ContentPart[],
+    content?: MessageContent,
     attachments?: Attachment[],
   ) {
     this.client = client;
@@ -303,11 +307,11 @@ export class ChatSession {
       this.resolve?.();
     }, { once: true });
 
-    // Wait for WS to be ready, then send query using parts-based protocol
+    // Wait for WS to be ready, then send query using the MessageContent protocol.
     this.ready = client.ws.waitReady().then(() => {
       const payload: Record<string, any> = {
         type: WsCommandType.Query,
-        parts: parts ?? [{ type: 'text', text: query }],
+        content: content ?? [{ type: 'text', text: query }],
       };
       if (attachments?.length) payload.attachments = attachments;
       client.send(profileId, payload);

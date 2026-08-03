@@ -23,6 +23,8 @@ export enum AgentServerMessageType {
   Error = "error",
 }
 
+import type { AttachmentInput, MessageContent } from "channel.base";
+
 export interface RemoteToolDefinition {
   name: string;
   description?: string;
@@ -56,7 +58,10 @@ export interface AgentSessionIdentity {
 
 export interface AgentChatMessage extends AgentSessionIdentity {
   type: AgentClientMessageType.Chat;
-  text: string;
+  /** Standard scorpio.ai multimodal input. */
+  content: MessageContent;
+  /** Additional image or file attachments, equivalent to the web channel's attachments. */
+  attachments?: AttachmentInput[];
   /** An empty string explicitly clears the task-specific prompt. */
   systemPrompt: string;
   /** An empty list explicitly declares that this chat has no client tools. */

@@ -1,5 +1,5 @@
 import type {
-  ContentPart, Attachment,
+  MessageContent, Attachment,
   SessionItem, CreateSessionOpts, StoredMessage,
   UsageInfo, AppSettings, SessionStatus,
   ToolApprovalPayload, AskAnswerPayload,
@@ -17,7 +17,7 @@ export interface IChatTransport {
   deleteSession(profileId: string): Promise<void>
   updateSession(profileId: string, patch: Partial<SessionItem>): Promise<void>
 
-  sendMessage(profileId: string, parts: ContentPart[], attachments?: Attachment[]): void
+  sendMessage(profileId: string, content: MessageContent, attachments?: Attachment[]): void
   getHistory(profileId: string): Promise<StoredMessage[]>
   clearHistory(profileId: string): Promise<void>
 

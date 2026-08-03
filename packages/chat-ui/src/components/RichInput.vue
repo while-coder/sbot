@@ -173,15 +173,15 @@ onBeforeUnmount(() => {
   editor.value?.destroy()
 })
 
-function getContent(): { parts: ContentPart[] } {
-  if (!editor.value) return { parts: [] }
-  const parts: ContentPart[] = []
+function getContent(): { content: ContentPart[] } {
+  if (!editor.value) return { content: [] }
+  const content: ContentPart[] = []
   let textBuffer = ''
   let firstBlock = true
 
   const flushText = () => {
     if (textBuffer.length > 0) {
-      parts.push({ type: 'text', text: textBuffer })
+      content.push({ type: 'text', text: textBuffer })
       textBuffer = ''
     }
   }
@@ -194,7 +194,7 @@ function getContent(): { parts: ContentPart[] } {
         if (child.type.name === 'image' && child.attrs.src) {
           flushText()
           if (child.attrs.src.startsWith('data:')) {
-            parts.push({ type: 'image', dataUrl: child.attrs.src })
+            content.push({ type: 'image_url', image_url: { url: child.attrs.src } })
           }
         } else if (child.type.name === 'hardBreak') {
           textBuffer += '\n'
@@ -204,24 +204,24 @@ function getContent(): { parts: ContentPart[] } {
       })
     } else if (node.type.name === 'image' && node.attrs.src?.startsWith('data:')) {
       flushText()
-      parts.push({ type: 'image', dataUrl: node.attrs.src })
+      content.push({ type: 'image_url', image_url: { url: node.attrs.src } })
       firstBlock = false
     }
   })
 
   flushText()
 
-  if (parts.length > 0 && parts[0].type === 'text') {
-    parts[0].text = parts[0].text.replace(/^\s+/, '')
-    if (parts[0].text === '') parts.shift()
+  if (content.length > 0 && content[0].type === 'text') {
+    content[0].text = content[0].text.replace(/^\s+/, '')
+    if (content[0].text === '') content.shift()
   }
-  if (parts.length > 0 && parts[parts.length - 1].type === 'text') {
-    const last = parts[parts.length - 1] as { type: 'text'; text: string }
+  if (content.length > 0 && content[content.length - 1].type === 'text') {
+    const last = content[content.length - 1] as { type: 'text'; text: string }
     last.text = last.text.replace(/\s+$/, '')
-    if (last.text === '') parts.pop()
+    if (last.text === '') content.pop()
   }
 
-  return { parts }
+  return { content }
 }
 
 function clear() {

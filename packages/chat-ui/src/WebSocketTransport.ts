@@ -2,7 +2,7 @@ import type { CommandInfo, FsUploadOptions, IChatTransport, ShellOption } from '
 import {
   ChatEventType,
   type ChatEvent,
-  type ContentPart,
+  type MessageContent,
   type Attachment,
   type SessionItem,
   type CreateSessionOpts,
@@ -122,11 +122,11 @@ export class WebSocketTransport implements IChatTransport {
 
   // ── Messages ──
 
-  sendMessage(profileId: string, parts: ContentPart[], attachments?: Attachment[]): void {
+  sendMessage(profileId: string, content: MessageContent, attachments?: Attachment[]): void {
     this.wsSend({
       type: 'query',
       profileId,
-      parts,
+      content,
       attachments: attachments?.length ? attachments : undefined,
     })
   }
