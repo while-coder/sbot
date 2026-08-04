@@ -8,6 +8,11 @@ const props = defineProps<{
   modelValue: string[]
   placeholder?: string
   compact?: boolean
+  /** 单选模式：只允许一个选中值，选中后自动关闭下拉 */
+  single?: boolean
+  disabled?: boolean
+  /** 下拉面板展开方向，默认向下 */
+  placement?: 'bottom' | 'top'
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
@@ -24,6 +29,11 @@ function toggle(id: string) {
   emit('update:modelValue', cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id])
 }
 
+function pick(id: string) {
+  open.value = false
+  if (!props.modelValue.includes(id)) emit('update:modelValue', [id])
+}
+
 function onOutside(e: MouseEvent) {
   if (root.value && !root.value.contains(e.target as Node)) open.value = false
 }
@@ -33,8 +43,17 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
 </script>
 
 <template>
-  <div ref="root" class="s-ms" :class="{ 's-ms--compact': compact, 's-ms--open': open }">
-    <button type="button" class="s-ms-trigger" @click="open = !open">
+  <div
+    ref="root"
+    class="s-ms"
+    :class="{
+      's-ms--compact': compact,
+      's-ms--open': open,
+      's-ms--single': single,
+      's-ms--up': placement === 'top',
+    }"
+  >
+    <button type="button" class="s-ms-trigger" :disabled="disabled" @click="open = !open">
       <span class="s-ms-value">
         <template v-if="selectedLabels.length">
           <span v-for="label in selectedLabels" :key="label" class="s-ms-chip">{{ label }}</span>
@@ -52,8 +71,9 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
         :key="opt.id"
         class="s-ms-option"
         :class="{ 's-ms-option--checked': modelValue.includes(opt.id) }"
+        @click="single ? pick(opt.id) : undefined"
       >
-        <input type="checkbox" :checked="modelValue.includes(opt.id)" @change="toggle(opt.id)" />
+        <input v-if="!single" type="checkbox" :checked="modelValue.includes(opt.id)" @change="toggle(opt.id)" />
         <span>{{ opt.label }}</span>
       </label>
     </div>
@@ -81,7 +101,12 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   gap: 6px;
 }
 .s-ms--compact .s-ms-trigger { min-height: 26px; padding: 3px 6px 3px 8px; }
-.s-ms-trigger:hover, .s-ms--open .s-ms-trigger { border-color: var(--sui-border-strong); }
+.s-ms-trigger:hover:not(:disabled), .s-ms--open .s-ms-trigger { border-color: var(--sui-border-strong); }
+.s-ms-trigger:disabled {
+  cursor: not-allowed;
+  background: var(--sui-bg-soft);
+  color: var(--sui-fg-disabled);
+}
 .s-ms-value {
   display: flex;
   flex-wrap: wrap;
@@ -98,6 +123,17 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   white-space: nowrap;
 }
 .s-ms--compact .s-ms-chip { font-size: var(--sui-fs-xs); padding: 0 6px; }
+/* 单选模式：值以纯文本展示（不使用 chip 反色底） */
+.s-ms--single .s-ms-value { flex-wrap: nowrap; }
+.s-ms--single .s-ms-chip {
+  background: none;
+  color: var(--sui-fg);
+  padding: 0;
+  border-radius: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .s-ms-placeholder {
   font-size: var(--sui-fs-md);
   color: var(--sui-fg-disabled);
@@ -135,6 +171,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutside))
   user-select: none;
   transition: background .1s;
 }
+.s-ms--up .s-ms-dropdown { top: auto; bottom: calc(100% + 4px); }
 .s-ms-option:last-child { border-bottom: none; }
 .s-ms-option:hover { background: var(--sui-bg-hover); }
 .s-ms-option--checked { background: var(--sui-bg-active); font-weight: 500; }

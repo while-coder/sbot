@@ -13,7 +13,7 @@ import {
     AgendaTriggerKind,
     type AgendaRecord,
 } from "../types";
-import { formatAgendaXml } from "../format";
+import { AgendaRenderMode, formatAgendaXml } from "../format";
 import { EXISTING_AGENDA_LIMIT } from "../limits";
 import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgendaExtractor";
 
@@ -57,24 +57,42 @@ const CreateArgsSchema = z.object({
     dueAt: z.string().optional(),
 });
 
-const UpdatePatchSchema = z.object({
+const SetPatchSchema = z.object({
     content: z.string().optional(),
     priority: z.enum(AgendaPriority).optional(),
     dueAt: z.string().nullable().optional(),
-});
+}).describe('Item-level field changes. Omit when only the schedule changes.');
 
-const TriggerReplaceAllArgsSchema = z.object({
-    triggers: z.array(TriggerSpecSchema).describe('Final active trigger list (each carries its own action/message). [] = clear all active triggers.'),
-});
+/**
+ * op=patch 的载荷。kind 可选（只改 action / message 时不动 kind），所以不能用 discriminatedUnion；
+ * 与 AgendaToolProvider 的 TriggerPatchSchema 同形，校验在 service.patchTrigger。
+ */
+const TriggerPatchSchema = z.object({
+    kind: z.enum(AgendaTriggerKind).optional().describe('Only when switching trigger type; then the matching schedule field (at / every / expr) is mandatory.'),
+    at: z.string().optional(),
+    every: RelativeTimeSchema.optional(),
+    expr: z.string().optional().describe('SIX-field cron.'),
+    startAt: z.string().optional().describe('Explicitly reset the next fire instant (ISO).'),
+    count: z.number().int().positive().optional(),
+    action: ActionSchema,
+    message: z.string().min(1).optional(),
+}).describe('Only the fields to change; everything else keeps its current value AND its fire progress.');
+
+const TriggerEditSchema = z.discriminatedUnion('op', [
+    z.object({ op: z.literal('add'), spec: TriggerSpecSchema }),
+    z.object({ op: z.literal('patch'), id: z.number().describe('trigger id from <existing-agenda>.'), patch: TriggerPatchSchema }),
+    z.object({ op: z.literal('remove'), id: z.number().describe('trigger id from <existing-agenda>.') }),
+]);
 
 const AgendaExtractSchema = z.object({
     actions: z.array(z.discriminatedUnion("type", [
         z.object({ type: z.literal(AgendaActionType.Create), args: CreateArgsSchema }),
-        z.object({ type: z.literal(AgendaActionType.Update), id: z.number(), patch: UpdatePatchSchema }),
-        z.object({ type: z.literal(AgendaActionType.TriggerAdd), itemId: z.number(), args: TriggerSpecSchema }),
-        z.object({ type: z.literal(AgendaActionType.TriggerUpdate), triggerId: z.number(), patch: TriggerSpecSchema }),
-        z.object({ type: z.literal(AgendaActionType.TriggerRemove), triggerId: z.number() }),
-        z.object({ type: z.literal(AgendaActionType.TriggerReplaceAll), itemId: z.number(), args: TriggerReplaceAllArgsSchema }),
+        z.object({
+            type: z.literal(AgendaActionType.Edit),
+            id: z.number().describe('agenda id from <existing-agenda>.'),
+            set: SetPatchSchema.optional(),
+            triggers: z.array(TriggerEditSchema).optional().describe('Trigger operations, applied in order. Put every related change into ONE edit action so content and schedule land together.'),
+        }),
     ])).describe("Agenda actions extracted from the conversation. Return [] if no agenda change is needed."),
 });
 
@@ -94,7 +112,10 @@ export class AgendaExtractor implements IAgendaExtractor {
             let human = renderConversation(messages);
 
             if (existingItems.length > 0) {
-                const body = existingItems.slice(0, EXISTING_AGENDA_LIMIT).map(formatAgendaXml).join('\n');
+                // Sync 模式：message 要全文——抽取器靠原文判断措辞是否需要改写、是否与本轮重复。
+                const body = existingItems.slice(0, EXISTING_AGENDA_LIMIT)
+                    .map(r => formatAgendaXml(r, AgendaRenderMode.Sync))
+                    .join('\n');
                 human += `\n<existing-agenda>\n${body}\n</existing-agenda>`;
             }
             human += `\n<now>${TimeUtils.formatIsoMinute(Date.now())}</now>`;

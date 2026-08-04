@@ -2,4 +2,6 @@ Create an agenda item — todo, reminder, schedule, routine, or future automatio
 
 Trigger phrases: "remember / remind me later / schedule / every day". Trust dedup: "already exists" = success; do NOT pre-call agenda_list. `triggers` is an array; omit priority unless the user signals urgency.
 
+An "already exists" result carries that item's current triggers, so you can act on them with agenda_edit right away instead of looking them up again.
+
 Edge cases (multi-trigger, dueAt vs trigger, action choice) → agenda_wiki.

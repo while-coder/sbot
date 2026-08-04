@@ -6,18 +6,24 @@ import os from 'os';
 import path from 'path';
 import util from 'util';
 
-function removeMentions(content: MessageContent, mentions: Array<{ key: string }>): MessageContent {
+function renderMentions(content: MessageContent, mentions: Array<{ key: string; name?: string }>): MessageContent {
   if (!mentions?.length) return content;
-  if (typeof content === 'string') {
-    let result = content;
-    for (const mention of mentions) result = result.replaceAll(mention.key, '');
+  const replace = (text: string): string => {
+    let result = text;
+    for (const mention of mentions) {
+      const label = mention.name
+        ? (mention.name.startsWith('@') ? mention.name : `@${mention.name}`)
+        : mention.key;
+      result = result.replaceAll(mention.key, label);
+    }
     return result.trim();
+  };
+  if (typeof content === 'string') {
+    return replace(content);
   }
   return content.map(part => {
     if (part.type === 'text' && part.text) {
-      let text = part.text;
-      for (const mention of mentions) text = text.replaceAll(mention.key, '');
-      return { ...part, text: text.trim() };
+      return { ...part, text: replace(part.text) };
     }
     return part;
   });
@@ -301,7 +307,7 @@ export class LarkService implements IChannelService {
     }
   }
 
-  async parseMessageContent(messageId: string, messageType: string, content: string, mentions?: Array<{ key: string }>, mediaAsFilePath = false): Promise<MessageContent | undefined> {
+  async parseMessageContent(messageId: string, messageType: string, content: string, mentions?: Array<{ key: string; name?: string }>, mediaAsFilePath = false): Promise<MessageContent | undefined> {
     const msg = parseJson(content, { text: "" }) as any;
 
     let result: MessageContent;
@@ -338,7 +344,7 @@ export class LarkService implements IChannelService {
     }
 
     if (mentions?.length) {
-      result = removeMentions(result, mentions);
+      result = renderMentions(result, mentions);
     }
     return result;
   }

@@ -2,27 +2,26 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
     AgendaAssignee,
+    AgendaCloseOutcome,
     AgendaPriority,
     AgendaStatus,
     AgendaTimeUnit,
     AgendaTriggerAction,
     AgendaTriggerKind,
     type AgendaCreateArgs,
+    type AgendaEditArgs,
     type AgendaListFilter,
-    type AgendaTriggerReplaceAllArgs,
-    type AgendaTriggerSpec,
-    type AgendaUpdatePatch,
+    type AgendaTriggerEdit,
 } from "../types";
 import { IAgendaService } from "../Service/IAgendaService";
-import { formatAgendaXml } from "../format";
-import { DEFAULT_LIST_LIMIT } from "../limits";
+import { AgendaRenderMode, formatAgendaXml } from "../format";
+import { DEFAULT_LIST_LIMIT, DETAIL_FIRES_LIMIT } from "../limits";
 
 export const AGENDA_CREATE_TOOL_NAME = 'agenda_create' as const;
 export const AGENDA_LIST_TOOL_NAME = 'agenda_list' as const;
-export const AGENDA_UPDATE_TOOL_NAME = 'agenda_update' as const;
-export const AGENDA_TRIGGER_TOOL_NAME = 'agenda_trigger' as const;
-export const AGENDA_COMPLETE_TOOL_NAME = 'agenda_complete' as const;
-export const AGENDA_CANCEL_TOOL_NAME = 'agenda_cancel' as const;
+export const AGENDA_GET_TOOL_NAME = 'agenda_get' as const;
+export const AGENDA_EDIT_TOOL_NAME = 'agenda_edit' as const;
+export const AGENDA_CLOSE_TOOL_NAME = 'agenda_close' as const;
 export const AGENDA_WIKI_TOOL_NAME = 'agenda_wiki' as const;
 
 const AGENDA_WIKI_TOOL_DESCRIPTION = [
@@ -30,13 +29,6 @@ const AGENDA_WIKI_TOOL_DESCRIPTION = [
     'Call when uncertain about any agenda operation — meaning, parameter choice, edge case, cross-tool sync.',
     'No parameters.',
 ].join('\n');
-
-export enum AgendaTriggerOp {
-    Add = 'add',
-    Update = 'update',
-    Remove = 'remove',
-    ReplaceAll = 'replace_all',
-}
 
 const RelativeTimeSchema = z.object({
     amount: z.number().int().positive(),
@@ -51,14 +43,16 @@ const ActionSchema = z.enum(AgendaTriggerAction).optional().describe([
     'Details → agenda_wiki §7.',
 ].join('\n'));
 
-const MessageSchema = z.string().min(1).describe([
-    'REQUIRED per-trigger fire-time text — the exact words delivered WHEN this trigger fires.',
+const MESSAGE_DESC = [
+    'Per-trigger fire-time text — the exact words delivered WHEN this trigger fires.',
     'Phrase it as a present-moment ping ("Time to drink water"), not a request to set one ("remind me to drink water in 2 min" ✗).',
     'No fallback to content; if there is no special wording, restate content.',
     'Recorded fires re-enter the conversation, so request-like wording can make the post-turn sync create a duplicate agenda.',
     'Keep it portable: name directories RELATIVE to the working directory ("under daily_games/"), never absolute.',
     'The workdir is per-session, so a baked-in path later writes into a stale directory and breaks delivered links (agenda_wiki §9).',
-].join('\n'));
+].join('\n');
+
+const MessageSchema = z.string().min(1).describe(`REQUIRED. ${MESSAGE_DESC}`);
 
 const AssigneeSchema = z.enum(AgendaAssignee).optional().describe([
     'Who owns this todo — decide EXPLICITLY:',
@@ -71,6 +65,8 @@ const AssigneeNameSchema = z.string().optional().describe('Third-party name; onl
 
 const StartAtSchema = z.string().optional().describe('ISO of FIRST fire; omit for default.');
 const CountSchema = z.number().int().positive().optional().describe('Total fire count; omit for unlimited.');
+
+const CRON_EXPR_DESC = 'SIX-field cron: "sec min hour dom month dow" (NOT 5-field). Example: "0 0 9 * * 1-5" = 9am weekdays.';
 
 const TriggerSpecSchema = z.discriminatedUnion('kind', [
     z.object({
@@ -89,12 +85,50 @@ const TriggerSpecSchema = z.discriminatedUnion('kind', [
     }).describe('Fixed-cadence recurrence.'),
     z.object({
         kind: z.literal(AgendaTriggerKind.Cron),
-        expr: z.string().describe('SIX-field cron: "sec min hour dom month dow" (NOT 5-field). Example: "0 0 9 * * 1-5" = 9am weekdays.'),
+        expr: z.string().describe(CRON_EXPR_DESC),
         startAt: StartAtSchema,
         count: CountSchema,
         action: ActionSchema,
         message: MessageSchema,
     }).describe('Calendar-aligned recurrence.'),
+]);
+
+/**
+ * op=patch 的载荷：全字段可选、只改传入的部分，fireCount / lastFiredAt 保留。
+ *
+ * 不能用 discriminatedUnion（kind 本身可选——大多数 patch 就是「只改 action / 只改 message」，
+ * 不动 kind），所以 schedule 字段平铺 + 用 describe 说清 kind 与 at/every/expr 的配对约束，
+ * 真正的校验在 AgendaService.patchTrigger 里做。
+ */
+const TriggerPatchSchema = z.object({
+    kind: z.enum(AgendaTriggerKind).optional().describe([
+        'Only when SWITCHING trigger type; you must then also pass the matching schedule field',
+        '(absolute→at / interval→every / cron→expr), otherwise the call is rejected.',
+        'Omit to keep the current type — most patches only touch action / message.',
+    ].join('\n')),
+    at: z.string().describe('New ISO instant; for kind=absolute.').optional(),
+    every: RelativeTimeSchema.describe('New interval; for kind=interval.').optional(),
+    expr: z.string().describe(`New cron expression; for kind=cron. ${CRON_EXPR_DESC}`).optional(),
+    startAt: z.string().optional().describe('Explicitly reset the NEXT fire instant (ISO). Use alone to postpone one occurrence without touching the cadence.'),
+    count: CountSchema,
+    action: ActionSchema,
+    message: z.string().min(1).optional().describe(`Rewrite the fire-time text. ${MESSAGE_DESC}`),
+}).describe('Fields to change; anything omitted keeps its current value, and fire progress is preserved.');
+
+const TriggerEditSchema = z.discriminatedUnion('op', [
+    z.object({
+        op: z.literal('add'),
+        spec: TriggerSpecSchema.describe('Same shape as agenda_create.triggers[i].'),
+    }).describe('Append a new trigger.'),
+    z.object({
+        op: z.literal('patch'),
+        id: z.number().describe('Existing trigger id (from agenda_list / agenda_get / <existing-agenda> XML).'),
+        patch: TriggerPatchSchema,
+    }).describe('Partially change one trigger, keeping its fire progress.'),
+    z.object({
+        op: z.literal('remove'),
+        id: z.number().describe('Existing trigger id.'),
+    }).describe('Disable one trigger. To reschedule, prefer op=patch — remove+add loses fire progress.'),
 ]);
 
 export class AgendaToolProvider {
@@ -124,11 +158,20 @@ export class AgendaToolProvider {
                         const result = await agendaService.create({ ...args, channelSessionId });
                         const item = result.item.item;
                         if (result.existed) {
-                            return `Agenda #${item.id} already exists: ${item.content}\nNo new agenda item was created.`;
+                            // 命中去重也要回显：LLM 下一步很可能往这条上加 trigger / 改文案，
+                            // 需要既有的 trigger id 与 nextFireAt，否则得再补一次 agenda_get。
+                            // Compact 而非 Echo——这条是既有数据，message 不是本次传的参数，预览有信息量。
+                            return [
+                                `Agenda #${item.id} already exists: ${item.content}`,
+                                `No new agenda item was created. Its current schedule:`,
+                                ``,
+                                formatAgendaXml(result.item, AgendaRenderMode.Compact),
+                            ].join('\n');
                         }
                         // 直接渲染刚创建的这条（含 trigger id），不要用全局 list+limit:1——
                         // 那会按排序返回"最靠前"的一条，未必是新建的这条。
-                        return `Created agenda #${item.id}: ${item.content}\n\n${formatAgendaXml(result.item)}`;
+                        // Echo：message 是本次调用自己刚传的参数，回显纯属复读；要的是 trigger id + nextFireAt。
+                        return `Created agenda #${item.id}: ${item.content}\n\n${formatAgendaXml(result.item, AgendaRenderMode.Echo)}`;
                     } catch (e: any) {
                         return `Failed to create agenda item: ${e.message}`;
                     }
@@ -155,104 +198,75 @@ export class AgendaToolProvider {
                 },
             }),
             new DynamicStructuredTool({
-                name: AGENDA_UPDATE_TOOL_NAME,
-                description: descs.update,
+                name: AGENDA_GET_TOOL_NAME,
+                description: descs.get,
                 schema: z.object({
-                    id: z.number().describe('Item id.'),
-                    content: z.string().optional(),
-                    priority: z.enum(AgendaPriority).optional(),
-                    assignee: AssigneeSchema,
-                    assigneeName: z.string().nullable().optional().describe('Third-party name (null clears). Auto-cleared when assignee is set to non-other.'),
-                    dueAt: z.string().nullable().optional().describe('ISO or null. Does NOT retime triggers (agenda_wiki §3).'),
+                    id: z.number().describe('Item id from agenda_list.'),
+                    fires: z.boolean().optional().describe([
+                        `Also return the last ${DETAIL_FIRES_LIMIT} fire records (when, which trigger, delivered or why not).`,
+                        'Use it to answer "did it actually run / did the last one go through"; skip it otherwise.',
+                    ].join('\n')),
                 }),
-                func: async ({ id, ...patch }: { id: number } & AgendaUpdatePatch) => {
+                func: async ({ id, fires }: { id: number; fires?: boolean }) => {
                     try {
-                        const record = await agendaService.update(id, patch);
-                        return record ? `Updated agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
+                        return await agendaService.formatDetailForLLM(id, { fires });
                     } catch (e: any) {
-                        return `Failed to update agenda #${id}: ${e.message}`;
+                        return `Failed to read agenda #${id}: ${e.message}`;
                     }
                 },
             }),
             new DynamicStructuredTool({
-                name: AGENDA_TRIGGER_TOOL_NAME,
-                description: descs.trigger,
-                schema: z.object({
-                    op: z.enum(AgendaTriggerOp).describe([
-                        '- add = append ONE trigger',
-                        '- update = rewrite ONE existing trigger',
-                        '- remove = disable ONE trigger',
-                        '- replace_all = replace the FULL active trigger list',
-                        'Choosing between them → agenda_wiki §5.',
-                    ].join('\n')),
-                    itemId: z.number().optional().describe('Existing item id. Required for op=add / op=replace_all.'),
-                    triggerId: z.number().optional().describe('Existing trigger id (from <existing-agenda> XML). Required for op=update / op=remove.'),
-                    trigger: TriggerSpecSchema.optional().describe([
-                        'Spec to append (op=add) or COMPLETE replacement spec (op=update; resets fireCount).',
-                        'Shape = create.triggers[i].',
-                    ].join('\n')),
-                    triggers: z.array(TriggerSpecSchema).optional().describe('Final active list for op=replace_all. [] clears all.'),
-                }),
-                func: async (args: { op: AgendaTriggerOp } & Record<string, any>) => {
-                    try {
-                        switch (args.op) {
-                            case AgendaTriggerOp.Add: {
-                                const itemId = args.itemId as number;
-                                const spec = args.trigger as AgendaTriggerSpec;
-                                const record = await agendaService.addTrigger(itemId, { ...spec, channelSessionId });
-                                return record ? `Added trigger to agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
-                            }
-                            case AgendaTriggerOp.Update: {
-                                const triggerId = args.triggerId as number;
-                                const spec = args.trigger as AgendaTriggerSpec;
-                                const record = await agendaService.updateTrigger(triggerId, { ...spec, channelSessionId });
-                                return record ? `Updated trigger #${triggerId} on agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
-                            }
-                            case AgendaTriggerOp.Remove: {
-                                const triggerId = args.triggerId as number;
-                                const record = await agendaService.removeTrigger(triggerId);
-                                return record ? `Removed trigger #${triggerId} from agenda #${record.item.id}: ${record.item.content}` : `Trigger #${triggerId} not found.`;
-                            }
-                            case AgendaTriggerOp.ReplaceAll: {
-                                const itemId = args.itemId as number;
-                                const triggers = args.triggers as AgendaTriggerSpec[];
-                                const record = await agendaService.replaceTriggers(itemId, { triggers, channelSessionId } satisfies AgendaTriggerReplaceAllArgs);
-                                return record ? `Replaced triggers on agenda #${record.item.id}: ${record.item.content}` : `Agenda #${itemId} not found.`;
-                            }
-                        }
-                    } catch (e: any) {
-                        return `Failed agenda_trigger op=${args.op}: ${e.message}`;
-                    }
-                },
-            }),
-            new DynamicStructuredTool({
-                name: AGENDA_COMPLETE_TOOL_NAME,
-                description: descs.complete,
+                name: AGENDA_EDIT_TOOL_NAME,
+                description: descs.edit,
                 schema: z.object({
                     id: z.number().describe('Item id.'),
+                    set: z.object({
+                        content: z.string().optional(),
+                        priority: z.enum(AgendaPriority).optional(),
+                        assignee: AssigneeSchema,
+                        assigneeName: z.string().nullable().optional().describe('Third-party name (null clears). Auto-cleared when assignee is set to non-other.'),
+                        dueAt: z.string().nullable().optional().describe('ISO or null. Does NOT retime triggers (agenda_wiki §3).'),
+                    }).optional().describe('Item-level field changes; omit if only the schedule changes.'),
+                    triggers: z.array(TriggerEditSchema).optional().describe([
+                        'Trigger operations, applied in order. Omit if only item fields change.',
+                        'Put every related change in ONE call — content and schedule stay consistent, or nothing lands.',
+                    ].join('\n')),
                 }),
-                func: async ({ id }: { id: number }) => {
+                func: async ({ id, ...args }: { id: number } & AgendaEditArgs) => {
                     try {
-                        const record = await agendaService.complete(id);
+                        const record = await agendaService.edit(id, {
+                            ...args,
+                            triggers: args.triggers as AgendaTriggerEdit[] | undefined,
+                            channelSessionId,
+                        });
                         if (!record) return `Agenda #${id} not found.`;
-                        return `Completed agenda #${record.item.id}: ${record.item.content}`;
+                        // Compact：本次没碰到的 trigger 也在回显里，只给 message 预览足够区分是哪条。
+                        return `Updated agenda #${record.item.id}: ${record.item.content}\n\n${formatAgendaXml(record, AgendaRenderMode.Compact)}`;
                     } catch (e: any) {
-                        return `Failed to complete agenda #${id}: ${e.message}`;
+                        return `Failed to edit agenda #${id}: ${e.message}`;
                     }
                 },
             }),
             new DynamicStructuredTool({
-                name: AGENDA_CANCEL_TOOL_NAME,
-                description: descs.cancel,
+                name: AGENDA_CLOSE_TOOL_NAME,
+                description: descs.close,
                 schema: z.object({
-                    id: z.number().describe('Item id to terminate.'),
+                    id: z.number().describe('Item id.'),
+                    outcome: z.enum(AgendaCloseOutcome).describe([
+                        '- done = finished it',
+                        '- dropped = no longer wanted / "stop reminding me"',
+                        'Both stop ALL triggers on the item permanently. For a recurring routine, one occurrence being done',
+                        'is NOT a reason to close — that would kill the whole routine (agenda_wiki §6).',
+                    ].join('\n')),
+                    at: z.string().optional().describe('ISO instant it was actually finished, if not now (outcome=done only).'),
                 }),
-                func: async ({ id }: { id: number }) => {
+                func: async ({ id, outcome, at }: { id: number; outcome: AgendaCloseOutcome; at?: string }) => {
                     try {
-                        const record = await agendaService.cancel(id);
-                        return record ? `Cancelled agenda #${record.item.id}: ${record.item.content}` : `Agenda #${id} not found.`;
+                        const record = await agendaService.close(id, outcome, at);
+                        if (!record) return `Agenda #${id} not found.`;
+                        return `Closed agenda #${record.item.id} as ${record.item.status}: ${record.item.content}`;
                     } catch (e: any) {
-                        return `Failed to cancel agenda #${id}: ${e.message}`;
+                        return `Failed to close agenda #${id}: ${e.message}`;
                     }
                 },
             }),

@@ -20,10 +20,9 @@ const DEFAULT_SYNC_PROMPT = "agenda/sync/default.txt";
 const sharedToolDescs: AgendaToolDescs = {
     create: loadPrompt('agenda/tools/create.txt'),
     list: loadPrompt('agenda/tools/list.txt'),
-    update: loadPrompt('agenda/tools/update.txt'),
-    trigger: loadPrompt('agenda/tools/trigger.txt'),
-    complete: loadPrompt('agenda/tools/complete.txt'),
-    cancel: loadPrompt('agenda/tools/cancel.txt'),
+    get: loadPrompt('agenda/tools/get.txt'),
+    edit: loadPrompt('agenda/tools/edit.txt'),
+    close: loadPrompt('agenda/tools/close.txt'),
     wiki: loadPrompt('agenda/wiki.txt'),
 };
 

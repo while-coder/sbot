@@ -17,6 +17,20 @@
 export const DEFAULT_LIST_LIMIT = 50;
 
 /**
+ * compact 模式下 trigger.message 保留的字符数，超出截断加省略号。
+ * agenda_list 用它——invoke 类 trigger 的 message 是完整执行指令（动辄几千字），
+ * 主 agent 列清单时只需要够区分"哪条 trigger"，全文只会挤占上下文。
+ * sync extractor 走 full 模式不受影响（它要靠原文判断措辞是否需要改写）。
+ */
+export const AGENDA_MESSAGE_PREVIEW_LEN = 60;
+
+/**
+ * agenda_get fires=true 时回给 LLM 的触发历史条数（按 firedAt DESC 取最近的）。
+ * 够回答"最近跑了吗 / 上几次成功吗"，再多就是审计需求——那是 admin UI 的事。
+ */
+export const DETAIL_FIRES_LIMIT = 5;
+
+/**
  * sync extractor 喂给 LLM 的 <existing-agenda> 最多列多少条 item。
  * AgendaService.runExtractJob 用它拉记录，AgendaExtractor.extract 内再 slice 兜底——两处共享同一常量。
  */

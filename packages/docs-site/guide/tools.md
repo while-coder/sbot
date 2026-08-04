@@ -50,4 +50,4 @@ When [Notes](./note), [Wiki](./wiki), [Memory](./memory), or [Agenda](./agenda) 
 - **Notes** — `note_search` to recall vector-indexed notes
 - **Wiki** — `wiki_search` / `wiki_read` to search and read assigned wiki pages
 - **Memory** — `search_memory` / `read_memory` to recall background-extracted long-term memories
-- **Agenda** — `agenda_create` / `agenda_list` / `agenda_update` / `agenda_complete` / `agenda_cancel` / `agenda_trigger` to manage reminders and schedules
+- **Agenda** — `agenda_create` / `agenda_list` / `agenda_get` / `agenda_edit` / `agenda_close` to manage reminders and schedules

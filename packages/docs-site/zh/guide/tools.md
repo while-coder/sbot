@@ -50,4 +50,4 @@ MCP 页面还会列出 Playwright、Markitdown、Exa 等内置预设。它们按
 - **Notes** —— `note_search`，召回向量索引中的笔记
 - **Wiki** —— `wiki_search` / `wiki_read`，搜索并读取已分配的 Wiki 页面
 - **Memory** —— `search_memory` / `read_memory`，召回后台提取的长期记忆
-- **Agenda** —— `agenda_create` / `agenda_list` / `agenda_update` / `agenda_complete` / `agenda_cancel` / `agenda_trigger`，管理提醒与日程
+- **Agenda** —— `agenda_create` / `agenda_list` / `agenda_get` / `agenda_edit` / `agenda_close`，管理提醒与日程

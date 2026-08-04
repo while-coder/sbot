@@ -6,7 +6,7 @@ import type {
   DisplayContent,
 } from '../types'
 import type { CommandInfo } from '../transport'
-import { SSelect } from 'sbot-ui'
+import { SMultiSelect } from 'sbot-ui'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
 import { useAttachments } from '../composables/useAttachments'
@@ -63,6 +63,12 @@ const emit = defineEmits<{
 
 const L = computed(() => resolveLabels(props.labels))
 const isCompact = useCompact()
+
+// 下拉选择器复用 SMultiSelect 的单选模式（与「笔记」/「Wiki」同一套下拉样式）
+const agentMsOptions = computed(() => props.agentOptions.map(o => ({ id: o.value, label: o.label })))
+const saverMsOptions = computed(() => props.saverOptions.map(o => ({ id: o.value, label: o.label })))
+const agentMsValue = computed(() => (props.agent ? [props.agent] : []))
+const saverMsValue = computed(() => (props.saver ? [props.saver] : []))
 
 const richInputRef = ref<InstanceType<typeof RichInput>>()
 const messagesEl = ref<HTMLElement | null>(null)
@@ -247,13 +253,15 @@ defineExpose({ scrollToBottom })
                 <path d="m3 4.5 3 3 3-3" />
               </svg>
             </button>
-            <SSelect
+            <SMultiSelect
               v-if="agentOptions.length"
               class="chatui-agent-select"
-              size="sm"
-              :model-value="agent"
-              :options="agentOptions"
-              @update:model-value="(v) => emit('update-agent', v as string)"
+              single
+              placement="top"
+              :model-value="agentMsValue"
+              :options="agentMsOptions"
+              :placeholder="L.selectPlaceholder"
+              @update:model-value="(v) => emit('update-agent', v[0] ?? '')"
             />
           </div>
           <div class="chatui-input-toolbar-side">
@@ -286,12 +294,15 @@ defineExpose({ scrollToBottom })
       <div v-if="hasSaver" class="chatui-input-config">
         <div class="chatui-input-config-item">
           <span class="chatui-input-config-label">{{ L.storage }}</span>
-          <SSelect
+          <SMultiSelect
             class="chatui-config-select"
-            size="sm"
-            :model-value="saver"
-            :options="saverOptions"
-            @update:model-value="(v) => emit('update-config', 'saver', v)"
+            single
+            compact
+            placement="top"
+            :model-value="saverMsValue"
+            :options="saverMsOptions"
+            :placeholder="L.selectPlaceholder"
+            @update:model-value="(v) => emit('update-config', 'saver', v[0] ?? '')"
           />
         </div>
         <div class="chatui-input-config-item chatui-input-config-path-wrap">
@@ -454,8 +465,14 @@ defineExpose({ scrollToBottom })
   max-width: 170px;
   min-width: 0;
 }
-.chatui-agent-select :deep(select) {
+.chatui-agent-select :deep(.s-ms-trigger) {
+  min-height: 30px;
   max-width: 170px;
+}
+.chatui-agent-select :deep(.s-ms-chip),
+.chatui-agent-select :deep(.s-ms-placeholder) {
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 /* Below-card config row */
@@ -480,6 +497,14 @@ defineExpose({ scrollToBottom })
 .chatui-config-select {
   min-width: 0;
   max-width: 180px;
+}
+.chatui-config-select :deep(.s-ms-trigger) {
+  max-width: 180px;
+}
+.chatui-config-select :deep(.s-ms-chip),
+.chatui-config-select :deep(.s-ms-placeholder) {
+  font-size: 12px;
+  line-height: 1.4;
 }
 .chatui-input-config-path-wrap {
   display: inline-flex;

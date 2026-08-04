@@ -1,5 +1,0 @@
-Update an agenda item's BODY fields: content / priority / dueAt.
-
-NOT FOR: trigger schedules → agenda_trigger. Marking done → agenda_complete. Terminating → agenda_cancel.
-
-Caveats (dueAt does NOT retime triggers, cadence-change consistency) → agenda_wiki.

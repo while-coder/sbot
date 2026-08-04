@@ -40,11 +40,10 @@ Once enabled, the agent gets these tools:
 | Tool | Purpose |
 |------|---------|
 | `agenda_create` | Create an item with one or more triggers |
-| `agenda_list` | List current items |
-| `agenda_update` | Modify an item or its triggers |
-| `agenda_complete` | Mark an item done |
-| `agenda_cancel` | Cancel an item |
-| `agenda_trigger` | Fire / manage a trigger |
+| `agenda_list` | List current items (each trigger's `message` truncated to a preview) |
+| `agenda_get` | Read one item in full by id: complete `message`, disabled triggers, timestamps, optional fire log |
+| `agenda_edit` | Change item fields and/or triggers (add / patch / remove) in one atomic call |
+| `agenda_close` | Terminate an item — `outcome: done` (finished) or `dropped` (no longer wanted) |
 | `agenda_wiki` | In-tool reference for edge cases (multi-trigger, dueAt vs trigger, action choice) |
 
 ## Agenda vs Heartbeat

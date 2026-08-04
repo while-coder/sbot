@@ -1,0 +1,12 @@
+Read ONE agenda item in full, by id.
+
+agenda_list gives every trigger's `message` TRUNCATED (ends with "…") — it's a preview, enough to tell triggers apart, not the real text. Call this when the actual wording matters:
+- the user asks what a routine actually does / what exactly gets delivered ("那个每日巡检具体让你干什么")
+- you are about to rewrite a message via agenda_edit and need the current text first
+- the user asks why a schedule stopped (disabled triggers show enabled="false")
+
+Returns a single <agenda> with full messages, disabled triggers included, plus createdAt / updatedAt / doneAt.
+
+`fires: true` additionally returns the recent fire log (when, which trigger, delivered or the failure reason) — use it for "did it actually run / did the last one go through", not by default.
+
+One id per call. Do NOT loop it over a whole list to "see everything" — a truncated preview is enough unless you have a concrete reason above.

@@ -215,7 +215,7 @@ export interface AgendaCreateArgs {
 
 /**
  * 更新 agenda item 主体字段。仅改主体，不碰调度——trigger 的增改删一律走
- * addTrigger / updateTrigger / removeTrigger / replaceTriggers（对应 agenda_trigger 工具 / 单条 trigger API）。
+ * addTrigger / patchTrigger / removeTrigger / replaceTriggers（LLM 侧统一走 agenda_edit 的 triggers 数组）。
  */
 export interface AgendaUpdatePatch {
     /** 改内容。LLM 说"把 #3 改成 '交月报'" → content = "交月报"。 */
@@ -239,10 +239,79 @@ export interface AgendaUpdatePatch {
  * 语义：
  * - trigger_add：append 一条新 trigger
  * - trigger_update：用 spec 整体覆盖目标 trigger（fireCount / lastFiredAt 重置）
- *   想只改 action 不重置进度？现在做不到——传完整 spec 即可，多数 routine 是 unlimited，重置无影响。
+ *   只想改 action / message 而保留触发进度 → 用 AgendaTriggerPatch 走 patchTrigger。
  */
 export type AgendaTriggerCreateArgs = AgendaTriggerSpec & { channelSessionId?: number };
 export type AgendaTriggerUpdatePatch = AgendaTriggerSpec & { channelSessionId?: number };
+
+/**
+ * 触发器**部分**更新（patchTrigger / agenda_edit 用），与 AgendaTriggerUpdatePatch 的整体覆盖相对：
+ * 只传要改的字段，未传的沿用当前值，且 fireCount / lastFiredAt **一律保留**。
+ *
+ * 这是"只想把 notify 改成 invoke"的正确入口——不必重打一遍 cron，也不丢触发进度。
+ * nextFireAt 只在 schedule 字段（kind / at / every / expr）真的变了、或显式给了 startAt 时才重算。
+ *
+ * 改 kind 必须同时给出新 kind 对应的 schedule 字段（absolute→at / interval→every / cron→expr），
+ * 否则 expr 的语义会与 kind 错位，service 会抛错拒绝。
+ */
+export interface AgendaTriggerPatch {
+    /** 换触发器类型。必须同时给新 kind 的 schedule 字段。 */
+    kind?: AgendaTriggerKind;
+    /** kind=absolute 的新时刻（ISO）。 */
+    at?: string;
+    /** kind=interval 的新间隔。 */
+    every?: AgendaRelativeTime;
+    /** kind=cron 的新 6 字段表达式。 */
+    expr?: string;
+    /** 显式重设下次触发时刻（ISO）。不改 schedule 也可单独用它推迟一次。 */
+    startAt?: string;
+    /** 改总次数上限；0 / 省略语义同 create（0=无限）。 */
+    count?: number;
+    action?: SessionDeliveryMode;
+    message?: string;
+    /** 投递通道；不在 LLM schema 暴露。 */
+    channelSessionId?: number;
+}
+
+/**
+ * agenda_edit 里的单个触发器操作。三种：
+ * - add：追加一条（spec 与 create.triggers[i] 同形）
+ * - patch：部分改一条（见 AgendaTriggerPatch）
+ * - remove：停用一条
+ *
+ * 没有 replace_all——同一次 edit 里 remove 旧的 + add 新的即可，语义等价且无需额外 op。
+ */
+export type AgendaTriggerEdit =
+    | { op: 'add'; spec: AgendaTriggerSpec }
+    | { op: 'patch'; id: number; patch: AgendaTriggerPatch }
+    | { op: 'remove'; id: number };
+
+/**
+ * agenda_edit 的完整载荷：主体字段 + 触发器操作列表，**一次调用原子生效**。
+ *
+ * 这样设计是为了让"改节奏必须同步改 content / 其他 trigger 文案"这类跨字段一致性
+ * 由结构保证，而不是靠 prompt 要求 LLM 在同一轮里记得多调几次工具
+ * （分多次调用时，中间失败会留下"显示的名字与实际调度矛盾"的脏状态）。
+ */
+export interface AgendaEditArgs {
+    /** 主体字段改动；语义同 AgendaUpdatePatch。 */
+    set?: AgendaUpdatePatch;
+    /** 触发器操作，按数组顺序依次执行。 */
+    triggers?: AgendaTriggerEdit[];
+    /** 新建 trigger 的投递通道；不在 LLM schema 暴露。 */
+    channelSessionId?: number;
+}
+
+/**
+ * 终结一条 agenda 的方式。两者落库效果相同（整条置终态 + 停掉所有 trigger），
+ * 差别只在 status 记录的意图：做完了 vs 不要了。
+ */
+export enum AgendaCloseOutcome {
+    /** 做完了 → status=done，写 doneAt。 */
+    Done = 'done',
+    /** 不要了 / 别再提醒 → status=cancelled，不写 doneAt。 */
+    Dropped = 'dropped',
+}
 
 export interface AgendaTriggerReplaceAllArgs {
     /** 完整新 trigger 列表（每条自带 action/message）。[] = 清空。 */

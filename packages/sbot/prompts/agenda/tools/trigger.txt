@@ -1,7 +1,0 @@
-Manage triggers on an existing agenda item — choose with `op`:
-- add (itemId, trigger): append ONE trigger; existing stay.
-- update (triggerId, trigger): rewrite ONE trigger; spec must be COMPLETE; resets fireCount.
-- remove (triggerId): disable ONE trigger; item stays.
-- replace_all (itemId, triggers[]): replace the FULL active list; [] clears all.
-
-`trigger` / `triggers[]` shape = create.triggers[i]. Surgical-vs-replace tradeoffs, cadence sync, message sync → agenda_wiki.

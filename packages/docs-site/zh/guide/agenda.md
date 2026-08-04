@@ -40,11 +40,10 @@ Agenda 是 sbot 的有状态提醒 / 日程系统。每个日程**条目**（待
 | 工具 | 用途 |
 |------|---------|
 | `agenda_create` | 创建带一个或多个触发器的条目 |
-| `agenda_list` | 列出当前条目 |
-| `agenda_update` | 修改条目或其触发器 |
-| `agenda_complete` | 标记条目完成 |
-| `agenda_cancel` | 取消条目 |
-| `agenda_trigger` | 触发 / 管理触发器 |
+| `agenda_list` | 列出当前条目（触发器的 `message` 截断为预览） |
+| `agenda_get` | 按 id 读单条完整信息：`message` 全文、已停用的触发器、时间戳，可选触发历史 |
+| `agenda_edit` | 一次原子调用改主体字段和/或触发器（add / patch / remove） |
+| `agenda_close` | 终结条目——`outcome: done`（做完了）或 `dropped`（不要了） |
 | `agenda_wiki` | 边界场景的工具内参考（多触发器、dueAt vs 触发器、action 选择等） |
 
 ## Agenda vs Heartbeat

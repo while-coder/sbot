@@ -1,0 +1,12 @@
+Change an existing agenda item — body fields (`set`) and/or its triggers (`triggers`), atomically.
+
+- `set`: content / priority / assignee / dueAt.
+- `triggers`: ordered ops — add (append one), patch (change parts of one, keeping its fire progress), remove (disable one). Ids come from agenda_list / agenda_get.
+
+Put every related change in ONE call. Retiming a routine usually means also rewriting the content or another trigger's message; done separately, a failure halfway leaves the displayed name contradicting the live schedule.
+
+Prefer patch over remove+add — patch keeps fireCount / lastFiredAt and needs only the changed fields ("switch the 9am one to invoke" = one field).
+
+NOT FOR: marking done or stopping a routine → agenda_close.
+
+Caveats (dueAt does NOT retime triggers, cadence sync, changing a trigger's kind) → agenda_wiki.

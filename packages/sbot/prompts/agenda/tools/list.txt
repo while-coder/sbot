@@ -1,5 +1,7 @@
 List the user's agenda items.
 
-Trigger phrases: "what's on my list / pending / coming up". Returns XML <agenda-list> with nested <trigger id .../>. Use those ids when calling agenda_trigger / agenda_complete.
+Trigger phrases: "what's on my list / pending / coming up". Returns XML <agenda-list> with nested <trigger id .../>. Use those ids when calling agenda_edit / agenda_get.
+
+Each trigger's `message` is TRUNCATED to a preview (trailing "…" means there is more). That is by design — enough to tell triggers apart, not the full delivered text. Need the real wording, the fire log, or disabled triggers → agenda_get with that item id.
 
 Output-format details and answering rules → agenda_wiki.
