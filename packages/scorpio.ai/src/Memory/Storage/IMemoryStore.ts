@@ -233,8 +233,11 @@ export interface IMemoryStore {
     /** 标记失败（保留数据），attemptCount += 1。 */
     markPendingJobFailed(id: number, errorMessage: string, now: number): void;
 
-    /** 将 failed 的抽取 job 重新放回 pending 队列。返回 false 表示不是可重试的 failed extract job。 */
-    retryFailedExtractJob(id: number, now: number): boolean;
+    /** 将目标作用域内的一条 failed job 重新放回 pending 队列。 */
+    retryFailedJob(id: number, now: number, target: MemoryTarget): boolean;
+
+    /** 删除目标作用域内的一条 failed job。返回 false 表示不存在或状态不是 failed。 */
+    deleteFailedJob(id: number, target: MemoryTarget): boolean;
 
     /**
      * 管理/排障用：列最近的 pending+failed job（按 id DESC）。

@@ -420,7 +420,11 @@ export class MemoryStore implements IMemoryStore {
         `).run({ id, errorMessage: errorMessage.slice(0, 1000), now });
     }
 
-    retryFailedExtractJob(id: number, now: number): boolean {
+    retryFailedJob(id: number, now: number, target: MemoryTarget): boolean {
+        const workspaceKey = target.scope === MemoryScope.Workspace ? target.workspace.key : null;
+        const scopeWhere = workspaceKey === null
+            ? `json_extract(payload_json, '$.workspace.key') IS NULL`
+            : `json_extract(payload_json, '$.workspace.key') = @workspaceKey`;
         const result = this.db.prepare(`
             UPDATE memory_pending_messages
             SET status        = 'pending',
@@ -428,8 +432,29 @@ export class MemoryStore implements IMemoryStore {
                 updated_at    = @now
             WHERE id = @id
               AND status = 'failed'
-              AND job_type = @jobType
-        `).run({ id, now, jobType: MemoryPendingJobType.Extract });
+              AND ${scopeWhere}
+        `).run({
+            id,
+            now,
+            ...(workspaceKey ? { workspaceKey } : {}),
+        });
+        return result.changes > 0;
+    }
+
+    deleteFailedJob(id: number, target: MemoryTarget): boolean {
+        const workspaceKey = target.scope === MemoryScope.Workspace ? target.workspace.key : null;
+        const scopeWhere = workspaceKey === null
+            ? `json_extract(payload_json, '$.workspace.key') IS NULL`
+            : `json_extract(payload_json, '$.workspace.key') = @workspaceKey`;
+        const result = this.db.prepare(`
+            DELETE FROM memory_pending_messages
+            WHERE id = @id
+              AND status = 'failed'
+              AND ${scopeWhere}
+        `).run({
+            id,
+            ...(workspaceKey ? { workspaceKey } : {}),
+        });
         return result.changes > 0;
     }
 

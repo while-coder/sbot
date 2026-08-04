@@ -74,6 +74,12 @@ export interface IMemoryService {
     /** admin 排障：列最近的 pending+failed job（按 id DESC）。 */
     listPending(limit?: number): PendingMemoryJobRow[];
 
+    /** admin 将一条 failed job 重新放回 pending 队列。 */
+    retryFailedJob(id: number): boolean;
+
+    /** admin 删除一条 failed job；pending/processing 不允许删除。 */
+    deleteFailedJob(id: number): boolean;
+
     /** admin 触发：把合并/压缩现有 memory 条目的 job 入队。 */
     enqueueConsolidate(): number;
 

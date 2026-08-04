@@ -106,15 +106,38 @@ export class MemoryRoutes {
             }
         }));
 
-        /** 重试一条失败的抽取任务：把 failed extract job 放回 pending 队列并立即唤醒消费。 */
+        /** 重试一条失败任务：放回 pending 队列并立即唤醒消费。 */
         app.post('/api/memories/:id/jobs/:jobId/retry', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
             const jobId = Number(req.params.jobId);
             if (!Number.isSafeInteger(jobId) || jobId <= 0) throwBad('Invalid jobId');
-            const retried = memoryServicePool.retryExtractJob(memoryId, jobId);
-            if (retried == null) throw new Error(`Failed to retry memory extract job #${jobId}`);
-            if (!retried) throwBad(`Job #${jobId} is not a failed extract job`);
-            return { memoryId, jobId };
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
+            try {
+                if (!service.retryFailedJob(jobId)) {
+                    throwBad(`Job #${jobId} is not a failed job in the selected scope`);
+                }
+                return { memoryId, jobId };
+            } finally {
+                service.release();
+            }
+        }));
+
+        /** 删除一条失败任务记录；不允许删除仍在等待或处理中的任务。 */
+        app.delete('/api/memories/:id/jobs/:jobId', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const jobId = Number(req.params.jobId);
+            if (!Number.isSafeInteger(jobId) || jobId <= 0) throwBad('Invalid jobId');
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
+            try {
+                if (!service.deleteFailedJob(jobId)) {
+                    throwBad(`Job #${jobId} is not a failed job in the selected scope`);
+                }
+                return { memoryId, jobId };
+            } finally {
+                service.release();
+            }
         }));
 
         /** 单条 memory 全文。 */

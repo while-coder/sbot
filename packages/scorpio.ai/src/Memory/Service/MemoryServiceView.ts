@@ -51,6 +51,14 @@ export abstract class MemoryServiceView implements IMemoryService {
         return this.owner.listPending(limit, this.target);
     }
 
+    retryFailedJob(id: number): boolean {
+        return this.owner.retryFailedJob(id, this.target);
+    }
+
+    deleteFailedJob(id: number): boolean {
+        return this.owner.deleteFailedJob(id, this.target);
+    }
+
     enqueueConsolidate(): number {
         return this.owner.enqueueConsolidate(this.target);
     }

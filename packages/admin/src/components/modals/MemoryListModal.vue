@@ -46,6 +46,7 @@ const consolidating = ref(false)
 const reconciling = ref(false)
 const deleting = ref(false)
 const retryingJobId = ref<number | null>(null)
+const deletingJobId = ref<number | null>(null)
 
 const rows = ref<MemorySummary[]>([])
 const jobs = ref<MemoryJob[]>([])
@@ -174,21 +175,32 @@ async function runReconcile() {
   }
 }
 
-function canRetryExtractJob(job: MemoryJob): boolean {
-  return job.type === 'extract' && job.status === 'failed'
-}
-
-async function retryExtractJob(job: MemoryJob) {
-  if (!memoryId.value || !canRetryExtractJob(job) || retryingJobId.value !== null) return
+async function retryFailedJob(job: MemoryJob) {
+  if (!memoryId.value || job.status !== 'failed' || retryingJobId.value !== null) return
   retryingJobId.value = job.id
   try {
-    await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}/retry`, 'POST', {})
-    show(t('memory_profiles.retry_extract_done'))
+    await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}/retry?${viewQuery.value}`, 'POST', {})
+    show(t('memory_profiles.retry_job_done'))
     await refresh()
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
     retryingJobId.value = null
+  }
+}
+
+async function deleteFailedJob(job: MemoryJob) {
+  if (!memoryId.value || job.status !== 'failed' || deletingJobId.value !== null) return
+  if (!window.confirm(t('memory_profiles.confirm_delete_job', { id: job.id }))) return
+  deletingJobId.value = job.id
+  try {
+    await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}?${viewQuery.value}`, 'DELETE')
+    show(t('memory_profiles.delete_job_done'))
+    await loadJobs()
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    deletingJobId.value = null
   }
 }
 
@@ -334,13 +346,22 @@ defineExpose({ openByMemoryId })
             <div class="memory-job-id">#{{ job.id }}</div>
             <div class="memory-job-actions">
               <SButton
-                v-if="canRetryExtractJob(job)"
+                v-if="job.status === 'failed'"
                 type="outline"
                 size="sm"
                 :loading="retryingJobId === job.id"
-                @click="retryExtractJob(job)"
+                @click="retryFailedJob(job)"
               >
-                {{ t('memory_profiles.retry_extract') }}
+                {{ t('memory_profiles.retry_job') }}
+              </SButton>
+              <SButton
+                v-if="job.status === 'failed'"
+                type="danger"
+                size="sm"
+                :loading="deletingJobId === job.id"
+                @click="deleteFailedJob(job)"
+              >
+                {{ t('memory_profiles.delete_job') }}
               </SButton>
               <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
             </div>

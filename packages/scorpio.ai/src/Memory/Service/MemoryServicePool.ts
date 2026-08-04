@@ -171,20 +171,6 @@ export class MemoryServicePool {
         }
     }
 
-    /** 返回 null 表示触发失败，错误已在 pool 中记录；false 表示该 job 不可重试。 */
-    retryExtractJob(memoryId: string, jobId: number): boolean | null {
-        let service: MemoryService | undefined;
-        try {
-            service = this.acquireOwner(memoryId);
-            return service.retryExtractJob(jobId);
-        } catch (e: any) {
-            this.logActionFailed(`重试记忆抽取 #${jobId}`, memoryId, e);
-            return null;
-        } finally {
-            this.releaseQuietly(service, `重试记忆抽取 #${jobId}`, memoryId);
-        }
-    }
-
     listWorkspaceScopes(memoryId: string): MemoryWorkspaceScope[] {
         const service = this.acquireOwner(memoryId);
         try { return service.listWorkspaceScopes(); }

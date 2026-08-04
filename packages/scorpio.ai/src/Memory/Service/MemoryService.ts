@@ -449,6 +449,10 @@ export class MemoryService {
         return this.store.listPendingJobs(limit ?? 50, target);
     }
 
+    deleteFailedJob(id: number, target: MemoryTarget): boolean {
+        return this.store.deleteFailedJob(id, target);
+    }
+
     processPending(): void {
         void this.checkJobs();
     }
@@ -465,8 +469,8 @@ export class MemoryService {
         return id;
     }
 
-    retryExtractJob(id: number): boolean {
-        const retried = this.store.retryFailedExtractJob(id, Date.now());
+    retryFailedJob(id: number, target: MemoryTarget): boolean {
+        const retried = this.store.retryFailedJob(id, Date.now(), target);
         if (retried) void this.checkJobs();
         return retried;
     }
