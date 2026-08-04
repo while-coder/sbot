@@ -122,6 +122,15 @@ export class MemoryStore implements IMemoryStore {
     async create(input: CreateMemoryInput, now: number): Promise<MemoryRow> {
         this.assertValidSlug(input.slug);
         const filePath = this.slugToPath(input.slug);
+
+        // 冲突必须在写文件之前拦下。否则 writeFile 会先覆盖已有条目的内容，
+        // 随后 INSERT 撞 UNIQUE，下面 catch 里的 unlink 回滚把那个文件一起删掉——
+        // DB 行却还在，FS/DB 不一致，下一轮 reconcile 会连 DB 行一起清，整条记忆就没了。
+        // 用文件存在性而不是 getBySlug 判断：外部手写但还没 reconcile 的 .md 同样不能被覆盖。
+        if (existsSync(filePath)) {
+            throw new Error(`MemoryStore.create: slug already exists: ${input.slug}`);
+        }
+
         const content = this.assembleBody(input.title, input.body);
         const evidenceCount = Math.max(1, input.evidenceCount ?? 1);
 

@@ -28,11 +28,14 @@ You receive two things:
      sure, `update` it instead of creating a sibling: a near-duplicate pair is harder to
      clean up later than a single entry that merged slightly too much. (Genuinely
      unrelated topics still belong in separate entries.)
-   - `evidence` counts how many separate conversations corroborated that entry. A high
-     count means it has been confirmed repeatedly — extend such an entry rather than
-     rewriting it wholesale, and never `delete` it on the strength of one transcript.
+   - `evidence` counts how many separate past conversations mentioned or reinforced that
+     entry. A high count means it has held up repeatedly — extend such an entry rather
+     than rewriting it wholesale, and never `delete` it on the strength of one transcript.
 2. **Conversation transcript** — the full back-and-forth for the rollout window being
    processed.
+
+Emit at most ONE op per slug. Two ops on the same slug in one batch is a mistake: they
+are applied in order, so the second silently overwrites the first.
 
 # What to remember
 
@@ -65,7 +68,9 @@ Every operation is one of:
 
 ## `create`
 A genuinely new fact, with no existing slug that overlaps. Required fields:
-`slug`, `title`, `body`. Optional: `kind`.
+`slug`, `title`, `body`. Optional: `kind`. If the slug turns out to already exist, the
+system falls back to `update` and merges — so a near-miss is recoverable, but choosing
+`update` yourself when you suspect overlap gives a better merge.
 
 - **slug**: lowercase-kebab, ≤64 chars, descriptive (e.g. `user-prefers-chinese`,
   `project-build-order`, `merge-freeze-2026-03-05`). Pattern: `^[a-z0-9][a-z0-9-]{0,63}$`.
@@ -99,8 +104,11 @@ Use it when the fact changed (a deadline moved), more nuance is now known, or th
 existing title was misleading. Do NOT use it to fold two unrelated topics into one
 entry — that's two `create`s. `reason` is logged for audit.
 
-- You do not see current bodies in this pass. If you include `body`, the system
-  fetches the existing one and runs a safe merge before writing.
+- You do not see current bodies in this pass. If you include `body`, the system fetches
+  the existing one and runs a safe merge before writing. That merge costs a full model
+  call, so only send a `body` when the transcript carries something the existing entry
+  plausibly does NOT already contain. If the title suggests your point is already in
+  there, `noop` — a re-statement of what is already recorded is not an update.
 - `bodyMode: "replace"` — your body becomes the final body.
 - `bodyMode: "append"` — a short additive note, appended if not already present.
   Appends land at the BOTTOM, so never use append to revise
@@ -148,12 +156,15 @@ Wednesday. The menu already lists
 }]}
 ```
 
-**Transcript:** a long debugging session — the user asks why a test fails, the
-assistant tracks it to a typo, the user says thanks and moves on.
+**Transcript:** the assistant proposes a schema for a new export endpoint — cursor
+pagination, 500-row pages, gzip. The user reads it and says "looks good, let's do that."
+Implementation follows and the conversation ends.
 
 ```json
-{"ops": [{"action": "noop", "reason": "one-off debugging; no reusable rule or preference established"}]}
+{"ops": [{"action": "noop", "reason": "spec for one deliverable the user approved once; not stated as a rule for future work"}]}
 ```
 
-Note what that last example is: a long, productive, entirely successful
-conversation that yields no memory at all. That is the normal outcome.
+That last one is the case to study, because it looks like a `decision` and isn't. The
+user agreed to a plan for *this* task; nothing says the next endpoint should paginate the
+same way. Approval of a proposal is not the adoption of a rule — and a long, productive,
+entirely successful conversation yielding no memory at all is the normal outcome.

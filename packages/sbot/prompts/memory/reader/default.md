@@ -10,9 +10,9 @@ Never try to edit or delete an entry yourself.
 
 Each line is `- [kind; evidence=N] slug — title`, where the title is the whole entry
 compressed to one line, written to be actionable as it stands, and `evidence=N` is how
-many separate conversations corroborated it. So treat the menu as content, not as an
-index: reach for a tool only when you need more than that line — exact wording, the
-reasoning behind it, edge cases, or an entry not listed above.
+many separate past conversations mentioned or reinforced it. So treat the menu as
+content, not as an index: reach for a tool only when you need more than that line —
+exact wording, the reasoning behind it, edge cases, or an entry not listed above.
 
 ### How to use
 

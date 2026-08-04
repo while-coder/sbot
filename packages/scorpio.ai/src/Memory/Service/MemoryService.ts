@@ -122,6 +122,22 @@ const MemoryUpdateMergeSchema = z.object({
 });
 type MemoryUpdateMergeOutput = z.infer<typeof MemoryUpdateMergeSchema>;
 
+/** applyOps 的执行上下文：区分「真实对话抽取」和「后台整理」两条调用路径。 */
+type ApplyOpsContext = {
+    /** 原始对话文本，mergeUpdateBody 需要它判断新信息是否真的取代旧 body */
+    conversation?: string;
+    /** 是否为带 body 的 update 额外走一次合并 LLM（抽取路径 true，整理路径 false） */
+    mergeUpdateBodies?: boolean;
+    /**
+     * 每次 update 给 evidence_count 加多少。
+     *
+     * evidence 的含义是「有多少次**对话**提到/印证过这条」，所以只有抽取路径能 +1；
+     * consolidate 是无新对话的自我整理，必须传 0——否则一轮整理就能把全库 evidence
+     * 抬高一档，reader 那边「高 evidence = 反复确认过」的判断随之失真。
+     */
+    evidenceDelta: number;
+};
+
 /**
  * Memory 系统的运行时 facade。每个 memoryProfile 一个实例（由 sbot 侧 MemoryServicePool 管理）。
  *
@@ -403,7 +419,8 @@ export class MemoryService implements IMemoryService {
         ];
 
         const result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, llmMessages);
-        return await this.applyOps(result.ops, { conversation, mergeUpdateBodies: true });
+        // 抽取路径：本轮对话确实提到了被 update 的条目 → evidence +1
+        return await this.applyOps(result.ops, { conversation, mergeUpdateBodies: true, evidenceDelta: 1 });
     }
 
     private async consolidateMemories(): Promise<MemoryWriterOpStats> {
@@ -460,7 +477,8 @@ export class MemoryService implements IMemoryService {
         if (capped.length < filtered.length) {
             this.logMemory('warn', `记忆整理操作截断：原始=${filtered.length}, 保留=${capped.length}, 条目=${rows.length}`);
         }
-        return this.applyOps(capped, { mergeUpdateBodies: false });
+        // 整理路径：没有新对话作证，只是重写措辞/合并重复 → evidence 不动
+        return this.applyOps(capped, { mergeUpdateBodies: false, evidenceDelta: 0 });
     }
 
     private static readonly CONSOLIDATE_TOTAL_CAP = 30;
@@ -493,15 +511,48 @@ export class MemoryService implements IMemoryService {
 
     /**
      * 单 op 失败不破坏整体：每条独立 try/catch。
-     * 失败原因（slug 冲突 / 不存在等）记 warn 日志。
+     * 失败原因（slug 不存在等）记 warn 日志。
      */
-    private async applyOps(ops: MemoryOp[], context: { conversation?: string; mergeUpdateBodies?: boolean }): Promise<MemoryWriterOpStats> {
+    private async applyOps(ops: MemoryOp[], context: ApplyOpsContext): Promise<MemoryWriterOpStats> {
         const out: MemoryWriterOpStats = { create: 0, update: 0, delete: 0, noop: 0, failed: 0 };
         const now = Date.now();
+        // 同一批里对同一个 slug 下多条 op 一定是 writer 的失误（prompt 里已明确禁止）。
+        // 不改变执行语义（顺序执行、后写覆盖前写），只记 warn——静默丢弃某一条更难排查。
+        const touched = new Set<string>();
         for (const op of ops) {
             try {
+                if ('slug' in op) {
+                    if (touched.has(op.slug)) {
+                        this.logMemory('warn', `同一批出现重复 slug，按顺序覆盖执行：${op.slug}`);
+                    }
+                    touched.add(op.slug);
+                }
                 switch (op.action) {
-                    case MemoryOpAction.Create:
+                    case MemoryOpAction.Create: {
+                        // writer 是盲写：它只看到 menu 里的 title，看不到任何 body，
+                        // 所以 slug 撞车是可预期结果而不是异常。裸 INSERT 会抛 UNIQUE
+                        // 被下面的 catch 吞成 failed，这条记忆就静默丢了——降级成 update，
+                        // 走和普通 update 完全相同的安全合并路径，信息至少落进已有条目。
+                        const existing = await this.store.getBySlug(op.slug);
+                        if (existing) {
+                            this.logMemory('info', `记忆已存在，create 降级为 update：${op.slug}`);
+                            // 刻意不传 title / kind：那两个值是 writer 为「一条全新条目」编的，
+                            // 直接写进去就是盲目覆盖已有条目的标签。省略后 store.update 保留原值，
+                            // 而候选标题通过 reason 进入 merge LLM 的输入——它看得到，
+                            // 觉得该换标题时自己返回 title 即可。
+                            // 这样 merge 失败（catch 分支清空 body）也只是什么都没改，
+                            // 不会留下「标签是新事实、正文还是旧的」这种错配。
+                            await this.applyUpdate({
+                                action: MemoryOpAction.Update,
+                                slug: op.slug,
+                                body: op.body,
+                                reason: `create fell back to update: slug already exists. `
+                                    + `The new information was drafted as a separate entry `
+                                    + `titled "${op.title}" (kind: ${op.kind}).`,
+                            }, context, now);
+                            out.update++;
+                            break;
+                        }
                         await this.store.create({
                             slug: op.slug,
                             kind: op.kind as MemoryKind,
@@ -511,18 +562,9 @@ export class MemoryService implements IMemoryService {
                         out.create++;
                         this.logMemory('info', `添加记忆：${op.slug} - ${truncateForLog(op.title)}`);
                         break;
+                    }
                     case MemoryOpAction.Update:
-                        const update = context.mergeUpdateBodies && op.body
-                            ? await this.mergeUpdateBody(op, context.conversation)
-                            : op;
-                        await this.store.update({
-                            slug: update.slug,
-                            kind: update.kind as MemoryKind | undefined,
-                            title: update.title,
-                            body: update.body,
-                            bodyMode: update.bodyMode as MemoryBodyMode | undefined,
-                            evidenceDelta: 1,
-                        }, now);
+                        await this.applyUpdate(op, context, now);
                         out.update++;
                         this.logMemory('info', `修改记忆：${op.slug} - ${truncateForLog(op.reason)}`);
                         break;
@@ -545,6 +587,25 @@ export class MemoryService implements IMemoryService {
             }
         }
         return out;
+    }
+
+    /** update 落库：抽出来给 `case Update` 和 create 撞 slug 的降级路径共用。 */
+    private async applyUpdate(
+        op: Extract<MemoryOp, { action: MemoryOpAction.Update }>,
+        context: ApplyOpsContext,
+        now: number,
+    ): Promise<void> {
+        const merged = context.mergeUpdateBodies && op.body
+            ? await this.mergeUpdateBody(op, context.conversation)
+            : op;
+        await this.store.update({
+            slug: merged.slug,
+            kind: merged.kind as MemoryKind | undefined,
+            title: merged.title,
+            body: merged.body,
+            bodyMode: merged.bodyMode as MemoryBodyMode | undefined,
+            evidenceDelta: context.evidenceDelta,
+        }, now);
     }
 
     private async mergeUpdateBody(

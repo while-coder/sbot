@@ -35,9 +35,13 @@ export interface MemoryRow {
     title: string;
     /** 完整文件内容（含 `# title` H1 + 正文），FTS 索引此字段 */
     body: string;
-    /** size-mtime，reconcile 用 */
+    /** 内容 sha256，reconcile 用 */
     fingerprint: string;
-    /** 被多少次独立抽取佐证/更新过，用于整理和置信度排序。 */
+    /**
+     * 被多少次独立**对话**抽取佐证过，用于整理和置信度排序。
+     * 只有抽取路径 +1；consolidate 的整理性重写不算（见 MemoryService.ApplyOpsContext）——
+     * 否则一轮整理就能把全库抬高一档，注入给 agent 的 evidence=N 随之失去意义。
+     */
     evidenceCount: number;
     createdAt: number;
     updatedAt: number;
