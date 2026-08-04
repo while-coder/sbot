@@ -338,10 +338,26 @@ export class MemoryService {
         if (target.scope === MemoryScope.Global) {
             return { globalMenu: await this.store.listMenu(limit), workspaceMenu: [] };
         }
+        const totalLimit = Math.max(0, Math.floor(limit));
+        if (totalLimit === 0) return { globalMenu: [], workspaceMenu: [] };
+
         const workspaceStore = await this.storeForTarget(target);
-        const workspaceMenu = await workspaceStore.listMenu(limit);
-        const globalLimit = Math.max(0, limit - workspaceMenu.length);
-        const globalMenu = globalLimit > 0 ? await this.store.listMenu(globalLimit) : [];
+        // 工作区与全局记忆分别保底，避免工作区条目先吃满总额度后让 global 完全消失。
+        // 一侧不足时把空余额回填给另一侧，最终总量仍不超过调用方给出的 limit。
+        const globalQuota = totalLimit > 1
+            ? Math.max(1, Math.floor(totalLimit * 0.4))
+            : 0;
+        const workspaceQuota = totalLimit - globalQuota;
+        let [workspaceMenu, globalMenu] = await Promise.all([
+            workspaceStore.listMenu(workspaceQuota),
+            this.store.listMenu(globalQuota),
+        ]);
+
+        if (workspaceMenu.length < workspaceQuota) {
+            globalMenu = await this.store.listMenu(totalLimit - workspaceMenu.length);
+        } else if (globalMenu.length < globalQuota) {
+            workspaceMenu = await workspaceStore.listMenu(totalLimit - globalMenu.length);
+        }
         return { globalMenu, workspaceMenu };
     }
 
