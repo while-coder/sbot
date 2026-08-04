@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import type { IMemoryService } from "../Service/IMemoryService";
+import { MemoryScope } from "../Storage/IMemoryStore";
 
 export const READ_MEMORY_TOOL_NAME = 'read_memory' as const;
 export const SEARCH_MEMORY_TOOL_NAME = 'search_memory' as const;
@@ -28,20 +29,14 @@ export class MemoryToolProvider {
             description,
             schema: z.object({
                 slug: z.string().describe("Slug of the memory entry. Pattern: lowercase-kebab, ≤64 chars."),
+                scope: z.enum([MemoryScope.Global, MemoryScope.Workspace])
+                    .describe("Required scope shown in the memory menu/search result."),
             }),
-            func: async ({ slug }) => {
+            func: async ({ slug, scope }) => {
                 try {
-                    const row = await service.readMemory(slug);
+                    const row = await service.readMemory(slug, scope);
                     if (!row) {
-                        return [
-                            `No memory found with slug "${slug}".`,
-                            ``,
-                            `Possible reasons:`,
-                            `- The slug was misremembered or paraphrased — slugs are exact.`,
-                            `- The entry was deleted or never created.`,
-                            ``,
-                            `Try search_memory with the keyword you're looking for instead.`,
-                        ].join("\n");
+                        return `Memory not found: [${scope}] ${slug}. Use search_memory to find the exact slug and scope.`;
                     }
                     // body 已经包含 # title H1
                     return row.body;
@@ -57,39 +52,30 @@ export class MemoryToolProvider {
             name: SEARCH_MEMORY_TOOL_NAME,
             description,
             schema: z.object({
-                query: z.string().describe("Search query (BM25 over the markdown body, whose first line is the entry's title)"),
-                limit: z.number().optional().default(5).describe("Max results to return (default 5)"),
+                query: z.string().trim().min(1)
+                    .describe("Search query (BM25 over the markdown body, whose first line is the entry's title)"),
+                limit: z.number().int().min(1).max(10).optional().default(5)
+                    .describe("Max results to return (1-10, default 5)"),
             }),
             func: async ({ query, limit }) => {
                 try {
                     const hits = await service.search(query, limit);
                     if (hits.length === 0) {
-                        return [
-                            `No memory matches for "${query}".`,
-                            ``,
-                            `0 results does NOT mean it was never recorded. Consider:`,
-                            `- Retry with FEWER / rarer terms (1-2 distinctive words beat a long phrase).`,
-                            `- For literals the tokenizer splits (URLs, ports), search a single rare token.`,
-                            `- Check the memory menu in the system prompt — exact slug match goes via read_memory.`,
-                        ].join("\n");
+                        return `No memory matched "${query}". Retry with 1-2 distinctive terms or one literal token.`;
                     }
-                    // 每条的头行与 system prompt 里注入的 memory menu 完全同形
-                    // （MemoryService.buildReadPrompt）——同一条记忆在两处长得一样，
+                    // 每条的头行与 system prompt 里注入的 memory menu 完全同形——
+                    // 同一条记忆在两处长得一样，
                     // agent 不需要靠 slug 反推"这就是菜单里那条"。
                     // 不输出 score：见 MemorySearchHit.score 的注释。
-                    const lines = [
-                        `Found ${hits.length} match${hits.length === 1 ? "" : "es"} (best first).`,
-                        `Use read_memory(slug) for the full body if the snippet is not enough.`,
-                        ``,
-                    ];
-                    for (const h of hits) {
-                        lines.push(`- [${h.kind}; evidence=${h.evidenceCount}] \`${h.slug}\` — ${h.title}`);
+                    const lines = [`${hits.length} memory match${hits.length === 1 ? "" : "es"}:`, ``];
+                    for (const [index, h] of hits.entries()) {
+                        if (index > 0) lines.push("");
+                        lines.push(`- [${h.scope}; ${h.kind}; evidence=${h.evidenceCount}] \`${h.slug}\` — ${h.title}`);
                         // snippet 可能多行，整体缩进挂在头行下面，避免与下一条混在一起
-                        const snippet = h.snippet.trim();
+                        const snippet = MemoryToolProvider.cleanSnippet(h.snippet, h.title);
                         if (snippet) {
                             for (const line of snippet.split("\n")) lines.push(`  ${line}`);
                         }
-                        lines.push("");
                     }
                     return lines.join("\n");
                 } catch (e: any) {
@@ -97,5 +83,20 @@ export class MemoryToolProvider {
                 }
             },
         });
+    }
+
+    /** FTS snippet 命中标题时会重复输出正文已有的 H1；仅删除可确认相同的首行。 */
+    private static cleanSnippet(snippet: string, title: string): string {
+        const lines = snippet.trim().split(/\r?\n/);
+        const firstLineTitle = lines[0]
+            ?.replace(/<</g, '')
+            .replace(/>>/g, '')
+            .replace(/^#\s*/, '')
+            .trim();
+        if (firstLineTitle === title.trim()) {
+            lines.shift();
+            while (lines[0]?.trim() === '') lines.shift();
+        }
+        return lines.join('\n').trim();
     }
 }

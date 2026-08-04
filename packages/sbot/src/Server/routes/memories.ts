@@ -3,6 +3,7 @@ import { config } from '../../Core/Config';
 import { memoryServicePool } from '../../Memory/MemoryServicePool';
 import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
+import { MemoryScope } from 'scorpio.ai';
 
 function requireMemoryId(value: unknown): string {
     if (value == null) throwBad('Missing memoryId');
@@ -12,15 +13,53 @@ function requireMemoryId(value: unknown): string {
     return s;
 }
 
+function optionalString(value: unknown): string | undefined {
+    const raw = Array.isArray(value) ? value[0] : value;
+    if (typeof raw !== 'string') return undefined;
+    const text = raw.trim();
+    return text || undefined;
+}
+
+function requireScope(value: unknown, name: string): MemoryScope {
+    const raw = Array.isArray(value) ? value[0] : value;
+    if (raw === MemoryScope.Global || raw === MemoryScope.Workspace) return raw;
+    throwBad(`Missing or invalid ${name}`);
+}
+
+type MemoryViewTarget =
+    | { scope: MemoryScope.Global }
+    | { scope: MemoryScope.Workspace; workPath: string };
+
+function requireViewTarget(scopeValue: unknown, workPathValue: unknown): MemoryViewTarget {
+    const scope = requireScope(scopeValue, 'viewScope');
+    if (scope === MemoryScope.Global) return { scope };
+    const workPath = optionalString(workPathValue);
+    if (!workPath) throwBad('Missing workPath for workspace view');
+    return { scope, workPath };
+}
+
+function acquireMemoryService(memoryId: string, target: MemoryViewTarget) {
+    return target.scope === MemoryScope.Workspace
+        ? memoryServicePool.acquire(memoryId, target.workPath)
+        : memoryServicePool.acquireGlobal(memoryId);
+}
+
 export class MemoryRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
+        /** 已创建过的工作目录作用域；只读 scope.json，不打开对应数据库。 */
+        app.get('/api/memories/:id/scopes', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            return { memoryId, workspaces: memoryServicePool.listWorkspaceScopes(memoryId) };
+        }));
+
         /**
          * 列出该 memoryId 当前的所有 memory 条目（slug + title + 时间戳 + 读次数）。
          * 不返回 body（避免响应过大）；body 走单独的 read 路由 / agent 工具。
          */
         app.get('/api/memories/:id/list', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const service = await memoryServicePool.acquire(memoryId);
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
             try {
                 const rows = await service.listAll();
                 // body 不返回（避免响应膨胀）；admin UI 单击行后再走 read_memory 取全文
@@ -33,6 +72,7 @@ export class MemoryRoutes {
                     updatedAt: r.updatedAt,
                     lastReadAt: r.lastReadAt,
                     readCount: r.readCount,
+                    scope: r.scope,
                 }));
                 return { memoryId, memories: summary };
             } finally {
@@ -44,16 +84,26 @@ export class MemoryRoutes {
         app.get('/api/memories/:id/jobs', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
             const limit = Math.max(1, Math.min(Number(req.query.limit ?? 50) || 50, 200));
-            const jobs = memoryServicePool.listPendingJobs(memoryId, limit);
-            return { memoryId, jobs };
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
+            try {
+                return { memoryId, jobs: service.listPending(limit) };
+            } finally {
+                service.release();
+            }
         }));
 
         /** 手动整理：入队合并重复、删除明显冗余、压缩过长 memory 的后台 job。 */
         app.post('/api/memories/:id/consolidate/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const jobId = memoryServicePool.forceConsolidate(memoryId);
-            if (jobId == null) throw new Error('Failed to queue memory consolidate job');
-            return { memoryId, jobId };
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
+            try {
+                const jobId = service.enqueueConsolidate();
+                return { memoryId, jobId };
+            } finally {
+                service.release();
+            }
         }));
 
         /** 重试一条失败的抽取任务：把 failed extract job 放回 pending 队列并立即唤醒消费。 */
@@ -72,9 +122,12 @@ export class MemoryRoutes {
             const memoryId = requireMemoryId(req.params.id);
             const slug = String(req.params.slug ?? '').trim();
             if (!slug) throwBad('Missing slug');
-            const service = await memoryServicePool.acquire(memoryId);
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const entryScope = requireScope(req.query.entryScope, 'entryScope');
+            const service = acquireMemoryService(memoryId, target);
             try {
-                const row = (await service.listAll()).find(r => r.slug === slug) ?? null;
+                const rows = await service.listAll();
+                const row = rows.find(r => r.slug === slug && r.scope === entryScope) ?? null;
                 if (!row) throwBad(`Memory "${slug}" not found`);
                 return { memoryId, slug, row };
             } finally {
@@ -87,9 +140,11 @@ export class MemoryRoutes {
             const memoryId = requireMemoryId(req.params.id);
             const slug = String(req.params.slug ?? '').trim();
             if (!slug) throwBad('Missing slug');
-            const service = await memoryServicePool.acquire(memoryId);
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const entryScope = requireScope(req.query.entryScope, 'entryScope');
+            const service = acquireMemoryService(memoryId, target);
             try {
-                const archive = await service.deleteMemory(slug);
+                const archive = await service.deleteMemory(slug, entryScope);
                 return { memoryId, slug, archive };
             } finally {
                 service.release();
@@ -103,9 +158,14 @@ export class MemoryRoutes {
          */
         app.post('/api/memories/:id/reconcile/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const jobId = memoryServicePool.forceReconcile(memoryId);
-            if (jobId == null) throw new Error('Failed to queue memory reconcile job');
-            return { memoryId, jobId };
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
+            try {
+                const jobId = service.enqueueReconcile();
+                return { memoryId, jobId };
+            } finally {
+                service.release();
+            }
         }));
     }
 }

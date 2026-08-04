@@ -17,6 +17,15 @@ Think of it as the agent learning from every conversation without you having to 
    - **Reconcile** — re-indexes and prunes stale entries
 4. **Delete** — removed memories are moved to `.archive/` and can be recovered.
 
+## Global and Workspace Memory
+
+One Memory Profile contains two memory layers:
+
+- **Global** — user preferences, machine context, and general workflows that apply across projects.
+- **Workspace** — project paths, conventions, module maps, build steps, and architecture decisions isolated by the current `workPath`.
+
+A channel still selects only one Memory Profile. Each turn reads global memory together with the current workspace memory. Different `workPath` values use separate databases and search indexes, so they cannot search or write one another's entries. Sessions without a configured `workPath`, including ordinary Web conversations, share `~/.sbot/workspace` as their default memory workspace instead of writing everything into global memory. The Memory Profile viewer can switch between global memory and previously created workspaces.
+
 ## Configuration
 
 A **Memory Profile** defines how memories are extracted and read. Sidebar → **Memory Profiles** → New:

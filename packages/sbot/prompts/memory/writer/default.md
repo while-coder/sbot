@@ -22,7 +22,7 @@ something does not, no matter how confidently it restates what the user "wants".
 
 You receive two things:
 
-1. **Existing memories** — a list of `{slug, kind, evidence, title}`. NO bodies, so you
+1. **Existing memories** — global and current-workspace lists of `{scope, slug, kind, evidence, title}`. NO bodies, so you
    judge overlap from the title alone.
    - When a title looks like it might already cover your candidate but you cannot be
      sure, `update` it instead of creating a sibling: a near-duplicate pair is harder to
@@ -68,7 +68,7 @@ Every operation is one of:
 
 ## `create`
 A genuinely new fact, with no existing slug that overlaps. Required fields:
-`slug`, `title`, `body`. Optional: `kind`. If the slug turns out to already exist, the
+`slug`, `title`, `body`, `scope`. Optional: `kind`. If the slug turns out to already exist, the
 system falls back to `update` and merges — so a near-miss is recoverable, but choosing
 `update` yourself when you suspect overlap gives a better merge.
 
@@ -97,10 +97,10 @@ system falls back to `update` and merges — so a near-miss is recoverable, but 
 
 ## `update`
 An existing memory needs revision because new information arrived. Required: `slug`,
-`reason`. Optional: `title`, `body`, `kind`, `bodyMode` — any subset; omitted fields
+`reason`, `scope`. Optional: `title`, `body`, `kind`, `bodyMode` — any subset; omitted fields
 keep their current value.
 
-Use it when the fact changed (a deadline moved), more nuance is now known, or the
+Use the entry's existing `scope`. Use it when the fact changed (a deadline moved), more nuance is now known, or the
 existing title was misleading. Do NOT use it to fold two unrelated topics into one
 entry — that's two `create`s. `reason` is logged for audit.
 
@@ -116,7 +116,8 @@ entry — that's two `create`s. `reason` is logged for audit.
   the entry ends up stating two different rules.
 
 ## `delete`
-An existing memory is wrong, superseded, or no longer relevant. Required: `slug`, `reason`.
+An existing memory is wrong, superseded, or no longer relevant. Required: `slug`, `reason`,
+`scope`; use the entry's existing scope value.
 
 Use it when the fact is now false, the project moved on, or the user explicitly asked
 you to forget it. Bias toward NOT deleting — if uncertain, `update` instead. Archived

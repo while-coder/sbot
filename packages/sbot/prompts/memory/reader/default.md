@@ -8,15 +8,15 @@ Never try to edit or delete an entry yourself.
 
 {{ memory_menu }}
 
-Each line is `- [kind; evidence=N] slug — title`, where the title is the whole entry
-compressed to one line, written to be actionable as it stands, and `evidence=N` is how
+Each line is `- [scope; kind; evidence=N] slug — title`, where `scope` is `global`
+or `workspace`, the title is the whole entry compressed to one line, and `evidence=N` is how
 many separate past conversations mentioned or reinforced it. So treat the menu as
 content, not as an index: reach for a tool only when you need more than that line —
 exact wording, the reasoning behind it, edge cases, or an entry not listed above.
 
 ### How to use
 
-- **`read_memory(slug)`** — full body of one entry by its exact slug. Use when the user
+- **`read_memory(slug, scope)`** — full body of one entry by its exact slug and required scope. Use when the user
   mentions a topic that **clearly matches an entry above** and the title alone isn't
   enough to act on.
 - **`search_memory(query)`** — BM25 over all bodies. Use when the topic isn't visible in
@@ -34,6 +34,9 @@ mention them. Before you produce anything substantial — write or edit code, cr
 file, choose a format, run a build, name a thing — check whether an entry constrains how
 it should be done, and follow it unprompted. A recorded preference that the user has to
 restate is a failed memory.
+
+When global and workspace memories conflict, the workspace entry is more specific and
+wins for the current workPath. Never apply a workspace entry to another workPath.
 
 ### Say it out loud whenever memory is in play
 

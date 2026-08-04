@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { inject } from "scorpio.di";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import path from "node:path";
 import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
@@ -8,23 +11,31 @@ import { formatError, runtimeActivity } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import {
-    IMemoryService,
     type MemoryToolDescs,
     type MemoryWriterOpStats,
 } from "./IMemoryService";
 import {
     IMemoryStore,
     MemoryKind,
+    MemoryScope,
     type MemoryRow,
     type MemorySearchHit,
     type MemoryBodyMode,
     MemoryPendingJobType,
     type PendingMemoryJobRow,
+    type MemoryWorkspaceScope,
+    type MemoryTarget,
 } from "../Storage/IMemoryStore";
 import { type ChatMessage, MessageRole } from "../../Saver";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 import { renderConversation } from "../../Utils/conversationUtils";
 import { memoryServicePool } from "./MemoryServicePool";
+import { GlobalMemoryService } from "./GlobalMemoryService";
+import {
+    ScopedMemoryService,
+    WORKSPACE_MEMORY_DIR,
+    WORKSPACE_MEMORY_META_FILE,
+} from "./ScopedMemoryService";
 
 // 读路径（每轮注入 system prompt）—— 高频常驻成本，截到 evidence/recency 排序里的头部就够，
 // 模型未命中时还有 search_memory 工具兜底。
@@ -36,17 +47,18 @@ const DEFAULT_SCORE_FLOOR = 0.15;
 
 const DEFAULT_TOOL_DESCS: MemoryToolDescs = {
     read: [
-        "Read the full content of a long-term memory by its slug.",
+        "Read the full content of a long-term memory by its slug and required scope.",
         "Use this AFTER you saw the slug in the memory menu (injected in the system prompt) and want the body.",
         "Slugs not in the menu may still exist; they will be ranked low — prefer search_memory for unknown terms.",
         "Calling this counts as a read and bumps the entry's recency in future menus.",
+        "Always pass the scope shown in the memory menu or search result.",
     ].join("\n"),
     search: [
         "Search long-term memories by content (BM25 over markdown bodies).",
         "Use this when the user mentions a specific term, identifier, or topic that is NOT visible in the memory menu in the system prompt.",
         "Tokenization splits on punctuation; for literals like URLs or ports, search a single rare token (e.g. \"5433\", not the full URL).",
         "Results use the same one-line shape as the memory menu (kind / evidence / slug / title) plus the matched snippet, so a hit already in the menu is recognisable as the same entry.",
-        "Call read_memory(slug) afterwards if you need the full body.",
+        "Call read_memory(slug, scope) afterwards if you need the full body.",
     ].join("\n"),
 };
 
@@ -66,6 +78,7 @@ const MemoryKindSchema = z.enum([
     MemoryKind.Summary,
 ]);
 const MemoryBodyModeSchema = z.enum(['replace', 'append']);
+const MemoryScopeSchema = z.enum([MemoryScope.Global, MemoryScope.Workspace]);
 
 export enum MemoryOpAction {
     Create = 'create',
@@ -80,6 +93,7 @@ const CreateOp = z.object({
     kind: MemoryKindSchema.optional().default(MemoryKind.Fact),
     title: z.string().min(1).max(TITLE_MAX),
     body: z.string().min(1),
+    scope: MemoryScopeSchema,
 });
 
 const UpdateOp = z.object({
@@ -90,12 +104,14 @@ const UpdateOp = z.object({
     body: z.string().min(1).optional(),
     bodyMode: MemoryBodyModeSchema.optional(),
     reason: z.string().min(1),
+    scope: MemoryScopeSchema,
 });
 
 const DeleteOp = z.object({
     action: z.literal(MemoryOpAction.Delete),
     slug: z.string().regex(SLUG_PATTERN),
     reason: z.string().min(1),
+    scope: MemoryScopeSchema,
 });
 
 const NoopOp = z.object({
@@ -136,14 +152,34 @@ type ApplyOpsContext = {
      * 抬高一档，reader 那边「高 evidence = 反复确认过」的判断随之失真。
      */
     evidenceDelta: number;
+    /** 当前任务的显式目标；workspace 目标必然携带规范化目录。 */
+    target: MemoryTarget;
+    /** null 表示 Writer 可按 op.scope 路由；整理任务传固定 scope。 */
+    fixedScope: MemoryScope | null;
 };
 
+const GLOBAL_MEMORY_TARGET: MemoryTarget = { scope: MemoryScope.Global };
+
+function workspaceMemoryTarget(workspace: MemoryWorkspaceScope): MemoryTarget {
+    return { scope: MemoryScope.Workspace, workspace };
+}
+
+const MEMORY_SCOPE_WRITER_INSTRUCTION = [
+    `Every create/update/delete operation must include a scope: "global" or "workspace".`,
+    `Use global only for durable user preferences, machine-wide facts, and workflows that apply across projects.`,
+    `Use workspace for repository paths, project conventions, module maps, build steps, architecture decisions, and project-specific failures.`,
+    `When a workspace is available and the correct scope is uncertain, choose workspace to avoid leaking project context into other workspaces.`,
+    `When no workspace is available, use global.`,
+    `For update/delete, preserve the scope shown beside the existing entry.`,
+].join('\n');
+
 /**
- * Memory 系统的运行时 facade。每个 memoryProfile 一个实例（由 sbot 侧 MemoryServicePool 管理）。
+ * Memory 系统的运行时协调器。每个 memoryProfile 一个实例（由 sbot 侧 MemoryServicePool 管理），
+ * 内部同时管理全局 Store 与按 workPath 惰性创建的工作区 Store。
  *
  * 三个职责：
  * - 渲染注入用的 menu prompt（替换 {{ memory_menu }}）
- * - 透传 readMemory / search 给 store
+ * - 合并全局 + 当前工作区的 menu/read/search，并保持其他工作区不可见
  * - 串行抽取：每轮对话结束 push 进 SQLite 队列，内部 isRunning 标志保证同 profile 只一个 LLM 调用在跑
  *
  * 互斥模型（参考 HistoryManager.ExecuteCommand / CheckExecuteCommand）：
@@ -152,7 +188,7 @@ type ApplyOpsContext = {
  * - 单标志 isRunning 即可：单线程 JS + 同步 better-sqlite3 + microtask FIFO 保证
  *   "push 在 drain 退出后必然能再次 kick 起一轮"，不需要 pendingWakeup 这种二级标志
  */
-export class MemoryService implements IMemoryService {
+export class MemoryService {
     private logger?: ILogger;
     private readonly modelService: IModelService;
     private readonly writerPrompt: string;
@@ -161,6 +197,7 @@ export class MemoryService implements IMemoryService {
     private disposed = false;
     private deleteOnTeardown = false;
     private memoryName = '未知配置';
+    private readonly workspaceServices = new Map<string, ScopedMemoryService>();
     /** 每个 service 实例首次 drain 时先做一次 FS/DB 对账，再消费 pending jobs。 */
     private initReconciled = false;
     constructor(
@@ -182,6 +219,36 @@ export class MemoryService implements IMemoryService {
         this.memoryName = memoryName?.trim() || '未知配置';
     }
 
+    /**
+     * 获取绑定规范化 workPath 的工作区服务。同一 owner + workPath 复用同一实例，
+     * owner 仍按 memoryId 全局唯一，工作区 Store 与 reconcile 状态互不串扰。
+     */
+    bind(workPath: string): ScopedMemoryService {
+        const normalized = workPath.trim();
+        if (!normalized) throw new Error('MemoryService.bind requires a non-empty workPath');
+        return this.getWorkspaceService(this.resolveWorkspace(normalized));
+    }
+
+    /** 为管理路径创建固定的全局视图。 */
+    bindGlobal(): GlobalMemoryService {
+        return new GlobalMemoryService(this);
+    }
+
+    /** Admin 使用：只读 scope.json，不打开工作区 SQLite。 */
+    listWorkspaceScopes(): MemoryWorkspaceScope[] {
+        const workspacesDir = path.join(this.store.rootDir, WORKSPACE_MEMORY_DIR);
+        if (!existsSync(workspacesDir)) return [];
+        const out: MemoryWorkspaceScope[] = [];
+        for (const key of readdirSync(workspacesDir)) {
+            const metaPath = path.join(workspacesDir, key, WORKSPACE_MEMORY_META_FILE);
+            try {
+                const parsed = JSON.parse(readFileSync(metaPath, 'utf8'));
+                if (parsed && typeof parsed.path === 'string') out.push({ key, path: parsed.path });
+            } catch { /* 非工作区目录或旧的不完整目录，忽略 */ }
+        }
+        return out.sort((a, b) => a.path.localeCompare(b.path));
+    }
+
     /** Pool 在 acquire 时调用：refCount++。仅 pool 用，不在 IMemoryService 接口暴露。 */
     incRef(): void {
         this.refCount++;
@@ -199,10 +266,16 @@ export class MemoryService implements IMemoryService {
     release(): void {
         if (--this.refCount !== 0 || this.disposed) return;
         this.disposed = true;
-        try {
-            this.store.dispose();
-        } catch (e: any) {
-            this.logMemory('warn', `记忆存储关闭失败: 错误=${formatError(e, true)}`);
+        for (const workspaceService of this.workspaceServices.values()) {
+            try { workspaceService.dispose(); }
+            catch (e: any) {
+                this.logMemory('warn', `工作区记忆存储关闭失败: path=${workspaceService.workspace.path}, 错误=${formatError(e, true)}`);
+            }
+        }
+        this.workspaceServices.clear();
+        try { this.store.dispose(); }
+        catch (e: any) {
+            this.logMemory('warn', `全局记忆存储关闭失败: 错误=${formatError(e, true)}`);
         }
         memoryServicePool.evict(this);
         if (this.deleteOnTeardown) {
@@ -213,54 +286,142 @@ export class MemoryService implements IMemoryService {
         }
     }
 
+    private resolveWorkspace(workPath: string): MemoryWorkspaceScope {
+        const resolved = path.resolve(workPath);
+        let canonical = resolved;
+        try { canonical = realpathSync.native(resolved); } catch { /* AgentRunner 会创建目录；不可解析时仍用绝对路径 */ }
+        canonical = path.normalize(canonical).replace(/[\\/]+$/, '') || path.parse(canonical).root;
+        const identity = process.platform === 'win32' ? canonical.toLocaleLowerCase('en-US') : canonical;
+        return {
+            key: createHash('sha256').update(identity).digest('hex').slice(0, 24),
+            path: canonical,
+        };
+    }
+
+    private getWorkspaceService(workspace: MemoryWorkspaceScope): ScopedMemoryService {
+        const cached = this.workspaceServices.get(workspace.key);
+        if (cached) return cached;
+        const service = new ScopedMemoryService(this, workspace, this.store.rootDir);
+        this.workspaceServices.set(workspace.key, service);
+        return service;
+    }
+
+    private async ensureWorkspaceReconciled(workspace: MemoryWorkspaceScope): Promise<IMemoryStore> {
+        const service = this.getWorkspaceService(workspace);
+        const firstReconcile = !service.hasReconciled;
+        const stats = await service.reconcile(false);
+        if (firstReconcile && (stats.indexed > 0 || stats.pruned > 0)) {
+            this.logMemory('info', `工作区记忆初始化对账: path=${workspace.path}，索引=${stats.indexed}，清理=${stats.pruned}`);
+        }
+        return service.store;
+    }
+
+    private async storeForTarget(target: MemoryTarget): Promise<IMemoryStore> {
+        return target.scope === MemoryScope.Workspace
+            ? this.ensureWorkspaceReconciled(target.workspace)
+            : this.store;
+    }
+
+    private entryTarget(scope: MemoryScope, viewTarget: MemoryTarget): MemoryTarget {
+        if (scope === MemoryScope.Global) return GLOBAL_MEMORY_TARGET;
+        if (scope === MemoryScope.Workspace) {
+            if (viewTarget.scope === MemoryScope.Workspace) return viewTarget;
+            throw new Error('Global memory view cannot access workspace scope without a workPath');
+        }
+        throw new Error(`Unsupported memory scope: ${String(scope)}`);
+    }
+
+    private async listScopedMenus(limit: number, target: MemoryTarget): Promise<{
+        globalMenu: Awaited<ReturnType<IMemoryStore['listMenu']>>;
+        workspaceMenu: Awaited<ReturnType<IMemoryStore['listMenu']>>;
+    }> {
+        if (target.scope === MemoryScope.Global) {
+            return { globalMenu: await this.store.listMenu(limit), workspaceMenu: [] };
+        }
+        const workspaceStore = await this.storeForTarget(target);
+        const workspaceMenu = await workspaceStore.listMenu(limit);
+        const globalLimit = Math.max(0, limit - workspaceMenu.length);
+        const globalMenu = globalLimit > 0 ? await this.store.listMenu(globalLimit) : [];
+        return { globalMenu, workspaceMenu };
+    }
+
     // ── 读路径 ──
 
-    async getSystemMessage(): Promise<string | null> {
-        const menu = await this.store.listMenu(DEFAULT_READ_MENU_LIMIT);
+    async getSystemMessage(target: MemoryTarget): Promise<string | null> {
+        const menus = await this.listScopedMenus(DEFAULT_READ_MENU_LIMIT, target);
+        const globalMenu = menus.globalMenu
+            .map(m => ({ ...m, scope: MemoryScope.Global }));
+        const workspaceMenu = menus.workspaceMenu
+            .map(m => ({ ...m, scope: MemoryScope.Workspace }));
+        const menu = [...workspaceMenu, ...globalMenu];
         const count = menu.length;
         const menuText = count === 0
             ? "_(empty — no memories recorded yet)_"
-            : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] \`${m.slug}\` — ${m.title}`).join("\n");
+            : menu.map(m => `- [${m.scope}; ${m.kind}; evidence=${m.evidenceCount}] \`${m.slug}\` — ${m.title}`).join("\n");
         const block = `${count} ${count === 1 ? "entry" : "entries"} indexed.\n\n${menuText}`;
         return this.readTemplate.replace(/\{\{\s*memory_menu\s*\}\}/g, block);
     }
 
-    async readMemory(slug: string): Promise<MemoryRow | null> {
-        const row = await this.store.getBySlug(slug);
+    async readMemory(slug: string, scope: MemoryScope, viewTarget: MemoryTarget): Promise<MemoryRow | null> {
+        const target = this.entryTarget(scope, viewTarget);
+        const store = await this.storeForTarget(target);
+        const row = await store.getBySlug(slug);
         if (!row) return null;
         try {
-            await this.store.recordRead(slug, Date.now());
+            await store.recordRead(slug, Date.now());
         } catch (e: any) {
             // recordRead 失败不该影响读取本身
             this.logMemory('warn', `记忆读取计数失败: slug=${slug}, 错误=${formatError(e, true)}`);
         }
-        return row;
+        return { ...row, scope: target.scope };
     }
 
-    async search(query: string, limit?: number): Promise<MemorySearchHit[]> {
-        return this.store.search(query, limit ?? DEFAULT_SEARCH_LIMIT, DEFAULT_SCORE_FLOOR);
+    async search(query: string, limit: number | undefined, target: MemoryTarget): Promise<MemorySearchHit[]> {
+        const cap = limit ?? DEFAULT_SEARCH_LIMIT;
+        const globalHits = (await this.store.search(query, cap, DEFAULT_SCORE_FLOOR))
+            .map(hit => ({ ...hit, scope: MemoryScope.Global }));
+        const workspaceStore = target.scope === MemoryScope.Workspace
+            ? await this.storeForTarget(target)
+            : null;
+        const workspaceHits = workspaceStore
+            ? (await workspaceStore.search(query, cap, DEFAULT_SCORE_FLOOR))
+                .map(hit => ({ ...hit, scope: MemoryScope.Workspace }))
+            : [];
+        const scopeRank = (scope: MemoryScope): number => scope === MemoryScope.Workspace ? 0 : 1;
+        return [...workspaceHits, ...globalHits]
+            .sort((a, b) => b.score - a.score
+                || scopeRank(a.scope) - scopeRank(b.scope)
+                || a.slug.localeCompare(b.slug))
+            .slice(0, cap);
     }
 
     getToolDescs(): MemoryToolDescs {
         return DEFAULT_TOOL_DESCS;
     }
 
-    async listAll(): Promise<MemoryRow[]> {
-        return this.store.list();
+    async listAll(target: MemoryTarget): Promise<MemoryRow[]> {
+        const globalRows = (await this.store.list()).map(row => ({ ...row, scope: MemoryScope.Global }));
+        if (target.scope === MemoryScope.Global) return globalRows;
+        const workspaceStore = await this.storeForTarget(target);
+        const workspaceRows = (await workspaceStore.list())
+            .map(row => ({ ...row, scope: MemoryScope.Workspace }));
+        return [...workspaceRows, ...globalRows];
     }
 
-    async deleteMemory(slug: string): Promise<string> {
-        const archive = await this.store.softDelete(slug, Date.now());
-        this.logMemory('info', `记忆管理删除: slug=${slug}, 归档=${archive}`);
+    async deleteMemory(slug: string, scope: MemoryScope, viewTarget: MemoryTarget): Promise<string> {
+        const target = this.entryTarget(scope, viewTarget);
+        const targetStore = await this.storeForTarget(target);
+        const archive = await targetStore.softDelete(slug, Date.now());
+        this.logMemory('info', `记忆管理删除: scope=${target.scope}, slug=${slug}, 归档=${archive}`);
         return archive;
     }
 
     // ── 写路径：入队 + 串行消费 ──
 
-    extractFromConversation(messages: ChatMessage[]): void {
+    extractFromConversation(messages: ChatMessage[], target: MemoryTarget): void {
         if (messages.length === 0) return;
         try {
-            this.store.pushPendingMessages(messages, Date.now());
+            this.store.pushPendingMessages(messages, Date.now(), target);
         } catch (e: any) {
             this.logMemory('warn', `记忆抽取入队失败: 错误=${formatError(e, true)}`);
             return;
@@ -268,22 +429,22 @@ export class MemoryService implements IMemoryService {
         void this.checkJobs();
     }
 
-    listPending(limit?: number): PendingMemoryJobRow[] {
-        return this.store.listPendingJobs(limit ?? 50);
+    listPending(limit: number | undefined, target: MemoryTarget): PendingMemoryJobRow[] {
+        return this.store.listPendingJobs(limit ?? 50, target);
     }
 
     processPending(): void {
         void this.checkJobs();
     }
 
-    enqueueConsolidate(): number {
-        const id = this.store.pushPendingConsolidate(Date.now());
+    enqueueConsolidate(target: MemoryTarget): number {
+        const id = this.store.pushPendingConsolidate(Date.now(), target);
         void this.checkJobs();
         return id;
     }
 
-    enqueueReconcile(): number {
-        const id = this.store.pushPendingReconcile(Date.now());
+    enqueueReconcile(target: MemoryTarget): number {
+        const id = this.store.pushPendingReconcile(Date.now(), target);
         void this.checkJobs();
         return id;
     }
@@ -358,18 +519,29 @@ export class MemoryService implements IMemoryService {
     }
 
     private async runPendingJob(job: PendingMemoryJobRow): Promise<MemoryJobStats> {
+        const target = this.targetForJob(job);
         switch (job.type) {
             case MemoryPendingJobType.Extract:
-                return this.extractFromMessages(job);
+                return this.extractFromMessages(job, target);
             case MemoryPendingJobType.Consolidate:
-                return this.consolidateMemories();
+                return this.consolidateMemories(target);
             case MemoryPendingJobType.Reconcile:
-                return this.reconcileMemories();
+                return this.reconcileMemories(target);
         }
     }
 
-    private async reconcileMemories(): Promise<MemoryJobStats> {
-        const stats = await this.store.reconcile();
+    private targetForJob(job: PendingMemoryJobRow): MemoryTarget {
+        if (job.scope === MemoryScope.Workspace) {
+            if (!job.workspace) throw new Error(`Workspace memory job #${job.id} is missing workPath context`);
+            return workspaceMemoryTarget(job.workspace);
+        }
+        return GLOBAL_MEMORY_TARGET;
+    }
+
+    private async reconcileMemories(target: MemoryTarget): Promise<MemoryJobStats> {
+        const stats = target.scope === MemoryScope.Workspace
+            ? await this.getWorkspaceService(target.workspace).reconcile(true)
+            : await this.store.reconcile();
         return {
             create: 0,
             update: 0,
@@ -387,21 +559,39 @@ export class MemoryService implements IMemoryService {
      * 单轮抽取：把一组对话消息喂给 MemoryLLM，应用返回的 ops。
      * 模型调用失败会抛出，由 checkJobs 决定是否标记 pending job 为 failed。
      */
-    private async extractFromMessages(job: PendingMemoryJobRow): Promise<MemoryWriterOpStats> {
+    private async extractFromMessages(job: PendingMemoryJobRow, target: MemoryTarget): Promise<MemoryWriterOpStats> {
         const messages = job.messages ?? [];
         if (messages.length === 0) {
             return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
         }
 
         const conversation = renderConversation(messages);
-        const menu = await this.store.listMenu(DEFAULT_WRITER_MENU_LIMIT);
-        const menuLines = menu.length === 0
+        const { globalMenu, workspaceMenu } = await this.listScopedMenus(DEFAULT_WRITER_MENU_LIMIT, target);
+        const globalMenuLines = globalMenu.length === 0
             ? '_(no existing memories)_'
-            : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.title}`).join('\n');
+            : globalMenu.map(m => `- [global; ${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.title}`).join('\n');
+        const workspaceMenuLines = workspaceMenu.length === 0
+            ? '_(no existing workspace memories)_'
+            : workspaceMenu.map(m => `- [workspace; ${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.title}`).join('\n');
         const input = [
-            `# Existing memories (${menu.length} ${menu.length === 1 ? 'entry' : 'entries'})`,
+            `# Existing global memories (${globalMenu.length} ${globalMenu.length === 1 ? 'entry' : 'entries'})`,
             ``,
-            menuLines,
+            globalMenuLines,
+            ...(target.scope === MemoryScope.Workspace ? [
+                ``,
+                `# Current workspace`,
+                ``,
+                target.workspace.path,
+                ``,
+                `# Existing workspace memories (${workspaceMenu.length} ${workspaceMenu.length === 1 ? 'entry' : 'entries'})`,
+                ``,
+                workspaceMenuLines,
+            ] : [
+                ``,
+                `# Current workspace`,
+                ``,
+                `_(none — workspace scope is unavailable for this conversation)_`,
+            ]),
             ``,
             `# Conversation transcript`,
             ``,
@@ -414,17 +604,24 @@ export class MemoryService implements IMemoryService {
         ].join('\n');
 
         const llmMessages: ChatMessage[] = [
-            { role: MessageRole.System, content: this.writerPrompt },
+            { role: MessageRole.System, content: `${this.writerPrompt}\n\n# Memory scope routing\n\n${MEMORY_SCOPE_WRITER_INSTRUCTION}` },
             { role: MessageRole.Human, content: input },
         ];
 
         const result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, llmMessages);
         // 抽取路径：本轮对话确实提到了被 update 的条目 → evidence +1
-        return await this.applyOps(result.ops, { conversation, mergeUpdateBodies: true, evidenceDelta: 1 });
+        return await this.applyOps(result.ops, {
+            conversation,
+            mergeUpdateBodies: true,
+            evidenceDelta: 1,
+            target,
+            fixedScope: null,
+        });
     }
 
-    private async consolidateMemories(): Promise<MemoryWriterOpStats> {
-        const rows = (await this.store.list()).slice(0, 100);
+    private async consolidateMemories(target: MemoryTarget): Promise<MemoryWriterOpStats> {
+        const targetStore = await this.storeForTarget(target);
+        const rows = (await targetStore.list()).slice(0, 100);
         if (rows.length === 0) {
             return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
         }
@@ -450,6 +647,7 @@ export class MemoryService implements IMemoryService {
                     `Prefer noop unless entries are duplicated, stale, contradictory, or overly verbose.`,
                     `Allowed useful actions: update an existing memory to merge duplicate details; delete an entry only when it is clearly redundant or superseded.`,
                     `Do not create new memories during consolidation.`,
+                    `Every update/delete operation must use scope="${target.scope}".`,
                     `If updating body, write the full final body without the H1 title line.`,
                     `Keep the leading **When:** / **Do:** / **Why:** lines at the very top for actionable entries; a body whose trigger condition is buried at the bottom should be reordered to that shape.`,
                 ].join('\n'),
@@ -478,7 +676,12 @@ export class MemoryService implements IMemoryService {
             this.logMemory('warn', `记忆整理操作截断：原始=${filtered.length}, 保留=${capped.length}, 条目=${rows.length}`);
         }
         // 整理路径：没有新对话作证，只是重写措辞/合并重复 → evidence 不动
-        return this.applyOps(capped, { mergeUpdateBodies: false, evidenceDelta: 0 });
+        return this.applyOps(capped, {
+            mergeUpdateBodies: false,
+            evidenceDelta: 0,
+            target,
+            fixedScope: target.scope,
+        });
     }
 
     private static readonly CONSOLIDATE_TOTAL_CAP = 30;
@@ -521,11 +724,15 @@ export class MemoryService implements IMemoryService {
         const touched = new Set<string>();
         for (const op of ops) {
             try {
+                const target = op.action === MemoryOpAction.Noop
+                    ? undefined
+                    : await this.resolveOpTarget(op, context);
                 if ('slug' in op) {
-                    if (touched.has(op.slug)) {
-                        this.logMemory('warn', `同一批出现重复 slug，按顺序覆盖执行：${op.slug}`);
+                    const touchKey = `${target!.scope}:${op.slug}`;
+                    if (touched.has(touchKey)) {
+                        this.logMemory('warn', `同一批出现重复记忆，按顺序覆盖执行：${touchKey}`);
                     }
-                    touched.add(op.slug);
+                    touched.add(touchKey);
                 }
                 switch (op.action) {
                     case MemoryOpAction.Create: {
@@ -533,9 +740,9 @@ export class MemoryService implements IMemoryService {
                         // 所以 slug 撞车是可预期结果而不是异常。裸 INSERT 会抛 UNIQUE
                         // 被下面的 catch 吞成 failed，这条记忆就静默丢了——降级成 update，
                         // 走和普通 update 完全相同的安全合并路径，信息至少落进已有条目。
-                        const existing = await this.store.getBySlug(op.slug);
+                        const existing = await target!.store.getBySlug(op.slug);
                         if (existing) {
-                            this.logMemory('info', `记忆已存在，create 降级为 update：${op.slug}`);
+                            this.logMemory('info', `记忆已存在，create 降级为 update：scope=${target!.scope}, slug=${op.slug}`);
                             // 刻意不传 title / kind：那两个值是 writer 为「一条全新条目」编的，
                             // 直接写进去就是盲目覆盖已有条目的标签。省略后 store.update 保留原值，
                             // 而候选标题通过 reason 进入 merge LLM 的输入——它看得到，
@@ -546,32 +753,33 @@ export class MemoryService implements IMemoryService {
                                 action: MemoryOpAction.Update,
                                 slug: op.slug,
                                 body: op.body,
+                                scope: op.scope,
                                 reason: `create fell back to update: slug already exists. `
                                     + `The new information was drafted as a separate entry `
                                     + `titled "${op.title}" (kind: ${op.kind}).`,
-                            }, context, now);
+                            }, context, now, target!.store);
                             out.update++;
                             break;
                         }
-                        await this.store.create({
+                        await target!.store.create({
                             slug: op.slug,
                             kind: op.kind as MemoryKind,
                             title: op.title,
                             body: op.body,
                         }, now);
                         out.create++;
-                        this.logMemory('info', `添加记忆：${op.slug} - ${truncateForLog(op.title)}`);
+                        this.logMemory('info', `添加记忆：scope=${target!.scope}, ${op.slug} - ${truncateForLog(op.title)}`);
                         break;
                     }
                     case MemoryOpAction.Update:
-                        await this.applyUpdate(op, context, now);
+                        await this.applyUpdate(op, context, now, target!.store);
                         out.update++;
-                        this.logMemory('info', `修改记忆：${op.slug} - ${truncateForLog(op.reason)}`);
+                        this.logMemory('info', `修改记忆：scope=${target!.scope}, ${op.slug} - ${truncateForLog(op.reason)}`);
                         break;
                     case MemoryOpAction.Delete:
-                        await this.store.softDelete(op.slug, now);
+                        await target!.store.softDelete(op.slug, now);
                         out.delete++;
-                        this.logMemory('info', `删除记忆：${op.slug} - ${truncateForLog(op.reason)}`);
+                        this.logMemory('info', `删除记忆：scope=${target!.scope}, ${op.slug} - ${truncateForLog(op.reason)}`);
                         break;
                     case MemoryOpAction.Noop:
                         out.noop++;
@@ -589,16 +797,26 @@ export class MemoryService implements IMemoryService {
         return out;
     }
 
+    private async resolveOpTarget(
+        op: Exclude<MemoryOp, { action: MemoryOpAction.Noop }>,
+        context: ApplyOpsContext,
+    ): Promise<{ store: IMemoryStore; scope: MemoryScope }> {
+        const requested = context.fixedScope ?? op.scope;
+        const target = this.entryTarget(requested, context.target);
+        return { store: await this.storeForTarget(target), scope: target.scope };
+    }
+
     /** update 落库：抽出来给 `case Update` 和 create 撞 slug 的降级路径共用。 */
     private async applyUpdate(
         op: Extract<MemoryOp, { action: MemoryOpAction.Update }>,
         context: ApplyOpsContext,
         now: number,
+        store: IMemoryStore,
     ): Promise<void> {
         const merged = context.mergeUpdateBodies && op.body
-            ? await this.mergeUpdateBody(op, context.conversation)
+            ? await this.mergeUpdateBody(op, context.conversation, store)
             : op;
-        await this.store.update({
+        await store.update({
             slug: merged.slug,
             kind: merged.kind as MemoryKind | undefined,
             title: merged.title,
@@ -611,8 +829,9 @@ export class MemoryService implements IMemoryService {
     private async mergeUpdateBody(
         op: Extract<MemoryOp, { action: MemoryOpAction.Update }>,
         conversation: string | undefined,
+        store: IMemoryStore,
     ): Promise<Extract<MemoryOp, { action: MemoryOpAction.Update }>> {
-        const existing = await this.store.getBySlug(op.slug);
+        const existing = await store.getBySlug(op.slug);
         if (!existing) return op;
 
         const messages: ChatMessage[] = [

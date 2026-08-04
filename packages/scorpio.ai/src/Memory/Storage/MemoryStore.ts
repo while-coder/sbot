@@ -8,14 +8,17 @@ import { T_MemoryDir, T_MemoryDbPath } from "../../Core/tokens";
 import {
     IMemoryStore,
     MemoryKind,
-    type MemoryRow,
-    type MemoryMenuEntry,
-    type MemorySearchHit,
+    type StoredMemoryRow,
+    type StoredMemoryMenuEntry,
+    type StoredMemorySearchHit,
     type CreateMemoryInput,
     type UpdateMemoryInput,
     MemoryPendingJobType,
     type PendingMemoryJobRow,
     type MemoryPendingJobStatus,
+    type MemoryWorkspaceScope,
+    type MemoryTarget,
+    MemoryScope,
 } from "./IMemoryStore";
 import { HybridSearcher } from "../../Retrieval";
 import type { ChatMessage } from "../../Saver";
@@ -119,7 +122,7 @@ export class MemoryStore implements IMemoryStore {
 
     // ── CRUD ──
 
-    async create(input: CreateMemoryInput, now: number): Promise<MemoryRow> {
+    async create(input: CreateMemoryInput, now: number): Promise<StoredMemoryRow> {
         this.assertValidSlug(input.slug);
         const filePath = this.slugToPath(input.slug);
 
@@ -172,7 +175,7 @@ export class MemoryStore implements IMemoryStore {
         }
     }
 
-    async update(input: UpdateMemoryInput, now: number): Promise<MemoryRow> {
+    async update(input: UpdateMemoryInput, now: number): Promise<StoredMemoryRow> {
         const existing = await this.getBySlug(input.slug);
         if (!existing) throw new Error(`MemoryStore.update: slug not found: ${input.slug}`);
 
@@ -230,17 +233,17 @@ export class MemoryStore implements IMemoryStore {
         return archiveName;
     }
 
-    async getBySlug(slug: string): Promise<MemoryRow | null> {
+    async getBySlug(slug: string): Promise<StoredMemoryRow | null> {
         const row = this.db.prepare(`SELECT * FROM memories WHERE slug = ?`).get(slug);
         return row ? this.mapRow(row) : null;
     }
 
-    async list(): Promise<MemoryRow[]> {
+    async list(): Promise<StoredMemoryRow[]> {
         const rows = this.db.prepare(`SELECT * FROM memories ORDER BY updated_at DESC`).all() as any[];
         return rows.map(r => this.mapRow(r));
     }
 
-    async listMenu(limit: number): Promise<MemoryMenuEntry[]> {
+    async listMenu(limit: number): Promise<StoredMemoryMenuEntry[]> {
         // 注入 system prompt 用：常被读 + 最近更新优先
         const rows = this.db.prepare(`
             SELECT slug, kind, title, evidence_count
@@ -258,7 +261,7 @@ export class MemoryStore implements IMemoryStore {
 
     // ── 检索 ──
 
-    async search(query: string, limit: number, floorRatio: number): Promise<MemorySearchHit[]> {
+    async search(query: string, limit: number, floorRatio: number): Promise<StoredMemorySearchHit[]> {
         // 把当前所有 memories 喂进 HybridSearcher（内部 syncCorpus 自动对账 docs / docs_fts）。
         // floorRatio 在归一化分数 [0,1] 上做：保留 #1，其余按 top * floorRatio 截断。
         const all = await this.list();
@@ -361,16 +364,16 @@ export class MemoryStore implements IMemoryStore {
 
     // ── 待处理 job 队列 ──
 
-    pushPendingMessages(messages: ChatMessage[], now: number): number {
-        return this.pushPendingJob(MemoryPendingJobType.Extract, { messages }, now);
+    pushPendingMessages(messages: ChatMessage[], now: number, target: MemoryTarget): number {
+        return this.pushPendingJob(MemoryPendingJobType.Extract, { messages, ...target }, now);
     }
 
-    pushPendingConsolidate(now: number): number {
-        return this.pushPendingJob(MemoryPendingJobType.Consolidate, {}, now);
+    pushPendingConsolidate(now: number, target: MemoryTarget): number {
+        return this.pushPendingJob(MemoryPendingJobType.Consolidate, target, now);
     }
 
-    pushPendingReconcile(now: number): number {
-        return this.pushPendingJob(MemoryPendingJobType.Reconcile, {}, now);
+    pushPendingReconcile(now: number, target: MemoryTarget): number {
+        return this.pushPendingJob(MemoryPendingJobType.Reconcile, target, now);
     }
 
     private pushPendingJob(type: MemoryPendingJobType, payload: unknown, now: number): number {
@@ -430,13 +433,21 @@ export class MemoryStore implements IMemoryStore {
         return result.changes > 0;
     }
 
-    listPendingJobs(limit: number): PendingMemoryJobRow[] {
+    listPendingJobs(limit: number, target: MemoryTarget): PendingMemoryJobRow[] {
+        const workspaceKey = target.scope === MemoryScope.Workspace ? target.workspace.key : null;
+        const scopeWhere = workspaceKey === null
+            ? `WHERE json_extract(payload_json, '$.workspace.key') IS NULL`
+            : `WHERE json_extract(payload_json, '$.workspace.key') = @workspaceKey`;
         const rows = this.db.prepare(`
             SELECT id, job_type, payload_json, status, attempt_count, error_message, created_at, updated_at
             FROM memory_pending_messages
+            ${scopeWhere}
             ORDER BY id DESC
             LIMIT @limit
-        `).all({ limit: Math.max(1, Math.min(limit, 200)) }) as any[];
+        `).all({
+            limit: Math.max(1, Math.min(limit, 200)),
+            ...(workspaceKey ? { workspaceKey } : {}),
+        }) as any[];
         return rows.map(r => this.mapPendingRow(r));
     }
 
@@ -507,19 +518,31 @@ export class MemoryStore implements IMemoryStore {
         return createHash('sha256').update(content, 'utf8').digest('hex');
     }
 
-    private findByIdSync(id: number): MemoryRow | null {
+    private findByIdSync(id: number): StoredMemoryRow | null {
         const row = this.db.prepare(`SELECT * FROM memories WHERE id = ?`).get(id);
         return row ? this.mapRow(row) : null;
     }
 
-    private parsePendingPayload(json: string | null | undefined): { messages?: ChatMessage[] } {
+    private parsePendingPayload(json: string | null | undefined): { messages?: ChatMessage[]; target: MemoryTarget } {
         try {
             const parsed = JSON.parse(json ?? '{}');
-            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                return { target: { scope: MemoryScope.Global } };
+            }
             const messages = Array.isArray((parsed as any).messages) ? ((parsed as any).messages as ChatMessage[]) : undefined;
-            return messages ? { messages } : {};
+            const rawWorkspace = (parsed as any).workspace;
+            const workspace = rawWorkspace
+                && typeof rawWorkspace === 'object'
+                && typeof rawWorkspace.key === 'string'
+                && typeof rawWorkspace.path === 'string'
+                ? { key: rawWorkspace.key, path: rawWorkspace.path }
+                : undefined;
+            const target: MemoryTarget = workspace
+                ? { scope: MemoryScope.Workspace, workspace }
+                : { scope: MemoryScope.Global };
+            return { ...(messages ? { messages } : {}), target };
         } catch {
-            return {};
+            return { target: { scope: MemoryScope.Global } };
         }
     }
 
@@ -533,7 +556,7 @@ export class MemoryStore implements IMemoryStore {
         return status === 'failed' ? 'failed' : 'pending';
     }
 
-    private mapRow(r: any): MemoryRow {
+    private mapRow(r: any): StoredMemoryRow {
         return {
             id: r.id,
             slug: r.slug,
@@ -552,7 +575,7 @@ export class MemoryStore implements IMemoryStore {
     private mapPendingRow(r: any): PendingMemoryJobRow {
         const type = this.normalizePendingJobType(r.job_type);
         const payload = this.parsePendingPayload(r.payload_json);
-        return {
+        const base = {
             id: r.id,
             type,
             messages: type === MemoryPendingJobType.Extract ? (payload.messages ?? []) : undefined,
@@ -562,5 +585,8 @@ export class MemoryStore implements IMemoryStore {
             createdAt: r.created_at,
             updatedAt: r.updated_at,
         };
+        return payload.target.scope === MemoryScope.Workspace
+            ? { ...base, scope: MemoryScope.Workspace, workspace: payload.target.workspace }
+            : { ...base, scope: MemoryScope.Global };
     }
 }

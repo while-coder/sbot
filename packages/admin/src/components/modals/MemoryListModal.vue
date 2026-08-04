@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SModal, SBadge } from 'sbot-ui'
+import { useToast, SButton, SModal, SBadge, SSelect } from 'sbot-ui'
 
 interface MemorySummary {
   slug: string
@@ -14,7 +14,10 @@ interface MemorySummary {
   updatedAt: number
   lastReadAt: number | null
   readCount: number
+  scope: 'global' | 'workspace'
 }
+
+interface WorkspaceScope { key: string; path: string }
 
 interface MemoryJob {
   id: number
@@ -32,6 +35,8 @@ const { show } = useToast()
 const visible = ref(false)
 const memoryId = ref('')
 const labelOverride = ref('')
+const workspaceScopes = ref<WorkspaceScope[]>([])
+const selectedWorkPath = ref('')
 
 const tab = ref<'memories' | 'jobs'>('memories')
 const loading = ref(false)
@@ -44,10 +49,14 @@ const retryingJobId = ref<number | null>(null)
 
 const rows = ref<MemorySummary[]>([])
 const jobs = ref<MemoryJob[]>([])
-const selectedSlug = ref('')
+const selectedKey = ref('')
 const selectedBody = ref('')
 
-const selected = computed(() => rows.value.find(m => m.slug === selectedSlug.value) || null)
+const rowKey = (m: Pick<MemorySummary, 'scope' | 'slug'>) => `${m.scope}:${m.slug}`
+const selected = computed(() => rows.value.find(m => rowKey(m) === selectedKey.value) || null)
+const viewQuery = computed(() => selectedWorkPath.value
+  ? `viewScope=workspace&workPath=${encodeURIComponent(selectedWorkPath.value)}`
+  : 'viewScope=global')
 
 const title = computed(() => {
   const profiles: any = store.settings.memoryProfiles || {}
@@ -60,8 +69,22 @@ async function openByMemoryId(id: string | null | undefined, label?: string) {
   labelOverride.value = label || ''
   tab.value = 'memories'
   visible.value = true
-  if (memoryId.value) await refresh()
-  else { rows.value = []; jobs.value = []; selectedSlug.value = ''; selectedBody.value = '' }
+  selectedWorkPath.value = ''
+  if (memoryId.value) {
+    await loadScopes()
+    await refresh()
+  } else { rows.value = []; jobs.value = []; selectedKey.value = ''; selectedBody.value = '' }
+}
+
+async function loadScopes() {
+  const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/scopes`)
+  workspaceScopes.value = (res.data?.workspaces || []) as WorkspaceScope[]
+}
+
+async function changeScope() {
+  selectedKey.value = ''
+  selectedBody.value = ''
+  await refresh()
 }
 
 async function refresh() {
@@ -73,12 +96,12 @@ async function loadMemories() {
   if (!memoryId.value) return
   loading.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/list`)
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/list?${viewQuery.value}`)
     const list = (res.data?.memories || []) as MemorySummary[]
     rows.value = list
-    const nextSlug = list.find(r => r.slug === selectedSlug.value)?.slug || list[0]?.slug || ''
-    selectedSlug.value = nextSlug
-    if (nextSlug) await loadBody(nextSlug)
+    const next = list.find(r => rowKey(r) === selectedKey.value) || list[0]
+    selectedKey.value = next ? rowKey(next) : ''
+    if (next) await loadBody(next)
     else selectedBody.value = ''
   } catch (e: any) {
     show(e.message, 'error')
@@ -91,7 +114,8 @@ async function loadJobs() {
   if (!memoryId.value) return
   jobsLoading.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs?limit=50`)
+    const query = [viewQuery.value, 'limit=50'].join('&')
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs?${query}`)
     jobs.value = (res.data?.jobs || []) as MemoryJob[]
   } catch (e: any) {
     show(e.message, 'error')
@@ -100,17 +124,19 @@ async function loadJobs() {
   }
 }
 
-async function selectMemory(slug: string) {
-  if (selectedSlug.value === slug && selectedBody.value) return
-  selectedSlug.value = slug
-  await loadBody(slug)
+async function selectMemory(memory: MemorySummary) {
+  const key = rowKey(memory)
+  if (selectedKey.value === key && selectedBody.value) return
+  selectedKey.value = key
+  await loadBody(memory)
 }
 
-async function loadBody(slug: string) {
-  if (!memoryId.value || !slug) return
+async function loadBody(memory: MemorySummary) {
+  if (!memoryId.value || !memory.slug) return
   bodyLoading.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/entries/${encodeURIComponent(slug)}`)
+    const query = [viewQuery.value, `entryScope=${memory.scope}`].join('&')
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/entries/${encodeURIComponent(memory.slug)}?${query}`)
     selectedBody.value = res.data?.row?.body || ''
   } catch (e: any) {
     selectedBody.value = ''
@@ -124,7 +150,7 @@ async function runConsolidate() {
   if (!memoryId.value || consolidating.value) return
   consolidating.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/consolidate/run`, 'POST', {})
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/consolidate/run?${viewQuery.value}`, 'POST', {})
     show(t('memory_profiles.consolidate_queued', { id: res.data?.jobId ?? '-' }))
     await refresh()
   } catch (e: any) {
@@ -138,7 +164,7 @@ async function runReconcile() {
   if (!memoryId.value || reconciling.value) return
   reconciling.value = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/reconcile/run`, 'POST', {})
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/reconcile/run?${viewQuery.value}`, 'POST', {})
     show(t('memory_profiles.reconcile_queued', { id: res.data?.jobId ?? '-' }))
     await refresh()
   } catch (e: any) {
@@ -166,15 +192,16 @@ async function retryExtractJob(job: MemoryJob) {
   }
 }
 
-async function deleteMemory(slug: string) {
-  if (!memoryId.value || !slug || deleting.value) return
-  if (!window.confirm(t('memory_profiles.confirm_delete_memory', { slug }))) return
+async function deleteMemory(memory: MemorySummary) {
+  if (!memoryId.value || !memory.slug || deleting.value) return
+  if (!window.confirm(t('memory_profiles.confirm_delete_memory', { slug: memory.slug }))) return
   deleting.value = true
   try {
-    await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/entries/${encodeURIComponent(slug)}`, 'DELETE')
+    const query = [viewQuery.value, `entryScope=${memory.scope}`].join('&')
+    await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/entries/${encodeURIComponent(memory.slug)}?${query}`, 'DELETE')
     show(t('memory_profiles.delete_memory_done'))
-    if (selectedSlug.value === slug) {
-      selectedSlug.value = ''
+    if (selectedKey.value === rowKey(memory)) {
+      selectedKey.value = ''
       selectedBody.value = ''
     }
     await loadMemories()
@@ -231,8 +258,17 @@ defineExpose({ openByMemoryId })
           <SButton :type="tab === 'jobs' ? 'primary' : 'outline'" size="sm" @click="tab = 'jobs'">
             {{ t('memory_profiles.viewer_jobs') }}
           </SButton>
+          <SSelect v-model="selectedWorkPath" size="sm" @change="changeScope">
+            <option value="">{{ t('memory_profiles.scope_global') }}</option>
+            <option v-for="scope in workspaceScopes" :key="scope.key" :value="scope.path">
+              {{ t('memory_profiles.scope_workspace_context', { path: scope.path }) }}
+            </option>
+          </SSelect>
         </div>
         <div class="memory-actions">
+          <SBadge variant="info" size="sm">
+            {{ t(selectedWorkPath ? 'memory_profiles.operation_scope_workspace' : 'memory_profiles.operation_scope_global') }}
+          </SBadge>
           <SButton type="outline" size="sm" :loading="loading || jobsLoading" @click="refresh">{{ t('common.refresh') }}</SButton>
           <SButton type="outline" size="sm" :loading="reconciling" @click="runReconcile">{{ t('memory_profiles.run_reconcile') }}</SButton>
           <SButton type="outline" size="sm" :loading="consolidating" @click="runConsolidate">{{ t('memory_profiles.run_consolidate') }}</SButton>
@@ -246,13 +282,16 @@ defineExpose({ openByMemoryId })
           <button
             v-for="m in rows"
             v-else
-            :key="m.slug"
+            :key="rowKey(m)"
             class="memory-row"
-            :class="{ active: m.slug === selectedSlug }"
-            @click="selectMemory(m.slug)"
+            :class="{ active: rowKey(m) === selectedKey }"
+            @click="selectMemory(m)"
           >
             <div class="memory-row-head">
-              <SBadge :variant="kindVariant(m.kind)" size="xs">{{ m.kind }}</SBadge>
+              <div class="memory-row-badges">
+                <SBadge variant="neutral" size="xs">{{ m.scope }}</SBadge>
+                <SBadge :variant="kindVariant(m.kind)" size="xs">{{ m.kind }}</SBadge>
+              </div>
               <span class="memory-row-slug">{{ m.slug }}</span>
             </div>
             <div class="memory-row-title">{{ m.title }}</div>
@@ -270,10 +309,11 @@ defineExpose({ openByMemoryId })
               <div class="memory-detail-slug">{{ selected.slug }}</div>
             </div>
             <div class="memory-detail-badges">
+              <SBadge variant="neutral" size="sm">{{ selected.scope }}</SBadge>
               <SBadge :variant="kindVariant(selected.kind)" size="sm">{{ selected.kind }}</SBadge>
               <SBadge variant="neutral" size="sm">{{ t('memory_profiles.evidence') }} {{ selected.evidenceCount }}</SBadge>
               <SBadge variant="neutral" size="sm">{{ t('memory_profiles.read_count') }} {{ selected.readCount }}</SBadge>
-              <SButton type="danger" size="sm" :loading="deleting" @click="deleteMemory(selected.slug)">
+              <SButton type="danger" size="sm" :loading="deleting" @click="deleteMemory(selected)">
                 {{ t('memory_profiles.delete_memory') }}
               </SButton>
             </div>
@@ -379,6 +419,7 @@ defineExpose({ openByMemoryId })
 }
 
 .memory-row-head,
+.memory-row-badges,
 .memory-row-meta,
 .memory-detail-badges,
 .memory-job-head,

@@ -1,11 +1,11 @@
-import type { MemorySearchHit, MemoryRow, PendingMemoryJobRow } from "../Storage/IMemoryStore";
+import type { MemoryScope, MemorySearchHit, MemoryRow, PendingMemoryJobRow } from "../Storage/IMemoryStore";
 import type { ChatMessage } from "../../Saver";
 
 /**
  * Memory 系统对外接口。运行时由 SingleAgentService 持有：
  *
  * - **读注入**：`getSystemMessage()` 渲染好的 markdown 块注入 system prompt
- * - **工具调用**：`readMemory(slug)` / `search(query)` 由 `read_memory` / `search_memory` 工具执行
+ * - **工具调用**：`readMemory(slug, scope)` / `search(query)` 由 `read_memory` / `search_memory` 工具执行
  * - **写路径**：`extractFromConversation(messages)` 每轮对话结束触发；
  *   实现内部把消息推入 SQLite 队列并串行调度 LLM 抽取。
  */
@@ -42,7 +42,7 @@ export interface IMemoryService {
      * - 命中：累加 read_count、刷新 lastReadAt
      * - 未命中：返回 null
      */
-    readMemory(slug: string): Promise<MemoryRow | null>;
+    readMemory(slug: string, scope: MemoryScope): Promise<MemoryRow | null>;
 
     /**
      * BM25 全文检索。
@@ -63,7 +63,7 @@ export interface IMemoryService {
      * admin 删除单条 memory：软删除（文件移到 .archive/，DB 行 DELETE）。
      * slug 不存在抛错。返回 archive 文件名。
      */
-    deleteMemory(slug: string): Promise<string>;
+    deleteMemory(slug: string, scope: MemoryScope): Promise<string>;
 
     /**
      * 每轮对话结束后同步触发：把消息快照入队 SQLite，触发后台串行抽取。
@@ -74,17 +74,11 @@ export interface IMemoryService {
     /** admin 排障：列最近的 pending+failed job（按 id DESC）。 */
     listPending(limit?: number): PendingMemoryJobRow[];
 
-    /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 通过 listPending 轮询进度）。 */
-    processPending(): void;
-
     /** admin 触发：把合并/压缩现有 memory 条目的 job 入队。 */
     enqueueConsolidate(): number;
 
     /** admin 触发：把 FS/DB 对账 job 入队。 */
     enqueueReconcile(): number;
-
-    /** admin 触发：重试一条 failed extract job。返回 false 表示 job 不可重试。 */
-    retryExtractJob(id: number): boolean;
 
     /**
      * caller 释放对 service 的引用：refCount--，归零时关 SQLite store 并通知 pool

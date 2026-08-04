@@ -153,7 +153,7 @@ async function runConsolidate(id: string) {
   if (consolidating.value[id]) return
   consolidating.value[id] = true
   try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/consolidate/run`, 'POST', {})
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/consolidate/run?viewScope=global`, 'POST', {})
     show(t('memory_profiles.consolidate_queued', { id: res.data?.jobId ?? '-' }))
   } catch (e: any) {
     show(e.message, 'error')

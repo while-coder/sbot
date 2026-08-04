@@ -97,7 +97,12 @@ export class AgentRunner {
         // 工作目录内外的产出同样适用，不再单独给工作目录一个 URL 前缀（两个前缀会让
         // Agent 拿工作目录的前缀去套工作目录外的文件，算出打不开的链接）。
         const assetsUrl = `${config.getHttpUrl()}/assets`;
-        const workPath = options.workPath ?? path.join(assetsDir, threadId);
+        // Agent 始终需要一个实际工作目录。没有显式 workPath 时，文件产出仍按 thread
+        // 隔离在 assets/threadId；Memory 则统一绑定固定的 ~/.sbot/workspace，避免普通
+        // Web 对话没有 workspace scope、所有新记忆都被迫落进 global。
+        const configuredWorkPath = options.workPath?.trim() || undefined;
+        const memoryWorkPath = configuredWorkPath ?? config.getConfigPath('workspace', true);
+        const workPath = configuredWorkPath ?? path.join(assetsDir, threadId);
         if (!existsSync(workPath)) mkdirSync(workPath, { recursive: true });
 
         /** 静态 system prompts（可缓存）：instruction → environment → channel */
@@ -138,7 +143,7 @@ export class AgentRunner {
         container.registerInstance(T_ChannelSessionId, channelSessionId);
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
-        const memoryService = await AgentRunner.registerMemoryService(container, options.memoryId);
+        const memoryService = await AgentRunner.registerMemoryService(container, options.memoryId, memoryWorkPath);
         const agendaService = await AgentRunner.registerAgendaService(container, options.agendaId);
 
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
@@ -287,11 +292,12 @@ export class AgentRunner {
     private static async registerMemoryService(
         container: ServiceContainer,
         memoryId: string | null | undefined,
+        workPath: string,
     ): Promise<IMemoryService | null> {
         if (!memoryId) return null;
         const profileConfig = config.getMemoryProfile(memoryId);
         if (!profileConfig?.enabled) return null;
-        const service = await memoryServicePool.acquire(memoryId);
+        const service = await memoryServicePool.acquire(memoryId, workPath);
         if (service) container.registerInstance(IMemoryService, service);
         return service;
     }

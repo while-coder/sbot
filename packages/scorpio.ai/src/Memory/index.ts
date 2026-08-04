@@ -2,15 +2,21 @@
 export {
     IMemoryStore,
     MemoryKind,
+    MemoryScope,
     type MemoryBodyMode,
+    type StoredMemoryRow,
     type MemoryRow,
+    type StoredMemoryMenuEntry,
     type MemoryMenuEntry,
+    type StoredMemorySearchHit,
     type MemorySearchHit,
     type CreateMemoryInput,
     type UpdateMemoryInput,
     MemoryPendingJobType,
     type PendingMemoryJobRow,
     type MemoryPendingJobStatus,
+    type MemoryWorkspaceScope,
+    type MemoryTarget,
 } from './Storage/IMemoryStore';
 export { MemoryStore } from './Storage/MemoryStore';
 
@@ -28,6 +34,8 @@ export {
     type MemoryWriteOutput,
     type MemoryOp,
 } from './Service/MemoryService';
+export { GlobalMemoryService } from './Service/GlobalMemoryService';
+export { ScopedMemoryService } from './Service/ScopedMemoryService';
 export {
     MemoryServicePool,
     memoryServicePool,

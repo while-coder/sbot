@@ -1,8 +1,8 @@
 import type { ChatMessage } from "../../Saver";
 
 /**
- * Memory 存储层接口。单 memoryProfile 维度：每个 profile 对应一个 SQLite 文件
- * + 一个 memories 目录（FS 是真源，DB 是 FTS 索引）。
+ * Memory 存储层接口。单 Store 维度：全局或某个 workPath 各自对应一个 SQLite 文件
+ * + 一个 memories 目录（FS 是真源，DB 是 FTS 索引）。MemoryService 在 profile 上层协调多个 Store。
  *
  * 三类操作：
  * - CRUD：MemoryWriter 写入路径用（create / update / delete / get / list）
@@ -22,7 +22,24 @@ export enum MemoryKind {
     Summary = 'summary',
 }
 
-export interface MemoryRow {
+/** MemoryService 对外暴露的两层作用域。 */
+export enum MemoryScope {
+    Global = 'global',
+    Workspace = 'workspace',
+}
+
+/** 一个规范化后的工作目录作用域；key 用于磁盘目录，path 只用于展示与 prompt。 */
+export interface MemoryWorkspaceScope {
+    key: string;
+    path: string;
+}
+
+/** 所有需要选择全局/工作区的写入与队列操作都必须显式携带目标。 */
+export type MemoryTarget =
+    | { scope: MemoryScope.Global }
+    | { scope: MemoryScope.Workspace; workspace: MemoryWorkspaceScope };
+
+export interface StoredMemoryRow {
     id: number;
     slug: string;
     /** 轻量类型，用于 menu 分组、整理和后续筛选。 */
@@ -50,14 +67,23 @@ export interface MemoryRow {
     readCount: number;
 }
 
-export interface MemoryMenuEntry {
+/** MemoryService 对外返回的行必须明确作用域。 */
+export interface MemoryRow extends StoredMemoryRow {
+    scope: MemoryScope;
+}
+
+export interface StoredMemoryMenuEntry {
     slug: string;
     kind: MemoryKind;
     title: string;
     evidenceCount: number;
 }
 
-export interface MemorySearchHit {
+export interface MemoryMenuEntry extends StoredMemoryMenuEntry {
+    scope: MemoryScope;
+}
+
+export interface StoredMemorySearchHit {
     slug: string;
     kind: MemoryKind;
     /**
@@ -75,6 +101,10 @@ export interface MemorySearchHit {
      * agent 拿它做不了判断，而"best first"已经把排序信息说完了。
      */
     score: number;
+}
+
+export interface MemorySearchHit extends StoredMemorySearchHit {
+    scope: MemoryScope;
 }
 
 export interface CreateMemoryInput {
@@ -106,7 +136,7 @@ export enum MemoryPendingJobType {
 
 export type MemoryPendingJobStatus = 'pending' | 'failed';
 
-export interface PendingMemoryJobRow {
+interface PendingMemoryJobBase {
     id: number;
     type: MemoryPendingJobType;
     messages?: ChatMessage[];
@@ -116,6 +146,12 @@ export interface PendingMemoryJobRow {
     createdAt: number;
     updatedAt: number;
 }
+
+/** scope=workspace 时 workspace 必传；全局任务不携带伪 workPath。 */
+export type PendingMemoryJobRow = PendingMemoryJobBase & (
+    | { scope: MemoryScope.Global }
+    | { scope: MemoryScope.Workspace; workspace: MemoryWorkspaceScope }
+);
 
 export interface IMemoryStore {
     readonly rootDir: string;
@@ -128,13 +164,13 @@ export interface IMemoryStore {
      * 创建。同时写文件 `memories/<slug>.md` 和 DB 行。
      * slug 已存在则抛错（调用方负责事先 list / get 检查）。
      */
-    create(input: CreateMemoryInput, now: number): Promise<MemoryRow>;
+    create(input: CreateMemoryInput, now: number): Promise<StoredMemoryRow>;
 
     /**
      * 更新（部分字段）。重写文件 + 更新 DB。
      * slug 不存在抛错。
      */
-    update(input: UpdateMemoryInput, now: number): Promise<MemoryRow>;
+    update(input: UpdateMemoryInput, now: number): Promise<StoredMemoryRow>;
 
     /**
      * 软删除：移文件到 `memories/.archive/<slug>-<now>.md` + DB DELETE。
@@ -142,12 +178,12 @@ export interface IMemoryStore {
      */
     softDelete(slug: string, now: number): Promise<string>;
 
-    getBySlug(slug: string): Promise<MemoryRow | null>;
+    getBySlug(slug: string): Promise<StoredMemoryRow | null>;
 
-    list(): Promise<MemoryRow[]>;
+    list(): Promise<StoredMemoryRow[]>;
 
     /** 注入 system prompt 用：拉所有 entry 的 slug + title，按 lastReadAt DESC, updatedAt DESC 排，截断到 limit。 */
-    listMenu(limit: number): Promise<MemoryMenuEntry[]>;
+    listMenu(limit: number): Promise<StoredMemoryMenuEntry[]>;
 
     // ── 检索 ──
 
@@ -157,7 +193,7 @@ export interface IMemoryStore {
      * - 先按 score 排序、再用 floorRatio 过滤 common-word 噪音（floor 0 = 不过滤）
      * - over-fetch 3x（最多 50）后再裁到 limit
      */
-    search(query: string, limit: number, floorRatio: number): Promise<MemorySearchHit[]>;
+    search(query: string, limit: number, floorRatio: number): Promise<StoredMemorySearchHit[]>;
 
     /** read_memory 命中时调用：lastReadAt = now, readCount += 1。slug 不存在 no-op。 */
     recordRead(slug: string, now: number): Promise<void>;
@@ -180,13 +216,13 @@ export interface IMemoryStore {
     // "push 的 SQL 在 kick 前已落库" 这一点来避免漏单。
 
     /** 入队一轮对话的消息快照，返回插入行 id。 */
-    pushPendingMessages(messages: ChatMessage[], now: number): number;
+    pushPendingMessages(messages: ChatMessage[], now: number, target: MemoryTarget): number;
 
     /** 入队一次 memory 整理 job，返回插入行 id。 */
-    pushPendingConsolidate(now: number): number;
+    pushPendingConsolidate(now: number, target: MemoryTarget): number;
 
     /** 入队一次 FS/DB 对账 job，返回插入行 id。 */
-    pushPendingReconcile(now: number): number;
+    pushPendingReconcile(now: number, target: MemoryTarget): number;
 
     /** 取最早一条 status='pending' 的 job；没有返回 null。串行消费由 MemoryService 内部 isRunning 标志保证。 */
     popPendingJob(): PendingMemoryJobRow | null;
@@ -200,8 +236,12 @@ export interface IMemoryStore {
     /** 将 failed 的抽取 job 重新放回 pending 队列。返回 false 表示不是可重试的 failed extract job。 */
     retryFailedExtractJob(id: number, now: number): boolean;
 
-    /** 管理/排障用：列最近的 pending+failed job（按 id DESC）。 */
-    listPendingJobs(limit: number): PendingMemoryJobRow[];
+    /**
+     * 管理/排障用：列最近的 pending+failed job（按 id DESC）。
+     * target 必传；全局和工作区查询不再由缺省 workspaceKey 推断。
+     * 过滤必须在 SQL LIMIT 之前完成，避免某个作用域的近期 job 挤掉目标作用域。
+     */
+    listPendingJobs(limit: number, target: MemoryTarget): PendingMemoryJobRow[];
 
     dispose(): void;
 

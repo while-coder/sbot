@@ -10,9 +10,10 @@ import { ILogger, ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { IMemoryStore } from "../Storage/IMemoryStore";
 import { MemoryStore } from "../Storage/MemoryStore";
-import { IMemoryService } from "./IMemoryService";
+import type { GlobalMemoryService } from "./GlobalMemoryService";
 import { MemoryService } from "./MemoryService";
-import type { PendingMemoryJobRow } from "../Storage/IMemoryStore";
+import type { ScopedMemoryService } from "./ScopedMemoryService";
+import type { MemoryWorkspaceScope } from "../Storage/IMemoryStore";
 
 /**
  * 由 caller resolver 提供的、构造一个 MemoryService 所需的全部"已 resolved 配置"。
@@ -51,7 +52,8 @@ export type MemoryServiceConfigResolver =
  * 实例并发跑 LLM CRUD，破坏 store 数据。
  *
  * 生命周期模型（纯 refCount，无强制销毁）：
- * - acquire(id)：cache miss → build 新实例并唤醒 drain；命中实例 incRef 后返回；
+ * - acquire(id, workPath)：cache miss → build owner 并唤醒 drain；命中后 incRef，返回
+ *   按规范化 workPath 缓存的 ScopedMemoryService；管理路径用 acquireGlobal(id)；
  *   调用方用完后 service.release() 配对归还
  * - refCount 归零自动 teardown：关 SQLite store + evict 把自己从 cache 删掉
  * - drain（checkJobs）自固定 refCount，drain 期间 caller release 不会触发 teardown
@@ -76,7 +78,7 @@ export class MemoryServicePool {
 
     private constructor() {}
 
-    /** 配置 memoryId → MemoryServiceConfig 解析器；必须在第一次 acquire/get 之前调用。 */
+    /** 配置 memoryId → MemoryServiceConfig 解析器；必须在第一次 acquire/acquireGlobal 之前调用。 */
     setResolver(resolver: MemoryServiceConfigResolver): void {
         this.resolveConfig = resolver;
     }
@@ -88,7 +90,9 @@ export class MemoryServicePool {
     }
 
     /**
-     * 拿一个 service 引用并 incRef。caller 用完务必调 `service.release()`。
+     * 拿一个 service 引用并 incRef，返回绑定 workPath 的缓存工作区服务；同一
+     * memoryId + workPath 返回同一实例。底层 owner 仍按 memoryId 唯一，caller
+     * 用完务必调 `service.release()`。
      *
      * 流程：
      * - cache miss → 同步 build + cache.set（同步路径无 await 缝隙，保证同 memoryId 只构造一次实例）
@@ -99,7 +103,18 @@ export class MemoryServicePool {
      * 自行 guard。后续 acquire 不会再唤醒 drain；chat 路径靠 extractFromConversation
      * 自启 drain，启动恢复路径走 forceExtract 时自带显式 processPending。
      */
-    acquire(memoryId: string): IMemoryService {
+    acquire(memoryId: string, workPath: string): ScopedMemoryService {
+        const normalized = workPath.trim();
+        if (!normalized) throw new Error('MemoryServicePool.acquire requires a non-empty workPath');
+        return this.acquireOwner(memoryId).bind(normalized);
+    }
+
+    /** 管理/后台路径显式获取仅全局视图；Agent 运行路径不得使用。 */
+    acquireGlobal(memoryId: string): GlobalMemoryService {
+        return this.acquireOwner(memoryId).bindGlobal();
+    }
+
+    private acquireOwner(memoryId: string): MemoryService {
         let service: MemoryService;
         let shouldStart = false;
         const cached = this.cache.get(memoryId);
@@ -127,7 +142,7 @@ export class MemoryServicePool {
      * 统一一条 lifecycle 路径，caller 不需要写 fs.rm fallback。
      */
     markForDeletion(memoryId: string): void {
-        const service = this.acquire(memoryId) as MemoryService;
+        const service = this.acquireOwner(memoryId);
         try { service.markForDeletion(); }
         finally { service.release(); }
     }
@@ -145,9 +160,9 @@ export class MemoryServicePool {
 
     /** admin 触发：唤醒 pending job 队列消费（不阻塞，UI 自行轮询 listPendingJobs 看进度）。 */
     forceExtract(memoryId: string): void {
-        let service: IMemoryService | undefined;
+        let service: MemoryService | undefined;
         try {
-            service = this.acquire(memoryId);
+            service = this.acquireOwner(memoryId);
             service.processPending();
         } catch (e: any) {
             this.logActionFailed('唤醒记忆队列', memoryId, e);
@@ -156,39 +171,11 @@ export class MemoryServicePool {
         }
     }
 
-    /** 返回 null 表示触发失败，错误已在 pool 中记录。 */
-    forceConsolidate(memoryId: string): number | null {
-        let service: IMemoryService | undefined;
-        try {
-            service = this.acquire(memoryId);
-            return service.enqueueConsolidate();
-        } catch (e: any) {
-            this.logActionFailed('整理记忆入队', memoryId, e);
-            return null;
-        } finally {
-            this.releaseQuietly(service, '整理记忆入队', memoryId);
-        }
-    }
-
-    /** 返回 null 表示触发失败，错误已在 pool 中记录。 */
-    forceReconcile(memoryId: string): number | null {
-        let service: IMemoryService | undefined;
-        try {
-            service = this.acquire(memoryId);
-            return service.enqueueReconcile();
-        } catch (e: any) {
-            this.logActionFailed('同步记忆索引入队', memoryId, e);
-            return null;
-        } finally {
-            this.releaseQuietly(service, '同步记忆索引入队', memoryId);
-        }
-    }
-
     /** 返回 null 表示触发失败，错误已在 pool 中记录；false 表示该 job 不可重试。 */
     retryExtractJob(memoryId: string, jobId: number): boolean | null {
-        let service: IMemoryService | undefined;
+        let service: MemoryService | undefined;
         try {
-            service = this.acquire(memoryId);
+            service = this.acquireOwner(memoryId);
             return service.retryExtractJob(jobId);
         } catch (e: any) {
             this.logActionFailed(`重试记忆抽取 #${jobId}`, memoryId, e);
@@ -198,9 +185,9 @@ export class MemoryServicePool {
         }
     }
 
-    listPendingJobs(memoryId: string, limit = 50): PendingMemoryJobRow[] {
-        const service = this.acquire(memoryId);
-        try { return service.listPending(limit); }
+    listWorkspaceScopes(memoryId: string): MemoryWorkspaceScope[] {
+        const service = this.acquireOwner(memoryId);
+        try { return service.listWorkspaceScopes(); }
         finally { service.release(); }
     }
 
@@ -225,17 +212,17 @@ export class MemoryServicePool {
             [T_MemoryDir]:    cfg.memoryDir,
             [T_MemoryDbPath]: cfg.dbPath,
         });
-        sub.registerSingleton(IMemoryService, MemoryService);
+        sub.registerSingleton(MemoryService);
 
         // store 在 resolve 时就完成 mkdir；db/searcher 仍 lazy
         sub.resolve<IMemoryStore>(IMemoryStore);
-        const service = sub.resolve<MemoryService>(IMemoryService) as MemoryService;
+        const service = sub.resolve(MemoryService);
         service.setMemoryName(cfg.memoryName ?? memoryId);
         this.logger?.info(`MemoryService [${memoryId}] built`);
         return service;
     }
 
-    private releaseQuietly(service: IMemoryService | undefined, action: string, memoryId: string): void {
+    private releaseQuietly(service: MemoryService | undefined, action: string, memoryId: string): void {
         if (!service) return;
         try { service.release(); }
         catch (e: any) { this.logActionFailed(`${action} release`, memoryId, e); }

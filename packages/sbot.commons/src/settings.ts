@@ -78,7 +78,7 @@ export interface EmbeddingConfig {
 /**
  * Memory（skill 风格记忆系统）配置。
  *
- * 一个 memoryProfile = 一组共享的长期记忆（一个目录 + 一个 SQLite 文件）。
+ * 一个 memoryProfile = 一个逻辑长期记忆空间：包含全局记忆，以及按 workPath 隔离的工作区记忆。
  * 写入由后台 MemoryWriterWorker 跑，读取通过 read_memory / search_memory 工具 + menu 注入。
  *
  * channel.memory / sessionProfile.memory 字段的 UUID 在 memoryProfiles 查找。
