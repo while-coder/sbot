@@ -27,10 +27,12 @@ export interface MemoryRow {
     slug: string;
     /** 轻量类型，用于 menu 分组、整理和后续筛选。 */
     kind: MemoryKind;
-    /** 文件首行 H1（不含 `# ` 前缀） */
+    /**
+     * 条目的唯一标签：文件首行 H1（不含 `# ` 前缀），同时是注入 system prompt menu 的那一行。
+     * 因此它是一句摘要而非分类标题——reader 在 menu 里看不到 body。
+     * 存在文件里而不只在 DB，删库重建（reconcile）可无损恢复。
+     */
     title: string;
-    /** 一行摘要，用于注入 system prompt menu */
-    description: string;
     /** 完整文件内容（含 `# title` H1 + 正文），FTS 索引此字段 */
     body: string;
     /** size-mtime，reconcile 用 */
@@ -48,17 +50,26 @@ export interface MemoryMenuEntry {
     slug: string;
     kind: MemoryKind;
     title: string;
-    description: string;
     evidenceCount: number;
 }
 
 export interface MemorySearchHit {
     slug: string;
     kind: MemoryKind;
+    /**
+     * 与 MemoryMenuEntry 同字段——system prompt 的 menu 和 search 结果
+     * 必须用同一个标签描述同一条记忆，否则 agent 得靠 slug 自己认亲。
+     */
     title: string;
+    /** 佐证次数。同上，menu 里显示 evidence=N，search 结果也给。 */
+    evidenceCount: number;
     /** FTS5 snippet，匹配片段 */
     snippet: string;
-    /** higher = better（已对 BM25 取负） */
+    /**
+     * higher = better（已对 BM25 取负）。
+     * 排序内部用 + admin/排障用，**不渲染给 LLM**：归一化前的分数跨查询不可比，
+     * agent 拿它做不了判断，而"best first"已经把排序信息说完了。
+     */
     score: number;
 }
 
@@ -66,7 +77,6 @@ export interface CreateMemoryInput {
     slug: string;
     kind?: MemoryKind;
     title: string;
-    description: string;
     body: string;
     evidenceCount?: number;
 }
@@ -77,7 +87,6 @@ export interface UpdateMemoryInput {
     slug: string;
     kind?: MemoryKind;
     title?: string;
-    description?: string;
     body?: string;
     bodyMode?: MemoryBodyMode;
     evidenceDelta?: number;
@@ -133,7 +142,7 @@ export interface IMemoryStore {
 
     list(): Promise<MemoryRow[]>;
 
-    /** 注入 system prompt 用：拉所有 entry 的 slug + title + description，按 lastReadAt DESC, updatedAt DESC 排，截断到 limit。 */
+    /** 注入 system prompt 用：拉所有 entry 的 slug + title，按 lastReadAt DESC, updatedAt DESC 排，截断到 limit。 */
     listMenu(limit: number): Promise<MemoryMenuEntry[]>;
 
     // ── 检索 ──
@@ -156,7 +165,7 @@ export interface IMemoryStore {
      *
      * 双向：
      * - DB 行的 path 不在 FS → 删 DB
-     * - FS 文件不在 DB / fingerprint 变化 → upsert 到 DB（重新解析 title/description）
+     * - FS 文件不在 DB / fingerprint 变化 → upsert 到 DB（重新解析 title）
      *
      * 返回 { indexed, pruned } 计数。
      */

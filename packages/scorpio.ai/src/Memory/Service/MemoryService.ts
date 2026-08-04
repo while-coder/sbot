@@ -45,12 +45,18 @@ const DEFAULT_TOOL_DESCS: MemoryToolDescs = {
         "Search long-term memories by content (BM25 over markdown bodies).",
         "Use this when the user mentions a specific term, identifier, or topic that is NOT visible in the memory menu in the system prompt.",
         "Tokenization splits on punctuation; for literals like URLs or ports, search a single rare token (e.g. \"5433\", not the full URL).",
-        "Returns slug + title + snippet; call read_memory(slug) afterwards if you need the full body.",
+        "Results use the same one-line shape as the memory menu (kind / evidence / slug / title) plus the matched snippet, so a hit already in the menu is recognisable as the same entry.",
+        "Call read_memory(slug) afterwards if you need the full body.",
     ].join("\n"),
 };
 
 // ── MemoryLLM CRUD schema（与 prompts/memory/writer/default.md 对齐） ──
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+/**
+ * title 是条目的唯一标签：既是文件的 H1，也是注入 system prompt 的 menu 行。
+ * 比"标题"该有的长度宽一些——reader 在 menu 里看不到 body，得靠这一行判断值不值得打开。
+ */
+const TITLE_MAX = 150;
 const MemoryKindSchema = z.enum([
     MemoryKind.Preference,
     MemoryKind.Fact,
@@ -72,8 +78,7 @@ const CreateOp = z.object({
     action: z.literal(MemoryOpAction.Create),
     slug: z.string().regex(SLUG_PATTERN),
     kind: MemoryKindSchema.optional().default(MemoryKind.Fact),
-    title: z.string().min(1).max(100),
-    description: z.string().min(1).max(200),
+    title: z.string().min(1).max(TITLE_MAX),
     body: z.string().min(1),
 });
 
@@ -81,8 +86,7 @@ const UpdateOp = z.object({
     action: z.literal(MemoryOpAction.Update),
     slug: z.string().regex(SLUG_PATTERN),
     kind: MemoryKindSchema.optional(),
-    title: z.string().min(1).max(100).optional(),
-    description: z.string().min(1).max(200).optional(),
+    title: z.string().min(1).max(TITLE_MAX).optional(),
     body: z.string().min(1).optional(),
     bodyMode: MemoryBodyModeSchema.optional(),
     reason: z.string().min(1),
@@ -112,8 +116,7 @@ type MemoryJobStats = MemoryWriterOpStats & {
 };
 
 const MemoryUpdateMergeSchema = z.object({
-    title: z.string().min(1).max(100).optional(),
-    description: z.string().min(1).max(200).optional(),
+    title: z.string().min(1).max(TITLE_MAX).optional(),
     body: z.string().min(1).optional(),
     bodyMode: MemoryBodyModeSchema.optional(),
 });
@@ -201,7 +204,7 @@ export class MemoryService implements IMemoryService {
         const count = menu.length;
         const menuText = count === 0
             ? "_(empty — no memories recorded yet)_"
-            : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] \`${m.slug}\` — ${m.description}`).join("\n");
+            : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] \`${m.slug}\` — ${m.title}`).join("\n");
         const block = `${count} ${count === 1 ? "entry" : "entries"} indexed.\n\n${menuText}`;
         return this.readTemplate.replace(/\{\{\s*memory_menu\s*\}\}/g, block);
     }
@@ -378,7 +381,7 @@ export class MemoryService implements IMemoryService {
         const menu = await this.store.listMenu(DEFAULT_WRITER_MENU_LIMIT);
         const menuLines = menu.length === 0
             ? '_(no existing memories)_'
-            : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.description}`).join('\n');
+            : menu.map(m => `- [${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.title}`).join('\n');
         const input = [
             `# Existing memories (${menu.length} ${menu.length === 1 ? 'entry' : 'entries'})`,
             ``,
@@ -415,7 +418,6 @@ export class MemoryService implements IMemoryService {
             `## ${r.slug}`,
             `kind: ${r.kind}`,
             `title: ${r.title}`,
-            `description: ${r.description}`,
             `evidence_count: ${r.evidenceCount}`,
             `updated_at: ${new Date(r.updatedAt).toISOString()}`,
             ``,
@@ -432,6 +434,7 @@ export class MemoryService implements IMemoryService {
                     `Allowed useful actions: update an existing memory to merge duplicate details; delete an entry only when it is clearly redundant or superseded.`,
                     `Do not create new memories during consolidation.`,
                     `If updating body, write the full final body without the H1 title line.`,
+                    `Keep the leading **When:** / **Do:** / **Why:** lines at the very top for actionable entries; a body whose trigger condition is buried at the bottom should be reordered to that shape.`,
                 ].join('\n'),
             },
             {
@@ -503,7 +506,6 @@ export class MemoryService implements IMemoryService {
                             slug: op.slug,
                             kind: op.kind as MemoryKind,
                             title: op.title,
-                            description: op.description,
                             body: op.body,
                         }, now);
                         out.create++;
@@ -517,7 +519,6 @@ export class MemoryService implements IMemoryService {
                             slug: update.slug,
                             kind: update.kind as MemoryKind | undefined,
                             title: update.title,
-                            description: update.description,
                             body: update.body,
                             bodyMode: update.bodyMode as MemoryBodyMode | undefined,
                             evidenceDelta: 1,
@@ -561,6 +562,7 @@ export class MemoryService implements IMemoryService {
                     `The existing body is authoritative unless the new transcript clearly supersedes it.`,
                     `Return only fields that should change.`,
                     `If body changes, return the full final body without the H1 title line.`,
+                    `Keep the leading **When:** / **Do:** / **Why:** lines at the very top when the existing body has them — revise them in place rather than adding a contradicting note below.`,
                     `Use bodyMode="replace" for a full revised body, or bodyMode="append" only for a small additive note.`,
                 ].join('\n'),
             },
@@ -571,7 +573,6 @@ export class MemoryService implements IMemoryService {
                     `slug: ${existing.slug}`,
                     `kind: ${existing.kind}`,
                     `title: ${existing.title}`,
-                    `description: ${existing.description}`,
                     ``,
                     existing.body,
                     ``,
@@ -579,7 +580,6 @@ export class MemoryService implements IMemoryService {
                     JSON.stringify({
                         kind: op.kind,
                         title: op.title,
-                        description: op.description,
                         body: op.body,
                         bodyMode: op.bodyMode,
                         reason: op.reason,
@@ -596,13 +596,12 @@ export class MemoryService implements IMemoryService {
             return {
                 ...op,
                 title: merged.title ?? op.title,
-                description: merged.description ?? op.description,
                 body: merged.body ?? op.body,
                 bodyMode: merged.bodyMode ?? op.bodyMode,
             };
         } catch (e: any) {
             this.logMemory('warn', `合并修改记忆失败：${op.slug}，错误=${formatError(e, true)}`);
-            // 保护旧 body：merge 失败时只应用 title/description/kind，不直接替换正文。
+            // 保护旧 body：merge 失败时只应用 title/kind，不直接替换正文。
             return {
                 ...op,
                 body: undefined,

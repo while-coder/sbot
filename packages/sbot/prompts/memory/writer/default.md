@@ -40,7 +40,7 @@ adopt — establishes durability.
 
 You receive two things:
 
-1. **Existing memories** — a list of `{slug, kind, evidence, description}`. NO bodies. This
+1. **Existing memories** — a list of `{slug, kind, evidence, title}`. NO bodies. This
    shows you what has already been recorded so you can decide whether new
    information should `create` a new entry or `update` an existing one.
 2. **Conversation transcript** — the full back-and-forth between user and
@@ -90,37 +90,49 @@ Every operation is one of:
 
 ## `create`
 A genuinely new fact, with no existing slug that overlaps. Required fields:
-`slug`, `title`, `description`, `body`. Optional: `kind`.
+`slug`, `title`, `body`. Optional: `kind`.
 
 - **slug**: lowercase-kebab, ≤64 chars, descriptive (e.g. `user-prefers-chinese`,
   `project-build-order`, `merge-freeze-2026-03-05`). Pattern: `^[a-z0-9][a-z0-9-]{0,63}$`.
 - **kind**: one of `preference`, `fact`, `workflow`, `project`, `decision`, `summary`.
   Use `preference` for stable user feedback and `workflow` for repeatable procedures.
-- **title**: 1–100 chars, human-readable, may be Chinese. Becomes the `# H1` of the file.
-- **description**: ONE line, ≤200 chars. Shown as a menu entry to the future
-  reader (the user-facing assistant). Make it specific enough that the reader
-  can decide "is this relevant to the question I'm being asked right now?"
-- **body**: markdown content. For feedback/project entries, structure it as:
+- **title**: ONE line, 1–150 chars, may be Chinese. This is the entry's only label:
+  it becomes the `# H1` of the file AND the menu line shown to the future reader
+  (the user-facing assistant), who sees no body until they open the entry. So write
+  the fact itself, not a filing label — specific enough that the reader can decide
+  "is this relevant to the question I'm being asked right now?".
+  ✓ "所有回复用中文，技术术语和代码标识符保留原文"
+  ✗ "用户偏好：回复语言"
+- **body**: markdown content. For anything actionable (`preference`, `workflow`,
+  `project`, `decision`), lead with these three one-line fields, in this order:
   ```
-  <rule or fact, ≤2 sentences>
+  **When:** <the recognisable signal that makes this entry apply>
+  **Do:** <the rule itself, ≤2 sentences>
+  **Why:** <the reason, one sentence>
 
-  **Why:** <reason>
-  **How to apply:** <when this guidance kicks in>
+  <optional: details, examples, edge cases — anything longer goes down here>
   ```
+  The order matches how the reader consumes it: first "does this even apply to
+  what I'm being asked?", then "so what do I do", and only then the rationale.
+  Put nothing above `**When:**` — later appends land at the bottom, so these three
+  lines must stay at the top to survive. `fact` / `summary` entries need no
+  template; plain prose is fine.
 
 ## `update`
 An existing memory needs revision because new information arrived. Required:
-`slug`, `reason`. Optional: `title`, `description`, `body` (any subset; omitted
+`slug`, `reason`. Optional: `title`, `body` (any subset; omitted
 fields preserve their current value). Optional: `kind`, `bodyMode`.
 
 - You do not see current bodies in this first pass. If you include `body`, the
   system will fetch the existing body and run a safe merge before writing.
 - Use `bodyMode: "replace"` when the final body should replace the old body.
 - Use `bodyMode: "append"` only for a short additive note that should be appended
-  if it is not already present.
+  if it is not already present. Appends land at the BOTTOM, so never use append to
+  revise `**When:** / **Do:** / **Why:**` — that needs `replace` with the three
+  lines rewritten in place, or the entry ends up stating two different rules.
 
 - Use update when: the fact changed (a deadline moved), more nuance is now known,
-  or the existing description was misleading
+  or the existing title was misleading
 - DO NOT use update to merge two unrelated topics into one entry — that's two `create`s
 - The `reason` field is mandatory and will be logged for audit
 

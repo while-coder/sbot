@@ -57,7 +57,7 @@ export class MemoryToolProvider {
             name: SEARCH_MEMORY_TOOL_NAME,
             description,
             schema: z.object({
-                query: z.string().describe("Search query (BM25 over title + body)"),
+                query: z.string().describe("Search query (BM25 over the markdown body, whose first line is the entry's title)"),
                 limit: z.number().optional().default(5).describe("Max results to return (default 5)"),
             }),
             func: async ({ query, limit }) => {
@@ -73,14 +73,22 @@ export class MemoryToolProvider {
                             `- Check the memory menu in the system prompt — exact slug match goes via read_memory.`,
                         ].join("\n");
                     }
+                    // 每条的头行与 system prompt 里注入的 memory menu 完全同形
+                    // （MemoryService.buildReadPrompt）——同一条记忆在两处长得一样，
+                    // agent 不需要靠 slug 反推"这就是菜单里那条"。
+                    // 不输出 score：见 MemorySearchHit.score 的注释。
                     const lines = [
-                        `Found ${hits.length} match${hits.length === 1 ? "" : "es"} (BM25-ranked, best first).`,
-                        `Use read_memory(slug) for full body if needed.`,
+                        `Found ${hits.length} match${hits.length === 1 ? "" : "es"} (best first).`,
+                        `Use read_memory(slug) for the full body if the snippet is not enough.`,
                         ``,
                     ];
                     for (const h of hits) {
-                        lines.push(`### ${h.title}  (\`${h.slug}\`, kind=${h.kind}, score=${h.score.toFixed(3)})`);
-                        lines.push(h.snippet);
+                        lines.push(`- [${h.kind}; evidence=${h.evidenceCount}] \`${h.slug}\` — ${h.title}`);
+                        // snippet 可能多行，整体缩进挂在头行下面，避免与下一条混在一起
+                        const snippet = h.snippet.trim();
+                        if (snippet) {
+                            for (const line of snippet.split("\n")) lines.push(`  ${line}`);
+                        }
                         lines.push("");
                     }
                     return lines.join("\n");

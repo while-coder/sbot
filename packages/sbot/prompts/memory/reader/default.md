@@ -14,7 +14,7 @@ You have two tools:
 
 - **`read_memory(slug)`** — fetch the full body of an entry by its exact slug.
   Use when the user mentions a topic that **clearly matches an entry above**.
-- **`search_memory(query)`** — BM25 search over title + body of all entries.
+- **`search_memory(query)`** — BM25 search over the full body of all entries.
   Use when:
   - the user mentions a specific term, identifier, port, function name, or
     error code that you do NOT see in the menu above

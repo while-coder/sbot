@@ -9,7 +9,6 @@ interface MemorySummary {
   slug: string
   kind: string
   title: string
-  description: string
   evidenceCount: number
   createdAt: number
   updatedAt: number
@@ -257,7 +256,6 @@ defineExpose({ openByMemoryId })
               <span class="memory-row-slug">{{ m.slug }}</span>
             </div>
             <div class="memory-row-title">{{ m.title }}</div>
-            <div class="memory-row-desc">{{ m.description }}</div>
             <div class="memory-row-meta">
               <span>{{ t('memory_profiles.evidence') }} {{ m.evidenceCount }}</span>
               <span>{{ fmtTime(m.updatedAt) }}</span>
@@ -407,16 +405,15 @@ defineExpose({ openByMemoryId })
   font-size: var(--sui-fs-xs);
 }
 
+/* title 是唯一标签，最长 150 字符——列表里裁到两行，全文在右侧详情区 */
 .memory-row-title {
   font-weight: 600;
   margin-top: var(--sui-sp-2);
-}
-
-.memory-row-desc {
-  margin-top: var(--sui-sp-1);
-  color: var(--sui-fg-muted);
-  font-size: var(--sui-fs-sm);
   line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .memory-row-meta {

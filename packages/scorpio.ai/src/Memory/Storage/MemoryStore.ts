@@ -75,7 +75,6 @@ export class MemoryStore implements IMemoryStore {
                     slug         TEXT    NOT NULL UNIQUE,
                     kind         TEXT    NOT NULL DEFAULT 'fact',
                     title        TEXT    NOT NULL,
-                    description  TEXT    NOT NULL,
                     body         TEXT    NOT NULL,
                     fingerprint  TEXT    NOT NULL,
                     evidence_count INTEGER NOT NULL DEFAULT 1,
@@ -103,6 +102,13 @@ export class MemoryStore implements IMemoryStore {
                 );
                 CREATE INDEX IF NOT EXISTS idx_pending_status_id ON memory_pending_messages(status, id);
             `);
+            // 旧库去列：description 曾是独立的 menu 标签，现已并入 title（= 文件 H1）。
+            // 不搬运旧值（老条目的 menu 行退化成当时那个短标题，consolidate 会逐步重写），
+            // 但列必须删掉——它是 NOT NULL 无默认值，留着会让新的 INSERT 直接失败。
+            try {
+                this._db.exec(`ALTER TABLE memories DROP COLUMN description`);
+            } catch { /* 列不存在（新库）→ 正常 */ }
+
             // 启动 sweep：把上次进程崩溃留下的 'processing' 转回 'pending' 重新跑。
             // 'processing' 是 popPendingJob 拿走 job 时打上的临时状态——配合该 sweep
             // 实现"崩溃恢复时不重复 LLM 调用"：只有走完 deletePendingJob 才会真正消失。
@@ -120,25 +126,24 @@ export class MemoryStore implements IMemoryStore {
         const evidenceCount = Math.max(1, input.evidenceCount ?? 1);
 
         // fingerprint 由 content 直接算（sha256），不依赖 mtime——
-        // 触摸文件不改内容时 reconcile 不会误判变化覆盖 description。
+        // 触摸文件不改内容时 reconcile 不会误判变化、白跑一次重建索引。
         const fingerprint = this.computeContentFingerprint(content);
         await fs.writeFile(filePath, content, "utf8");
 
         try {
             const result = this.db.prepare(`
                 INSERT INTO memories (
-                    slug, kind, title, description, body, fingerprint,
+                    slug, kind, title, body, fingerprint,
                     evidence_count, created_at, updated_at
                 )
                 VALUES (
-                    @slug, @kind, @title, @description, @body, @fingerprint,
+                    @slug, @kind, @title, @body, @fingerprint,
                     @evidenceCount, @createdAt, @updatedAt
                 )
             `).run({
                 slug: input.slug,
                 kind: this.normalizeKind(input.kind),
                 title: input.title,
-                description: input.description,
                 body: content,
                 fingerprint,
                 evidenceCount,
@@ -163,7 +168,6 @@ export class MemoryStore implements IMemoryStore {
         if (!existing) throw new Error(`MemoryStore.update: slug not found: ${input.slug}`);
 
         const newTitle = input.title ?? existing.title;
-        const newDescription = input.description ?? existing.description;
         const newBodyRaw = input.body
             ? this.mergeBody(existing.body, input.body, input.bodyMode)
             : this.stripTitleLine(existing.body);
@@ -180,7 +184,6 @@ export class MemoryStore implements IMemoryStore {
             UPDATE memories
             SET kind        = @kind,
                 title       = @title,
-                description = @description,
                 body        = @body,
                 fingerprint = @fingerprint,
                 evidence_count = evidence_count + @evidenceDelta,
@@ -190,7 +193,6 @@ export class MemoryStore implements IMemoryStore {
             slug: input.slug,
             kind: this.normalizeKind(input.kind ?? existing.kind),
             title: newTitle,
-            description: newDescription,
             body: newContent,
             fingerprint,
             evidenceDelta,
@@ -232,16 +234,15 @@ export class MemoryStore implements IMemoryStore {
     async listMenu(limit: number): Promise<MemoryMenuEntry[]> {
         // 注入 system prompt 用：常被读 + 最近更新优先
         const rows = this.db.prepare(`
-            SELECT slug, kind, title, description, evidence_count
+            SELECT slug, kind, title, evidence_count
             FROM memories
             ORDER BY COALESCE(last_read_at, 0) DESC, evidence_count DESC, updated_at DESC
             LIMIT @limit
-        `).all({ limit }) as Array<{ slug: string; kind: string; title: string; description: string; evidence_count: number }>;
+        `).all({ limit }) as Array<{ slug: string; kind: string; title: string; evidence_count: number }>;
         return rows.map(r => ({
             slug: r.slug,
             kind: this.normalizeKind(r.kind),
             title: r.title,
-            description: r.description,
             evidenceCount: r.evidence_count ?? 1,
         }));
     }
@@ -258,7 +259,8 @@ export class MemoryStore implements IMemoryStore {
         const hits = await this.searcher.search(
             query,
             all,
-            (row) => `${row.title}\n${row.body}`,
+            // 只喂 body：它已经以 `# title` 开头，再单独拼一次 title 会让标题词在 BM25 里权重翻倍。
+            (row) => row.body,
             fetchLimit,
         );
         if (hits.length === 0) return [];
@@ -272,6 +274,7 @@ export class MemoryStore implements IMemoryStore {
                 slug: h.item.slug,
                 kind: h.item.kind,
                 title: h.item.title,
+                evidenceCount: h.item.evidenceCount,
                 snippet: h.snippet ?? '',
                 score: h.score,
             }));
@@ -315,10 +318,9 @@ export class MemoryStore implements IMemoryStore {
             }
         }
 
-        // Direction A：FS 有但 DB 没 / fingerprint 变了
-        // INSERT 走 fallback description；UPDATE 不动 description（保护 writer LLM 写的精心值）。
-        // 启动期 reconcile 与 drain 并发 create 时，UPSERT-with-description-overwrite 会用 deriveDescription
-        // 覆盖 writer 刚写的描述——拆成两步避免这个 race。
+        // Direction A：FS 有但 DB 没 / fingerprint 变了。
+        // 一条 UPSERT 就够：title 是文件 H1 的解析结果，body 就是文件本身，
+        // 两个字段都能从 FS 无损重建，不存在"DB 里有而文件里没有、覆盖就丢"的字段。
         let indexedCount = 0;
         const now = Date.now();
         for (const absPath of fsFiles) {
@@ -332,24 +334,16 @@ export class MemoryStore implements IMemoryStore {
 
             const title = this.parseTitle(content) ?? slug;
 
-            if (!current) {
-                // 新行：description 用 fallback（外部新增文件没有结构化 description）。
-                const description = this.deriveDescription(content);
-                this.db.prepare(`
-                    INSERT OR IGNORE INTO memories (slug, title, description, body, fingerprint, created_at, updated_at)
-                    VALUES (@slug, @title, @description, @body, @fingerprint, @now, @now)
-                `).run({ slug, title, description, body: content, fingerprint, now });
-            } else {
-                // 已存在：仅在 fingerprint 不一致时更新内容字段，**不动 description**。
-                this.db.prepare(`
-                    UPDATE memories
-                    SET title       = @title,
-                        body        = @body,
-                        fingerprint = @fingerprint,
-                        updated_at  = @now
-                    WHERE slug = @slug AND fingerprint != @fingerprint
-                `).run({ slug, title, body: content, fingerprint, now });
-            }
+            this.db.prepare(`
+                INSERT INTO memories (slug, title, body, fingerprint, created_at, updated_at)
+                VALUES (@slug, @title, @body, @fingerprint, @now, @now)
+                ON CONFLICT(slug) DO UPDATE
+                    SET title       = excluded.title,
+                        body        = excluded.body,
+                        fingerprint = excluded.fingerprint,
+                        updated_at  = excluded.updated_at
+                    WHERE memories.fingerprint != excluded.fingerprint
+            `).run({ slug, title, body: content, fingerprint, now });
             indexedCount++;
         }
 
@@ -495,23 +489,10 @@ export class MemoryStore implements IMemoryStore {
         return m?.[1]?.trim() || null;
     }
 
-    private deriveDescription(content: string): string {
-        // 跳过 H1，取首段第一非空行作为 description（用于外部编辑兜底）
-        const stripped = this.stripTitleLine(content);
-        const lines = stripped.split(/\r?\n/);
-        for (const line of lines) {
-            const t = line.trim();
-            if (!t) continue;
-            // 截 200 字符
-            return t.slice(0, 200);
-        }
-        return '';
-    }
-
     /**
      * Content-based fingerprint (sha256 of the bytes that get written to disk).
      * 用 mtime 做 fingerprint 的旧实现会被 IDE 自动保存 / git checkout / rsync 触发误判，
-     * 让 reconcile 走 deriveDescription 兜底覆盖 writer LLM 写的 description。
+     * 让 reconcile 白跑一轮重建索引。
      */
     private computeContentFingerprint(content: string): string {
         return createHash('sha256').update(content, 'utf8').digest('hex');
@@ -549,7 +530,6 @@ export class MemoryStore implements IMemoryStore {
             slug: r.slug,
             kind: this.normalizeKind(r.kind),
             title: r.title,
-            description: r.description,
             body: r.body,
             fingerprint: r.fingerprint,
             evidenceCount: r.evidence_count ?? 1,

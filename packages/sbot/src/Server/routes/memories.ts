@@ -15,7 +15,7 @@ function requireMemoryId(value: unknown): string {
 export class MemoryRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
         /**
-         * 列出该 memoryId 当前的所有 memory 条目（slug + title + description + 时间戳 + 读次数）。
+         * 列出该 memoryId 当前的所有 memory 条目（slug + title + 时间戳 + 读次数）。
          * 不返回 body（避免响应过大）；body 走单独的 read 路由 / agent 工具。
          */
         app.get('/api/memories/:id/list', api(async (req) => {
@@ -28,7 +28,6 @@ export class MemoryRoutes {
                     slug: r.slug,
                     kind: r.kind,
                     title: r.title,
-                    description: r.description,
                     evidenceCount: r.evidenceCount,
                     createdAt: r.createdAt,
                     updatedAt: r.updatedAt,
