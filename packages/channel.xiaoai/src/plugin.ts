@@ -56,7 +56,7 @@ export const xiaoaiPlugin = defineChannelPlugin({
       label: '音箱名称',
       type: ConfigFieldType.String,
       required: true,
-      description: '米家中的小爱音箱名称',
+      description: '米家中的小爱音箱名称或别名；同名音箱多台时可填 deviceID 精确指定',
     },
     heartbeat: {
       label: '轮询间隔 (ms)',

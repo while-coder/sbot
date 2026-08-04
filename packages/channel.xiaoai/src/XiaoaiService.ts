@@ -59,11 +59,25 @@ export class XiaoaiService implements IChannelService {
 
     const allDevices = await this.api.getDeviceList();
 
-    const matched = allDevices.find((d) => d.name === deviceName || d.alias === deviceName);
-    if (!matched) {
-      const available = allDevices.map((d) => d.name).join(', ');
+    // 配置值可以是米家里的名称/别名，也可以是 deviceID / miotDID
+    const matches = allDevices.filter(
+      (d) => d.name === deviceName || d.alias === deviceName
+        || d.deviceID === deviceName || d.miotDID === deviceName,
+    );
+    if (matches.length === 0) {
+      const available = allDevices
+        .map((d) => (d.alias && d.alias !== d.name ? `${d.name} (${d.alias})` : d.name))
+        .join(', ');
       throw new Error(`Device "${deviceName}" not found. Available: ${available}`);
     }
+    const matched = matches[0];
+    if (matches.length > 1) {
+      this.logger?.warn(
+        `XiaoAi: "${deviceName}" matched ${matches.length} devices, using deviceId=${matched.deviceID}. `
+        + '改填 deviceID 可精确指定。',
+      );
+    }
+    const displayName = matched.alias || matched.name || deviceName;
 
     this.poller = new MessagePoller(
       this.api,
@@ -72,9 +86,9 @@ export class XiaoaiService implements IChannelService {
       this.logger,
     );
     this.api.setSpeakerDeviceId(matched.deviceID);
-    this.poller.startDevice(matched.deviceID, deviceName, matched.hardware);
+    this.poller.startDevice(matched.deviceID, displayName, matched.hardware);
     this.logger?.info(
-      `XiaoAi started: userId=${userId}, deviceName=${deviceName}, deviceId=${matched.deviceID}, hardware=${matched.hardware}`,
+      `XiaoAi started: userId=${userId}, deviceName=${displayName}, deviceId=${matched.deviceID}, hardware=${matched.hardware}`,
     );
   }
 
@@ -83,7 +97,8 @@ export class XiaoaiService implements IChannelService {
     const eventId = `xiaoai_${userId}_${msg.deviceId}_${msg.timestamp}`;
     if (!(await this.options.filterEvent(eventId))) return;
 
-    const sessionId = `xiaoai:${userId}:${msg.deviceName}`;
+    // 用 deviceId 而非名称：音箱在米家里改名后会话不断裂
+    const sessionId = `xiaoai:${userId}:${msg.deviceId}`;
     await this.options.onReceiveMessage(
       {
         sessionId,
