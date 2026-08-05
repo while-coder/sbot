@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SModal, SBadge, SSelect, STabBar, STab } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SModal, SBadge, SSelect, STabBar, STab } from 'sbot-ui'
 
 interface MemorySummary {
   slug: string
@@ -31,6 +31,7 @@ interface MemoryJob {
 
 const { t } = useI18n()
 const { show } = useToast()
+const { confirm } = useConfirm()
 
 const visible = ref(false)
 const memoryId = ref('')
@@ -190,7 +191,7 @@ async function retryFailedJob(job: MemoryJob) {
 
 async function deleteFailedJob(job: MemoryJob) {
   if (!memoryId.value || job.status !== 'failed' || deletingJobId.value !== null) return
-  if (!window.confirm(t('memory_profiles.confirm_delete_job', { id: job.id }))) return
+  if (!await confirm(t('memory_profiles.confirm_delete_job', { id: job.id }), { danger: true })) return
   deletingJobId.value = job.id
   try {
     await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}?${viewQuery.value}`, 'DELETE')
@@ -205,7 +206,7 @@ async function deleteFailedJob(job: MemoryJob) {
 
 async function deleteMemory(memory: MemorySummary) {
   if (!memoryId.value || !memory.slug || deleting.value) return
-  if (!window.confirm(t('memory_profiles.confirm_delete_memory', { slug: memory.slug }))) return
+  if (!await confirm(t('memory_profiles.confirm_delete_memory', { slug: memory.slug }), { danger: true })) return
   deleting.value = true
   try {
     const query = [viewQuery.value, `entryScope=${memory.scope}`].join('&')
