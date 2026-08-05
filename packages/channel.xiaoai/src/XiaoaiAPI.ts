@@ -18,6 +18,12 @@ const MICO_USER_AGENT =
 const DEFAULT_CHUNK_LIMIT = 200;
 const CHUNK_DELAY_MS = 200;
 
+/**
+ * 401 后重新登录的最小间隔。小米 passport 对同一 (userId, deviceId, sid) 只保留最新一份
+ * serviceToken，同一账号被多处登录时会互相挤掉；不限流会形成登录风暴。
+ */
+const REAUTH_MIN_INTERVAL_MS = 30_000;
+
 export enum XiaoaiAuthMode {
   Password = 'password',
   PassToken = 'passToken',
@@ -107,75 +113,109 @@ function chunkText(text: string, limit: number = DEFAULT_CHUNK_LIMIT): string[] 
 
 export class XiaoaiAPI {
   private authed?: AuthedAccount;
-  private speakerDeviceId = '';
+  private authing?: Promise<AuthedAccount>;
+  private lastAuthAt = 0;
 
   constructor(private options: XiaoaiAPIOptions) {}
 
-  setSpeakerDeviceId(deviceId: string): void {
-    this.speakerDeviceId = deviceId;
-  }
-
   async getDeviceList(): Promise<MiNADevice[]> {
-    const resp = await axios.get(`${MINA_BASE}/admin/v2/device_list`, {
-      params: { master: 1 },
-      headers: this.minaHeaders(await this.auth()),
+    return this.withAuthRetry(async (account) => {
+      const resp = await axios.get(`${MINA_BASE}/admin/v2/device_list`, {
+        params: { master: 1 },
+        headers: this.minaHeaders(account),
+      });
+      return resp.data?.data ?? [];
     });
-    return resp.data?.data ?? [];
   }
 
   async getConversations(
+    speakerDeviceId: string,
     hardware: string,
     limit = 2,
   ): Promise<MiConversation[]> {
-    if (!this.speakerDeviceId) return [];
+    if (!speakerDeviceId) return [];
 
-    const account = await this.auth();
-    const cookie = `userId=${account.userId}; serviceToken=${account.serviceToken}; deviceId=${this.speakerDeviceId}`;
-    const resp = await axios.get(`${USER_PROFILE_BASE}/device_profile/v2/conversation`, {
-      params: {
-        source: 'dialogu',
-        hardware,
-        limit,
-        requestId: crypto.randomUUID(),
-      },
-      headers: {
-        'User-Agent': MICO_USER_AGENT,
-        Referer: 'https://userprofile.mina.mi.com/dialogue-note/index.html',
-        Cookie: cookie,
-      },
-    });
+    return this.withAuthRetry(async (account) => {
+      const cookie = `userId=${account.userId}; serviceToken=${account.serviceToken}; deviceId=${speakerDeviceId}`;
+      const resp = await axios.get(`${USER_PROFILE_BASE}/device_profile/v2/conversation`, {
+        params: {
+          source: 'dialogu',
+          hardware,
+          limit,
+          requestId: crypto.randomUUID(),
+        },
+        headers: {
+          'User-Agent': MICO_USER_AGENT,
+          Referer: 'https://userprofile.mina.mi.com/dialogue-note/index.html',
+          Cookie: cookie,
+        },
+      });
 
-    let payload: any = resp.data?.data;
-    if (typeof payload === 'string') {
-      try {
-        payload = JSON.parse(payload);
-      } catch {
-        return [];
+      let payload: any = resp.data?.data;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          return [];
+        }
       }
-    }
-    return payload?.records ?? [];
+      return payload?.records ?? [];
+    });
   }
 
   async speak(
+    speakerDeviceId: string,
     text: string,
     options?: XiaoaiSpeakOptions,
   ): Promise<void> {
-    if (!this.speakerDeviceId) return;
+    if (!speakerDeviceId) return;
 
     if (options?.volume) {
-      await this.setVolume(this.speakerDeviceId, options.volume);
+      await this.setVolume(speakerDeviceId, options.volume);
     }
 
     const chunks = chunkText(text, options?.chunkLimit ?? DEFAULT_CHUNK_LIMIT);
     for (let i = 0; i < chunks.length; i++) {
       if (i > 0) await sleep(CHUNK_DELAY_MS);
-      await this.textToSpeech(this.speakerDeviceId, chunks[i]);
+      await this.textToSpeech(speakerDeviceId, chunks[i]);
     }
+  }
+
+  /**
+   * 请求遇到 401 时作废缓存的 serviceToken、重新登录并重试一次。
+   * 不重试其他错误：轮询侧已有指数退避。
+   */
+  private async withAuthRetry<T>(fn: (account: AuthedAccount) => Promise<T>): Promise<T> {
+    const account = await this.auth();
+    try {
+      return await fn(account);
+    } catch (e: any) {
+      if (e?.response?.status !== 401) throw e;
+      // token 已被其他并发调用换掉 → 直接拿新的重试；仍是同一份才作废重登
+      if (this.authed === account && !this.invalidate()) throw e;
+      return fn(await this.auth());
+    }
+  }
+
+  /** 作废当前 token；距上次登录不足 REAUTH_MIN_INTERVAL_MS 则拒绝，返回是否已作废。 */
+  private invalidate(): boolean {
+    if (Date.now() - this.lastAuthAt < REAUTH_MIN_INTERVAL_MS) return false;
+    this.authed = undefined;
+    return true;
   }
 
   private async auth(): Promise<AuthedAccount> {
     if (this.authed) return this.authed;
+    // 多台音箱共用同一实例，首次轮询会并发触发登录——去重，只登录一次
+    if (this.authing) return this.authing;
 
+    this.authing = this.login().finally(() => {
+      this.authing = undefined;
+    });
+    return this.authing;
+  }
+
+  private async login(): Promise<AuthedAccount> {
     const { userId, authMode, credential } = this.options;
     const deviceId = this.options.deviceId || randomDeviceId();
     const password = authMode === XiaoaiAuthMode.Password ? credential : '';
@@ -226,6 +266,7 @@ export class XiaoaiAPI {
     const tokenUrl = `${pass.location}&clientSign=${encodeURIComponent(clientSign)}`;
     const serviceToken = await this.resolveServiceToken(tokenUrl);
     this.authed = { userId, serviceToken, deviceId };
+    this.lastAuthAt = Date.now();
     return this.authed;
   }
 
@@ -249,39 +290,34 @@ export class XiaoaiAPI {
   }
 
   private async textToSpeech(speakerDeviceId: string, text: string): Promise<void> {
-    await axios.post(
-      `${MINA_BASE}/remote/ubus`,
-      new URLSearchParams({
-        deviceId: speakerDeviceId,
-        path: 'mibrain',
-        method: 'text_to_speech',
-        message: JSON.stringify({ text, save: 0 }),
-      }).toString(),
-      {
-        headers: {
-          ...this.minaHeaders(await this.auth()),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      },
-    );
+    await this.ubus(speakerDeviceId, 'mibrain', 'text_to_speech', { text, save: 0 });
   }
 
   private async setVolume(speakerDeviceId: string, volume: number): Promise<void> {
-    await axios.post(
+    await this.ubus(speakerDeviceId, 'mediaplayer', 'player_set_volume', { volume, media: 'app_ios' });
+  }
+
+  private async ubus(
+    speakerDeviceId: string,
+    path: string,
+    method: string,
+    message: Record<string, any>,
+  ): Promise<void> {
+    await this.withAuthRetry((account) => axios.post(
       `${MINA_BASE}/remote/ubus`,
       new URLSearchParams({
         deviceId: speakerDeviceId,
-        path: 'mediaplayer',
-        method: 'player_set_volume',
-        message: JSON.stringify({ volume, media: 'app_ios' }),
+        path,
+        method,
+        message: JSON.stringify(message),
       }).toString(),
       {
         headers: {
-          ...this.minaHeaders(await this.auth()),
+          ...this.minaHeaders(account),
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       },
-    );
+    ));
   }
 
   private passportCookies(deviceId: string, passToken?: string): string {

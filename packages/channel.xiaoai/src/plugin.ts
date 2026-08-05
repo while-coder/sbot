@@ -10,6 +10,15 @@ function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/** 一行一项的多值字段；单值老配置在此天然兼容（split 后长度为 1）。 */
+function readLines(value: unknown): string[] {
+  const items = readString(value)
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return [...new Set(items)];
+}
+
 const XIAOAI_CHANNEL_PROMPT = `<channel-info name="xiaoai">
 你的输出会被 TTS 朗读出来，不是显示在屏幕上：
 - 用口语化的句子，避免任何 markdown 语法（*粗体*、\`代码\`、列表项符号、# 标题等会被字面读出）。
@@ -52,17 +61,18 @@ export const xiaoaiPlugin = defineChannelPlugin({
       type: ConfigFieldType.String,
       description: 'PassportSDK deviceId，由 sbox 一并导出；留空则随机生成',
     },
-    deviceName: {
+    deviceNames: {
       label: '音箱名称',
-      type: ConfigFieldType.String,
+      type: ConfigFieldType.Textarea,
       required: true,
-      description: '米家中的小爱音箱名称或别名；同名音箱多台时可填 deviceID 精确指定',
+      description: '米家中的小爱音箱名称或别名；同名音箱多台时可填 deviceID 精确指定。'
+        + '一行一台，可同时接入多台音箱，每台音箱是各自独立的会话',
     },
     heartbeat: {
       label: '轮询间隔 (ms)',
       type: ConfigFieldType.Number,
       default: 5000,
-      description: '消息轮询间隔毫秒数',
+      description: '每台音箱各自的消息轮询间隔毫秒数；接入多台时建议适当调大',
     },
     textChunkLimit: {
       label: 'TTS 分段字数',
@@ -84,16 +94,17 @@ export const xiaoaiPlugin = defineChannelPlugin({
     const authMode = config.mode === XiaoaiAuthMode.Password ? XiaoaiAuthMode.Password : XiaoaiAuthMode.PassToken;
     const credential = readString(config.credential);
     const loginDeviceId = readString(config.loginDeviceId);
-    const deviceName = readString(config.deviceName);
+    // deviceName 是改名前的旧字段，保留读取以兼容既有渠道配置
+    const deviceNames = readLines(config.deviceNames ?? config.deviceName);
     const heartbeat = Number(config.heartbeat);
-    if (!userId || !deviceName || !credential) return undefined;
+    if (!userId || deviceNames.length === 0 || !credential) return undefined;
 
     const service = new XiaoaiService({
       userId,
       authMode,
       credential,
       loginDeviceId,
-      deviceName,
+      deviceNames,
       heartbeat: Number.isFinite(heartbeat) && heartbeat >= 500 ? heartbeat : 5000,
       textChunkLimit: Number(config.textChunkLimit) || 200,
       volume: config.volume ? Number(config.volume) : undefined,
@@ -102,11 +113,11 @@ export const xiaoaiPlugin = defineChannelPlugin({
       onReceiveMessage: async (args: XiaoaiMessageArgs, query: MessageContent) => {
         const session = await initSession({
           userId: args.accountUserId,
-          userName: args.deviceName,
+          // 账号维度：全部音箱共用一行 channel_user，用小米 ID 避免被各音箱名反复覆盖。
+          // 音箱名由 sessionName 承载（LLM 与日志看到的都是它）
+          userName: args.accountUserId,
           userInfo: JSON.stringify({
             accountUserId: args.accountUserId,
-            deviceId: args.deviceId,
-            deviceName: args.deviceName,
           }),
           sessionId: args.sessionId,
           sessionName: `小爱-${args.deviceName}`,

@@ -4,18 +4,13 @@ export interface MiNADevice {
   name: string;
   alias: string;
   hardware: string;
-  serialNumber: string;
-  mac: string;
 }
 
 export interface MiConversation {
   query: string;
   time: number;
-  answers: Array<{
-    type: string;
-    tts?: string;
-    url?: string;
-  }>;
+  /** 只取 type 过滤 TTS/LLM 回答；tts 文本与音频 url 用不到 */
+  answers: Array<{ type: string }>;
 }
 
 export interface AuthedAccount {

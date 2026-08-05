@@ -30,6 +30,10 @@ export class MessagePoller {
     private logger?: ILogger,
   ) {}
 
+  hasDevice(deviceId: string) {
+    return this.states.has(deviceId);
+  }
+
   startDevice(deviceId: string, deviceName: string, hardware: string) {
     if (this.states.has(deviceId)) return;
 
@@ -71,7 +75,7 @@ export class MessagePoller {
 
     let nextDelay = this.heartbeat;
     try {
-      const records = await this.api.getConversations(state.hardware, 2);
+      const records = await this.api.getConversations(state.deviceId, state.hardware, 2);
       const newMessages = this.extractNewMessages(state, records);
 
       for (const msg of newMessages) {
