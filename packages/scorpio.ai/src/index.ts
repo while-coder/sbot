@@ -398,12 +398,18 @@ export {
   MessageRole,
   IAgentCallback,
   AgentCancelledError,
+
+  // 能力插件（system prompt + 工具 + turn 末尾副作用的可插拔单元）
+  IAgentPlugin,
+  AgentPluginPromptKind,
 } from "./Agents";
 
 export type {
   AgentSubNode,
   CreateAgentFn,
   OnCreateThinkFn,
+  AgentPluginContext,
+  AgentTurn,
 } from "./Agents";
 
 // ========================================

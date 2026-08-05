@@ -7,6 +7,7 @@ import { IAgentSaverService, TaskBackedSaver, ConversationCompactor, IConversati
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole, ChatMessage } from "../AgentServiceBase";
+import { IAgentPlugin, type AgentPluginContext } from "../Plugins";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
 import { IAgendaService } from "../../Agenda";
@@ -78,8 +79,9 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
     @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
     @inject(T_SpawnDepth, { optional: true }) spawnDepth?: number,
+    @inject(IAgentPlugin, { optional: true }) plugins?: IAgentPlugin[],
   ) {
-    super(thinkModelService, skillService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor);
+    super(thinkModelService, skillService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, plugins);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
     this.spawnDepth = spawnDepth ?? 0;
@@ -87,14 +89,14 @@ export class ReActAgentService extends SingleAgentService {
 
   // ── Overrides ────────────────────────────────────────────────
 
-  protected override async buildSystemMessage(query: MessageContent): Promise<ChatMessage | undefined> {
+  protected override async buildSystemMessage(ctx: AgentPluginContext, query: MessageContent): Promise<ChatMessage | undefined> {
     const agentsDesc = this.agentSubNodes.map(a => {
       const nameAttr = a.name ? ` name="${a.name}"` : '';
       return `  <agent id="${a.id}"${nameAttr}>${a.desc}</agent>`;
     }).join('\n');
     const reactPrompt = this.systemPromptTemplate.replace('{agents}', agentsDesc);
 
-    const parentMsg = await super.buildSystemMessage(query);
+    const parentMsg = await super.buildSystemMessage(ctx, query);
     if (!parentMsg) {
       return { role: MessageRole.System, content: [{ type: ContentPartType.Text, text: reactPrompt }] };
     }
@@ -109,7 +111,7 @@ export class ReActAgentService extends SingleAgentService {
     };
   }
 
-  protected override async buildTools(callback?: IAgentCallback, signal?: AbortSignal): Promise<StructuredToolInterface[]> {
+  protected override async buildTools(ctx: AgentPluginContext, callback?: IAgentCallback, signal?: AbortSignal): Promise<StructuredToolInterface[]> {
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 
@@ -164,6 +166,9 @@ export class ReActAgentService extends SingleAgentService {
         // 故意不透传 memory / agenda：抽取（extractFromConversation）无条件随 service 触发，
         // 而子 agent 的 Human 消息是编排者合成的 task 指令、非真实用户输入，抽取会污染记忆/日程。
         // 真实用户内容由编排者自身 turn 末尾统一抽取，子任务无需重复参与。
+        // 插件按同一原则区分：抽取类插件默认 inheritToSubAgent=false 不下传，纯检索类显式置 true 才下传。
+        const inheritedPlugins = this.plugins.filter(p => p.inheritToSubAgent);
+        if (inheritedPlugins.length > 0) subContainer.registerInstance(IAgentPlugin, inheritedPlugins);
 
         agentService = await this.agentFactory(agentId, subContainer);
 
@@ -231,7 +236,7 @@ export class ReActAgentService extends SingleAgentService {
     };
 
     const agentIds = this.agentSubNodes.map(a => a.id);
-    const parentTools = await super.buildTools(callback, signal);
+    const parentTools = await super.buildTools(ctx, callback, signal);
     return [
       createDispatchTaskTool(agentIds, runFn),
       createListTasksTool(getTasks),

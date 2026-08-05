@@ -14,6 +14,7 @@ import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, ChatToolCall, MessageRole, type TokenUsage, type OnCreateThinkFn } from "../AgentServiceBase";
+import { IAgentPlugin, AgentPluginPromptKind, type AgentPluginContext, type AgentTurn } from "../Plugins";
 import { ContentPartType, MessageKind, type MessageContent, type ContentPart } from "../../Saver/IAgentSaverService";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 import { v4 as uuidv4 } from "uuid";
@@ -88,6 +89,9 @@ export class SingleAgentService extends AgentServiceBase {
      *  与 extractFromConversation 入队 pending job 的 channelSessionId 都用它。
      *  必传——caller（AgentRunner / ReActAgentService 子任务路径）务必把 T_ChannelSessionId 注册进容器。 */
     protected channelSessionId: number;
+    /** 能力插件：把 system prompt + 工具 + turn 末尾副作用打包成可插拔单元，注册进容器即生效。
+     *  新子系统走这条路接入，无需再改本类。生命周期归注册方，本类只消费不 dispose。 */
+    protected plugins: IAgentPlugin[];
 
     constructor(
         @inject(IModelService) modelService: IModelService,
@@ -105,6 +109,7 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
+        @inject(IAgentPlugin, { optional: true }) plugins?: IAgentPlugin[],
     ) {
         super(loggerService, agentSaver, noteServices, wikiServices);
         this.modelService = modelService;
@@ -118,6 +123,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.compactor = compactor;
         this.toolOverflowDir = toolOverflowDir;
         this.channelSessionId = channelSessionId;
+        this.plugins = plugins ?? [];
     }
 
     override addStaticSystemPrompts(prompts: string[]): void {
@@ -128,11 +134,64 @@ export class SingleAgentService extends AgentServiceBase {
         this.dynamicSystemPrompts.push(...prompts);
     }
 
-    protected async buildSystemMessage(query: MessageContent): Promise<ChatMessage | undefined> {
+    /**
+     * 构造本轮的插件上下文。stream 入口造一份贯穿 buildSystemMessage / buildTools / onTurnCompleted，
+     * 保证同一轮内各钩子看到的 query 与 saver 一致。
+     */
+    protected buildPluginContext(query: MessageContent): AgentPluginContext {
+        return {
+            query: contentToString(query),
+            channelSessionId: this.channelSessionId,
+            saver: this.saverService,
+            logger: this.loggerService?.getLogger('AgentPlugin'),
+        };
+    }
+
+    /**
+     * 收集插件的 system prompt。并发取、按插件声明顺序保序拼接；
+     * 单个插件抛错降级为日志告警并跳过——插件是可选扩展，不该因一个实现出错整轮失败。
+     */
+    protected async collectPluginPrompts(kind: AgentPluginPromptKind, ctx: AgentPluginContext): Promise<string[]> {
+        if (this.plugins.length === 0) return [];
+        const results = await Promise.all(this.plugins.map(async plugin => {
+            const fn = kind === AgentPluginPromptKind.Static ? plugin.getStaticSystemPrompt : plugin.getDynamicSystemPrompt;
+            if (!fn) return undefined;
+            try {
+                return await fn.call(plugin, ctx);
+            } catch (err: any) {
+                this.logger?.warn(`插件 ${plugin.name} 生成 ${kind} system prompt 失败，已跳过: ${formatError(err, true)}`);
+                return undefined;
+            }
+        }));
+        return results.filter((text): text is string => !!text?.trim());
+    }
+
+    /** 收集插件工具。单个插件抛错降级为日志告警并跳过，其余插件照常生效。 */
+    protected async collectPluginTools(ctx: AgentPluginContext): Promise<StructuredToolInterface[]> {
+        if (this.plugins.length === 0) return [];
+        const results = await Promise.all(this.plugins.map(async plugin => {
+            if (!plugin.getTools) return [];
+            try {
+                return await plugin.getTools(ctx);
+            } catch (err: any) {
+                this.logger?.warn(`插件 ${plugin.name} 生成工具失败，已跳过: ${formatError(err, true)}`);
+                return [];
+            }
+        }));
+        return results.flat();
+    }
+
+    /**
+     * 构建本轮 system message（静态块 + 动态块两个 content part）
+     *
+     * ctx 统一排在首位，与 buildTools / collectPlugin* / notifyPluginsTurnCompleted 一致。
+     */
+    protected async buildSystemMessage(ctx: AgentPluginContext, query: MessageContent): Promise<ChatMessage | undefined> {
         // ── 静态部分（跨请求不变，可被 prompt caching 缓存） ──
         const staticParts: string[] = [...this.staticSystemPrompts];
         const skillMessage = await this.skillService.getSystemMessage();
         if (skillMessage) staticParts.push(skillMessage);
+        staticParts.push(...await this.collectPluginPrompts(AgentPluginPromptKind.Static, ctx));
 
         // ── 动态部分（每次请求可能变化） ──
         const dynamicParts: string[] = [...this.dynamicSystemPrompts];
@@ -158,6 +217,8 @@ export class SingleAgentService extends AgentServiceBase {
                 if (msg) dynamicParts.push(msg);
             }
         }
+        dynamicParts.push(...await this.collectPluginPrompts(AgentPluginPromptKind.Dynamic, ctx));
+
         const contentBlocks: Array<{ type: string; text: string }> = [];
         const staticContent = staticParts.join("\n\n").trim();
         if (staticContent) contentBlocks.push({ type: ContentPartType.Text, text: staticContent });
@@ -168,9 +229,12 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /**
-     * 构建本轮所有可用工具（toolService + 笔记 + skill）
+     * 构建本轮所有可用工具（toolService + 笔记 + skill + 插件）
+     *
+     * 插件工具追加在最末：同名去重时框架自有工具胜出，maxTools 截断也优先砍插件工具。
+     * ctx 统一排在首位（也是必需参数唯一能放的位置——不能跟在可选的 callback / signal 之后）。
      */
-    protected async buildTools(_callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
+    protected async buildTools(ctx: AgentPluginContext, _callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
         if (this.skillService) tools.push(...this.skillService.getTools());
         if (this.noteServices.length > 0) {
@@ -184,6 +248,9 @@ export class SingleAgentService extends AgentServiceBase {
         }
         if (this.memoryService) {
             tools.push(...MemoryToolProvider.getTools(this.memoryService));
+        }
+        if (this.plugins.length > 0) {
+            tools.push(...await this.collectPluginTools(ctx));
         }
 
         // 同名工具会被 OpenAI 兼容端点判为非法请求（400），按首次出现去重
@@ -519,11 +586,13 @@ export class SingleAgentService extends AgentServiceBase {
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         const outputMessages: ChatMessage[] = [];
+        // 本轮插件上下文造一份，贯穿 prompt / 工具 / turn 末尾三个钩子，保证各钩子看到同一份 query。
+        const ctx = this.buildPluginContext(query);
 
         try {
             const [systemMessage, tools] = await Promise.all([
-                this.buildSystemMessage(query),
-                this.buildTools(callback, signal),
+                this.buildSystemMessage(ctx, query),
+                this.buildTools(ctx, callback, signal),
             ]);
 
             const graph = new StateGraph<SingleAgentState>()
@@ -585,9 +654,31 @@ export class SingleAgentService extends AgentServiceBase {
         if (this.agendaService) {
             this.agendaService.extractFromConversation(conversation, this.channelSessionId);
         }
+        this.notifyPluginsTurnCompleted(ctx, conversation);
 
         // Memory 反馈走 read_memory 工具调用累加 read_count，不再需要 citation 钩子。
 
         return outputMessages;
+    }
+
+    /**
+     * turn 末尾通知各插件（fire-and-forget，与 memory / agenda 的抽取同一语义）：
+     * 不 await 返回的 promise，同步抛错与 reject 都只降级为日志，不影响本轮响应。
+     */
+    protected notifyPluginsTurnCompleted(ctx: AgentPluginContext, conversation: ChatMessage[]): void {
+        if (this.plugins.length === 0) return;
+
+        const turn: AgentTurn = { conversation };
+
+        for (const plugin of this.plugins) {
+            if (!plugin.onTurnCompleted) continue;
+            try {
+                Promise.resolve(plugin.onTurnCompleted(turn, ctx)).catch((err: any) => {
+                    this.logger?.warn(`插件 ${plugin.name} onTurnCompleted 异步失败: ${formatError(err, true)}`);
+                });
+            } catch (err: any) {
+                this.logger?.warn(`插件 ${plugin.name} onTurnCompleted 失败: ${formatError(err, true)}`);
+            }
+        }
     }
 }
