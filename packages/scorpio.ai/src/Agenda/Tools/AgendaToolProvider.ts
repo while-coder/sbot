@@ -5,9 +5,7 @@ import {
     AgendaCloseOutcome,
     AgendaPriority,
     AgendaStatus,
-    AgendaTimeUnit,
     AgendaTriggerAction,
-    AgendaTriggerKind,
     type AgendaCreateArgs,
     type AgendaEditArgs,
     type AgendaListFilter,
@@ -16,6 +14,7 @@ import {
 import { IAgendaService } from "../Service/IAgendaService";
 import { AgendaRenderMode, formatAgendaXml } from "../format";
 import { DEFAULT_LIST_LIMIT, DETAIL_FIRES_LIMIT } from "../limits";
+import { createAgendaTriggerSchemas } from "../triggerSchemas";
 
 export const AGENDA_CREATE_TOOL_NAME = 'agenda_create' as const;
 export const AGENDA_LIST_TOOL_NAME = 'agenda_list' as const;
@@ -29,11 +28,6 @@ const AGENDA_WIKI_TOOL_DESCRIPTION = [
     'Call when uncertain about any agenda operation — meaning, parameter choice, edge case, cross-tool sync.',
     'No parameters.',
 ].join('\n');
-
-const RelativeTimeSchema = z.object({
-    amount: z.number().int().positive(),
-    unit: z.enum(AgendaTimeUnit).describe('minute / hour / day / week.'),
-});
 
 const ActionSchema = z.enum(AgendaTriggerAction).optional().describe([
     'What happens when this trigger fires:',
@@ -62,74 +56,11 @@ const AssigneeSchema = z.enum(AgendaAssignee).optional().describe([
     'Orthogonal to trigger.action.',
 ].join('\n'));
 const AssigneeNameSchema = z.string().optional().describe('Third-party name; only meaningful with assignee=other, ignored otherwise.');
-
-const StartAtSchema = z.string().optional().describe('ISO of FIRST fire; omit for default.');
-const CountSchema = z.number().int().positive().optional().describe('Total fire count; omit for unlimited.');
-
-const CRON_EXPR_DESC = 'SIX-field cron: "sec min hour dom month dow" (NOT 5-field). Example: "0 0 9 * * 1-5" = 9am weekdays.';
-
-const TriggerSpecSchema = z.discriminatedUnion('kind', [
-    z.object({
-        kind: z.literal(AgendaTriggerKind.Absolute),
-        at: z.string().describe('ISO datetime, e.g. "2026-09-19T09:00:00". Compute relative times yourself.'),
-        action: ActionSchema,
-        message: MessageSchema,
-    }).describe('One-shot trigger.'),
-    z.object({
-        kind: z.literal(AgendaTriggerKind.Interval),
-        every: RelativeTimeSchema.describe('Repeat interval, e.g. {amount:1,unit:"day"}.'),
-        startAt: StartAtSchema,
-        count: CountSchema,
-        action: ActionSchema,
-        message: MessageSchema,
-    }).describe('Fixed-cadence recurrence.'),
-    z.object({
-        kind: z.literal(AgendaTriggerKind.Cron),
-        expr: z.string().describe(CRON_EXPR_DESC),
-        startAt: StartAtSchema,
-        count: CountSchema,
-        action: ActionSchema,
-        message: MessageSchema,
-    }).describe('Calendar-aligned recurrence.'),
-]);
-
-/**
- * op=patch 的载荷：全字段可选、只改传入的部分，fireCount / lastFiredAt 保留。
- *
- * 不能用 discriminatedUnion（kind 本身可选——大多数 patch 就是「只改 action / 只改 message」，
- * 不动 kind），所以 schedule 字段平铺 + 用 describe 说清 kind 与 at/every/expr 的配对约束，
- * 真正的校验在 AgendaService.patchTrigger 里做。
- */
-const TriggerPatchSchema = z.object({
-    kind: z.enum(AgendaTriggerKind).optional().describe([
-        'Only when SWITCHING trigger type; you must then also pass the matching schedule field',
-        '(absolute→at / interval→every / cron→expr), otherwise the call is rejected.',
-        'Omit to keep the current type — most patches only touch action / message.',
-    ].join('\n')),
-    at: z.string().describe('New ISO instant; for kind=absolute.').optional(),
-    every: RelativeTimeSchema.describe('New interval; for kind=interval.').optional(),
-    expr: z.string().describe(`New cron expression; for kind=cron. ${CRON_EXPR_DESC}`).optional(),
-    startAt: z.string().optional().describe('Explicitly reset the NEXT fire instant (ISO). Use alone to postpone one occurrence without touching the cadence.'),
-    count: CountSchema,
+const { TriggerSpecSchema, TriggerEditSchema } = createAgendaTriggerSchemas({
     action: ActionSchema,
-    message: z.string().min(1).optional().describe(`Rewrite the fire-time text. ${MESSAGE_DESC}`),
-}).describe('Fields to change; anything omitted keeps its current value, and fire progress is preserved.');
-
-const TriggerEditSchema = z.discriminatedUnion('op', [
-    z.object({
-        op: z.literal('add'),
-        spec: TriggerSpecSchema.describe('Same shape as agenda_create.triggers[i].'),
-    }).describe('Append a new trigger.'),
-    z.object({
-        op: z.literal('patch'),
-        id: z.number().describe('Existing trigger id (from agenda_list / agenda_get / <existing-agenda> XML).'),
-        patch: TriggerPatchSchema,
-    }).describe('Partially change one trigger, keeping its fire progress.'),
-    z.object({
-        op: z.literal('remove'),
-        id: z.number().describe('Existing trigger id.'),
-    }).describe('Disable one trigger. To reschedule, prefer op=patch — remove+add loses fire progress.'),
-]);
+    message: MessageSchema,
+    patchMessage: z.string().min(1).optional().describe(`Rewrite the fire-time text. ${MESSAGE_DESC}`),
+});
 
 export class AgendaToolProvider {
     /**

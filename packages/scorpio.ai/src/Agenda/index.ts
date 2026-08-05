@@ -10,7 +10,6 @@ export {
 } from "./Service/AgendaServicePool";
 export {
     IAgendaStore,
-    AgendaPendingJobType,
     type AgendaPendingJobStatus,
     type PendingAgendaJobRow,
 } from "./Storage/IAgendaStore";

@@ -37,7 +37,7 @@ import {
     IAgendaExtractor,
 } from "../Extractor/IAgendaExtractor";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
-import { IAgendaStore, type PendingAgendaJobRow, AgendaPendingJobType } from "../Storage/IAgendaStore";
+import { IAgendaStore, type PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import { TimeUtils } from "../../Utils/TimeUtils";
 import { computeInitialNextFire, relativeToMs } from "../time";
 import { type AgendaToolDescs, IAgendaService } from "./IAgendaService";
@@ -523,26 +523,19 @@ export class AgendaService implements IAgendaService {
                 }
                 if (!next) break;
                 try {
-                    const applied = await this.runPendingJob(next);
+                    const applied = await this.runExtractJob(next.messages, next.channelSessionId);
                     this.agendaStore.deletePendingJob(next.id);
-                    this.logger?.info(`agenda pending ${next.type} #${next.id} done: ${applied} action(s) applied`);
+                    this.logger?.info(`agenda pending extract #${next.id} done: ${applied} action(s) applied`);
                 } catch (e: any) {
                     const errMsg = formatError(e).slice(0, ERROR_MESSAGE_MAX_LEN);
                     try { this.agendaStore.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
-                    this.logger?.warn(`agenda pending ${next.type} #${next.id} failed: ${errMsg}`);
+                    this.logger?.warn(`agenda pending extract #${next.id} failed: ${errMsg}`);
                 }
             }
         } finally {
             this.isRunning = false;
             this.release();  // 配对开头 refCount++；归零自动 evict
             releaseActivity();
-        }
-    }
-
-    private async runPendingJob(job: PendingAgendaJobRow): Promise<number> {
-        switch (job.type) {
-            case AgendaPendingJobType.Extract:
-                return this.runExtractJob(job.messages ?? [], job.channelSessionId);
         }
     }
 

@@ -294,7 +294,6 @@ export {
   AgendaTriggerKind,
   AgendaTriggerAction,
   AgendaTimeUnit,
-  AgendaPendingJobType,
   AgendaCloseOutcome,
   type AgendaCreateArgs,
   type AgendaCreateResult,

@@ -8,7 +8,6 @@ import { T_AgendaDbPath } from "../../Core";
 import type { ChatMessage } from "../../Saver";
 import { DEFAULT_TRIGGER_FIRES_LIMIT, ERROR_MESSAGE_MAX_LEN, MAX_TRIGGER_FIRES_PER_ITEM, PENDING_JOB_LIST_HARD_CAP } from "../limits";
 import {
-    AgendaPendingJobType,
     type AgendaPendingJobStatus,
     type PendingAgendaJobRow,
     IAgendaStore,
@@ -473,7 +472,7 @@ export class AgendaStore implements IAgendaStore {
                 @jobType, @channelSessionId, @payloadJson, 'pending', 0, @now, @now
             )
         `).run({
-            jobType: AgendaPendingJobType.Extract,
+            jobType: 'extract',
             channelSessionId,
             payloadJson: JSON.stringify({ messages }),
             now,
@@ -538,13 +537,11 @@ export class AgendaStore implements IAgendaStore {
     }
 
     private mapPendingRow(r: any): PendingAgendaJobRow {
-        const type = this.normalizePendingJobType(r.job_type);
         const payload = this.parsePendingPayload(r.payload_json);
         return {
             id: r.id,
-            type,
             channelSessionId: Number(r.channel_session_id) || 0,
-            messages: type === AgendaPendingJobType.Extract ? (payload.messages ?? []) : undefined,
+            messages: payload.messages ?? [],
             status: this.normalizePendingStatus(r.status),
             attemptCount: r.attempt_count ?? 0,
             errorMessage: r.error_message ?? null,
@@ -562,10 +559,6 @@ export class AgendaStore implements IAgendaStore {
         } catch {
             return {};
         }
-    }
-
-    private normalizePendingJobType(type: string | undefined | null): AgendaPendingJobType {
-        return type === AgendaPendingJobType.Extract ? AgendaPendingJobType.Extract : AgendaPendingJobType.Extract;
     }
 
     private normalizePendingStatus(status: string | undefined | null): AgendaPendingJobStatus {

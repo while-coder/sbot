@@ -6,21 +6,14 @@ import type {
     AgendaTriggerFire,
 } from "../types";
 
-// ── 待处理 job 队列 ──
-
-export enum AgendaPendingJobType {
-    Extract = 'extract',
-}
-
 export type AgendaPendingJobStatus = 'pending' | 'failed';
 
 export interface PendingAgendaJobRow {
     id: number;
-    type: AgendaPendingJobType;
     /** 该 job 来自哪个 channel session；drain 时回填到 createTrigger 的 channelSessionId。 */
     channelSessionId: number;
     /** Extract 任务的对话快照。 */
-    messages?: ChatMessage[];
+    messages: ChatMessage[];
     status: AgendaPendingJobStatus;
     attemptCount: number;
     errorMessage: string | null;

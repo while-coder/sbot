@@ -8,7 +8,7 @@ import {
     estimateTextTokens,
     type ChatMessage,
 } from "../../Saver";
-import { AgendaRenderMode, formatAgendaXml } from "../format";
+import { AgendaRenderMode, formatAgendaRecordsXml, formatAgendaXml } from "../format";
 import {
     AGENDA_SYNC_CANDIDATES_PER_BATCH,
     AGENDA_SYNC_FINAL_CANDIDATE_LIMIT,
@@ -151,8 +151,7 @@ export class AgendaOverflowSelector {
             this.logger?.warn(`AgendaSync selector batch cap reached; locally ranked ${records.length - scannedCount} lower-relevance item(s) were not sent to the model`);
         }
 
-        const sourceIndex = new Map(records.map((record, index) => [record.item.id, index] as const));
-        const localRelevance = new Map(rankedRecords.map(candidate => [candidate.record.item.id, candidate.relevance] as const));
+        const rankedById = new Map(rankedRecords.map(candidate => [candidate.record.item.id, candidate] as const));
         const selected = new Map<number, RankedRecord>();
 
         for (const chunk of activeChunks) {
@@ -174,7 +173,7 @@ export class AgendaOverflowSelector {
                         selected.set(candidate.id, {
                             record,
                             relevance,
-                            sourceIndex: sourceIndex.get(candidate.id) ?? records.length,
+                            sourceIndex: rankedById.get(candidate.id)?.sourceIndex ?? records.length,
                         });
                     }
                 }
@@ -182,10 +181,11 @@ export class AgendaOverflowSelector {
                 this.logger?.warn(`Agenda selector batch failed; using local ranking: ${formatError(error)}`);
                 for (const record of chunk.slice(0, AGENDA_SYNC_CANDIDATES_PER_BATCH)) {
                     if (selected.has(record.item.id)) continue;
+                    const ranked = rankedById.get(record.item.id);
                     selected.set(record.item.id, {
                         record,
-                        relevance: Math.min(25, localRelevance.get(record.item.id) ?? 0),
-                        sourceIndex: sourceIndex.get(record.item.id) ?? records.length,
+                        relevance: Math.min(25, ranked?.relevance ?? 0),
+                        sourceIndex: ranked?.sourceIndex ?? records.length,
                     });
                 }
             }
@@ -231,7 +231,7 @@ export class AgendaOverflowSelector {
                     intents.map(intent => `- ${intent}`).join('\n'),
                     `</agenda-intents>`,
                     `<agenda-cards>`,
-                    AgendaOverflowSelector.renderRecords(records),
+                    formatAgendaRecordsXml(records, AgendaRenderMode.Compact),
                     `</agenda-cards>`,
                     `<now>${now}</now>`,
                 ].join('\n'),
@@ -282,10 +282,6 @@ export class AgendaOverflowSelector {
                 return { record, relevance, sourceIndex };
             })
             .sort((a, b) => b.relevance - a.relevance || a.sourceIndex - b.sourceIndex);
-    }
-
-    private static renderRecords(records: AgendaRecord[]): string {
-        return records.map(record => formatAgendaXml(record, AgendaRenderMode.Compact)).join('\n');
     }
 
     private static normalize(value: string): string {

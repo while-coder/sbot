@@ -124,6 +124,14 @@ export function formatAgendaXml(
     ].join('\n');
 }
 
+/** 渲染一组 agenda 元素，不添加外层容器。 */
+export function formatAgendaRecordsXml(
+    records: AgendaRecord[],
+    mode: AgendaRenderMode = AgendaRenderMode.Sync,
+): string {
+    return records.map(record => formatAgendaXml(record, mode)).join('\n');
+}
+
 /**
  * 渲染触发历史（agenda_get fires=true）。回答"昨天的巡检跑了吗、成功了吗"。
  *
@@ -152,6 +160,6 @@ export function formatTriggerFiresXml(fires: AgendaTriggerFire[]): string {
 /** 渲染整组 records 为 LLM 可读的 XML 列表，外层包 <agenda-list>。 */
 export function formatAgendaListXml(records: AgendaRecord[], mode: AgendaRenderMode = AgendaRenderMode.Sync): string {
     if (records.length === 0) return `<agenda-list count="0" />`;
-    const body = records.map(r => formatAgendaXml(r, mode)).join('\n');
+    const body = formatAgendaRecordsXml(records, mode);
     return `<agenda-list count="${records.length}">\n${body}\n</agenda-list>`;
 }
