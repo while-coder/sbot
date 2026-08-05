@@ -12,6 +12,7 @@ interface MemoryProfileForm {
   name: string
   enabled: boolean
   writerModel: string
+  selectorModel: string
   writerPromptFile: string
   readPromptFile: string
 }
@@ -42,6 +43,7 @@ const columns = computed<STableColumn[]>(() => [
   { key: 'name',         label: t('common.name'),                primary: true },
   { key: 'enabled',      label: t('common.enabled'),             width: '100px', align: 'center' },
   { key: 'writerModel',  label: t('memory_profiles.writer_model'), width: '200px' },
+  { key: 'selectorModel', label: t('memory_profiles.selector_model'), width: '200px' },
   { key: 'ops',          label: t('common.ops'),                 ops: true, width: '320px', align: 'center' },
 ])
 
@@ -55,6 +57,7 @@ function emptyForm(): MemoryProfileForm {
     name: '',
     enabled: true,
     writerModel: '',
+    selectorModel: '',
     writerPromptFile: '',
     readPromptFile: '',
   }
@@ -94,6 +97,7 @@ function openEdit(id: string) {
     name: p.name || '',
     enabled: !!p.enabled,
     writerModel: p.writerModel || '',
+    selectorModel: p.selectorModel || '',
     writerPromptFile: p.writerPromptFile || '',
     readPromptFile: p.readPromptFile || '',
   }
@@ -112,6 +116,7 @@ async function save() {
       enabled: form.value.enabled,
       writerModel: form.value.writerModel,
     }
+    if (form.value.selectorModel) body.selectorModel = form.value.selectorModel
     if (form.value.writerPromptFile) body.writerPromptFile = form.value.writerPromptFile
     if (form.value.readPromptFile)   body.readPromptFile   = form.value.readPromptFile
     const id = editingId.value
@@ -198,6 +203,7 @@ function modelLabel(id: string | undefined | null): string {
           </SBadge>
         </template>
         <template #writerModel="{ row }">{{ modelLabel(row.writerModel) }}</template>
+        <template #selectorModel="{ row }">{{ row.selectorModel ? modelLabel(row.selectorModel) : t('memory_profiles.use_writer_model') }}</template>
         <template #ops="{ row }">
           <div class="ops-row">
             <SButton type="outline" size="sm" @click="openMemoryViewer(row.id)">{{ t('memory_profiles.view_memories') }}</SButton>
@@ -227,6 +233,12 @@ function modelLabel(id: string | undefined | null): string {
       <SFormItem :label="t('memory_profiles.writer_model') + ' *'">
         <SSelect v-model="form.writerModel">
           <option value="" disabled>{{ t('memory_profiles.writer_model_placeholder') }}</option>
+          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </SSelect>
+      </SFormItem>
+      <SFormItem :label="t('memory_profiles.selector_model')">
+        <SSelect v-model="form.selectorModel">
+          <option value="">{{ t('memory_profiles.use_writer_model') }}</option>
           <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
         </SSelect>
       </SFormItem>

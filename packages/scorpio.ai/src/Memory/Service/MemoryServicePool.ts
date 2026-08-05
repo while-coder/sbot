@@ -4,6 +4,8 @@ import {
     T_MemoryDbPath,
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
+    T_MemorySelectorPrompt,
+    T_MemorySelectorModel,
 } from "../../Core/tokens";
 import { formatError } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
@@ -29,8 +31,12 @@ export interface MemoryServiceConfig {
     dbPath: string;
     /** MemoryWriter 用的 model 实例 */
     writerModel: IModelService;
+    /** 目录候选筛选模型；未单独配置时与 writerModel 为同一实例。 */
+    selectorModel: IModelService;
     /** 已加载的 MemoryWriter system prompt 字符串 */
     writerPrompt: string;
+    /** 已加载的 MemorySelector system prompt 字符串 */
+    selectorPrompt: string;
     /** 已加载的 read 模板字符串（含 `{{ memory_menu }}` 占位符） */
     readTemplate: string;
 }
@@ -193,6 +199,8 @@ export class MemoryServicePool {
         if (this.loggerService) sub.registerInstance(ILoggerService, this.loggerService);
         sub.registerInstance(T_MemoryReadTemplate, cfg.readTemplate);
         sub.registerInstance(T_MemoryWriterPrompt, cfg.writerPrompt);
+        sub.registerInstance(T_MemorySelectorPrompt, cfg.selectorPrompt);
+        sub.registerInstance(T_MemorySelectorModel, cfg.selectorModel);
         sub.registerInstance(IModelService, cfg.writerModel);
         sub.registerWithArgs(IMemoryStore, MemoryStore, {
             [T_MemoryDir]:    cfg.memoryDir,

@@ -2,20 +2,21 @@
 
 Sidebar → **Memory Profiles** (under **Tasks**), then enable it per-agent in the agent edit page → **Memory**.
 
-Memory is the agent's automatic long-term memory. A background **MemoryLLM** reviews each conversation after it goes idle and distills durable knowledge — user preferences, project facts, decisions, lessons learned — into memory entries. On later turns the agent reads them back via the `search_memory` and `read_memory` tools.
+Memory is the agent's automatic long-term memory. After each conversation, a background Selector reviews the full memory catalog for relevant entries, then the **MemoryLLM** reads those entries' complete bodies and applies final changes. On later turns the agent reads memories back via the `search_memory` and `read_memory` tools.
 
 Think of it as the agent learning from every conversation without you having to teach it explicitly — and without bloating the system prompt.
 
 ## How It Works
 
-1. **Extract** — after a conversation idles, the **writer model** silently reviews the exchange and writes new memories (or updates/removes existing ones).
-2. **Read** — on subsequent turns the agent calls:
-   - `search_memory` — fuzzy/keyword/semantic lookup across stored memories
+1. **Select** — after a conversation idles, the **selector model** matches the transcript against self-contained titles from every global + current-workspace entry. It uses one request while the title catalog fits its budget; for oversized catalogs it compresses the transcript once and matches titles in batches. The Selector never reads bodies. If no selector is configured, the writer model performs this step.
+2. **Extract** — the **writer model** reads the selected entries' complete bodies together with the conversation, then creates, updates, removes, or leaves memories unchanged.
+3. **Read** — on subsequent turns the agent calls:
+   - `search_memory` — BM25 keyword lookup across stored memories
    - `read_memory` — fetch the full body of a memory by its slug
-3. **Maintain** — background jobs keep the store healthy:
+4. **Maintain** — background jobs keep the store healthy:
    - **Consolidate** — merges and de-duplicates related memories
    - **Reconcile** — re-indexes and prunes stale entries
-4. **Delete** — removed memories are moved to `.archive/` and can be recovered.
+5. **Delete** — removed memories are moved to `.archive/` and can be recovered.
 
 ## Global and Workspace Memory
 
@@ -34,7 +35,8 @@ A **Memory Profile** defines how memories are extracted and read. Sidebar → **
 |-------|-------------|
 | Name | Display name for this profile |
 | Enabled | Pause the profile without deleting it |
-| Writer Model | The MemoryLLM used to extract memories (a reasoning-capable model recommended) |
+| Writer Model | The authoritative MemoryLLM that reads selected full bodies and applies final changes |
+| Selector Model | Optional cheaper model that screens the complete catalog; defaults to Writer Model |
 | Writer Prompt | Controls **what** gets extracted |
 | Read Prompt | How retrieved memories are formatted back into the prompt |
 

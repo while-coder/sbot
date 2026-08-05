@@ -92,6 +92,8 @@ export interface MemoryProfileConfig {
   // ── 模型 ──
   /** MemoryLLM 模型 UUID（必填） */
   writerModel: string
+  /** 候选筛选模型 UUID；不设置时复用 writerModel */
+  selectorModel?: string
 
   // ── prompt 文件（不设置则使用默认） ──
   /** MemoryWriter 系统提示路径，默认 'memory/writer/default.md' */

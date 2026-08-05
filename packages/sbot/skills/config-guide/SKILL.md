@@ -64,7 +64,7 @@ sbot 运行时配置目录是 `~/.sbot/`。处理配置问题时只需要围绕�
 | `savers` | `Record<UUID, { name, type }>`，`type=file/sqlite/memory` | `/api/settings/savers` |
 | `notes` | `Record<UUID, { name, embedding? }>`；无 embedding 时退化为关键词/时间检索 | `/api/settings/notes` |
 | `wikis` | `Record<UUID, { name, embedding? }>` | `/api/settings/wikis` |
-| `memoryProfiles` | 长期记忆模板，含 `enabled`, `writerModel`, prompt 文件 | `/api/settings/memoryProfiles` |
+| `memoryProfiles` | 长期记忆模板，含 `enabled`, `writerModel`, 可选 `selectorModel`, prompt 文件 | `/api/settings/memoryProfiles` |
 | `agendaProfiles` | 事项模板，含 `enabled`, `syncModel`, prompt 文件 | `/api/settings/agendaProfiles` |
 | `channels` | channel 默认配置；内置 `web` 固定存在 | `/api/settings/channels` |
 | `agentSources` | AgentStore 源列表 | `/api/agent-store/*` |
@@ -261,7 +261,7 @@ DELETE /api/settings/agendaProfiles/:id
 - memory：`~/.sbot/memories/<memoryId>/`（全局）+ `workspaces/<pathHash>/`（当前 workPath 独有）
 - agenda：`~/.sbot/agendas/<agendaId>/agenda.db`
 
-`enabled: false` 表示引用可以存在，但运行时不启用。`memoryProfiles.writerModel` 必须指向 `models` 中的 UUID。频道仍只引用一个 memoryProfile；同一个 MemoryService 会同时读取全局记忆和当前 workPath 记忆，项目内容不会进入其他 workPath。未配置 workPath 的会话（包括普通 Web 对话）统一使用 `~/.sbot/workspace` 作为默认记忆工作区。`agendaProfiles.syncModel` 可选；为空时同步抽取不启用。
+`enabled: false` 表示引用可以存在，但运行时不启用。`memoryProfiles.writerModel` 必须指向 `models` 中的 UUID；可选的 `selectorModel` 用于低成本目录筛选，不设置时复用 `writerModel`。频道仍只引用一个 memoryProfile；同一个 MemoryService 会同时读取全局记忆和当前 workPath 记忆，项目内容不会进入其他 workPath。未配置 workPath 的会话（包括普通 Web 对话）统一使用 `~/.sbot/workspace` 作为默认记忆工作区。`agendaProfiles.syncModel` 可选；为空时同步抽取不启用。
 
 Agenda item 管理走：
 

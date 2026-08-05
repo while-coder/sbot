@@ -32,7 +32,7 @@ const refs = makeResourceRefs({
   profile: (p, id) => p.intentModel === id,
   session: (s, id) => s.intentModel === id,
   agent: (a, id) => a.model === id || a.compactModel === id,
-  memoryProfile: (p, id) => p.writerModel === id,
+  memoryProfile: (p, id) => p.writerModel === id || p.selectorModel === id,
   agendaProfile: (p, id) => p.syncModel === id,
 })
 const expandedIds = ref<string[]>([])

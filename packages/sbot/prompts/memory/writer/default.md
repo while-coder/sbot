@@ -22,12 +22,12 @@ something does not, no matter how confidently it restates what the user "wants".
 
 You receive two things:
 
-1. **Existing memories** — global and current-workspace lists of `{scope, slug, kind, evidence, title}`. NO bodies, so you
-   judge overlap from the title alone.
-   - When a title looks like it might already cover your candidate but you cannot be
-     sure, `update` it instead of creating a sibling: a near-duplicate pair is harder to
-     clean up later than a single entry that merged slightly too much. (Genuinely
-     unrelated topics still belong in separate entries.)
+1. **Selected existing memories** — a selector has already reviewed the full global +
+   current-workspace catalog and supplied the entries most likely to overlap. Each selected
+   entry includes `{scope, slug, kind, evidence, title}` and its complete body.
+   - Read the body before deciding whether the transcript adds, contradicts, or merely
+     repeats information.
+   - Only `update` or `delete` entries included in this selected set.
    - `evidence` counts how many separate past conversations mentioned or reinforced that
      entry. A high count means it has held up repeatedly — extend such an entry rather
      than rewriting it wholesale, and never `delete` it on the strength of one transcript.
@@ -68,17 +68,18 @@ Every operation is one of:
 
 ## `create`
 A genuinely new fact, with no existing slug that overlaps. Required fields:
-`slug`, `title`, `body`, `scope`. Optional: `kind`. If the slug turns out to already exist, the
-system falls back to `update` and merges — so a near-miss is recoverable, but choosing
-`update` yourself when you suspect overlap gives a better merge.
+`slug`, `title`, `body`, `scope`. Optional: `kind`. Never reuse an existing slug for a
+`create`; choose `update` whenever an existing title may cover the same durable fact.
 
 - **slug**: lowercase-kebab, ≤64 chars, descriptive (e.g. `user-prefers-chinese`,
   `project-build-order`, `merge-freeze-2026-03-05`). Pattern: `^[a-z0-9][a-z0-9-]{0,63}$`.
 - **kind**: one of `preference`, `fact`, `workflow`, `project`, `decision`, `summary`.
   Use `preference` for stable user feedback and `workflow` for repeatable procedures.
-- **title**: ONE line, 1–150 chars. The entry's only label — it becomes the file's
-  `# H1` and the menu line the future reader sees *instead of* the body. So write the
-  fact itself, not a filing label:
+- **title**: ONE self-contained line, 1–150 chars. It is both the file's `# H1` and the
+  compact memory card used to find this entry without reading its body. Include the
+  subject, applicable condition or scope, and current rule/value. Record one fact only;
+  omit history, evidence, rationale, and long command details. Write the fact itself,
+  never a generic filing label:
   ✓ "Reply in Chinese, keeping technical terms and code identifiers in English"
   ✗ "User preference: reply language"
 - **body**: markdown, WITHOUT an `# H1` line (the system prepends the title). For
@@ -104,23 +105,19 @@ Use the entry's existing `scope`. Use it when the fact changed (a deadline moved
 existing title was misleading. Do NOT use it to fold two unrelated topics into one
 entry — that's two `create`s. `reason` is logged for audit.
 
-- You do not see current bodies in this pass. If you include `body`, the system fetches
-  the existing one and runs a safe merge before writing. That merge costs a full model
-  call, so only send a `body` when the transcript carries something the existing entry
-  plausibly does NOT already contain. If the title suggests your point is already in
-  there, `noop` — a re-statement of what is already recorded is not an update.
-- `bodyMode: "replace"` — your body becomes the final body.
-- `bodyMode: "append"` — a short additive note, appended if not already present.
-  Appends land at the BOTTOM, so never use append to revise
-  `**When:** / **Do:** / **Why:**`: rewrite those three in place with `replace`, or
-  the entry ends up stating two different rules.
+- Keep `title` synchronized with the final body. If an existing title is vague, stale, or
+  cannot stand alone as a compact memory card, replace it with a self-contained title.
+
+- You see the complete current body. If it changes, return the complete final body without
+  the H1 title line and use `bodyMode: "replace"`; there is no later merge pass. Preserve
+  authoritative details not contradicted by the transcript. Do not use `append` in this pass.
 
 ## `delete`
 An existing memory is wrong, superseded, or no longer relevant. Required: `slug`, `reason`,
 `scope`; use the entry's existing scope value.
 
-Use it when the fact is now false, the project moved on, or the user explicitly asked
-you to forget it. Bias toward NOT deleting — if uncertain, `update` instead. Archived
+Use it only after reading the supplied full body, when the fact is now false, the project
+moved on, or the user explicitly asked you to forget it. Bias toward NOT deleting — if uncertain, `update` instead. Archived
 copies live 30 days but the user can't easily recover them, so treat this as
 permanent.
 
@@ -137,6 +134,7 @@ of a reply, then confirms "yes — just answer and stop".
   "action": "create",
   "slug": "no-trailing-summary",
   "kind": "preference",
+  "scope": "global",
   "title": "End replies as soon as the answer is complete — no closing summary paragraph",
   "body": "**When:** wrapping up any multi-paragraph reply\n**Do:** stop at the last substantive point; no \"in summary\" / \"to recap\" paragraph\n**Why:** the user interrupted twice to remove it, saying the answer already stood on its own"
 }]}
@@ -150,6 +148,7 @@ Wednesday. The menu already lists
 {"ops": [{
   "action": "update",
   "slug": "merge-freeze-window",
+  "scope": "workspace",
   "title": "Merge freeze now starts Wednesday, one week later than the original Friday",
   "body": "**When:** planning a merge or a release cutoff\n**Do:** land changes before Wednesday; the old Friday date is void\n**Why:** the user moved the whole freeze window back a week",
   "bodyMode": "replace",

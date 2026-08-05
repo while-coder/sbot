@@ -8,6 +8,7 @@ import { LoggerService } from "../Core/LoggerService";
 import { loadPrompt } from "../Core/PromptLoader";
 
 const DEFAULT_WRITER_PROMPT = "memory/writer/default.md";
+const DEFAULT_SELECTOR_PROMPT = "memory/selector/default.md";
 const DEFAULT_READ_PROMPT   = "memory/reader/default.md";
 
 /**
@@ -28,13 +29,23 @@ const resolveConfig: MemoryServiceConfigResolver = (memoryId) => {
         throw new Error(`MemoryProfile "${memoryId}" writerModel "${profile.writerModel}" cannot be resolved`);
     }
 
+    const selectorModelId = profile.selectorModel?.trim();
+    const selectorModel = !selectorModelId || selectorModelId === profile.writerModel
+        ? writerModel
+        : config.getModelService(selectorModelId, true);
+    if (!selectorModel) {
+        throw new Error(`MemoryProfile "${memoryId}" selectorModel "${selectorModelId}" cannot be resolved`);
+    }
+
     const memoryDir = config.getMemoryPath(memoryId);
     return {
         memoryName: profile.name,
         memoryDir,
         dbPath: path.join(memoryDir, "memory.db"),
         writerModel,
+        selectorModel,
         writerPrompt: loadPrompt(profile.writerPromptFile ?? DEFAULT_WRITER_PROMPT),
+        selectorPrompt: loadPrompt(DEFAULT_SELECTOR_PROMPT),
         readTemplate: loadPrompt(profile.readPromptFile ?? DEFAULT_READ_PROMPT),
     };
 };

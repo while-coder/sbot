@@ -6,6 +6,8 @@ import path from "node:path";
 import {
     T_MemoryReadTemplate,
     T_MemoryWriterPrompt,
+    T_MemorySelectorPrompt,
+    T_MemorySelectorModel,
 } from "../../Core/tokens";
 import { formatError, runtimeActivity } from "../../Core";
 import { ILogger, ILoggerService } from "../../Logger";
@@ -20,7 +22,6 @@ import {
     MemoryScope,
     type MemoryRow,
     type MemorySearchHit,
-    type MemoryBodyMode,
     MemoryPendingJobType,
     type PendingMemoryJobRow,
     type MemoryWorkspaceScope,
@@ -40,10 +41,13 @@ import {
 // 读路径（每轮注入 system prompt）—— 高频常驻成本，截到 evidence/recency 排序里的头部就够，
 // 模型未命中时还有 search_memory 工具兜底。
 const DEFAULT_READ_MENU_LIMIT = 50;
-// 写路径（writer LLM 单次抽取）—— 单次成本，需要更广的覆盖来判断 create/update 去重。
-const DEFAULT_WRITER_MENU_LIMIT = 200;
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_SCORE_FLOOR = 0.15;
+const DEFAULT_SELECTOR_CONTEXT_WINDOW = 32_000;
+const SELECTOR_INPUT_TOKEN_CAP = 16_000;
+const SELECTOR_CANDIDATES_PER_BATCH = 8;
+const SELECTOR_FINAL_CANDIDATE_LIMIT = 20;
+const SELECTOR_DURABLE_FACT_LIMIT = 12;
 
 const DEFAULT_TOOL_DESCS: MemoryToolDescs = {
     read: [
@@ -79,6 +83,32 @@ const MemoryKindSchema = z.enum([
 ]);
 const MemoryBodyModeSchema = z.enum(['replace', 'append']);
 const MemoryScopeSchema = z.enum([MemoryScope.Global, MemoryScope.Workspace]);
+
+const MemoryCandidateSchema = z.object({
+    scope: MemoryScopeSchema,
+    slug: z.string().regex(SLUG_PATTERN),
+});
+const MemorySelectionOutputSchema = z.object({
+    shouldWrite: z.boolean(),
+    candidates: z.array(MemoryCandidateSchema).max(SELECTOR_FINAL_CANDIDATE_LIMIT),
+});
+type MemorySelectionOutput = z.infer<typeof MemorySelectionOutputSchema>;
+const DurableFactSchema = z.string().min(1).max(300);
+const MemoryConversationAnalysisSchema = z.discriminatedUnion('shouldWrite', [
+    z.object({
+        shouldWrite: z.literal(false),
+        durableFacts: z.array(DurableFactSchema).max(0),
+    }),
+    z.object({
+        shouldWrite: z.literal(true),
+        durableFacts: z.array(DurableFactSchema).min(1).max(SELECTOR_DURABLE_FACT_LIMIT),
+    }),
+]);
+type MemoryConversationAnalysis = z.infer<typeof MemoryConversationAnalysisSchema>;
+const MemoryCandidateOutputSchema = z.object({
+    candidates: z.array(MemoryCandidateSchema).max(SELECTOR_FINAL_CANDIDATE_LIMIT),
+});
+type MemoryCandidateOutput = z.infer<typeof MemoryCandidateOutputSchema>;
 
 export enum MemoryOpAction {
     Create = 'create',
@@ -131,19 +161,8 @@ type MemoryJobStats = MemoryWriterOpStats & {
     pruned?: number;
 };
 
-const MemoryUpdateMergeSchema = z.object({
-    title: z.string().min(1).max(TITLE_MAX).optional(),
-    body: z.string().min(1).optional(),
-    bodyMode: MemoryBodyModeSchema.optional(),
-});
-type MemoryUpdateMergeOutput = z.infer<typeof MemoryUpdateMergeSchema>;
-
 /** applyOps 的执行上下文：区分「真实对话抽取」和「后台整理」两条调用路径。 */
 type ApplyOpsContext = {
-    /** 原始对话文本，mergeUpdateBody 需要它判断新信息是否真的取代旧 body */
-    conversation?: string;
-    /** 是否为带 body 的 update 额外走一次合并 LLM（抽取路径 true，整理路径 false） */
-    mergeUpdateBodies?: boolean;
     /**
      * 每次 update 给 evidence_count 加多少。
      *
@@ -156,6 +175,8 @@ type ApplyOpsContext = {
     target: MemoryTarget;
     /** null 表示 Writer 可按 op.scope 路由；整理任务传固定 scope。 */
     fixedScope: MemoryScope | null;
+    /** update/delete 只允许命中 Writer 实际看过正文的条目；null 表示不限制。 */
+    allowedExisting: ReadonlySet<string> | null;
 };
 
 const GLOBAL_MEMORY_TARGET: MemoryTarget = { scope: MemoryScope.Global };
@@ -190,8 +211,10 @@ const MEMORY_SCOPE_WRITER_INSTRUCTION = [
  */
 export class MemoryService {
     private logger?: ILogger;
-    private readonly modelService: IModelService;
+    private readonly writerModel: IModelService;
+    private readonly selectorModel: IModelService;
     private readonly writerPrompt: string;
+    private readonly selectorPrompt: string;
     private isRunning = false;
     private refCount = 0;
     private disposed = false;
@@ -204,12 +227,16 @@ export class MemoryService {
         @inject(IMemoryStore) private readonly store: IMemoryStore,
         @inject(T_MemoryReadTemplate) private readonly readTemplate: string,
         @inject(T_MemoryWriterPrompt) writerPrompt: string,
-        @inject(IModelService) modelService: IModelService,
+        @inject(T_MemorySelectorPrompt) selectorPrompt: string,
+        @inject(IModelService) writerModel: IModelService,
+        @inject(T_MemorySelectorModel) selectorModel: IModelService,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("MemoryService");
-        this.modelService = modelService;
+        this.writerModel = writerModel;
+        this.selectorModel = selectorModel;
         this.writerPrompt = writerPrompt;
+        this.selectorPrompt = selectorPrompt;
     }
 
     // ── 生命周期：refCount 配对，归零一次性 teardown ──
@@ -586,32 +613,33 @@ export class MemoryService {
         }
 
         const conversation = renderConversation(messages);
-        const { globalMenu, workspaceMenu } = await this.listScopedMenus(DEFAULT_WRITER_MENU_LIMIT, target);
-        const globalMenuLines = globalMenu.length === 0
-            ? '_(no existing memories)_'
-            : globalMenu.map(m => `- [global; ${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.title}`).join('\n');
-        const workspaceMenuLines = workspaceMenu.length === 0
-            ? '_(no existing workspace memories)_'
-            : workspaceMenu.map(m => `- [workspace; ${m.kind}; evidence=${m.evidenceCount}] ${m.slug} — ${m.title}`).join('\n');
+        const allRows = await this.listAll(target);
+        const selection = await this.selectExtractionCandidates(conversation, allRows, target);
+        if (!selection.shouldWrite && selection.rows.length === 0) {
+            return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
+        }
+
+        const selectedEntries = selection.rows.length === 0
+            ? '_(none — the selector found durable new information but no overlapping existing entry)_'
+            : selection.rows.map(row => [
+                `## [${row.scope}] ${row.slug}`,
+                `kind: ${row.kind}`,
+                `evidence: ${row.evidenceCount}`,
+                `title: ${row.title}`,
+                `updated_at: ${new Date(row.updatedAt).toISOString()}`,
+                ``,
+                row.body,
+            ].join('\n')).join('\n\n---\n\n');
         const input = [
-            `# Existing global memories (${globalMenu.length} ${globalMenu.length === 1 ? 'entry' : 'entries'})`,
+            `# Current workspace`,
             ``,
-            globalMenuLines,
-            ...(target.scope === MemoryScope.Workspace ? [
-                ``,
-                `# Current workspace`,
-                ``,
-                target.workspace.path,
-                ``,
-                `# Existing workspace memories (${workspaceMenu.length} ${workspaceMenu.length === 1 ? 'entry' : 'entries'})`,
-                ``,
-                workspaceMenuLines,
-            ] : [
-                ``,
-                `# Current workspace`,
-                ``,
-                `_(none — workspace scope is unavailable for this conversation)_`,
-            ]),
+            target.scope === MemoryScope.Workspace
+                ? target.workspace.path
+                : `_(none — workspace scope is unavailable for this conversation)_`,
+            ``,
+            `# Selected existing memories with full bodies (${selection.rows.length})`,
+            ``,
+            selectedEntries,
             ``,
             `# Conversation transcript`,
             ``,
@@ -624,19 +652,266 @@ export class MemoryService {
         ].join('\n');
 
         const llmMessages: ChatMessage[] = [
-            { role: MessageRole.System, content: `${this.writerPrompt}\n\n# Memory scope routing\n\n${MEMORY_SCOPE_WRITER_INSTRUCTION}` },
+            {
+                role: MessageRole.System,
+                content: [
+                    this.writerPrompt,
+                    `# Authoritative two-stage curation contract`,
+                    `This is the final curation pass. The selected existing memories below include their full bodies.`,
+                    `Only update or delete an existing memory shown in that selected set, preserving its exact scope and slug.`,
+                    `When changing a body, return the complete final body without the H1 title line and use bodyMode="replace"; no later merge pass will run.`,
+                    `Create only when none of the selected entries covers the durable fact.`,
+                    `Delete only when the full body and conversation clearly prove the entry is false, superseded, or explicitly forgotten.`,
+                    `Default to noop when the selector was cautious but the full evidence does not justify a mutation.`,
+                    `# Memory scope routing`,
+                    MEMORY_SCOPE_WRITER_INSTRUCTION,
+                ].join('\n\n'),
+            },
             { role: MessageRole.Human, content: input },
         ];
 
-        const result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, llmMessages);
+        const result = await this.writerModel.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, llmMessages);
         // 抽取路径：本轮对话确实提到了被 update 的条目 → evidence +1
         return await this.applyOps(result.ops, {
-            conversation,
-            mergeUpdateBodies: true,
             evidenceDelta: 1,
             target,
             fixedScope: null,
+            allowedExisting: new Set(selection.rows.map(row => MemoryService.rowKey(row))),
         });
+    }
+
+    private async selectExtractionCandidates(
+        conversation: string,
+        rows: MemoryRow[],
+        target: MemoryTarget,
+    ): Promise<{ shouldWrite: boolean; rows: MemoryRow[] }> {
+        const rowByKey = new Map(rows.map(row => [MemoryService.rowKey(row), row] as const));
+        const selected = new Map<string, MemoryRow>();
+        const inputBudget = this.selectorInputTokenBudget();
+        const completeCatalogMessages = this.buildCompleteCatalogSelectorMessages(
+            conversation,
+            rows,
+            target,
+            SELECTOR_FINAL_CANDIDATE_LIMIT,
+        );
+        const completeCatalogTokens = MemoryService.estimateMessagesTokens(completeCatalogMessages);
+
+        // 常见的小库只调用一次 Selector：完整对话 + 全部自包含 title。
+        if (completeCatalogTokens <= inputBudget) {
+            this.logMemory('debug', `Selector 单次标题筛选：entries=${rows.length}，估算输入=${completeCatalogTokens} tokens，预算=${inputBudget}`);
+            const result = await this.selectorModel.invokeStructured<MemorySelectionOutput>(
+                MemorySelectionOutputSchema,
+                completeCatalogMessages,
+            );
+            this.collectValidCandidates(result.candidates, rowByKey, selected, SELECTOR_FINAL_CANDIDATE_LIMIT);
+            return {
+                shouldWrite: result.shouldWrite || selected.size > 0,
+                rows: [...selected.values()],
+            };
+        }
+
+        // 大库才拆两步：完整对话只压缩一次，之后每批只重复少量 durableFacts + title。
+        this.logMemory('debug', `Selector 标题目录超预算，切换分批：entries=${rows.length}，估算输入=${completeCatalogTokens} tokens，预算=${inputBudget}`);
+        const analysis = await this.analyzeConversationForMemory(conversation, target);
+        if (!analysis.shouldWrite) return { shouldWrite: false, rows: [] };
+        if (rows.length === 0 || analysis.durableFacts.length === 0) {
+            return { shouldWrite: true, rows: [] };
+        }
+
+        let pool = await this.selectCatalogCandidates(
+            analysis.durableFacts,
+            rows,
+            target,
+            inputBudget,
+            SELECTOR_CANDIDATES_PER_BATCH,
+        );
+        while (pool.length > SELECTOR_FINAL_CANDIDATE_LIMIT) {
+            const reduced = await this.selectCatalogCandidates(
+                analysis.durableFacts,
+                pool,
+                target,
+                inputBudget,
+                SELECTOR_FINAL_CANDIDATE_LIMIT,
+            );
+            if (reduced.length === 0 || reduced.length >= pool.length) {
+                pool = pool.slice(0, SELECTOR_FINAL_CANDIDATE_LIMIT);
+                break;
+            }
+            pool = reduced;
+        }
+
+        return {
+            shouldWrite: true,
+            rows: pool.slice(0, SELECTOR_FINAL_CANDIDATE_LIMIT),
+        };
+    }
+
+    private async analyzeConversationForMemory(
+        conversation: string,
+        target: MemoryTarget,
+    ): Promise<MemoryConversationAnalysis> {
+        const messages: ChatMessage[] = [
+            {
+                role: MessageRole.System,
+                content: [
+                    this.selectorPrompt,
+                    `# Conversation analysis mode`,
+                    `Decide whether the transcript contains durable information worth a memory write.`,
+                    `If yes, return up to ${SELECTOR_DURABLE_FACT_LIMIT} short, self-contained durableFacts for matching against memory titles.`,
+                    `Do not select memories or propose CRUD operations in this mode.`,
+                ].join('\n\n'),
+            },
+            {
+                role: MessageRole.Human,
+                content: [
+                    `# Current workspace`,
+                    target.scope === MemoryScope.Workspace
+                        ? target.workspace.path
+                        : `_(none — workspace scope is unavailable)_`,
+                    ``,
+                    `# Conversation transcript`,
+                    conversation,
+                ].join('\n'),
+            },
+        ];
+        return this.selectorModel.invokeStructured<MemoryConversationAnalysis>(MemoryConversationAnalysisSchema, messages);
+    }
+
+    private async selectCatalogCandidates(
+        durableFacts: string[],
+        rows: MemoryRow[],
+        target: MemoryTarget,
+        inputBudget: number,
+        maxCandidates: number,
+    ): Promise<MemoryRow[]> {
+        const selected = new Map<string, MemoryRow>();
+        const chunks = this.chunkCatalogForSelector(durableFacts, rows, target, inputBudget, maxCandidates);
+        this.logMemory('debug', `Selector 分批标题筛选：entries=${rows.length}，batches=${chunks.length}，每批候选上限=${maxCandidates}`);
+        for (const chunk of chunks) {
+            const messages = this.buildFactCatalogSelectorMessages(durableFacts, chunk, target, maxCandidates);
+            const result = await this.selectorModel.invokeStructured<MemoryCandidateOutput>(
+                MemoryCandidateOutputSchema,
+                messages,
+            );
+            const chunkByKey = new Map(chunk.map(row => [MemoryService.rowKey(row), row] as const));
+            this.collectValidCandidates(result.candidates, chunkByKey, selected, maxCandidates);
+        }
+        return [...selected.values()];
+    }
+
+    private buildCompleteCatalogSelectorMessages(
+        conversation: string,
+        catalog: MemoryRow[],
+        target: MemoryTarget,
+        maxCandidates: number,
+    ): ChatMessage[] {
+        return [
+            {
+                role: MessageRole.System,
+                content: [
+                    this.selectorPrompt,
+                    `# Complete-catalog mode`,
+                    `Analyze the transcript and select matching entries from the complete title catalog in this request.`,
+                    `Set shouldWrite=true for durable new information even when no title matches.`,
+                    `Return at most ${maxCandidates} candidates.`,
+                    `# Memory scope routing`,
+                    MEMORY_SCOPE_WRITER_INSTRUCTION,
+                ].join('\n\n'),
+            },
+            {
+                role: MessageRole.Human,
+                content: [
+                    `# Current workspace`,
+                    target.scope === MemoryScope.Workspace
+                        ? target.workspace.path
+                        : `_(none — workspace scope is unavailable)_`,
+                    ``,
+                    `# Conversation transcript`,
+                    conversation,
+                    ``,
+                    `# Complete existing memory title catalog`,
+                    MemoryService.renderCatalog(catalog),
+                ].join('\n'),
+            },
+        ];
+    }
+
+    private buildFactCatalogSelectorMessages(
+        durableFacts: string[],
+        catalog: MemoryRow[],
+        target: MemoryTarget,
+        maxCandidates: number,
+    ): ChatMessage[] {
+        return [
+            {
+                role: MessageRole.System,
+                content: [
+                    this.selectorPrompt,
+                    `# Catalog matching mode`,
+                    `Match the supplied durable facts against this exact title catalog batch.`,
+                    `Return at most ${maxCandidates} candidates copied from this batch.`,
+                    `Do not decide whether to write and do not propose CRUD operations.`,
+                    `# Memory scope routing`,
+                    MEMORY_SCOPE_WRITER_INSTRUCTION,
+                ].join('\n\n'),
+            },
+            {
+                role: MessageRole.Human,
+                content: [
+                    `# Durable facts`,
+                    durableFacts.map(fact => `- ${fact}`).join('\n'),
+                    ``,
+                    `# Current workspace`,
+                    target.scope === MemoryScope.Workspace
+                        ? target.workspace.path
+                        : `_(none — workspace scope is unavailable)_`,
+                    ``,
+                    `# Existing memory title catalog batch`,
+                    MemoryService.renderCatalog(catalog),
+                ].join('\n'),
+            },
+        ];
+    }
+
+    private chunkCatalogForSelector(
+        durableFacts: string[],
+        rows: MemoryRow[],
+        target: MemoryTarget,
+        inputBudget: number,
+        maxCandidates: number,
+    ): MemoryRow[][] {
+        if (rows.length === 0) return [];
+        const emptyMessages = this.buildFactCatalogSelectorMessages(durableFacts, [], target, maxCandidates);
+        const catalogBudget = Math.max(256, inputBudget - MemoryService.estimateMessagesTokens(emptyMessages));
+        const chunks: MemoryRow[][] = [];
+        let current: MemoryRow[] = [];
+        let currentTokens = 0;
+        for (const row of rows) {
+            const rowTokens = MemoryService.estimateTextTokens(MemoryService.catalogLine(row));
+            if (current.length > 0 && currentTokens + rowTokens > catalogBudget) {
+                chunks.push(current);
+                current = [];
+                currentTokens = 0;
+            }
+            current.push(row);
+            currentTokens += rowTokens;
+        }
+        if (current.length > 0) chunks.push(current);
+        return chunks;
+    }
+
+    private collectValidCandidates(
+        candidates: MemorySelectionOutput['candidates'],
+        available: ReadonlyMap<string, MemoryRow>,
+        out: Map<string, MemoryRow>,
+        limit: number,
+    ): void {
+        for (const candidate of candidates.slice(0, limit)) {
+            const key = MemoryService.scopeSlugKey(candidate.scope, candidate.slug);
+            const row = available.get(key);
+            if (row) out.set(key, row);
+            else this.logMemory('warn', `Selector 返回了当前目录不存在的候选：${key}`);
+        }
     }
 
     private async consolidateMemories(target: MemoryTarget): Promise<MemoryWriterOpStats> {
@@ -668,6 +943,7 @@ export class MemoryService {
                     `Allowed useful actions: update an existing memory to merge duplicate details; delete an entry only when it is clearly redundant or superseded.`,
                     `Do not create new memories during consolidation.`,
                     `Every update/delete operation must use scope="${target.scope}".`,
+                    `Rewrite vague or stale titles as self-contained compact memory cards containing the subject, applicable condition, and current rule/value.`,
                     `If updating body, write the full final body without the H1 title line.`,
                     `Keep the leading **When:** / **Do:** / **Why:** lines at the very top for actionable entries; a body whose trigger condition is buried at the bottom should be reordered to that shape.`,
                 ].join('\n'),
@@ -686,7 +962,7 @@ export class MemoryService {
             },
         ];
 
-        const result = await this.modelService.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, messages);
+        const result = await this.writerModel.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, messages);
 
         // 安全闸门：单次整理最多 30 ops；其中 delete 不超过 max(10, 30% 总量)。
         // 防止一次坏 LLM 输出（如全删）打爆记忆库。
@@ -697,10 +973,10 @@ export class MemoryService {
         }
         // 整理路径：没有新对话作证，只是重写措辞/合并重复 → evidence 不动
         return this.applyOps(capped, {
-            mergeUpdateBodies: false,
             evidenceDelta: 0,
             target,
             fixedScope: target.scope,
+            allowedExisting: new Set(rows.map(row => MemoryService.scopeSlugKey(target.scope, row.slug))),
         });
     }
 
@@ -756,30 +1032,9 @@ export class MemoryService {
                 }
                 switch (op.action) {
                     case MemoryOpAction.Create: {
-                        // writer 是盲写：它只看到 menu 里的 title，看不到任何 body，
-                        // 所以 slug 撞车是可预期结果而不是异常。裸 INSERT 会抛 UNIQUE
-                        // 被下面的 catch 吞成 failed，这条记忆就静默丢了——降级成 update，
-                        // 走和普通 update 完全相同的安全合并路径，信息至少落进已有条目。
                         const existing = await target!.store.getBySlug(op.slug);
                         if (existing) {
-                            this.logMemory('info', `记忆已存在，create 降级为 update：scope=${target!.scope}, slug=${op.slug}`);
-                            // 刻意不传 title / kind：那两个值是 writer 为「一条全新条目」编的，
-                            // 直接写进去就是盲目覆盖已有条目的标签。省略后 store.update 保留原值，
-                            // 而候选标题通过 reason 进入 merge LLM 的输入——它看得到，
-                            // 觉得该换标题时自己返回 title 即可。
-                            // 这样 merge 失败（catch 分支清空 body）也只是什么都没改，
-                            // 不会留下「标签是新事实、正文还是旧的」这种错配。
-                            await this.applyUpdate({
-                                action: MemoryOpAction.Update,
-                                slug: op.slug,
-                                body: op.body,
-                                scope: op.scope,
-                                reason: `create fell back to update: slug already exists. `
-                                    + `The new information was drafted as a separate entry `
-                                    + `titled "${op.title}" (kind: ${op.kind}).`,
-                            }, context, now, target!.store);
-                            out.update++;
-                            break;
+                            throw new Error(`Memory already exists: [${target!.scope}] ${op.slug}; selector/writer must use update after reading its body`);
                         }
                         await target!.store.create({
                             slug: op.slug,
@@ -823,95 +1078,77 @@ export class MemoryService {
     ): Promise<{ store: IMemoryStore; scope: MemoryScope }> {
         const requested = context.fixedScope ?? op.scope;
         const target = this.entryTarget(requested, context.target);
+        if (op.action !== MemoryOpAction.Create && context.allowedExisting) {
+            const key = MemoryService.scopeSlugKey(target.scope, op.slug);
+            if (!context.allowedExisting.has(key)) {
+                throw new Error(`Writer cannot ${op.action} memory whose body was not provided: ${key}`);
+            }
+        }
         return { store: await this.storeForTarget(target), scope: target.scope };
     }
 
-    /** update 落库：抽出来给 `case Update` 和 create 撞 slug 的降级路径共用。 */
+    /** 第二阶段 Writer 已看过正文并给出最终字段；这里直接落库，不再逐条调用 merge LLM。 */
     private async applyUpdate(
         op: Extract<MemoryOp, { action: MemoryOpAction.Update }>,
         context: ApplyOpsContext,
         now: number,
         store: IMemoryStore,
     ): Promise<void> {
-        const merged = context.mergeUpdateBodies && op.body
-            ? await this.mergeUpdateBody(op, context.conversation, store)
-            : op;
         await store.update({
-            slug: merged.slug,
-            kind: merged.kind as MemoryKind | undefined,
-            title: merged.title,
-            body: merged.body,
-            bodyMode: merged.bodyMode as MemoryBodyMode | undefined,
+            slug: op.slug,
+            kind: op.kind as MemoryKind | undefined,
+            title: op.title,
+            body: op.body,
+            // Writer 已拿到完整旧正文并被要求返回完整最终正文；强制 replace，
+            // 避免模型误填 append 后把整份正文重复追加一遍。
+            bodyMode: op.body ? 'replace' : undefined,
             evidenceDelta: context.evidenceDelta,
         }, now);
     }
 
-    private async mergeUpdateBody(
-        op: Extract<MemoryOp, { action: MemoryOpAction.Update }>,
-        conversation: string | undefined,
-        store: IMemoryStore,
-    ): Promise<Extract<MemoryOp, { action: MemoryOpAction.Update }>> {
-        const existing = await store.getBySlug(op.slug);
-        if (!existing) return op;
+    private static rowKey(row: Pick<MemoryRow, 'scope' | 'slug'>): string {
+        return MemoryService.scopeSlugKey(row.scope, row.slug);
+    }
 
-        const messages: ChatMessage[] = [
-            {
-                role: MessageRole.System,
-                content: [
-                    `You safely merge an update into an existing long-term memory.`,
-                    `The existing body is authoritative unless the new transcript clearly supersedes it.`,
-                    `Return only fields that should change.`,
-                    `If body changes, return the full final body without the H1 title line.`,
-                    `Keep the leading **When:** / **Do:** / **Why:** lines at the very top when the existing body has them — revise them in place rather than adding a contradicting note below.`,
-                    `Use bodyMode="replace" for a full revised body, or bodyMode="append" only for a small additive note.`,
-                ].join('\n'),
-            },
-            {
-                role: MessageRole.Human,
-                content: [
-                    `# Existing memory`,
-                    `slug: ${existing.slug}`,
-                    `kind: ${existing.kind}`,
-                    `title: ${existing.title}`,
-                    ``,
-                    existing.body,
-                    ``,
-                    `# Proposed update`,
-                    JSON.stringify({
-                        kind: op.kind,
-                        title: op.title,
-                        body: op.body,
-                        bodyMode: op.bodyMode,
-                        reason: op.reason,
-                    }, null, 2),
-                    ``,
-                    `# Source conversation window`,
-                    conversation ?? '',
-                ].join('\n'),
-            },
-        ];
+    private static scopeSlugKey(scope: MemoryScope, slug: string): string {
+        return `${scope}:${slug}`;
+    }
 
-        try {
-            const merged = await this.modelService.invokeStructured<MemoryUpdateMergeOutput>(MemoryUpdateMergeSchema, messages);
-            return {
-                ...op,
-                title: merged.title ?? op.title,
-                body: merged.body ?? op.body,
-                bodyMode: merged.bodyMode ?? op.bodyMode,
-            };
-        } catch (e: any) {
-            this.logMemory('warn', `合并修改记忆失败：${op.slug}，错误=${formatError(e, true)}`);
-            // 保护旧 body：merge 失败时只应用 title/kind，不直接替换正文。
-            return {
-                ...op,
-                body: undefined,
-                bodyMode: undefined,
-            };
-        }
+    private static catalogLine(row: MemoryRow): string {
+        return `- [${row.scope}; ${row.kind}; evidence=${row.evidenceCount}] ${row.slug} — ${row.title}`;
+    }
+
+    private static renderCatalog(rows: MemoryRow[]): string {
+        return rows.length === 0
+            ? '_(empty catalog)_'
+            : rows.map(row => MemoryService.catalogLine(row)).join('\n');
+    }
+
+    private selectorInputTokenBudget(): number {
+        const contextWindow = this.selectorModel.config.contextWindow ?? DEFAULT_SELECTOR_CONTEXT_WINDOW;
+        return Math.max(512, Math.min(SELECTOR_INPUT_TOKEN_CAP, Math.floor(contextWindow * 0.5)));
+    }
+
+    private static estimateTextTokens(text: string): number {
+        // 与 ConversationCompactor 保持同一保守估算：中英文混合文本约 0.75 token/char。
+        return Math.ceil(text.length * 0.75) + 4;
+    }
+
+    private static estimateMessagesTokens(messages: ChatMessage[]): number {
+        return messages.reduce(
+            (sum, message) => sum + MemoryService.estimateTextTokens(contentToString(message.content)),
+            0,
+        );
     }
 
     private modelLabel(): string {
-        const cfg = this.modelService.config as any;
+        const writer = MemoryService.formatModelLabel(this.writerModel);
+        if (this.selectorModel === this.writerModel) return writer;
+        return `writer=${writer}, selector=${MemoryService.formatModelLabel(this.selectorModel)}`;
+    }
+
+    private static formatModelLabel(model: IModelService): string {
+        const cfg = model.config as any;
         const name = cfg.name || cfg.model || '?';
         const detail = [
             cfg.provider,

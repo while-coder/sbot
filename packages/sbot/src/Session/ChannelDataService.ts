@@ -661,7 +661,7 @@ export class ChannelDataService {
  * 覆盖：
  * - agent ID（profile.agentId / channel.agent / agent.agents[].id）
  * - saver UUID（profile.saver / channel.saver）
- * - model UUID（intentModel / agent.model / agent.compactModel / memoryProfile.writerModel / agendaProfile.syncModel）
+ * - model UUID（intentModel / agent.model / agent.compactModel / memoryProfile.writerModel / memoryProfile.selectorModel / agendaProfile.syncModel）
  * - embedding UUID（note.embedding / wiki.embedding）
  * - note/wiki UUID（profile.notes[] / channel.notes[]，wikis 同理）
  * - memoryProfile / agendaProfile UUID（profile.memory / channel.memory，agenda 同理）
@@ -756,6 +756,9 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         const src = `memoryProfile:${iid}${mp.name ? `(${mp.name})` : ''}`;
         if (mp.writerModel && !has(models, mp.writerModel)) {
             invalidModelRefs.push({ source: src, field: 'writerModel', badValue: mp.writerModel });
+        }
+        if (mp.selectorModel && !has(models, mp.selectorModel)) {
+            invalidModelRefs.push({ source: src, field: 'selectorModel', badValue: mp.selectorModel });
         }
     }
     for (const [aid, ap] of Object.entries(agendaProfiles)) {

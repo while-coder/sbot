@@ -533,6 +533,8 @@ export default {
     name_placeholder: 'e.g. Default Memory',
     writer_model: 'Writer Model',
     writer_model_placeholder: 'MemoryLLM (reasoning-capable recommended)',
+    selector_model: 'Selector Model',
+    use_writer_model: 'Use Writer Model',
     writer_prompt: 'Writer System Prompt',
     read_prompt: 'Read Path Template',
     run_consolidate: 'Clean Up Memories',

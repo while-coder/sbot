@@ -48,6 +48,10 @@ export const T_MemoryDbPath = Symbol("scorpio:T_MemoryDbPath");
 export const T_MemoryReadTemplate = Symbol("scorpio:T_MemoryReadTemplate");
 /** MemoryWriter LLM 的 system prompt（已加载文件内容）。 */
 export const T_MemoryWriterPrompt = Symbol("scorpio:T_MemoryWriterPrompt");
+/** MemorySelector LLM 的 system prompt（已加载文件内容）。 */
+export const T_MemorySelectorPrompt = Symbol("scorpio:T_MemorySelectorPrompt");
+/** MemorySelector 使用的模型；未单独配置时由应用层传入 writerModel。 */
+export const T_MemorySelectorModel = Symbol("scorpio:T_MemorySelectorModel");
 
 // Wiki tokens
 export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");

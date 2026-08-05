@@ -663,7 +663,7 @@ export class MemoryCommand implements ICommand {
                 .sort(([a], [b]) => a.localeCompare(b));
             if (profiles.length === 0) return mdTitle('没有可用的 Memory Profile');
             return `${mdTitle('可用 Memory Profile')}\n` + profiles
-                .map(([id, p]) => `- ${mdNamedRef(id, p.name)} · ${mdEnabled(p.enabled)} · writer ${mdModelName(p.writerModel)}`)
+                .map(([id, p]) => `- ${mdNamedRef(id, p.name)} · ${mdEnabled(p.enabled)} · writer ${mdModelName(p.writerModel)} · selector ${mdModelName(p.selectorModel || p.writerModel)}`)
                 .join('\n');
         }
 
@@ -673,7 +673,7 @@ export class MemoryCommand implements ICommand {
             const p = resolved.memory ? config.getMemoryProfile(resolved.memory) : undefined;
             const channel = config.getChannel(eff.session.channelId);
             const current = resolved.memory
-                ? `${mdNamedRef(resolved.memory, p?.name)}${p ? ` · ${mdEnabled(p.enabled)} · writer ${mdModelName(p.writerModel)}` : '（配置不存在）'}`
+                ? `${mdNamedRef(resolved.memory, p?.name)}${p ? ` · ${mdEnabled(p.enabled)} · writer ${mdModelName(p.writerModel)} · selector ${mdModelName(p.selectorModel || p.writerModel)}` : '（配置不存在）'}`
                 : cur;
             return [
                 mdTitle('当前 Memory Profile'),

@@ -533,6 +533,8 @@ export default {
     name_placeholder: '如：默认长期记忆',
     writer_model: 'Writer 模型',
     writer_model_placeholder: '后台 MemoryLLM（建议 reasoning 强的模型）',
+    selector_model: 'Selector 模型',
+    use_writer_model: '使用 Writer 模型',
     writer_prompt: 'Writer 系统 Prompt',
     read_prompt: 'Read 路径模板',
     run_consolidate: '整理记忆',
