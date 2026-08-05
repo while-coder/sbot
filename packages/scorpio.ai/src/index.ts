@@ -244,6 +244,7 @@ export {
   MemoryToolProvider,
   READ_MEMORY_TOOL_NAME,
   SEARCH_MEMORY_TOOL_NAME,
+  REMEMBER_MEMORY_TOOL_NAME,
   MemoryKind,
   MemoryScope,
   type StoredMemoryRow,

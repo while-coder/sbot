@@ -438,6 +438,27 @@ export class MemoryService {
             .slice(0, cap);
     }
 
+    async remember(content: string, scope: MemoryScope, viewTarget: MemoryTarget): Promise<number> {
+        const normalized = content.trim();
+        if (!normalized) throw new Error('Memory content is empty');
+        // 在入队前验证 view 是否具备 requested scope，避免产生永远无法执行的任务。
+        this.entryTarget(scope, viewTarget);
+        try {
+            const jobId = this.store.pushPendingMessages(
+                [{ role: MessageRole.Human, content: normalized }],
+                Date.now(),
+                viewTarget,
+                scope,
+            );
+            this.logMemory('info', `显式记忆已入队：job=${jobId}，scope=${scope}，内容=${truncateForLog(normalized)}`);
+            void this.checkJobs();
+            return jobId;
+        } catch (e: any) {
+            this.logMemory('warn', `显式记忆入队失败：scope=${scope}，错误=${formatError(e, true)}`);
+            throw e;
+        }
+    }
+
     getToolDescs(): MemoryToolDescs {
         return DEFAULT_TOOL_DESCS;
     }
@@ -602,20 +623,19 @@ export class MemoryService {
 
     // ── MemoryLLM CRUD 抽取（原 MemoryWriterWorker） ──
 
-    /**
-     * 单轮抽取：把一组对话消息喂给 MemoryLLM，应用返回的 ops。
-     * 模型调用失败会抛出，由 checkJobs 决定是否标记 pending job 为 failed。
-     */
+    /** 普通 turn 和 remember_memory 共用同一条 extract 执行链；requestedScope 表示显式写入。 */
     private async extractFromMessages(job: PendingMemoryJobRow, target: MemoryTarget): Promise<MemoryWriterOpStats> {
         const messages = job.messages ?? [];
+        const explicitScope = job.requestedScope;
         if (messages.length === 0) {
             return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
         }
 
         const conversation = renderConversation(messages);
         const allRows = await this.listAll(target);
-        const selection = await this.selectExtractionCandidates(conversation, allRows, target);
-        if (!selection.shouldWrite && selection.rows.length === 0) {
+        const candidateRows = explicitScope ? allRows.filter(row => row.scope === explicitScope) : allRows;
+        const selection = await this.selectExtractionCandidates(conversation, candidateRows, target);
+        if (!explicitScope && !selection.shouldWrite && selection.rows.length === 0) {
             return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
         }
 
@@ -631,6 +651,7 @@ export class MemoryService {
                 row.body,
             ].join('\n')).join('\n\n---\n\n');
         const input = [
+            ...(explicitScope ? [`# Requested scope`, explicitScope, ``] : []),
             `# Current workspace`,
             ``,
             target.scope === MemoryScope.Workspace
@@ -647,37 +668,59 @@ export class MemoryService {
             ``,
             `---`,
             ``,
-            `Decide what — if anything — to record. Default to a single \`noop\` if`,
-            `nothing in this transcript meets the high-signal bar.`,
+            explicitScope
+                ? `Persist this explicitly requested memory now; do not apply the normal high-signal veto.`
+                : `Decide what — if anything — to record. Default to a single \`noop\` if`,
+            ...(explicitScope ? [] : [`nothing in this transcript meets the high-signal bar.`]),
         ].join('\n');
-
         const llmMessages: ChatMessage[] = [
             {
                 role: MessageRole.System,
                 content: [
                     this.writerPrompt,
-                    `# Authoritative two-stage curation contract`,
-                    `This is the final curation pass. The selected existing memories below include their full bodies.`,
+                    explicitScope ? `# Explicit persistence contract` : `# Authoritative two-stage curation contract`,
+                    explicitScope
+                        ? `Return exactly one create/update operation, or noop only when a selected entry already contains the same information. Never delete.`
+                        : `This is the final curation pass. The selected existing memories below include their full bodies.`,
                     `Only update or delete an existing memory shown in that selected set, preserving its exact scope and slug.`,
                     `When changing a body, return the complete final body without the H1 title line and use bodyMode="replace"; no later merge pass will run.`,
                     `Create only when none of the selected entries covers the durable fact.`,
                     `Delete only when the full body and conversation clearly prove the entry is false, superseded, or explicitly forgotten.`,
-                    `Default to noop when the selector was cautious but the full evidence does not justify a mutation.`,
+                    explicitScope
+                        ? `Every mutation must use scope="${explicitScope}"; the runtime also enforces it.`
+                        : `Default to noop when the selector was cautious but the full evidence does not justify a mutation.`,
                     `# Memory scope routing`,
                     MEMORY_SCOPE_WRITER_INSTRUCTION,
                 ].join('\n\n'),
             },
             { role: MessageRole.Human, content: input },
         ];
-
         const result = await this.writerModel.invokeStructured<MemoryWriteOutput>(MemoryWriteOutputSchema, llmMessages);
-        // 抽取路径：本轮对话确实提到了被 update 的条目 → evidence +1
-        return await this.applyOps(result.ops, {
+
+        if (!explicitScope) {
+            return this.applyOps(result.ops, {
+                evidenceDelta: 1,
+                target,
+                fixedScope: null,
+                allowedExisting: new Set(selection.rows.map(row => MemoryService.rowKey(row))),
+            });
+        }
+
+        if (result.ops.length !== 1) throw new Error(`Explicit Writer must return exactly one operation`);
+        const op = result.ops[0];
+        if (op.action === MemoryOpAction.Delete) throw new Error(`Explicit Writer cannot delete memories`);
+        if (op.action === MemoryOpAction.Noop) {
+            if (selection.rows.length === 0) throw new Error(`Writer returned noop without an existing match: ${op.reason}`);
+            return { create: 0, update: 0, delete: 0, noop: 1, failed: 0 };
+        }
+        const stats = await this.applyOps([op], {
             evidenceDelta: 1,
             target,
-            fixedScope: null,
+            fixedScope: explicitScope,
             allowedExisting: new Set(selection.rows.map(row => MemoryService.rowKey(row))),
         });
+        if (stats.failed > 0) throw new Error(`Writer operation was not applied`);
+        return stats;
     }
 
     private async selectExtractionCandidates(

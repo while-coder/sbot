@@ -364,8 +364,8 @@ export class MemoryStore implements IMemoryStore {
 
     // ── 待处理 job 队列 ──
 
-    pushPendingMessages(messages: ChatMessage[], now: number, target: MemoryTarget): number {
-        return this.pushPendingJob(MemoryPendingJobType.Extract, { messages, ...target }, now);
+    pushPendingMessages(messages: ChatMessage[], now: number, target: MemoryTarget, requestedScope?: MemoryScope): number {
+        return this.pushPendingJob(MemoryPendingJobType.Extract, { messages, ...target, ...(requestedScope ? { requestedScope } : {}) }, now);
     }
 
     pushPendingConsolidate(now: number, target: MemoryTarget): number {
@@ -548,13 +548,21 @@ export class MemoryStore implements IMemoryStore {
         return row ? this.mapRow(row) : null;
     }
 
-    private parsePendingPayload(json: string | null | undefined): { messages?: ChatMessage[]; target: MemoryTarget } {
+    private parsePendingPayload(json: string | null | undefined): {
+        messages?: ChatMessage[];
+        requestedScope?: MemoryScope;
+        target: MemoryTarget;
+    } {
         try {
             const parsed = JSON.parse(json ?? '{}');
             if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
                 return { target: { scope: MemoryScope.Global } };
             }
             const messages = Array.isArray((parsed as any).messages) ? ((parsed as any).messages as ChatMessage[]) : undefined;
+            const rawRequestedScope = (parsed as any).requestedScope;
+            const requestedScope = rawRequestedScope === MemoryScope.Global || rawRequestedScope === MemoryScope.Workspace
+                ? rawRequestedScope
+                : undefined;
             const rawWorkspace = (parsed as any).workspace;
             const workspace = rawWorkspace
                 && typeof rawWorkspace === 'object'
@@ -565,7 +573,11 @@ export class MemoryStore implements IMemoryStore {
             const target: MemoryTarget = workspace
                 ? { scope: MemoryScope.Workspace, workspace }
                 : { scope: MemoryScope.Global };
-            return { ...(messages ? { messages } : {}), target };
+            return {
+                ...(messages ? { messages } : {}),
+                ...(requestedScope ? { requestedScope } : {}),
+                target,
+            };
         } catch {
             return { target: { scope: MemoryScope.Global } };
         }
@@ -604,6 +616,7 @@ export class MemoryStore implements IMemoryStore {
             id: r.id,
             type,
             messages: type === MemoryPendingJobType.Extract ? (payload.messages ?? []) : undefined,
+            requestedScope: type === MemoryPendingJobType.Extract ? payload.requestedScope : undefined,
             status: this.normalizePendingStatus(r.status),
             attemptCount: r.attempt_count ?? 0,
             errorMessage: r.error_message ?? null,

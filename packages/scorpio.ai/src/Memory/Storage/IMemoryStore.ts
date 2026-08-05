@@ -140,6 +140,8 @@ interface PendingMemoryJobBase {
     id: number;
     type: MemoryPendingJobType;
     messages?: ChatMessage[];
+    /** 仅 remember_memory 入队的 extract job 携带；存在时跳过 Selector 否决并锁定写入 scope。 */
+    requestedScope?: MemoryScope;
     status: MemoryPendingJobStatus;
     attemptCount: number;
     errorMessage: string | null;
@@ -215,8 +217,8 @@ export interface IMemoryStore {
     // 全部同步：底层 better-sqlite3 是同步 API；MemoryService 依赖
     // "push 的 SQL 在 kick 前已落库" 这一点来避免漏单。
 
-    /** 入队一轮对话的消息快照，返回插入行 id。 */
-    pushPendingMessages(messages: ChatMessage[], now: number, target: MemoryTarget): number;
+    /** 入队消息快照；requestedScope 仅由 remember_memory 传入。 */
+    pushPendingMessages(messages: ChatMessage[], now: number, target: MemoryTarget, requestedScope?: MemoryScope): number;
 
     /** 入队一次 memory 整理 job，返回插入行 id。 */
     pushPendingConsolidate(now: number, target: MemoryTarget): number;

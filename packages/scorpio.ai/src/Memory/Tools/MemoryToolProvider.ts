@@ -5,9 +5,12 @@ import { MemoryScope } from "../Storage/IMemoryStore";
 
 export const READ_MEMORY_TOOL_NAME = 'read_memory' as const;
 export const SEARCH_MEMORY_TOOL_NAME = 'search_memory' as const;
+export const REMEMBER_MEMORY_TOOL_NAME = 'remember_memory' as const;
+const REMEMBER_MEMORY_TOOL_DESCRIPTION = 'Queue a memory only when the user explicitly asks to remember/save it. ' +
+    'Use workspace for project-specific information and global for cross-project facts or preferences.';
 
 /**
- * 工厂方法集合：用 IMemoryService 生成 read_memory / search_memory 两个 tool。
+ * 工厂方法集合：用 IMemoryService 生成 read_memory / search_memory / remember_memory 工具。
  *
  * 设计：
  * - 工具描述从 service.getToolDescs() 取，允许将来按 profile 覆盖
@@ -18,9 +21,30 @@ export class MemoryToolProvider {
     static getTools(service: IMemoryService): DynamicStructuredTool[] {
         const descs = service.getToolDescs();
         return [
+            MemoryToolProvider.createRememberTool(service, REMEMBER_MEMORY_TOOL_DESCRIPTION),
             MemoryToolProvider.createReadTool(service, descs.read),
             MemoryToolProvider.createSearchTool(service, descs.search),
         ];
+    }
+
+    private static createRememberTool(
+        service: IMemoryService,
+        description: string,
+    ): DynamicStructuredTool {
+        return new DynamicStructuredTool({
+            name: REMEMBER_MEMORY_TOOL_NAME,
+            description,
+            schema: z.object({
+                scope: z.enum([MemoryScope.Global, MemoryScope.Workspace])
+                    .describe('Where the memory must be stored. Use workspace for project-specific information.'),
+                content: z.string().trim().min(1).max(8000)
+                    .describe('The durable fact, preference, workflow, or decision to remember; omit the save request itself.'),
+            }),
+            func: async ({ scope, content }) => {
+                const jobId = await service.remember(content, scope);
+                return `Memory write queued: job=${jobId}, scope=${scope}`;
+            },
+        });
     }
 
     private static createReadTool(service: IMemoryService, description: string): DynamicStructuredTool {

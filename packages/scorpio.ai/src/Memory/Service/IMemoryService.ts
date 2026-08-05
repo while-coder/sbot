@@ -50,7 +50,13 @@ export interface IMemoryService {
      */
     search(query: string, limit?: number): Promise<MemorySearchHit[]>;
 
-    /** 工具描述（注入到 read_memory / search_memory 工具的 description 字段）。 */
+    /**
+     * 用户显式要求保存时使用：把消息持久化到 extract 队列并返回 job id。
+     * 消费时绕过 Selector 的 shouldWrite 否决，并把 mutation 锁定到 requested scope。
+     */
+    remember(content: string, scope: MemoryScope): Promise<number>;
+
+    /** read_memory / search_memory 的工具描述。 */
     getToolDescs(): MemoryToolDescs;
 
     /**

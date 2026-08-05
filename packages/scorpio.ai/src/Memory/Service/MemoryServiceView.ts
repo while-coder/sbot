@@ -31,6 +31,10 @@ export abstract class MemoryServiceView implements IMemoryService {
         return this.owner.search(query, limit, this.target);
     }
 
+    remember(content: string, scope: MemoryScope): Promise<number> {
+        return this.owner.remember(content, scope, this.target);
+    }
+
     getToolDescs(): MemoryToolDescs {
         return this.owner.getToolDescs();
     }

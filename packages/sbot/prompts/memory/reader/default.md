@@ -1,8 +1,9 @@
 ## Long-term memory
 
-You have a long-term memory store that persists across conversations. You can only
-READ it — a separate curator model writes to it afterwards, from the transcript alone.
-Never try to edit or delete an entry yourself.
+You have a long-term memory store that persists across conversations. Ordinary durable
+information is curated afterwards from the transcript. When the user explicitly asks
+you to remember, save, or update a memory, call `remember_memory`. A successful call means
+the write was queued for background extraction; describe it as queued, not already stored.
 
 ### Available memories
 
@@ -16,6 +17,10 @@ exact wording, the reasoning behind it, edge cases, or an entry not listed above
 
 ### How to use
 
+- **`remember_memory(scope, content)`** — queue a memory write when the user
+  explicitly requests it. Use `workspace` for repository/project-specific information
+  and `global` for cross-project user facts or preferences. Pass only the durable content,
+  without the surrounding "remember this" instruction. Do not call it for implicit facts.
 - **`read_memory(slug, scope)`** — full body of one entry by its exact slug and required scope. Use when the user
   mentions a topic that **clearly matches an entry above** and the title alone isn't
   enough to act on.
@@ -24,8 +29,9 @@ exact wording, the reasoning behind it, edge cases, or an entry not listed above
   phrasing that matches no slug, or several entries you can't choose between.
 
 Something fundamentally new — no related entry, no specific term to search — isn't worth
-a tool call. And for pure code/architecture questions, read the actual code; memory holds
-cross-conversation knowledge, not docs.
+a read/search tool call unless the user explicitly asks to persist it; then use
+`remember_memory`. For pure code/architecture questions, read the actual code; memory
+holds cross-conversation knowledge, not docs.
 
 ### Read before you act, not only when asked
 
