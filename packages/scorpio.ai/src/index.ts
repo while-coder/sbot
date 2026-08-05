@@ -77,6 +77,7 @@ export {
   T_WikiToolDescs,
   T_MCPUtilityToolDescs,
   T_AgendaExtractorSystemPrompt,
+  T_AgendaSelectorSystemPrompt,
   T_AgendaDbPath,
   T_AgendaToolDescs,
   T_ChannelSessionId,

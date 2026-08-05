@@ -136,10 +136,22 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
             const { ok: delivered, error: deliverError } = await this.deliver(item, freshTrigger);
 
+            // 纯日志：每次实际投递尝试（不论成功与否）都落一行。必须在 absolute
+            // 重试/放弃分支前写入，否则最终 Expired 的条目会丢失失败审计记录。
+            await this.store.insertTriggerFire({
+                triggerId: freshTrigger.id,
+                itemId: item.id,
+                scheduledAt,
+                firedAt: Date.now(),
+                delivered,
+                action: freshTrigger.action,
+                message: this.fireLogMessage(freshTrigger, delivered, deliverError),
+            });
+
             // 一次性 absolute 触发投递失败时延后重试，避免提醒在临时通道异常下永久丢失。
             // expr 在 absolute trigger 中是创建时写入的 ISO 字符串，重试不会改写它；
             // 因此用 parseAt(expr) 作为"原计划时刻"，距离 deadline 超过 30 分钟则放弃。
-            // 放弃时只禁用 trigger，item 保持 Pending（避免投递失败被误标为完成）。
+            // 放弃时禁用 trigger；若它是 item 最后一条有效 trigger，则 item 置 Expired。
             if (!delivered && freshTrigger.kind === AgendaTriggerKind.Absolute && freshTrigger.maxFires === 1) {
                 const originalAt = this.parseAbsoluteExpr(freshTrigger.expr);
                 if (originalAt != null) {
@@ -150,31 +162,14 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                         logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed, retry at ${new Date(retryAt).toISOString()}`);
                         return;
                     }
-                    await this.store.updateTrigger(freshTrigger.id, {
-                        enabled: false,
-                        nextFireAt: null,
-                    });
+                    await this.disableMissedTrigger(freshTrigger);
                     logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed past retry deadline; giving up`);
                     return;
                 }
-                await this.store.updateTrigger(freshTrigger.id, {
-                    enabled: false,
-                    nextFireAt: null,
-                });
+                await this.disableMissedTrigger(freshTrigger);
                 logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed; expr unparseable, giving up`);
                 return;
             }
-
-            // 纯日志：每次 fire（不论投递成功与否）落一行 trigger_fire，不参与任何调度/完成逻辑。
-            await this.store.insertTriggerFire({
-                triggerId: freshTrigger.id,
-                itemId: item.id,
-                scheduledAt,
-                firedAt: Date.now(),
-                delivered,
-                action: freshTrigger.action,
-                message: this.fireLogMessage(freshTrigger, delivered, deliverError),
-            });
 
             await this.advanceAfterFire(freshTrigger, item, scheduledAt);
         });
@@ -262,11 +257,31 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     }
 
     private async markMissed(trigger: AgendaTrigger, scheduledAt: number): Promise<void> {
-        await this.store.updateTrigger(trigger.id, {
-            enabled: false,
-            nextFireAt: null,
-        });
+        await this.disableMissedTrigger(trigger);
         logger.warn(`Agenda trigger [${trigger.id}] missed scheduled fire at ${new Date(scheduledAt).toISOString()} beyond grace window`);
+    }
+
+    /**
+     * 停用一条已经无法再正常触发的一次性 trigger。若它是所属 item 的最后一条
+     * 有效 trigger，则把 Pending 置为 Expired；还有其它有效 trigger 时 item 继续 Pending。
+     * 整段放在 store 的互斥区内，避免与并发 addTrigger 交错而误判为“已无有效 trigger”。
+     */
+    private async disableMissedTrigger(trigger: AgendaTrigger): Promise<void> {
+        await this.store.runExclusive(async () => {
+            await this.store.updateTrigger(trigger.id, {
+                enabled: false,
+                nextFireAt: null,
+            });
+            const record = await this.store.findItem(trigger.itemId);
+            if (!record || record.item.status !== AgendaStatus.Pending) return;
+            if (record.triggers.some(candidate => candidate.enabled)) return;
+            const now = Date.now();
+            await this.store.updateItem(trigger.itemId, {
+                status: AgendaStatus.Expired,
+                doneAt: null,
+                updatedAt: now,
+            });
+        });
     }
 
     private async advanceAfterFire(trigger: AgendaTrigger, item: AgendaItem, scheduledAt: number): Promise<void> {

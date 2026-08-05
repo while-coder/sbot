@@ -3,7 +3,7 @@ Agenda system — full decision rules. Call agenda_wiki when uncertain about any
 # 1. MENTAL MODEL
 
 Two layers:
-- ITEM — the thing tracked (id, content, status, dueAt). Lifecycle: pending → done / cancelled.
+- ITEM — the thing tracked (id, content, status, dueAt). Lifecycle: pending → done / cancelled / expired.
 - TRIGGERS — 0..N schedules on an item, each with its own kind / expr / action / message / fireCount.
 
 Closing the item disables all its triggers. Disabling a trigger does NOT change item status.
@@ -14,7 +14,8 @@ Six tools: agenda_create / agenda_list / agenda_get / agenda_edit / agenda_close
 
 How an item ends depends ONLY on its triggers — there is no completion-mode flag:
 - no triggers (plain todo) → stays pending until agenda_close.
-- one-off or finite trigger (single absolute fire, or count-bounded) → auto-closes once the schedule is exhausted; nobody needs to close it.
+- one-off or finite trigger (single absolute fire, or count-bounded) → becomes done once the schedule reaches normal exhaustion; nobody needs to close it.
+- a one-off trigger missed beyond its grace window, or still undeliverable after its retry window → becomes expired only when the item has no other enabled trigger. With another live trigger, the item stays pending.
 - infinite recurring trigger → never auto-closes; ends only via agenda_close.
 
 agenda_close ends the WHOLE item. On a recurring routine, "did it today" is NOT the end of the item — there is no per-occurrence check-in anywhere in this system. Acknowledge the report in conversation and leave the agenda untouched; the trigger keeps firing on its own.
@@ -48,6 +49,8 @@ To restate a full list ("from now on only 9 and 18"), send removes for the ones 
 # 6. done vs dropped — opposite intent, same end state
 
 agenda_close `outcome`: done = "I did it"; dropped = "drop it / stop reminding me". Both close the item and disable every trigger; only the recorded status differs. When the user merely reports progress on an ongoing routine, call NEITHER (see §2).
+
+expired is a system-recorded terminal state for a missed one-off reminder, not an agenda_close outcome. It is retained as history rather than physically deleted.
 
 # 7. CREATE — pitfalls
 

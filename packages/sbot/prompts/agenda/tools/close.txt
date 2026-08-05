@@ -5,6 +5,8 @@ Terminate an agenda item permanently — status set, ALL triggers disabled.
 - dropped — "drop it / I don't want this / stop reminding me".
 Same effect on the data; the difference is recorded intent.
 
+`expired` is not an outcome accepted here. The scheduler records it automatically when a one-off reminder is missed or gives up delivery and no other trigger remains active.
+
 DO NOT call this when the user reports finishing ONE occurrence of a recurring routine ("今天的水喝完了"). There is no per-occurrence check-in — closing would kill the whole routine. Acknowledge it and leave the item alone.
 
 `at` (ISO, done only): the real completion moment when the user pinpoints a past one ("我昨天就交了"); omit for a plain "just did it".

@@ -181,7 +181,7 @@ export class AgendaToolProvider {
                 name: AGENDA_LIST_TOOL_NAME,
                 description: descs.list,
                 schema: z.object({
-                    status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, 'all']).optional().describe('Default pending. "all" = no filter.'),
+                    status: z.enum([AgendaStatus.Pending, AgendaStatus.Done, AgendaStatus.Cancelled, AgendaStatus.Expired, 'all']).optional().describe('Default pending. "all" = no filter.'),
                     priority: z.enum(AgendaPriority).optional(),
                     assignee: z.enum(AgendaAssignee).optional().describe([
                         'Filter by owner: user = the user\'s own todos / ai = ones assigned to you / other = third-party.',

@@ -16,7 +16,7 @@ An agenda **item** has a content, category, priority, optional due date, and a c
 | `interval` | Milliseconds between fires | `86400000` (every 24h) |
 | `cron` | 6-field cron (`sec min hour day month weekday`) | `0 0 9 * * 1-5` (9am weekdays) |
 
-When a trigger fires it delivers its `message` to the bound session/channel using its `action` mode, and the fire is recorded in the `trigger_fire` log table (pure audit, not used for scheduling). One-shot `absolute` triggers retry briefly on delivery failure, then give up.
+When a trigger fires it delivers its `message` to the bound session/channel using its `action` mode, and the fire is recorded in the `trigger_fire` log table (pure audit, not used for scheduling). A one-shot or finite schedule that reaches normal exhaustion becomes **Done**. A one-shot `absolute` trigger retries briefly on delivery failure; if it misses the grace window or gives up retrying, it is disabled and the item becomes **Expired** only when no other trigger on that item remains enabled. Expired items are retained as history rather than automatically deleted.
 
 ## Configuration
 
@@ -31,7 +31,9 @@ An **Agenda Profile** is the store + optional auto-sync. Sidebar → **Agenda Pr
 
 Then, in an agent → **Agenda** section, toggle Agenda on and pick the profile. Enabling it registers the agenda tools; with a sync model, items are reconciled from the conversation automatically each turn.
 
-From the Agenda Profiles page → **View** you can browse stored items, filter by pending/done, manually **Complete** / **Cancel**, add/edit/disable/reopen/delete triggers, fire a trigger manually for testing, and inspect each trigger's fire history.
+AgendaSync normally uses one model call with the completed conversation and the full structure of every pending item. Only when that input exceeds the Sync Model budget does it reuse the same model to compress the conversation into explicit agenda-change intents, match compact cards in token-bounded batches (including item/trigger IDs, schedules, actions, and message previews), and give only the selected full records to the final sync pass. There is no separate Selector Model setting, and pending items are no longer cut off at a fixed count.
+
+From the Agenda Profiles page → **View** you can browse stored items, filter by pending/done/cancelled/expired, manually **Complete** / **Cancel**, add/edit/disable/reopen/delete triggers, fire a trigger manually for testing, and inspect each trigger's fire history. Reopening an expired item restores only the item to Pending; retime or re-enable an appropriate trigger separately.
 
 ## Agent Tools
 

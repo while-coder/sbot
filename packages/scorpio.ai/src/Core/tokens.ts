@@ -32,6 +32,7 @@ export const T_NoteToolDescs              = Symbol("scorpio:T_NoteToolDescs");
 export const T_WikiToolDescs              = Symbol("scorpio:T_WikiToolDescs");
 export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
 export const T_AgendaExtractorSystemPrompt = Symbol("scorpio:T_AgendaExtractorSystemPrompt");
+export const T_AgendaSelectorSystemPrompt  = Symbol("scorpio:T_AgendaSelectorSystemPrompt");
 export const T_AgendaDbPath               = Symbol("scorpio:T_AgendaDbPath");
 export const T_AgendaToolDescs            = Symbol("scorpio:T_AgendaToolDescs");
 

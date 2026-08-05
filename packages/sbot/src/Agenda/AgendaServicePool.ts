@@ -8,6 +8,7 @@ import {
     ServiceContainer,
     ILoggerService,
     T_AgendaExtractorSystemPrompt,
+    T_AgendaSelectorSystemPrompt,
 } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
@@ -16,6 +17,7 @@ import { agendaStorePool } from "./AgendaStorePool";
 import { agendaTriggerEnginePool } from "./AgendaTriggerEnginePool";
 
 const DEFAULT_SYNC_PROMPT = "agenda/sync/default.txt";
+const DEFAULT_SELECTOR_PROMPT = "agenda/sync/selector.txt";
 
 const sharedToolDescs: AgendaToolDescs = {
     create: loadPrompt('agenda/tools/create.txt'),
@@ -51,6 +53,7 @@ const resolveConfig: AgendaServiceConfigResolver = (agendaId) => {
         sub.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         sub.registerInstance(IModelService, extractorModel);
         sub.registerInstance(T_AgendaExtractorSystemPrompt, loadPrompt(profile.syncPromptFile ?? DEFAULT_SYNC_PROMPT));
+        sub.registerInstance(T_AgendaSelectorSystemPrompt, loadPrompt(DEFAULT_SELECTOR_PROMPT));
         sub.registerSingleton(IAgendaExtractor, AgendaExtractor);
         extractor = sub.resolve<IAgendaExtractor>(IAgendaExtractor);
     }

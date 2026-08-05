@@ -11,6 +11,8 @@ export enum AgendaStatus {
     Done = 'done',
     /** 已取消。cancel() 调用后写入；trigger 全部 disable。 */
     Cancelled = 'cancelled',
+    /** 已过期。一次性 trigger 错过或重试超时，且本条已无其它有效 trigger 时自动写入。 */
+    Expired = 'expired',
 }
 
 /**

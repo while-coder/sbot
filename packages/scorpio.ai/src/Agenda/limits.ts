@@ -30,12 +30,6 @@ export const AGENDA_MESSAGE_PREVIEW_LEN = 60;
  */
 export const DETAIL_FIRES_LIMIT = 5;
 
-/**
- * sync extractor 喂给 LLM 的 <existing-agenda> 最多列多少条 item。
- * AgendaService.runExtractJob 用它拉记录，AgendaExtractor.extract 内再 slice 兜底——两处共享同一常量。
- */
-export const EXISTING_AGENDA_LIMIT = 80;
-
 // ──────────────────────────────────────────────────────────────
 // Internal
 // ──────────────────────────────────────────────────────────────

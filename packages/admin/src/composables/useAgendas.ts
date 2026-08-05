@@ -3,7 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { useConfirm, useToast } from 'sbot-ui'
 
-export type AgendaStatus = 'pending' | 'done' | 'cancelled'
+export type AgendaStatus = 'pending' | 'done' | 'cancelled' | 'expired'
 export type AgendaPriority = 'low' | 'normal' | 'high'
 export type AgendaSource = 'user' | 'tool' | 'sync' | 'rule'
 export type AgendaTriggerKind = 'absolute' | 'interval' | 'cron'

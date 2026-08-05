@@ -67,7 +67,7 @@ export interface IAgendaService {
     /** 取消一条 agenda。admin REST 用；LLM 侧走 close(dropped)。 */
     cancel(id: number): Promise<AgendaRecord | null>;
     /**
-     * cancel() 的逆操作（仅 item 层）：把 Cancelled/Done 的条目恢复为 Pending。
+     * 终态的逆操作（仅 item 层）：把 Cancelled/Done/Expired 的条目恢复为 Pending。
      * **不**连带复活触发器——它们保持停用，由 reopenTrigger 逐条按需启用。
      * 已是 Pending 时幂等返回。仅 admin 路径用——LLM 工具不暴露。item 不存在返回 null。
      */

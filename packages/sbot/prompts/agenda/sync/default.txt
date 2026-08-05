@@ -38,8 +38,8 @@ Every existing item is rendered as:
 
 Only ENABLED triggers are listed (disabled triggers are history; do not try to operate on them).
 
-`status` may be pending / done / cancelled. ONLY operate on items with status="pending".
-Items with status="done" or status="cancelled" are read-only history — never Edit them, never touch their triggers, never revive them by adding triggers. If the conversation seems to bring a done/cancelled item back to life, treat it as a NEW request and prefer Create (dedup still applies); do not resurrect the old one.
+`status` may be pending / done / cancelled / expired. ONLY operate on items with status="pending".
+Items with status="done", status="cancelled", or status="expired" are read-only history — never Edit them, never touch their triggers, never revive them by adding triggers. If the conversation seems to bring a terminal item back to life, treat it as a NEW request and prefer Create (dedup still applies); do not resurrect the old one.
 
 `expr` semantics depend on `kind`:
 - kind=absolute → ISO datetime string (the single fire moment)

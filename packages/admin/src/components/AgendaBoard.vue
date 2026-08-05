@@ -67,9 +67,10 @@ function priorityVariant(p: AgendaPriority): 'danger' | 'info' | 'neutral' {
   return 'neutral'
 }
 
-function statusVariant(s: AgendaStatus): 'success' | 'warning' | 'neutral' {
+function statusVariant(s: AgendaStatus): 'success' | 'warning' | 'danger' | 'neutral' {
   if (s === 'done') return 'success'
   if (s === 'pending') return 'warning'
+  if (s === 'expired') return 'danger'
   return 'neutral'
 }
 
@@ -205,6 +206,7 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
           <option value="pending">{{ t('agenda.filter_pending') }}</option>
           <option value="done">{{ t('agenda.filter_done') }}</option>
           <option value="cancelled">{{ t('agenda.filter_cancelled') }}</option>
+          <option value="expired">{{ t('agenda.filter_expired') }}</option>
           <option value="all">{{ t('agenda.filter_all') }}</option>
         </SSelect>
         <SButton type="outline" size="sm" :loading="loading" @click="emit('refresh')">{{ t('common.refresh') }}</SButton>

@@ -30,7 +30,6 @@ import {
     DEFAULT_PENDING_JOB_LIMIT,
     DETAIL_FIRES_LIMIT,
     ERROR_MESSAGE_MAX_LEN,
-    EXISTING_AGENDA_LIMIT,
 } from "../limits";
 import {
     type AgendaAction,
@@ -412,7 +411,7 @@ export class AgendaService implements IAgendaService {
     }
 
     async reopen(id: number): Promise<AgendaRecord | null> {
-        // cancel() 的逆操作（仅 item 层）：把 Cancelled/Done 的条目恢复为 Pending。
+        // 终态的逆操作（仅 item 层）：把 Cancelled/Done/Expired 的条目恢复为 Pending。
         // 触发器**不**在此连带复活——它们保持停用，由 reopenTrigger 逐条按需启用，
         // 避免把历史上被替换/已耗尽的 trigger 一并激活。已是 Pending 时幂等返回。
         return this.agendaStore.runExclusive(async () => {
@@ -543,9 +542,11 @@ export class AgendaService implements IAgendaService {
 
     private async runExtractJob(messages: ChatMessage[], channelSessionId: number): Promise<number> {
         if (!this.extractor || messages.length === 0) return 0;
-        // 只把 Pending 条目喂给 sync extractor：done/cancelled 是只读历史，sync 对它们没有可操作动作，
+        // 只把 Pending 条目喂给 sync extractor：done/cancelled/expired 是只读历史，sync 对它们没有可操作动作，
         // 暴露出去只会诱发误操作（复活已取消项、对已完成项重复 Complete）。打卡 routine 主体恒为 Pending，不受影响。
-        const existing = await this.list({ status: AgendaStatus.Pending, limit: EXISTING_AGENDA_LIMIT });
+        // 不再按固定条数截断：Extractor 会先估算完整输入，预算内单次处理；
+        // 超预算时用同一个 syncModel 按紧凑卡片筛选候选。
+        const existing = await this.list({ status: AgendaStatus.Pending, limit: Number.MAX_SAFE_INTEGER });
         const actions = await this.extractor.extract(messages, existing);
         if (actions.length === 0) return 0;
         for (const action of actions) await this.applyAction(action, channelSessionId);

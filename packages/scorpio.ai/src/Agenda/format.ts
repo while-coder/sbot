@@ -23,13 +23,13 @@ export enum AgendaRenderMode {
      */
     Echo = 'echo',
     /**
-     * 清单视图：message 截断为预览，只列 active trigger。
-     * agenda_list 用——invoke 类 message 是完整执行指令，
-     * 列清单时只需要够区分"同一 item 上哪条 trigger"。
+     * 清单 / 超预算筛选视图：message 截断为预览，只列 active trigger。
+     * agenda_list 与 AgendaSync 的候选卡片使用——invoke 类 message 是完整执行指令，
+     * 初筛时只需要够区分"同一 item 上哪条 trigger"。
      */
     Compact = 'compact',
     /**
-     * sync extractor 的 <existing-agenda>：message 全文（要靠原文判断措辞是否需改写 / 是否与本轮重复），
+     * sync extractor 常规 / 候选终审的 <existing-agenda>：message 全文（要靠原文判断措辞是否需改写 / 是否与本轮重复），
      * 但只列 active trigger——disabled 是历史，sync 只操作在跑的调度，列了反而易误改。
      */
     Sync = 'sync',
