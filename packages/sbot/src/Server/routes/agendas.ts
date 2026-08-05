@@ -69,6 +69,24 @@ export class AgendaRoutes {
             return items;
         }));
 
+        // 查看某个 agenda 模板最近的后台同步任务。只返回排障元数据，
+        // 不把任务中保存的完整对话快照暴露给管理端。
+        app.get('/api/agendas/jobs', api(req => {
+            const agendaId = requireAgendaId(req.query.agendaId);
+            const limit = Math.max(1, Math.min(num(req.query.limit) ?? 50, 200));
+            const jobs = agendaServicePool.listPendingJobs(agendaId, limit).map(job => ({
+                id: job.id,
+                channelSessionId: job.channelSessionId,
+                messageCount: job.messages.length,
+                status: job.status,
+                attemptCount: job.attemptCount,
+                errorMessage: job.errorMessage,
+                createdAt: job.createdAt,
+                updatedAt: job.updatedAt,
+            }));
+            return { agendaId, jobs };
+        }));
+
         app.post('/api/agendas', api(async req => {
             const body = req.body || {};
             const agendaId = requireAgendaId(body.agendaId);

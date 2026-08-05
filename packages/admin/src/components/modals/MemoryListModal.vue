@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, SButton, SModal, SBadge, SSelect } from 'sbot-ui'
+import { useToast, SButton, SModal, SBadge, SSelect, STabBar, STab } from 'sbot-ui'
 
 interface MemorySummary {
   slug: string
@@ -73,7 +73,7 @@ async function openByMemoryId(id: string | null | undefined, label?: string) {
   selectedWorkPath.value = ''
   if (memoryId.value) {
     await loadScopes()
-    await refresh()
+    await loadMemories()
   } else { rows.value = []; jobs.value = []; selectedKey.value = ''; selectedBody.value = '' }
 }
 
@@ -85,12 +85,13 @@ async function loadScopes() {
 async function changeScope() {
   selectedKey.value = ''
   selectedBody.value = ''
-  await refresh()
+  await refreshCurrentTab()
 }
 
-async function refresh() {
+async function refreshCurrentTab() {
   if (!memoryId.value) return
-  await Promise.all([loadMemories(), loadJobs()])
+  if (tab.value === 'memories') await loadMemories()
+  else await loadJobs()
 }
 
 async function loadMemories() {
@@ -153,7 +154,6 @@ async function runConsolidate() {
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/consolidate/run?${viewQuery.value}`, 'POST', {})
     show(t('memory_profiles.consolidate_queued', { id: res.data?.jobId ?? '-' }))
-    await refresh()
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -167,7 +167,6 @@ async function runReconcile() {
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/reconcile/run?${viewQuery.value}`, 'POST', {})
     show(t('memory_profiles.reconcile_queued', { id: res.data?.jobId ?? '-' }))
-    await refresh()
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -181,7 +180,7 @@ async function retryFailedJob(job: MemoryJob) {
   try {
     await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}/retry?${viewQuery.value}`, 'POST', {})
     show(t('memory_profiles.retry_job_done'))
-    await refresh()
+    await loadJobs()
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -256,122 +255,139 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
   return 'neutral'
 }
 
+watch(tab, value => {
+  if (!visible.value || !memoryId.value) return
+  if (value === 'memories') loadMemories()
+  else loadJobs()
+})
+
 defineExpose({ openByMemoryId })
 </script>
 
 <template>
   <SModal v-model:visible="visible" :title="title" width="xl">
     <div class="memory-viewer">
-      <div class="memory-viewer-toolbar">
-        <div class="memory-tabs">
-          <SButton :type="tab === 'memories' ? 'primary' : 'outline'" size="sm" @click="tab = 'memories'">
-            {{ t('memory_profiles.viewer_memories') }}
-          </SButton>
-          <SButton :type="tab === 'jobs' ? 'primary' : 'outline'" size="sm" @click="tab = 'jobs'">
-            {{ t('memory_profiles.viewer_jobs') }}
-          </SButton>
+      <STabBar v-model="tab" class="memory-tabs">
+        <STab name="memories">{{ t('memory_profiles.viewer_memories') }}</STab>
+        <STab name="jobs">{{ t('memory_profiles.viewer_jobs') }}</STab>
+      </STabBar>
+
+      <div v-if="tab === 'memories'" class="memory-tab-pane">
+        <div class="memory-tab-toolbar">
           <SSelect v-model="selectedWorkPath" size="sm" @change="changeScope">
             <option value="">{{ t('memory_profiles.scope_global') }}</option>
             <option v-for="scope in workspaceScopes" :key="scope.key" :value="scope.path">
               {{ t('memory_profiles.scope_workspace_context', { path: scope.path }) }}
             </option>
           </SSelect>
+          <div class="memory-actions">
+            <SBadge variant="info" size="sm">
+              {{ t(selectedWorkPath ? 'memory_profiles.operation_scope_workspace' : 'memory_profiles.operation_scope_global') }}
+            </SBadge>
+            <SButton type="outline" size="sm" :loading="loading" @click="loadMemories">{{ t('common.refresh') }}</SButton>
+            <SButton type="outline" size="sm" :loading="reconciling" @click="runReconcile">{{ t('memory_profiles.run_reconcile') }}</SButton>
+            <SButton type="outline" size="sm" :loading="consolidating" @click="runConsolidate">{{ t('memory_profiles.run_consolidate') }}</SButton>
+          </div>
         </div>
-        <div class="memory-actions">
-          <SBadge variant="info" size="sm">
-            {{ t(selectedWorkPath ? 'memory_profiles.operation_scope_workspace' : 'memory_profiles.operation_scope_global') }}
-          </SBadge>
-          <SButton type="outline" size="sm" :loading="loading || jobsLoading" @click="refresh">{{ t('common.refresh') }}</SButton>
-          <SButton type="outline" size="sm" :loading="reconciling" @click="runReconcile">{{ t('memory_profiles.run_reconcile') }}</SButton>
-          <SButton type="outline" size="sm" :loading="consolidating" @click="runConsolidate">{{ t('memory_profiles.run_consolidate') }}</SButton>
-        </div>
-      </div>
 
-      <div v-if="tab === 'memories'" class="memory-pane">
-        <aside class="memory-list">
-          <div v-if="loading" class="memory-empty">{{ t('memory_profiles.loading') }}</div>
-          <div v-else-if="rows.length === 0" class="memory-empty">{{ t('memory_profiles.no_memories') }}</div>
-          <button
-            v-for="m in rows"
-            v-else
-            :key="rowKey(m)"
-            class="memory-row"
-            :class="{ active: rowKey(m) === selectedKey }"
-            @click="selectMemory(m)"
-          >
-            <div class="memory-row-head">
-              <div class="memory-row-badges">
-                <SBadge variant="neutral" size="xs">{{ m.scope }}</SBadge>
-                <SBadge :variant="kindVariant(m.kind)" size="xs">{{ m.kind }}</SBadge>
+        <div class="memory-pane">
+          <aside class="memory-list">
+            <div v-if="loading" class="memory-empty">{{ t('memory_profiles.loading') }}</div>
+            <div v-else-if="rows.length === 0" class="memory-empty">{{ t('memory_profiles.no_memories') }}</div>
+            <button
+              v-for="m in rows"
+              v-else
+              :key="rowKey(m)"
+              class="memory-row"
+              :class="{ active: rowKey(m) === selectedKey }"
+              @click="selectMemory(m)"
+            >
+              <div class="memory-row-head">
+                <div class="memory-row-badges">
+                  <SBadge variant="neutral" size="xs">{{ m.scope }}</SBadge>
+                  <SBadge :variant="kindVariant(m.kind)" size="xs">{{ m.kind }}</SBadge>
+                </div>
+                <span class="memory-row-slug">{{ m.slug }}</span>
               </div>
-              <span class="memory-row-slug">{{ m.slug }}</span>
-            </div>
-            <div class="memory-row-title">{{ m.title }}</div>
-            <div class="memory-row-meta">
-              <span>{{ t('memory_profiles.evidence') }} {{ m.evidenceCount }}</span>
-              <span>{{ fmtTime(m.updatedAt) }}</span>
-            </div>
-          </button>
-        </aside>
+              <div class="memory-row-title">{{ m.title }}</div>
+              <div class="memory-row-meta">
+                <span>{{ t('memory_profiles.evidence') }} {{ m.evidenceCount }}</span>
+                <span>{{ fmtTime(m.updatedAt) }}</span>
+              </div>
+            </button>
+          </aside>
 
-        <section class="memory-detail">
-          <div v-if="selected" class="memory-detail-head">
-            <div>
-              <div class="memory-detail-title">{{ selected.title }}</div>
-              <div class="memory-detail-slug">{{ selected.slug }}</div>
+          <section class="memory-detail">
+            <div v-if="selected" class="memory-detail-head">
+              <div>
+                <div class="memory-detail-title">{{ selected.title }}</div>
+                <div class="memory-detail-slug">{{ selected.slug }}</div>
+              </div>
+              <div class="memory-detail-badges">
+                <SBadge variant="neutral" size="sm">{{ selected.scope }}</SBadge>
+                <SBadge :variant="kindVariant(selected.kind)" size="sm">{{ selected.kind }}</SBadge>
+                <SBadge variant="neutral" size="sm">{{ t('memory_profiles.evidence') }} {{ selected.evidenceCount }}</SBadge>
+                <SBadge variant="neutral" size="sm">{{ t('memory_profiles.read_count') }} {{ selected.readCount }}</SBadge>
+                <SButton type="danger" size="sm" :loading="deleting" @click="deleteMemory(selected)">
+                  {{ t('memory_profiles.delete_memory') }}
+                </SButton>
+              </div>
             </div>
-            <div class="memory-detail-badges">
-              <SBadge variant="neutral" size="sm">{{ selected.scope }}</SBadge>
-              <SBadge :variant="kindVariant(selected.kind)" size="sm">{{ selected.kind }}</SBadge>
-              <SBadge variant="neutral" size="sm">{{ t('memory_profiles.evidence') }} {{ selected.evidenceCount }}</SBadge>
-              <SBadge variant="neutral" size="sm">{{ t('memory_profiles.read_count') }} {{ selected.readCount }}</SBadge>
-              <SButton type="danger" size="sm" :loading="deleting" @click="deleteMemory(selected)">
-                {{ t('memory_profiles.delete_memory') }}
-              </SButton>
+            <div v-if="selected" class="memory-detail-meta">
+              <span>{{ t('memory_profiles.updated_at') }}: {{ fmtTime(selected.updatedAt) }}</span>
+              <span>{{ t('memory_profiles.created_at') }}: {{ fmtTime(selected.createdAt) }}</span>
             </div>
-          </div>
-          <div v-if="selected" class="memory-detail-meta">
-            <span>{{ t('memory_profiles.updated_at') }}: {{ fmtTime(selected.updatedAt) }}</span>
-            <span>{{ t('memory_profiles.created_at') }}: {{ fmtTime(selected.createdAt) }}</span>
-          </div>
-          <pre class="memory-body">{{ bodyLoading ? t('memory_profiles.loading') : (selectedBody || t('memory_profiles.no_body')) }}</pre>
-        </section>
+            <pre class="memory-body">{{ bodyLoading ? t('memory_profiles.loading') : (selectedBody || t('memory_profiles.no_body')) }}</pre>
+          </section>
+        </div>
       </div>
 
-      <div v-else class="memory-jobs">
-        <div v-if="jobsLoading" class="memory-empty">{{ t('memory_profiles.loading') }}</div>
-        <div v-else-if="jobs.length === 0" class="memory-empty">{{ t('memory_profiles.no_jobs') }}</div>
-        <div v-for="job in jobs" v-else :key="job.id" class="memory-job">
-          <div class="memory-job-head">
-            <div class="memory-job-id">#{{ job.id }}</div>
-            <div class="memory-job-actions">
-              <SButton
-                v-if="job.status === 'failed'"
-                type="outline"
-                size="sm"
-                :loading="retryingJobId === job.id"
-                @click="retryFailedJob(job)"
-              >
-                {{ t('memory_profiles.retry_job') }}
-              </SButton>
-              <SButton
-                v-if="job.status === 'failed'"
-                type="danger"
-                size="sm"
-                :loading="deletingJobId === job.id"
-                @click="deleteFailedJob(job)"
-              >
-                {{ t('memory_profiles.delete_job') }}
-              </SButton>
-              <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
+      <div v-else class="memory-tab-pane">
+        <div class="memory-tab-toolbar">
+          <SSelect v-model="selectedWorkPath" size="sm" @change="changeScope">
+            <option value="">{{ t('memory_profiles.scope_global') }}</option>
+            <option v-for="scope in workspaceScopes" :key="scope.key" :value="scope.path">
+              {{ t('memory_profiles.scope_workspace_context', { path: scope.path }) }}
+            </option>
+          </SSelect>
+          <SButton type="outline" size="sm" :loading="jobsLoading" @click="loadJobs">{{ t('common.refresh') }}</SButton>
+        </div>
+
+        <div class="memory-jobs">
+          <div v-if="jobsLoading" class="memory-empty">{{ t('memory_profiles.loading') }}</div>
+          <div v-else-if="jobs.length === 0" class="memory-empty">{{ t('memory_profiles.no_jobs') }}</div>
+          <div v-for="job in jobs" v-else :key="job.id" class="memory-job">
+            <div class="memory-job-head">
+              <div class="memory-job-id">#{{ job.id }}</div>
+              <div class="memory-job-actions">
+                <SButton
+                  v-if="job.status === 'failed'"
+                  type="outline"
+                  size="sm"
+                  :loading="retryingJobId === job.id"
+                  @click="retryFailedJob(job)"
+                >
+                  {{ t('memory_profiles.retry_job') }}
+                </SButton>
+                <SButton
+                  v-if="job.status === 'failed'"
+                  type="danger"
+                  size="sm"
+                  :loading="deletingJobId === job.id"
+                  @click="deleteFailedJob(job)"
+                >
+                  {{ t('memory_profiles.delete_job') }}
+                </SButton>
+                <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
+              </div>
             </div>
-          </div>
-          <div class="memory-job-grid">
-            <span>{{ t('memory_profiles.job_type') }}</span><code>{{ jobTypeLabel(job.type) }}</code>
-            <span>{{ t('memory_profiles.attempt_count') }}</span><code>{{ job.attemptCount }}</code>
-            <span>{{ t('memory_profiles.created_at') }}</span><code>{{ fmtTime(job.createdAt) }}</code>
-            <span>{{ t('memory_profiles.updated_at') }}</span><code>{{ fmtTime(job.updatedAt) }}</code>
-            <span>{{ t('memory_profiles.error_message') }}</span><code>{{ job.errorMessage || '-' }}</code>
+            <div class="memory-job-grid">
+              <span>{{ t('memory_profiles.job_type') }}</span><code>{{ jobTypeLabel(job.type) }}</code>
+              <span>{{ t('memory_profiles.attempt_count') }}</span><code>{{ job.attemptCount }}</code>
+              <span>{{ t('memory_profiles.created_at') }}</span><code>{{ fmtTime(job.createdAt) }}</code>
+              <span>{{ t('memory_profiles.updated_at') }}</span><code>{{ fmtTime(job.updatedAt) }}</code>
+              <span>{{ t('memory_profiles.error_message') }}</span><code>{{ job.errorMessage || '-' }}</code>
+            </div>
           </div>
         </div>
       </div>
@@ -388,15 +404,27 @@ defineExpose({ openByMemoryId })
   overflow: hidden;
 }
 
-.memory-viewer-toolbar {
+.memory-tabs {
+  padding: 0;
+  background: transparent;
+}
+
+.memory-tab-pane {
+  flex: 1;
+  min-height: 0;
   display: flex;
+  flex-direction: column;
+}
+
+.memory-tab-toolbar {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--sui-sp-3);
-  padding-bottom: var(--sui-sp-3);
+  padding: var(--sui-sp-3) 0;
   border-bottom: 1px solid var(--sui-border-subtle);
 }
 
-.memory-tabs,
 .memory-actions {
   display: inline-flex;
   gap: var(--sui-sp-2);
@@ -570,7 +598,7 @@ defineExpose({ openByMemoryId })
 }
 
 @media (max-width: 900px) {
-  .memory-viewer-toolbar,
+  .memory-tab-toolbar,
   .memory-detail-head {
     flex-direction: column;
     align-items: stretch;

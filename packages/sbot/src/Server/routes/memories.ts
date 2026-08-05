@@ -61,7 +61,9 @@ export class MemoryRoutes {
             const target = requireViewTarget(req.query.viewScope, req.query.workPath);
             const service = acquireMemoryService(memoryId, target);
             try {
-                const rows = await service.listAll();
+                // workspace service 会为 Agent 合并 workspace + global；Admin 的范围选择器
+                // 用于检查单个存储范围，因此列表只返回当前明确选择的 scope。
+                const rows = (await service.listAll()).filter(row => row.scope === target.scope);
                 // body 不返回（避免响应膨胀）；admin UI 单击行后再走 read_memory 取全文
                 const summary = rows.map(r => ({
                     slug: r.slug,

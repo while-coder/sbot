@@ -44,12 +44,11 @@ const columns = computed<STableColumn[]>(() => [
   { key: 'enabled',      label: t('common.enabled'),             width: '100px', align: 'center' },
   { key: 'writerModel',  label: t('memory_profiles.writer_model'), width: '200px' },
   { key: 'selectorModel', label: t('memory_profiles.selector_model'), width: '200px' },
-  { key: 'ops',          label: t('common.ops'),                 ops: true, width: '320px', align: 'center' },
+  { key: 'ops',          label: t('common.ops'),                 ops: true, width: '260px', align: 'center' },
 ])
 
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
-const consolidating = ref<Record<string, boolean>>({})
 const memoryListModal = ref<InstanceType<typeof MemoryListModal>>()
 
 function emptyForm(): MemoryProfileForm {
@@ -154,19 +153,6 @@ async function refresh() {
   }
 }
 
-async function runConsolidate(id: string) {
-  if (consolidating.value[id]) return
-  consolidating.value[id] = true
-  try {
-    const res = await apiFetch(`/api/memories/${encodeURIComponent(id)}/consolidate/run?viewScope=global`, 'POST', {})
-    show(t('memory_profiles.consolidate_queued', { id: res.data?.jobId ?? '-' }))
-  } catch (e: any) {
-    show(e.message, 'error')
-  } finally {
-    consolidating.value[id] = false
-  }
-}
-
 function openMemoryViewer(id: string) {
   const p: any = profiles.value[id]
   memoryListModal.value?.openByMemoryId(id, p?.name || id)
@@ -206,8 +192,7 @@ function modelLabel(id: string | undefined | null): string {
         <template #selectorModel="{ row }">{{ row.selectorModel ? modelLabel(row.selectorModel) : t('memory_profiles.use_writer_model') }}</template>
         <template #ops="{ row }">
           <div class="ops-row">
-            <SButton type="outline" size="sm" @click="openMemoryViewer(row.id)">{{ t('memory_profiles.view_memories') }}</SButton>
-            <SButton type="outline" size="sm" :loading="consolidating[row.id]" @click="runConsolidate(row.id)">{{ t('memory_profiles.run_consolidate') }}</SButton>
+            <SButton type="outline" size="sm" @click="openMemoryViewer(row.id)">{{ t('common.view') }}</SButton>
             <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
