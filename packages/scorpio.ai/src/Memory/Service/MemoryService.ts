@@ -27,7 +27,7 @@ import {
     type MemoryWorkspaceScope,
     type MemoryTarget,
 } from "../Storage/IMemoryStore";
-import { type ChatMessage, MessageRole } from "../../Saver";
+import { type ChatMessage, MessageRole, estimateTextTokens, estimateMessagesTokens } from "../../Saver";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 import { renderConversation } from "../../Utils/conversationUtils";
 import { memoryServicePool } from "./MemoryServicePool";
@@ -694,7 +694,7 @@ export class MemoryService {
             target,
             SELECTOR_FINAL_CANDIDATE_LIMIT,
         );
-        const completeCatalogTokens = MemoryService.estimateMessagesTokens(completeCatalogMessages);
+        const completeCatalogTokens = estimateMessagesTokens(completeCatalogMessages);
 
         // 常见的小库只调用一次 Selector：完整对话 + 全部自包含 title。
         if (completeCatalogTokens <= inputBudget) {
@@ -882,12 +882,12 @@ export class MemoryService {
     ): MemoryRow[][] {
         if (rows.length === 0) return [];
         const emptyMessages = this.buildFactCatalogSelectorMessages(durableFacts, [], target, maxCandidates);
-        const catalogBudget = Math.max(256, inputBudget - MemoryService.estimateMessagesTokens(emptyMessages));
+        const catalogBudget = Math.max(256, inputBudget - estimateMessagesTokens(emptyMessages));
         const chunks: MemoryRow[][] = [];
         let current: MemoryRow[] = [];
         let currentTokens = 0;
         for (const row of rows) {
-            const rowTokens = MemoryService.estimateTextTokens(MemoryService.catalogLine(row));
+            const rowTokens = estimateTextTokens(MemoryService.catalogLine(row));
             if (current.length > 0 && currentTokens + rowTokens > catalogBudget) {
                 chunks.push(current);
                 current = [];
@@ -1127,18 +1127,6 @@ export class MemoryService {
     private selectorInputTokenBudget(): number {
         const contextWindow = this.selectorModel.config.contextWindow ?? DEFAULT_SELECTOR_CONTEXT_WINDOW;
         return Math.max(512, Math.min(SELECTOR_INPUT_TOKEN_CAP, Math.floor(contextWindow * 0.5)));
-    }
-
-    private static estimateTextTokens(text: string): number {
-        // 与 ConversationCompactor 保持同一保守估算：中英文混合文本约 0.75 token/char。
-        return Math.ceil(text.length * 0.75) + 4;
-    }
-
-    private static estimateMessagesTokens(messages: ChatMessage[]): number {
-        return messages.reduce(
-            (sum, message) => sum + MemoryService.estimateTextTokens(contentToString(message.content)),
-            0,
-        );
     }
 
     private modelLabel(): string {

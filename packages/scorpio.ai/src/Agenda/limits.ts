@@ -24,6 +24,24 @@ export const DEFAULT_LIST_LIMIT = 50;
  */
 export const AGENDA_MESSAGE_PREVIEW_LEN = 60;
 
+/** AgendaSync 未配置模型上下文时采用的保守默认值。 */
+export const DEFAULT_AGENDA_CONTEXT_WINDOW = 32_000;
+
+/** AgendaSync 单次请求最多使用的估算输入 token。 */
+export const AGENDA_SYNC_INPUT_TOKEN_CAP = 16_000;
+
+/** 超预算分析最多保留的明确日程意图。 */
+export const AGENDA_SYNC_INTENT_LIMIT = 12;
+
+/** 每个目录批次最多接受的候选。 */
+export const AGENDA_SYNC_CANDIDATES_PER_BATCH = 8;
+
+/** 最终 Writer 最多读取的候选条目。 */
+export const AGENDA_SYNC_FINAL_CANDIDATE_LIMIT = 20;
+
+/** 单次后台同步最多执行的目录筛选批次数。 */
+export const AGENDA_SYNC_SELECTOR_BATCH_LIMIT = 6;
+
 /**
  * agenda_get fires=true 时回给 LLM 的触发历史条数（按 firedAt DESC 取最近的）。
  * 够回答"最近跑了吗 / 上几次成功吗"，再多就是审计需求——那是 admin UI 的事。

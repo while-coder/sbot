@@ -261,7 +261,7 @@ DELETE /api/settings/agendaProfiles/:id
 - memory：`~/.sbot/memories/<memoryId>/`（全局）+ `workspaces/<pathHash>/`（当前 workPath 独有）
 - agenda：`~/.sbot/agendas/<agendaId>/agenda.db`
 
-`enabled: false` 表示引用可以存在，但运行时不启用。`memoryProfiles.writerModel` 必须指向 `models` 中的 UUID；可选的 `selectorModel` 用于低成本目录筛选，不设置时复用 `writerModel`。频道仍只引用一个 memoryProfile；同一个 MemoryService 会同时读取全局记忆和当前 workPath 记忆，项目内容不会进入其他 workPath。未配置 workPath 的会话（包括普通 Web 对话）统一使用 `~/.sbot/workspace` 作为默认记忆工作区。`agendaProfiles.syncModel` 可选；为空时同步抽取不启用。AgendaSync 正常单次处理全部 Pending 条目，超出模型输入预算时复用同一个 `syncModel` 做意图压缩和紧凑卡片筛选，不需要额外的 Selector 配置。
+`enabled: false` 表示引用可以存在，但运行时不启用。`memoryProfiles.writerModel` 必须指向 `models` 中的 UUID；可选的 `selectorModel` 用于低成本目录筛选，不设置时复用 `writerModel`。频道仍只引用一个 memoryProfile；同一个 MemoryService 会同时读取全局记忆和当前 workPath 记忆，项目内容不会进入其他 workPath。未配置 workPath 的会话（包括普通 Web 对话）统一使用 `~/.sbot/workspace` 作为默认记忆工作区。`agendaProfiles.syncModel` 可选；为空时同步抽取不启用。AgendaSync 正常单次处理全部 Pending 条目；超出模型输入预算时复用同一个 `syncModel` 做意图分析，完整目录先本地相关性排序，再最多筛选 6 个紧凑卡片批次，最终 Writer 最多读取 20 条候选，不需要额外的 Selector 配置。
 
 Agenda item 管理走：
 

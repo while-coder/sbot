@@ -2,6 +2,15 @@ import { ChatMessage, ChatToolCall, MessageRole } from "./IAgentSaverService";
 
 // ─── Token estimation ────────────────────────────────────────────────────────
 
+function estimateLengthTokens(length: number): number {
+    return Math.ceil(length * 0.75) + 4;
+}
+
+/** 中英文混合文本的保守近似；供预算判断使用，不代替供应商 tokenizer。 */
+export function estimateTextTokens(text: string): number {
+    return estimateLengthTokens(text.length);
+}
+
 export function estimateMessageTokens(message: ChatMessage): number {
     const content = message.content;
     let textLength = 0;
@@ -24,6 +33,11 @@ export function estimateMessageTokens(message: ChatMessage): number {
         }
     }
 
-    return Math.ceil(textLength * 0.75) + 4;
+    return estimateLengthTokens(textLength);
+}
+
+/** 估算一组中性 ChatMessage 的总输入 token。 */
+export function estimateMessagesTokens(messages: ChatMessage[]): number {
+    return messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
 }
 

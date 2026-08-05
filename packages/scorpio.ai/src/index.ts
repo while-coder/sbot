@@ -196,6 +196,9 @@ export {
   // Compact
   ConversationCompactor,
   IConversationCompactor,
+  estimateTextTokens,
+  estimateMessageTokens,
+  estimateMessagesTokens,
 } from "./Saver";
 
 // ========================================

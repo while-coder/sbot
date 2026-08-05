@@ -22,6 +22,7 @@ export {
 
 // ===== LangChain 转换（仅在 Agent 执行层需要） =====
 export { toChatMessage, toBaseMessage, toBaseMessages } from "./messageConverter";
+export { estimateTextTokens, estimateMessageTokens, estimateMessagesTokens } from "./messageSerializer";
 
 // ===== 实现类 =====
 export { AgentMemorySaver } from "./AgentMemorySaver";

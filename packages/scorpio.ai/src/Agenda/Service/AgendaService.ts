@@ -135,6 +135,12 @@ export class AgendaService implements IAgendaService {
     }
 
     static buildList(records: AgendaRecord[], filter?: AgendaListFilter): AgendaRecord[] {
+        return AgendaService.filterAndSort(records, filter)
+            .slice(0, filter?.limit ?? DEFAULT_LIST_LIMIT);
+    }
+
+    /** 内部完整扫描使用：保留 list 的过滤/排序语义，但不借用巨大 limit 表达“不限”。 */
+    private static filterAndSort(records: AgendaRecord[], filter?: AgendaListFilter): AgendaRecord[] {
         const filtered = records.filter(r => AgendaService.matchesFilter(r, filter));
         filtered.sort((a, b) => {
             const an = AgendaService.firstNextFire(a) ?? a.item.dueAt ?? a.item.createdAt;
@@ -142,7 +148,7 @@ export class AgendaService implements IAgendaService {
             if (a.item.status !== b.item.status) return a.item.status === AgendaStatus.Pending ? -1 : 1;
             return an - bn;
         });
-        return filtered.slice(0, filter?.limit ?? DEFAULT_LIST_LIMIT);
+        return filtered;
     }
 
     async update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null> {
@@ -544,9 +550,12 @@ export class AgendaService implements IAgendaService {
         if (!this.extractor || messages.length === 0) return 0;
         // 只把 Pending 条目喂给 sync extractor：done/cancelled/expired 是只读历史，sync 对它们没有可操作动作，
         // 暴露出去只会诱发误操作（复活已取消项、对已完成项重复 Complete）。打卡 routine 主体恒为 Pending，不受影响。
-        // 不再按固定条数截断：Extractor 会先估算完整输入，预算内单次处理；
-        // 超预算时用同一个 syncModel 按紧凑卡片筛选候选。
-        const existing = await this.list({ status: AgendaStatus.Pending, limit: Number.MAX_SAFE_INTEGER });
+        // 不在 service 层截断：Extractor 会先估算完整输入，预算内单次处理；
+        // 超预算时对完整目录做本地相关性排序，再用同一个 syncModel 在有界批次内筛选候选。
+        const existing = AgendaService.filterAndSort(
+            await this.agendaStore.listItems(),
+            { status: AgendaStatus.Pending },
+        );
         const actions = await this.extractor.extract(messages, existing);
         if (actions.length === 0) return 0;
         for (const action of actions) await this.applyAction(action, channelSessionId);

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { inject } from "scorpio.di";
 import { IModelService } from "../../Model";
 import { ILoggerService, ILogger } from "../../Logger";
-import { MessageRole, type ChatMessage } from "../../Saver";
+import { MessageRole, estimateMessagesTokens, type ChatMessage } from "../../Saver";
 import { renderConversation } from "../../Utils/conversationUtils";
 import { TimeUtils } from "../../Utils/TimeUtils";
 import { T_AgendaExtractorSystemPrompt, T_AgendaSelectorSystemPrompt, formatError } from "../../Core";
@@ -15,12 +15,7 @@ import {
 } from "../types";
 import { AgendaRenderMode, formatAgendaXml } from "../format";
 import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgendaExtractor";
-
-const DEFAULT_AGENDA_CONTEXT_WINDOW = 32_000;
-const AGENDA_SYNC_INPUT_TOKEN_CAP = 16_000;
-const AGENDA_INTENT_LIMIT = 12;
-const AGENDA_CANDIDATES_PER_BATCH = 8;
-const AGENDA_FINAL_CANDIDATE_LIMIT = 20;
+import { AgendaOverflowSelector } from "./AgendaOverflowSelector";
 
 const RelativeTimeSchema = z.object({
     amount: z.number().int().positive(),
@@ -101,48 +96,32 @@ const AgendaExtractSchema = z.object({
     ])).describe("Agenda actions extracted from the conversation. Return [] if no agenda change is needed."),
 });
 
-const AgendaIntentSchema = z.string().min(1).max(400);
-const AgendaIntentAnalysisSchema = z.discriminatedUnion('shouldSync', [
-    z.object({
-        shouldSync: z.literal(false),
-        intents: z.array(AgendaIntentSchema).max(0),
-    }),
-    z.object({
-        shouldSync: z.literal(true),
-        intents: z.array(AgendaIntentSchema).min(1).max(AGENDA_INTENT_LIMIT),
-    }),
-]);
-type AgendaIntentAnalysis = z.infer<typeof AgendaIntentAnalysisSchema>;
-
-const AgendaCandidateOutputSchema = z.object({
-    ids: z.array(z.number().int().positive()).max(AGENDA_FINAL_CANDIDATE_LIMIT),
-});
-type AgendaCandidateOutput = z.infer<typeof AgendaCandidateOutputSchema>;
-
 export class AgendaExtractor implements IAgendaExtractor {
     private logger?: ILogger;
+    private readonly overflowSelector: AgendaOverflowSelector;
 
     constructor(
         @inject(IModelService) private modelService: IModelService,
         @inject(T_AgendaExtractorSystemPrompt) private systemPrompt: string,
-        @inject(T_AgendaSelectorSystemPrompt) private selectorPrompt: string,
+        @inject(T_AgendaSelectorSystemPrompt) selectorPrompt: string,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     ) {
         this.logger = loggerService?.getLogger("AgendaExtractor");
+        this.overflowSelector = new AgendaOverflowSelector(modelService, selectorPrompt, this.logger);
     }
 
     async extract(messages: ChatMessage[], existingItems: AgendaRecord[]): Promise<AgendaAction[]> {
         try {
             const conversation = renderConversation(messages);
             const now = TimeUtils.formatIsoMinute(Date.now());
-            const inputBudget = this.inputTokenBudget();
+            const inputBudget = this.overflowSelector.inputTokenBudget();
             const directMessages = this.buildExtractionMessages(
                 conversation,
                 existingItems,
                 AgendaRenderMode.Sync,
                 now,
             );
-            const directTokens = AgendaExtractor.estimateMessagesTokens(directMessages);
+            const directTokens = estimateMessagesTokens(directMessages);
 
             // 常规路径保持一次模型调用：完整对话 + 全部 Pending Agenda 完整结构。
             if (directTokens <= inputBudget) {
@@ -150,59 +129,52 @@ export class AgendaExtractor implements IAgendaExtractor {
                 return this.invokeActions(directMessages, existingItems);
             }
 
-            // 只有输入超预算才进入降级路径。完整对话只分析一次；后续批次只重复短 intents。
+            // 超预算规划只负责挑出有序候选；最终动作仍由本类统一生成和校验。
             this.logger?.debug(`AgendaSync input over budget, switching to candidate batches: items=${existingItems.length}, estimatedInput=${directTokens}, budget=${inputBudget}`);
-            const analysis = await this.analyzeConversation(conversation, now);
-            if (!analysis.shouldSync) return [];
+            let selected = await this.overflowSelector.select(conversation, existingItems, now, inputBudget);
 
-            let candidates = existingItems.length === 0
-                ? []
-                : await this.selectCandidates(
-                    analysis.intents,
-                    existingItems,
-                    now,
-                    inputBudget,
-                    AGENDA_CANDIDATES_PER_BATCH,
-                );
-            while (candidates.length > AGENDA_FINAL_CANDIDATE_LIMIT) {
-                const reduced = await this.selectCandidates(
-                    analysis.intents,
-                    candidates,
-                    now,
-                    inputBudget,
-                    AGENDA_FINAL_CANDIDATE_LIMIT,
-                );
-                if (reduced.length === 0 || reduced.length >= candidates.length) {
-                    candidates = candidates.slice(0, AGENDA_FINAL_CANDIDATE_LIMIT);
-                    break;
-                }
-                candidates = reduced;
-            }
-
-            const selected = candidates.slice(0, AGENDA_FINAL_CANDIDATE_LIMIT);
-            let finalMessages = this.buildExtractionMessages(
+            let renderMode = AgendaRenderMode.Sync;
+            const provisional = this.buildExtractionMessages(
                 conversation,
                 selected,
-                AgendaRenderMode.Sync,
+                renderMode,
                 now,
                 true,
             );
-            if (AgendaExtractor.estimateMessagesTokens(finalMessages) > inputBudget) {
+            if (estimateMessagesTokens(provisional) > inputBudget) {
                 // 极长 invoke message 可能让少量候选仍超预算。Compact 仍保留 item/trigger id、
                 // schedule、action 与 message preview，Edit 的未提供字段由 service 原样保留。
                 this.logger?.warn(`AgendaSync selected full records still exceed budget; using message previews for ${selected.length} candidate(s)`);
-                finalMessages = this.buildExtractionMessages(
-                    conversation,
-                    selected,
-                    AgendaRenderMode.Compact,
-                    now,
-                    true,
-                );
+                renderMode = AgendaRenderMode.Compact;
             }
+
+            // 极小上下文模型下，20 条 Compact 卡片本身也可能装不下。候选已经按全局
+            // relevance 排序，因此从尾部移除最低相关项，先为 system prompt 留出确定空间。
+            const selectedBeforeBudgetFit = selected.length;
+            while (
+                selected.length > 0
+                && estimateMessagesTokens(this.buildExtractionMessages('', selected, renderMode, now, true)) > inputBudget
+            ) {
+                selected = selected.slice(0, -1);
+            }
+            if (selected.length < selectedBeforeBudgetFit) {
+                this.logger?.warn(`AgendaSync final candidate set reduced from ${selectedBeforeBudgetFit} to ${selected.length} to fit input budget`);
+            }
+
+            // Compact 只缩 agenda 卡片；这里再对 conversation 做最后兜底，保证最终请求本身也在预算内。
+            const finalConversation = this.overflowSelector.fitConversationToBudget(
+                conversation,
+                value => this.buildExtractionMessages(value, selected, renderMode, now, true),
+                inputBudget,
+                'final writer',
+            );
+            const finalMessages = this.buildExtractionMessages(finalConversation, selected, renderMode, now, true);
             return this.invokeActions(finalMessages, selected);
         } catch (error: any) {
             this.logger?.warn(`Agenda extraction failed: ${formatError(error, true)}`);
-            return [];
+            // 让 AgendaService 把 pending job 标为 failed，而不是把模型/Schema/上下文错误
+            // 伪装成“成功但没有 action”后永久删除原始对话快照。
+            throw error;
         }
     }
 
@@ -217,51 +189,6 @@ export class AgendaExtractor implements IAgendaExtractor {
             this.logger?.warn(`AgendaSync ignored Edit for an item not shown to the final extractor: #${action.id}`);
             return false;
         });
-    }
-
-    private async analyzeConversation(conversation: string, now: string): Promise<AgendaIntentAnalysis> {
-        const messages: ChatMessage[] = [
-            {
-                role: MessageRole.System,
-                content: [
-                    this.selectorPrompt,
-                    `# Conversation analysis mode`,
-                    `Return shouldSync=true only for explicit agenda changes that may still need background application.`,
-                    `When true, return up to ${AGENDA_INTENT_LIMIT} short, self-contained intents retaining exact time, recurrence, target wording, and whether it is a create or edit.`,
-                ].join('\n\n'),
-            },
-            {
-                role: MessageRole.Human,
-                content: `${conversation}\n<now>${now}</now>`,
-            },
-        ];
-        return this.modelService.invokeStructured<AgendaIntentAnalysis>(AgendaIntentAnalysisSchema, messages);
-    }
-
-    private async selectCandidates(
-        intents: string[],
-        records: AgendaRecord[],
-        now: string,
-        inputBudget: number,
-        maxCandidates: number,
-    ): Promise<AgendaRecord[]> {
-        const selected = new Map<number, AgendaRecord>();
-        const chunks = this.chunkCards(intents, records, now, inputBudget, maxCandidates);
-        this.logger?.debug(`AgendaSync candidate scan: items=${records.length}, batches=${chunks.length}, maxPerBatch=${maxCandidates}`);
-        for (const chunk of chunks) {
-            const messages = this.buildCandidateMessages(intents, chunk, now, maxCandidates);
-            const result = await this.modelService.invokeStructured<AgendaCandidateOutput>(
-                AgendaCandidateOutputSchema,
-                messages,
-            );
-            const available = new Map(chunk.map(record => [record.item.id, record] as const));
-            for (const id of result.ids.slice(0, maxCandidates)) {
-                const record = available.get(id);
-                if (record) selected.set(id, record);
-                else this.logger?.warn(`Agenda selector returned an id outside the current batch: #${id}`);
-            }
-        }
-        return [...selected.values()];
     }
 
     private buildExtractionMessages(
@@ -292,84 +219,8 @@ export class AgendaExtractor implements IAgendaExtractor {
         ];
     }
 
-    private buildCandidateMessages(
-        intents: string[],
-        records: AgendaRecord[],
-        now: string,
-        maxCandidates: number,
-    ): ChatMessage[] {
-        return [
-            {
-                role: MessageRole.System,
-                content: [
-                    this.selectorPrompt,
-                    `# Agenda-card matching mode`,
-                    `Match the confirmed intents against this exact batch of compact agenda cards.`,
-                    `Return up to ${maxCandidates} existing item IDs, ordered from most to least relevant.`,
-                    `Do not propose Create/Edit actions and do not return IDs outside this batch.`,
-                ].join('\n\n'),
-            },
-            {
-                role: MessageRole.Human,
-                content: [
-                    `<agenda-intents>`,
-                    intents.map(intent => `- ${intent}`).join('\n'),
-                    `</agenda-intents>`,
-                    `<agenda-cards>`,
-                    AgendaExtractor.renderRecords(records, AgendaRenderMode.Compact),
-                    `</agenda-cards>`,
-                    `<now>${now}</now>`,
-                ].join('\n'),
-            },
-        ];
-    }
-
-    private chunkCards(
-        intents: string[],
-        records: AgendaRecord[],
-        now: string,
-        inputBudget: number,
-        maxCandidates: number,
-    ): AgendaRecord[][] {
-        if (records.length === 0) return [];
-        const emptyMessages = this.buildCandidateMessages(intents, [], now, maxCandidates);
-        const cardBudget = Math.max(256, inputBudget - AgendaExtractor.estimateMessagesTokens(emptyMessages));
-        const chunks: AgendaRecord[][] = [];
-        let current: AgendaRecord[] = [];
-        let currentTokens = 0;
-        for (const record of records) {
-            const recordTokens = AgendaExtractor.estimateTextTokens(
-                formatAgendaXml(record, AgendaRenderMode.Compact),
-            );
-            if (current.length > 0 && currentTokens + recordTokens > cardBudget) {
-                chunks.push(current);
-                current = [];
-                currentTokens = 0;
-            }
-            current.push(record);
-            currentTokens += recordTokens;
-        }
-        if (current.length > 0) chunks.push(current);
-        return chunks;
-    }
-
-    private inputTokenBudget(): number {
-        const contextWindow = this.modelService.config.contextWindow ?? DEFAULT_AGENDA_CONTEXT_WINDOW;
-        return Math.max(512, Math.min(AGENDA_SYNC_INPUT_TOKEN_CAP, Math.floor(contextWindow * 0.5)));
-    }
-
     private static renderRecords(records: AgendaRecord[], mode: AgendaRenderMode): string {
         return records.map(record => formatAgendaXml(record, mode)).join('\n');
     }
 
-    private static estimateTextTokens(text: string): number {
-        return Math.ceil(text.length * 0.75) + 4;
-    }
-
-    private static estimateMessagesTokens(messages: ChatMessage[]): number {
-        return messages.reduce((sum, message) => {
-            const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
-            return sum + AgendaExtractor.estimateTextTokens(content);
-        }, 0);
-    }
 }
