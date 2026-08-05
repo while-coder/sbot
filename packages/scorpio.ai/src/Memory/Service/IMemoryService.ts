@@ -51,8 +51,8 @@ export interface IMemoryService {
     search(query: string, limit?: number): Promise<MemorySearchHit[]>;
 
     /**
-     * 用户显式要求保存时使用：把消息持久化到 extract 队列并返回 job id。
-     * 消费时绕过 Selector 的 shouldWrite 否决，并把 mutation 锁定到 requested scope。
+     * 用户显式要求保存时使用：暂存 pending remember message 并返回 id；
+     * turn-end Extract 会统一接走并按消息处理。
      */
     remember(content: string, scope: MemoryScope): Promise<number>;
 

@@ -21,7 +21,7 @@ import {
     MemoryScope,
 } from "./IMemoryStore";
 import { HybridSearcher } from "../../Retrieval";
-import type { ChatMessage } from "../../Saver";
+import { MessageRole, type ChatMessage } from "../../Saver";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MEMORY_KINDS = new Set<string>(Object.values(MemoryKind));
@@ -104,6 +104,16 @@ export class MemoryStore implements IMemoryStore {
                     updated_at    INTEGER NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_pending_status_id ON memory_pending_messages(status, id);
+
+                CREATE TABLE IF NOT EXISTS memory_pending_remember_messages (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    content         TEXT    NOT NULL,
+                    requested_scope TEXT    NOT NULL,
+                    workspace_key   TEXT,
+                    created_at      INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_pending_remember_workspace_id
+                    ON memory_pending_remember_messages(workspace_key, id);
             `);
             // 旧库去列：description 曾是独立的 menu 标签，现已并入 title（= 文件 H1）。
             // 不搬运旧值（老条目的 menu 行退化成当时那个短标题，consolidate 会逐步重写），
@@ -364,8 +374,39 @@ export class MemoryStore implements IMemoryStore {
 
     // ── 待处理 job 队列 ──
 
-    pushPendingMessages(messages: ChatMessage[], now: number, target: MemoryTarget, requestedScope?: MemoryScope): number {
-        return this.pushPendingJob(MemoryPendingJobType.Extract, { messages, ...target, ...(requestedScope ? { requestedScope } : {}) }, now);
+    pushPendingRememberMessage(content: string, scope: MemoryScope, now: number, target: MemoryTarget): number {
+        const result = this.db.prepare(`
+            INSERT INTO memory_pending_remember_messages (content, requested_scope, workspace_key, created_at)
+            VALUES (@content, @scope, @workspaceKey, @now)
+        `).run({
+            content,
+            scope,
+            workspaceKey: target.scope === MemoryScope.Workspace ? target.workspace.key : null,
+            now,
+        });
+        return Number(result.lastInsertRowid);
+    }
+
+    pushPendingMessages(messages: ChatMessage[], now: number, target: MemoryTarget): number {
+        const workspaceKey = target.scope === MemoryScope.Workspace ? target.workspace.key : null;
+        return this.db.transaction(() => {
+            const where = workspaceKey === null ? `workspace_key IS NULL` : `workspace_key = @workspaceKey`;
+            const params = workspaceKey === null ? {} : { workspaceKey };
+            const pending = this.db.prepare(`
+                SELECT content, requested_scope FROM memory_pending_remember_messages
+                WHERE ${where} ORDER BY id ASC
+            `).all(params) as Array<{ content: string; requested_scope: string }>;
+            const jobMessages: ChatMessage[] = pending.length === 0 ? messages : pending.map(row => ({
+                role: MessageRole.Human,
+                content: `[EXPLICIT MEMORY WRITE]\nRequired scope: ${row.requested_scope}\n\n${row.content}`,
+                additional_kwargs: { explicitMemory: true, memoryScope: row.requested_scope },
+            }));
+            const jobId = this.pushPendingJob(MemoryPendingJobType.Extract, { messages: jobMessages, ...target }, now);
+            if (pending.length > 0) {
+                this.db.prepare(`DELETE FROM memory_pending_remember_messages WHERE ${where}`).run(params);
+            }
+            return jobId;
+        })();
     }
 
     pushPendingConsolidate(now: number, target: MemoryTarget): number {
@@ -548,21 +589,13 @@ export class MemoryStore implements IMemoryStore {
         return row ? this.mapRow(row) : null;
     }
 
-    private parsePendingPayload(json: string | null | undefined): {
-        messages?: ChatMessage[];
-        requestedScope?: MemoryScope;
-        target: MemoryTarget;
-    } {
+    private parsePendingPayload(json: string | null | undefined): { messages?: ChatMessage[]; target: MemoryTarget } {
         try {
             const parsed = JSON.parse(json ?? '{}');
             if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
                 return { target: { scope: MemoryScope.Global } };
             }
             const messages = Array.isArray((parsed as any).messages) ? ((parsed as any).messages as ChatMessage[]) : undefined;
-            const rawRequestedScope = (parsed as any).requestedScope;
-            const requestedScope = rawRequestedScope === MemoryScope.Global || rawRequestedScope === MemoryScope.Workspace
-                ? rawRequestedScope
-                : undefined;
             const rawWorkspace = (parsed as any).workspace;
             const workspace = rawWorkspace
                 && typeof rawWorkspace === 'object'
@@ -573,11 +606,7 @@ export class MemoryStore implements IMemoryStore {
             const target: MemoryTarget = workspace
                 ? { scope: MemoryScope.Workspace, workspace }
                 : { scope: MemoryScope.Global };
-            return {
-                ...(messages ? { messages } : {}),
-                ...(requestedScope ? { requestedScope } : {}),
-                target,
-            };
+            return { ...(messages ? { messages } : {}), target };
         } catch {
             return { target: { scope: MemoryScope.Global } };
         }
@@ -616,7 +645,6 @@ export class MemoryStore implements IMemoryStore {
             id: r.id,
             type,
             messages: type === MemoryPendingJobType.Extract ? (payload.messages ?? []) : undefined,
-            requestedScope: type === MemoryPendingJobType.Extract ? payload.requestedScope : undefined,
             status: this.normalizePendingStatus(r.status),
             attemptCount: r.attempt_count ?? 0,
             errorMessage: r.error_message ?? null,

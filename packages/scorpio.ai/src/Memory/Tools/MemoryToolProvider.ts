@@ -41,8 +41,8 @@ export class MemoryToolProvider {
                     .describe('The durable fact, preference, workflow, or decision to remember; omit the save request itself.'),
             }),
             func: async ({ scope, content }) => {
-                const jobId = await service.remember(content, scope);
-                return `Memory write queued: job=${jobId}, scope=${scope}`;
+                const pendingId = await service.remember(content, scope);
+                return `Memory write queued: pending=${pendingId}, scope=${scope}`;
             },
         });
     }

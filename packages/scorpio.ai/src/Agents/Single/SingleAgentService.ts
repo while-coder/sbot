@@ -3,7 +3,7 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
-import { IMemoryService, MemoryToolProvider, REMEMBER_MEMORY_TOOL_NAME } from "../../Memory";
+import { IMemoryService, MemoryToolProvider } from "../../Memory";
 import { IAgendaService, AgendaToolProvider } from "../../Agenda";
 import { INoteService, NoteToolProvider } from "../../Note";
 import { IWikiService } from "../../Wiki";
@@ -579,16 +579,8 @@ export class SingleAgentService extends AgentServiceBase {
             { role: MessageRole.Human, content: query },
             ...outputMessages,
         ];
-        const successfulToolCalls = new Set(outputMessages
-            .filter(message => message.role === MessageRole.Tool && message.status === 'success')
-            .map(message => message.tool_call_id));
-        const rememberQueued = outputMessages.some(message => message.tool_calls?.some(call =>
-            call.name === REMEMBER_MEMORY_TOOL_NAME && successfulToolCalls.has(call.id),
-        ));
-        if (this.memoryService && !rememberQueued) {
+        if (this.memoryService) {
             this.memoryService.extractFromConversation(conversation);
-        } else if (rememberQueued) {
-            this.logger?.debug('本轮 remember_memory 已处理显式写入，跳过后台记忆抽取');
         }
         if (this.agendaService) {
             this.agendaService.extractFromConversation(conversation, this.channelSessionId);
