@@ -28,7 +28,7 @@
     "build:admin": "pnpm run build:deps && pnpm --filter sbot-admin run build",
 
     "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run package",
-    "publish:vscode": "pnpm run build:vscode && pnpm --filter sbot-vscode exec vsce publish --no-dependencies --skip-license",
+    "publish:vscode": "pnpm run build:vscode && start https://marketplace.visualstudio.com/manage/publishers/",
 
     "debug:app": "pnpm run assets && pnpm --filter @sbot/app run dev",
     "build:app:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run macos:build",
