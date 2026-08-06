@@ -1,0 +1,36 @@
+{
+  "name": "@qingfeng346/remote-agent-client",
+  "version": "0.1.0",
+  "description": "Frontend client library for the sbot remote-agent channel: HTTP/SSE and WebSocket transports, client-tool execution and single-round conversation state",
+  "keywords": [
+    "sbot",
+    "remote-agent",
+    "agent",
+    "client",
+    "sse"
+  ],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "esm/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./esm/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "esm",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rimraf dist esm && tsc -b --force && tsc -p tsconfig.esm.json && node scripts/write-esm-pkg.cjs",
+    "test": "node test/integration.mjs"
+  },
+  "devDependencies": {
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

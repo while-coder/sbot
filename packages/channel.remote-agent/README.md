@@ -68,3 +68,11 @@ When the client receives `toolCall`, call `POST /tool-result` with
 Both transports treat external system prompts and tool results as untrusted
 input. The external client remains responsible for confirmation of its own
 side-effecting tools.
+
+## Frontend library
+
+[`@qingfeng346/remote-agent-client`](../remote-agent-client/README.md) implements
+the client side of both transports, plus client-tool registration/execution and
+a framework-agnostic single-round conversation model. Prefer it over hand-writing
+a client; its `src/protocol.ts` mirrors this package's `src/protocol.ts` and must
+be updated alongside it.

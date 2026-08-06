@@ -5,6 +5,9 @@
  * its currently available local capabilities, executes tool calls, and returns
  * bounded text results. The client may represent a debugger, an IDE, or any
  * other product-specific tool surface; sbot does not need to know which.
+ *
+ * The frontend library keeps a client-side copy of these wire types in
+ * packages/remote-agent-client/src/protocol.ts. Update both sides together.
  */
 
 export enum AgentClientMessageType {

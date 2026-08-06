@@ -16,6 +16,10 @@
     "link:sbot": "pnpm run build:sbot && npm link packages/sbot/dist",
     "unlink:sbot": "npm unlink -g @qingfeng346/sbot",
 
+    "build:remote-agent-client": "pnpm --filter @qingfeng346/remote-agent-client run build",
+    "test:remote-agent-client": "pnpm --filter channel.remote-agent run build && pnpm run build:remote-agent-client && pnpm --filter @qingfeng346/remote-agent-client run test",
+    "publish:remote-agent-client": "pnpm run build:remote-agent-client && pnpm --filter @qingfeng346/remote-agent-client publish --no-git-checks --access public",
+
     "debug:cli": "pnpm run build:deps && pnpm --filter sbot-cli run debug",
     "build:cli": "pnpm run build:deps && pnpm --filter sbot-cli run build",
     "publish:cli": "pnpm run build:cli && pnpm --filter sbot-cli publish --no-git-checks",
