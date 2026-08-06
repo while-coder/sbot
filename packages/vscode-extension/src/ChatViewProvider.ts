@@ -158,7 +158,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       case 'listSessions':
         return client.fetchSessions();
       case 'createSession':
-        // workPath 不再在创建时绑；首条消息会带上当前 workspace folder，server 按消息粒度覆盖
+        // workPath 不在创建时绑定；本地 server 的每条消息都会使用当前 workspace folder。
         return client.createSessionNew(args[0]);
       case 'deleteSession':
         return client.deleteSession(args[0]);
