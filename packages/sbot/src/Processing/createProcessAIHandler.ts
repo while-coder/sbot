@@ -30,7 +30,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const saverId = resolved.saver;
         const notes = resolved.notes;
         const wikis = resolved.wikis;
-        const workPath = resolved.workPath;
+        const workPath = args.workPath || resolved.workPath;
         const autoApproveAllTools = resolved.autoApproveAllTools ?? false;
         const streamVerbose = resolved.streamVerbose ?? (channelId === WEB_CHANNEL_ID);
         const approvalTimeout = resolved.approvalTimeout ?? 0;

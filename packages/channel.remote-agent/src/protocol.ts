@@ -58,6 +58,8 @@ export interface AgentSessionIdentity {
 
 export interface AgentChatMessage extends AgentSessionIdentity {
   type: AgentClientMessageType.Chat;
+  /** Optional workspace path used by this chat only. */
+  workPath?: string;
   /** Standard scorpio.ai multimodal input. */
   content: MessageContent;
   /** Additional image or file attachments, equivalent to the web channel's attachments. */

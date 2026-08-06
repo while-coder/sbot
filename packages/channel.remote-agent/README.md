@@ -39,8 +39,9 @@ transports must be available at the same time.
 
 Every chat carries the required `userId`, `userInfo`, `sessionId`,
 `sessionInfo`, `systemPrompt`, `tools`, and scorpio.ai-compatible `content`,
-plus optional `attachments`
-(`name` with `dataUrl` or text `content`). Images become multimodal input;
+plus optional `workPath` and `attachments`. A non-empty `workPath` overrides
+the workspace for that chat without changing the session profile or channel.
+Attachments use `name` with `dataUrl` or text `content`. Images become multimodal input;
 other attachments are written to a temporary file and injected as a file link.
 Empty `systemPrompt` and an empty `tools` list are valid explicit values. sbot
 owns model selection, history, memory and agent execution; the external client

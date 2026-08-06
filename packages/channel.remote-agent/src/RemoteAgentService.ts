@@ -62,6 +62,7 @@ export abstract class RemoteAgentService implements IChannelService {
       sessionId: identity.sessionId,
       connection,
       extraInfo: connection.extraInfo,
+      ...(typeof message.workPath === "string" && message.workPath.trim() && { workPath: message.workPath }),
     }, content);
   }
 
