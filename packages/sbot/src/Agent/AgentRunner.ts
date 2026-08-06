@@ -101,8 +101,11 @@ export class AgentRunner {
         // 隔离在 assets/threadId；Memory 则统一绑定固定的 ~/.sbot/workspace，避免普通
         // Web 对话没有 workspace scope、所有新记忆都被迫落进 global。
         const configuredWorkPath = options.workPath?.trim() || undefined;
-        const memoryWorkPath = configuredWorkPath ?? config.getConfigPath('workspace', true);
-        const workPath = configuredWorkPath ?? path.join(assetsDir, threadId);
+        const existingWorkPath = configuredWorkPath && existsSync(configuredWorkPath)
+            ? configuredWorkPath
+            : undefined;
+        const memoryWorkPath = existingWorkPath ?? config.getConfigPath('workspace', true);
+        const workPath = existingWorkPath ?? path.join(assetsDir, threadId);
         if (!existsSync(workPath)) mkdirSync(workPath, { recursive: true });
 
         /** 静态 system prompts（可缓存）：instruction → environment → channel */
