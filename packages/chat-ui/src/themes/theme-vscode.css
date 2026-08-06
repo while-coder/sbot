@@ -26,8 +26,10 @@
   --chatui-btn-danger: var(--vscode-errorForeground, #f48771);
 
   /* ── Messages ── */
-  --chatui-bg-human: var(--vscode-button-background, #0e639c);
-  --chatui-fg-human: var(--vscode-button-foreground, #ffffff);
+  /* 用户气泡取输入框底色（中性）而非按钮蓝：长对话里大色块太抢视线 */
+  --chatui-bg-human: var(--vscode-input-background, rgba(255, 255, 255, 0.10));
+  --chatui-fg-human: var(--vscode-input-foreground, var(--vscode-foreground, #d4d4d4));
+  --chatui-border-human: var(--vscode-widget-border, rgba(255, 255, 255, 0.14));
   --chatui-bg-ai: var(--vscode-editor-inactiveSelectionBackground, rgba(255, 255, 255, 0.08));
   --chatui-fg-ai: var(--vscode-foreground, #d4d4d4);
   --chatui-bg-tool: rgba(120, 100, 40, 0.15);

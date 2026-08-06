@@ -73,8 +73,9 @@ async function fetchFn(url: string) {
      通用 UI 色彩走 sui token；chat 业务专属色（human/think 等紫蓝）保留 hex，由本文件单点维护。 -->
 <style>
 body {
-  --chatui-bg-human: var(--sui-fg);
-  --chatui-fg-human: var(--sui-on-primary);
+  --chatui-bg-human: var(--sui-bg-soft);
+  --chatui-fg-human: var(--sui-fg);
+  --chatui-border-human: var(--sui-border);
   --chatui-bg-ai: var(--sui-bg-soft);
   --chatui-fg-ai: var(--sui-fg);
   --chatui-bg-tool: var(--sui-tool-bg);
@@ -89,7 +90,9 @@ body {
   --chatui-think-border: #ddd6fe;
 }
 html[data-theme="dark"] body {
-  --chatui-bg-human: #2d4a8a;
+  --chatui-bg-human: #333333;
+  --chatui-fg-human: #ededed;
+  --chatui-border-human: rgba(255, 255, 255, 0.14);
   --chatui-bg-tool: rgba(120, 100, 40, 0.2);
   --chatui-fg-tool: #fbbf24;
   --chatui-bg-code: rgba(255, 255, 255, 0.06);

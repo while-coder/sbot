@@ -66,8 +66,9 @@ html[data-theme="dark"] {
   --chatui-btn-hover: #4078e6;
   --chatui-btn-danger: #f87171;
 
-  --chatui-bg-human: #2d4a8a;
-  --chatui-fg-human: #e0e0e0;
+  --chatui-bg-human: #333333;
+  --chatui-fg-human: #ededed;
+  --chatui-border-human: rgba(255, 255, 255, 0.14);
   --chatui-bg-ai: #2a2a2a;
   --chatui-fg-ai: #e0e0e0;
   --chatui-bg-tool: rgba(120, 100, 40, 0.2);

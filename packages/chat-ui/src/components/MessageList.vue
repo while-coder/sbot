@@ -181,7 +181,7 @@ function contentCharLen(content?: DisplayContent): number {
               <span v-if="isCommand(msg)" class="msg-kind-tag msg-kind-command">{{ L.commandTag }}</span>
               <span v-if="isException(msg)" class="msg-kind-tag msg-kind-exception">{{ L.exceptionTag }}</span>
               <span v-if="msg.createdAt" class="msg-time">{{ fmtTs(msg.createdAt) }}</span>
-              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle think-toggle-human" @click="openThink(msg.thinkId!, msg.taskId)">
+              <div v-if="msg.thinkId && thinksUrlPrefix" class="think-toggle" @click="openThink(msg.thinkId!, msg.taskId)">
                 <span>▸</span><span>{{ L.think }}</span>
               </div>
             </div>
@@ -372,9 +372,11 @@ function contentCharLen(content?: DisplayContent): number {
   line-height: 1.5;
   overflow-wrap: break-word;
 }
+/* 底色是中性灰，与 AI 侧对比很弱 —— 靠一圈细边框把气泡边界撑出来 */
 .msg-bubble.human {
   background: var(--chatui-bg-human);
   color: var(--chatui-fg-human);
+  border: 1px solid var(--chatui-border-human, var(--chatui-border));
   border-bottom-right-radius: 2px;
 }
 .msg-bubble.ai {
@@ -642,17 +644,6 @@ function contentCharLen(content?: DisplayContent): number {
   0%, 100% { opacity: 0.3; }
   50%      { opacity: 1; }
 }
-.think-toggle-human {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #e9d5ff;
-}
-.think-toggle-human:hover {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: #fff;
-}
-
 /* Queued */
 .msg-bubble.queued { opacity: 0.6; }
 .msg-queued-tag {

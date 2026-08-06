@@ -20,8 +20,10 @@
   --chatui-btn-danger: #ef4444;
 
   /* ── Messages ── */
-  --chatui-bg-human: #1c1c1c;
-  --chatui-fg-human: #ffffff;
+  /* 用户气泡走中性灰而非反色黑块：长对话里大色块太抢视线 */
+  --chatui-bg-human: #ebe9e6;
+  --chatui-fg-human: #1c1c1c;
+  --chatui-border-human: #ddd9d4;
   --chatui-bg-ai: #f5f4f2;
   --chatui-fg-ai: #1c1c1c;
   --chatui-bg-tool: rgba(254, 252, 232, 0.35);
