@@ -1,6 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto';
 import path from 'node:path';
-import axios from 'axios';
 import WebSocket from 'ws';
 import {
   ChannelSessionHandler, IChannelService, SessionService, isEmptyContent,
@@ -12,24 +10,15 @@ import {
   decodeAuthBindResponse, decodeConn, decodeKickoutMessage, decodePingResponse,
   type YuanbaoMessageElement,
 } from './YuanbaoCodec';
-import { guessMime, uploadMedia, type YuanbaoAuthHeaders } from './YuanbaoMedia';
+import { YuanbaoAPI } from './YuanbaoAPI';
 import { YuanbaoSessionHandler, type YuanbaoMessageArgs } from './YuanbaoSessionHandler';
 
 const WS_URL = 'wss://bot-wss.yuanbao.tencent.com/wss/connection';
-const API_BASE = 'https://bot.yuanbao.tencent.com';
 const RECONNECT_DELAYS = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000];
 const NO_RECONNECT_CODES = new Set([4012, 4013, 4014, 4018, 4019, 4021]);
 const AUTH_FAILED_CODES = new Set([41103, 41104, 41108]);
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.opus', '.silk', '.amr']);
-const MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024;
 const TEXT_CHUNK_LIMIT = 2800;
-
-interface TokenData {
-  botId: string;
-  token: string;
-  source: string;
-  duration: number;
-}
 
 export interface YuanbaoSessionTarget {
   chatType: 'c2c' | 'group';
@@ -47,77 +36,10 @@ export interface YuanbaoServiceOptions {
   onReceiveMessage: (userId: string, args: YuanbaoMessageArgs, query: MessageContent) => Promise<void>;
 }
 
-class TokenManager {
-  private cached?: TokenData;
-  private expiresAt = 0;
-  private pending?: Promise<TokenData>;
-
-  constructor(
-    private readonly appId: string,
-    private readonly appSecret: string,
-    private readonly apiBase: string,
-    private readonly logger?: ILogger,
-  ) {}
-
-  invalidate(): void {
-    this.cached = undefined;
-    this.expiresAt = 0;
-  }
-
-  async getToken(): Promise<TokenData> {
-    if (this.cached && Date.now() < this.expiresAt) return this.cached;
-    if (this.pending) return this.pending;
-    this.pending = this.fetchToken().finally(() => { this.pending = undefined; });
-    return this.pending;
-  }
-
-  async getAuthHeaders(): Promise<YuanbaoAuthHeaders> {
-    const token = await this.getToken();
-    return { 'X-ID': token.botId, 'X-Token': token.token, 'X-Source': token.source };
-  }
-
-  private async fetchToken(): Promise<TokenData> {
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= 3; attempt++) {
-      const nonce = randomBytes(16).toString('hex');
-      const timestamp = `${new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 19)}+08:00`;
-      const plain = nonce + timestamp + this.appId + this.appSecret;
-      const signature = createHmac('sha256', this.appSecret).update(plain).digest('hex');
-      try {
-        const response = await axios.post(`${this.apiBase}/api/v5/robotLogic/sign-token`, {
-          app_key: this.appId, nonce, signature, timestamp,
-        }, { timeout: 15_000, headers: { 'Content-Type': 'application/json' } });
-        const result = response.data;
-        if (result?.code === 0) {
-          const data = result.data ?? {};
-          const token: TokenData = {
-            botId: data.bot_id ?? '', token: data.token ?? '', source: data.source ?? 'bot',
-            duration: Number(data.duration ?? 0),
-          };
-          if (!token.botId || !token.token) throw new Error('sign-token returned empty bot_id/token');
-          this.cached = token;
-          this.expiresAt = Date.now() + Math.max(60, token.duration - 300) * 1000;
-          return token;
-        }
-        if (result?.code !== 10099 || attempt === 3) {
-          throw new Error(`sign-token error: code=${result?.code}, msg=${result?.msg ?? ''}`);
-        }
-      } catch (error) {
-        lastError = error;
-        if (attempt === 3) break;
-      }
-      this.logger?.warn(`Yuanbao sign-token retry ${attempt + 1}/3`);
-      await new Promise(resolve => setTimeout(resolve, 1_000));
-    }
-    throw lastError instanceof Error ? lastError : new Error('sign-token failed');
-  }
-}
-
 export class YuanbaoService implements IChannelService {
   private readonly options: YuanbaoServiceOptions;
   private readonly logger?: ILogger;
-  private readonly apiBase: string;
-  private readonly tokens: TokenManager;
+  private readonly api: YuanbaoAPI;
   private readonly sessions = new Map<string, YuanbaoSessionTarget>();
   private readonly seenMessageIds = new Map<string, number>();
   private readonly typingTimers = new Map<string, NodeJS.Timeout>();
@@ -136,8 +58,11 @@ export class YuanbaoService implements IChannelService {
   constructor(options: YuanbaoServiceOptions) {
     this.options = options;
     this.logger = options.logger;
-    this.apiBase = API_BASE;
-    this.tokens = new TokenManager(options.appId, options.appSecret, this.apiBase, options.logger);
+    this.api = new YuanbaoAPI({
+      appId: options.appId,
+      appSecret: options.appSecret,
+      logger: options.logger,
+    });
   }
 
   createSessionHandler(session: SessionService): ChannelSessionHandler {
@@ -190,7 +115,7 @@ export class YuanbaoService implements IChannelService {
   async sendFileToSession(sessionId: string, file: string | Buffer, fileName?: string): Promise<void> {
     const target = this.sessions.get(sessionId);
     if (!target) throw new Error(`Unknown Yuanbao session: ${sessionId}`);
-    const element = await uploadMedia(this.apiBase, await this.tokens.getAuthHeaders(), file, fileName);
+    const element = await this.api.uploadMedia(file, fileName);
     await this.sendElements(target, [element]);
   }
 
@@ -220,7 +145,7 @@ export class YuanbaoService implements IChannelService {
     this.connecting = true;
     this.clearHeartbeat();
     try {
-      const token = await this.tokens.getToken();
+      const token = await this.api.getToken();
       this.botId = token.botId;
       const ws = new WebSocket(WS_URL);
       this.ws = ws;
@@ -230,7 +155,7 @@ export class YuanbaoService implements IChannelService {
       const auth = authFrame.data.length ? decodeAuthBindResponse(authFrame.data) : {};
       const code = Number(auth?.code ?? status);
       if (code !== 0 && code !== 41101) {
-        if (AUTH_FAILED_CODES.has(code)) this.tokens.invalidate();
+        if (AUTH_FAILED_CODES.has(code)) this.api.invalidateToken();
         throw new Error(`AuthBind failed: code=${code}, message=${auth?.message ?? ''}`);
       }
 
@@ -349,7 +274,7 @@ export class YuanbaoService implements IChannelService {
           this.startHeartbeat();
         }
       } else if (head.cmd === CMD_AUTH_BIND && AUTH_FAILED_CODES.has(Number(head.status ?? 0))) {
-        this.tokens.invalidate();
+        this.api.invalidateToken();
         this.ws?.close();
       }
       return;
@@ -469,7 +394,7 @@ export class YuanbaoService implements IChannelService {
         const url = String(info.find((entry: any) => entry?.url)?.url ?? content.url ?? '');
         if (url) {
           try {
-            const media = await this.downloadMedia(url, 'image.jpg');
+            const media = await this.api.downloadMedia(url, 'image.jpg');
             parts.push({ type: 'image_url', image_url: { url: `data:${media.mimeType};base64,${media.data.toString('base64')}` } });
           } catch (error: any) {
             this.logger?.warn(`Yuanbao image download failed: ${error?.message ?? error}`);
@@ -482,7 +407,7 @@ export class YuanbaoService implements IChannelService {
         if (!url) continue;
         if (AUDIO_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
           try {
-            const media = await this.downloadMedia(url, fileName);
+            const media = await this.api.downloadMedia(url, fileName);
             parts.push({ type: 'audio', data: media.data.toString('base64'), mimeType: media.mimeType });
           } catch (error: any) {
             this.logger?.warn(`Yuanbao audio download failed: ${error?.message ?? error}`);
@@ -494,27 +419,6 @@ export class YuanbaoService implements IChannelService {
       }
     }
     return { parts, botMentioned };
-  }
-
-  private async downloadMedia(rawUrl: string, fileName: string): Promise<{ data: Buffer; mimeType: string }> {
-    let url = rawUrl;
-    try {
-      const parsed = new URL(rawUrl);
-      const resourceId = parsed.searchParams.get('resourceId');
-      if (resourceId) {
-        const response = await axios.get(`${this.apiBase}/api/resource/v1/download`, {
-          params: { resourceId }, headers: await this.tokens.getAuthHeaders(), timeout: 15_000,
-        });
-        url = response.data?.data?.url ?? response.data?.data?.realUrl ?? response.data?.url ?? response.data?.realUrl ?? rawUrl;
-      }
-    } catch (_) {}
-    const response = await axios.get<ArrayBuffer>(url, {
-      responseType: 'arraybuffer', timeout: 30_000, maxContentLength: MAX_DOWNLOAD_BYTES,
-    });
-    const data = Buffer.from(response.data);
-    if (data.length > MAX_DOWNLOAD_BYTES) throw new Error('media exceeds 20 MB');
-    const contentType = String(response.headers['content-type'] ?? '').split(';')[0];
-    return { data, mimeType: contentType || guessMime(fileName) };
   }
 
   private async sendElements(target: YuanbaoSessionTarget, elements: YuanbaoMessageElement[]): Promise<void> {
