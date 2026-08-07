@@ -10,10 +10,6 @@ export const T_DBUrl = Symbol("scorpio:T_DBUrl");
 export const T_DBTable = Symbol("scorpio:T_DBTable");
 export const T_ReactSystemPromptTemplate = Symbol("scorpio:T_ReactSystemPromptTemplate");
 export const T_ReactSubNodePrompt        = Symbol("scorpio:T_ReactSubNodePrompt");
-export const T_SkillSystemPromptTemplate = Symbol("scorpio:T_SkillSystemPromptTemplate");
-export const T_SkillToolReadDesc         = Symbol("scorpio:T_SkillToolReadDesc");
-export const T_SkillToolListDesc         = Symbol("scorpio:T_SkillToolListDesc");
-export const T_SkillToolExecDesc         = Symbol("scorpio:T_SkillToolExecDesc");
 export const T_NoteSystemPromptTemplate = Symbol("scorpio:T_NoteSystemPromptTemplate");
 /** Note HybridSearcher 的 cachePath（每个 note 一份 searcher.sqlite）。 */
 export const T_NoteCachePath            = Symbol("scorpio:T_NoteCachePath");

@@ -20,7 +20,6 @@
     "better-sqlite3": "catalog:",
     "commander": "catalog:",
     "cron": "catalog:",
-    "js-yaml": "^4.2.0",
     "langchain": "^1.4.5",
     "pg": "^8.21.0",
     "reflect-metadata": "catalog:",
@@ -31,7 +30,6 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "catalog:",
-    "@types/js-yaml": "^4.0.9",
     "@types/node": "catalog:",
     "@types/pg": "^8.20.0",
     "@types/uuid": "catalog:",

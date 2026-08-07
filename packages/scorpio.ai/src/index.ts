@@ -8,7 +8,6 @@
  * - Embedding: 文本嵌入服务
  * - Note: 笔记/资料库系统（向量检索）
  * - Saver: Agent 状态持久化
- * - Skills: 技能系统
  * - Command: 命令系统（装饰器、解析器）
  * - AgentTool: 工具管理
  * - Agent: Agent 服务
@@ -53,10 +52,6 @@ export {
   T_DBTable,
   T_ReactSystemPromptTemplate,
   T_ReactSubNodePrompt,
-  T_SkillSystemPromptTemplate,
-  T_SkillToolReadDesc,
-  T_SkillToolListDesc,
-  T_SkillToolExecDesc,
   T_NoteSystemPromptTemplate,
   T_NoteCachePath,
   T_MemoryDir,
@@ -196,23 +191,6 @@ export {
   estimateMessageTokens,
   estimateMessagesTokens,
 } from "./Saver";
-
-// ========================================
-// Skills - 技能系统
-// ========================================
-export {
-  // 接口 + Symbol Token
-  ISkillService,
-
-  // 实现类
-  SkillService,
-  READ_SKILL_FILE_TOOL_NAME,
-  EXECUTE_SKILL_SCRIPT_TOOL_NAME,
-  LIST_SKILL_FILES_TOOL_NAME,
-
-  // 类型定义
-  Skill,
-} from "./Skills";
 
 // ========================================
 // Retrieval - 混合检索（BM25 + jaccard + embedding，自管 SQLite 缓存）
@@ -450,6 +428,6 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, detectImageMimeType, setMaxImageSize, appendAttachmentsToMessageContent, writeAttachmentInput } from "./Utils/contentUtils";
 export type { MediaCategory } from "./Utils/contentUtils";
 export { withRetry } from "./Utils/withRetry";
-export { UsageTracker, type UsageData } from "./Utils/UsageTracker";
+export { UsageTracker, UsageState, type UsageData } from "./Utils/UsageTracker";
 export { TimeUtils } from "./Utils/TimeUtils";
 export { renderConversation } from "./Utils/conversationUtils";

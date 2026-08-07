@@ -9,14 +9,21 @@ import {
 } from "scorpio.ai";
 import {
     IAgentToolService, AgentToolService,
-    ISkillService, SkillService,
+    IAgentPlugin,
     ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt,
-    T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc,
     T_ModelCallTimeout, T_MaxHistoryRounds,
     type CreateAgentFn,
 } from "scorpio.ai";
+import {
+    SkillService,
+    T_SkillSystemPromptTemplate,
+    T_SkillToolReadDesc,
+    T_SkillToolListDesc,
+    T_SkillToolExecDesc,
+    loadSkillPrompt,
+} from "agent.skill";
 import path from "path";
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { createSessionSearchTool, type SearchableSaver } from "../Tools/SessionSearch/index";
@@ -116,13 +123,14 @@ export class AgentFactory {
         workPath?: string,
         skillsExclude?: string[],
     ): Promise<void> {
-        container.registerWithArgs(ISkillService, SkillService, {
-            [T_SkillSystemPromptTemplate]: loadPrompt('skills/system.txt'),
-            [T_SkillToolReadDesc]: loadPrompt('skills/tool_read_skill_file.txt'),
-            [T_SkillToolListDesc]: loadPrompt('skills/tool_list_skill_files.txt'),
-            [T_SkillToolExecDesc]: loadPrompt('skills/tool_execute_skill_script.txt'),
+        const promptOverrides = config.getConfigPath('prompts', true);
+        container.registerWithArgs(SkillService, {
+            [T_SkillSystemPromptTemplate]: loadSkillPrompt('skills/system.txt', promptOverrides),
+            [T_SkillToolReadDesc]: loadSkillPrompt('skills/tool_read_skill_file.txt', promptOverrides),
+            [T_SkillToolListDesc]: loadSkillPrompt('skills/tool_list_skill_files.txt', promptOverrides),
+            [T_SkillToolExecDesc]: loadSkillPrompt('skills/tool_execute_skill_script.txt', promptOverrides),
         });
-        const skillService = container.resolve<SkillService>(ISkillService);
+        const skillService = container.resolve(SkillService);
         if (skills === '*') {
             const excludeSet = new Set(skillsExclude ?? []);
             if (excludeSet.size === 0) {
@@ -148,6 +156,14 @@ export class AgentFactory {
         if (workPath) {
             skillService.registerSkillsDir(path.join(workPath, '.skills'));
         }
+
+        const existingPlugins = container.isRegistered(IAgentPlugin)
+            ? container.resolve<IAgentPlugin[]>(IAgentPlugin)
+            : [];
+        container.registerInstance(IAgentPlugin, [
+            skillService,
+            ...existingPlugins.filter(plugin => plugin.name !== skillService.name),
+        ]);
     }
 
     private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<StructuredToolInterface[]>> = {

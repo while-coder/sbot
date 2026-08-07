@@ -7,8 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { Skill } from './types';
 import { parseSkill, isValidSkillDirectory } from './parser';
-import { ILoggerService } from '../Logger';
-import { formatError } from '../Core';
+import { ILoggerService, formatError } from 'scorpio.ai';
 
 /**
  * 从指定目录加载所有 skills

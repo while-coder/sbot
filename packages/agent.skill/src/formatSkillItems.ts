@@ -1,5 +1,5 @@
 import { Skill } from "./types";
-import { UsageTracker } from "../Utils/UsageTracker";
+import { UsageTracker } from "scorpio.ai";
 
 export function formatSkillItems(skills: Skill[]): string {
     return skills

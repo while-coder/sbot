@@ -2,7 +2,6 @@ import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { IModelService } from "../../Model";
-import { ISkillService } from "../../Skills";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
 import { INoteService, NoteToolProvider } from "../../Note";
 import { IWikiService } from "../../Wiki";
@@ -75,7 +74,6 @@ type SingleAgentState = {
  */
 export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
-    protected skillService: ISkillService;
     protected memoryService?: IMemoryService;
     protected toolService?: IAgentToolService;
     protected staticSystemPrompts: string[];
@@ -92,7 +90,6 @@ export class SingleAgentService extends AgentServiceBase {
 
     constructor(
         @inject(IModelService) modelService: IModelService,
-        @inject(ISkillService) skillService: ISkillService,
         @inject(T_ToolOverflowDir) toolOverflowDir: string,
         @inject(T_ChannelSessionId) channelSessionId: number,
         @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
@@ -109,7 +106,6 @@ export class SingleAgentService extends AgentServiceBase {
     ) {
         super(loggerService, agentSaver, noteServices, wikiServices);
         this.modelService = modelService;
-        this.skillService = skillService;
         this.memoryService = memoryService;
         this.toolService = toolService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
@@ -184,8 +180,6 @@ export class SingleAgentService extends AgentServiceBase {
     protected async buildSystemMessage(ctx: AgentPluginContext, query: MessageContent): Promise<ChatMessage | undefined> {
         // ── 静态部分（跨请求不变，可被 prompt caching 缓存） ──
         const staticParts: string[] = [...this.staticSystemPrompts];
-        const skillMessage = await this.skillService.getSystemMessage();
-        if (skillMessage) staticParts.push(skillMessage);
         staticParts.push(...await this.collectPluginPrompts(AgentPluginPromptKind.Static, ctx));
 
         // ── 动态部分（每次请求可能变化） ──
@@ -224,14 +218,13 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /**
-     * 构建本轮所有可用工具（toolService + 笔记 + skill + 插件）
+     * 构建本轮所有可用工具（toolService + 笔记 + Wiki + Memory + 能力插件）
      *
      * 插件工具追加在最末：同名去重时框架自有工具胜出，maxTools 截断也优先砍插件工具。
      * ctx 统一排在首位（也是必需参数唯一能放的位置——不能跟在可选的 callback / signal 之后）。
      */
     protected async buildTools(ctx: AgentPluginContext, _callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
-        if (this.skillService) tools.push(...this.skillService.getTools());
         if (this.noteServices.length > 0) {
             tools.push(...NoteToolProvider.getTools(this.noteServices));
         }

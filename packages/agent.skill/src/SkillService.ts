@@ -1,14 +1,15 @@
 import { Skill } from "./types";
 import { parseSkill, isValidSkillDirectory } from "./parser";
 import { formatSkillItems } from "./formatSkillItems";
-import { ISkillService } from "./ISkillService";
-import { ILoggerService } from "../Logger";
-import { inject, T_SkillSystemPromptTemplate, T_SkillToolReadDesc, T_SkillToolListDesc, T_SkillToolExecDesc, formatError } from "../Core";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import {
+    type AgentPluginContext,
+    IAgentPlugin,
+    ILoggerService,
+    formatError,
     createTextContent,
     createErrorResult,
     createSuccessResult,
@@ -17,14 +18,25 @@ import {
     formatWalkTree,
     DEFAULT_WALK_MAX_DEPTH,
     DEFAULT_WALK_LIMIT,
-} from "../Tools";
-import { UsageTracker, UsageState } from "../Utils/UsageTracker";
+    UsageTracker,
+    UsageState,
+} from "scorpio.ai";
+import { inject } from "scorpio.di";
+import {
+    T_SkillSystemPromptTemplate,
+    T_SkillToolReadDesc,
+    T_SkillToolListDesc,
+    T_SkillToolExecDesc,
+} from "./tokens";
 
 export const READ_SKILL_FILE_TOOL_NAME = 'read_skill_file';
 export const EXECUTE_SKILL_SCRIPT_TOOL_NAME = 'execute_skill_script';
 export const LIST_SKILL_FILES_TOOL_NAME = 'list_skill_files';
 
-export class SkillService implements ISkillService {
+export class SkillService implements IAgentPlugin {
+  readonly name = "skills";
+  readonly inheritToSubAgent = false;
+
   private skillsDirs: string[] = [];
   private singleSkillDirs: string[] = [];
   private logger;
@@ -92,10 +104,10 @@ export class SkillService implements ISkillService {
     return skills;
   }
 
-  async getSystemMessage(): Promise<string | null> {
-    if (!this.systemPromptTemplate) return null;
+  async getStaticSystemPrompt(_ctx: AgentPluginContext): Promise<string | undefined> {
+    if (!this.systemPromptTemplate) return undefined;
     const skills = this.getAllSkills();
-    if (skills.length === 0) return null;
+    if (skills.length === 0) return undefined;
 
     return this.systemPromptTemplate.replace('{skills}', formatSkillItems(skills));
   }
@@ -212,7 +224,27 @@ export class SkillService implements ISkillService {
   // ── 工具函数 ──
 
   private isPathSafe(fullPath: string, baseDir: string): boolean {
-    return path.normalize(fullPath).startsWith(path.normalize(baseDir));
+    const basePath = path.resolve(baseDir);
+    const targetPath = path.resolve(fullPath);
+    if (!SkillService.isPathWithin(basePath, targetPath)) return false;
+
+    // Existing paths must also remain inside the skill after resolving junctions/symlinks.
+    // Missing paths are handled by the caller and are safe to classify lexically here.
+    if (!fs.existsSync(basePath) || !fs.existsSync(targetPath)) return true;
+    try {
+      return SkillService.isPathWithin(
+        fs.realpathSync(basePath),
+        fs.realpathSync(targetPath),
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private static isPathWithin(basePath: string, targetPath: string): boolean {
+    const relative = path.relative(basePath, targetPath);
+    return relative === ""
+      || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
   }
 
   // 扁平路径列表：目录用 `/` 后缀标识，省 token、无歧义。目录优先排序便于 LLM 识别可下钻路径。

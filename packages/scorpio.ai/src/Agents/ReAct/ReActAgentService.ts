@@ -8,7 +8,6 @@ import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole, ChatMessage } from "../AgentServiceBase";
 import { IAgentPlugin, type AgentPluginContext } from "../Plugins";
-import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
@@ -63,7 +62,6 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_CreateAgent) agentFactory: CreateAgentFn,
     @inject(T_ReactSystemPromptTemplate) private systemPromptTemplate: string,
     @inject(T_ReactSubNodePrompt) private subNodePrompt: string,
-    @inject(ISkillService) skillService: ISkillService,
     @inject(T_ToolOverflowDir) toolOverflowDir: string,
     @inject(T_ChannelSessionId) channelSessionId: number,
     @inject(T_StaticSystemPrompts, { optional: true }) staticSystemPrompts?: string[],
@@ -79,7 +77,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_SpawnDepth, { optional: true }) spawnDepth?: number,
     @inject(IAgentPlugin, { optional: true }) plugins?: IAgentPlugin[],
   ) {
-    super(thinkModelService, skillService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, plugins);
+    super(thinkModelService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, plugins);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
     this.spawnDepth = spawnDepth ?? 0;

@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import { getAgendaPromptsDir } from 'agent.agenda';
+import { getSkillPromptsDir } from 'agent.skill';
 import { config } from '../../Core/Config';
 import { refreshBuiltinTools } from '../../Agent/GlobalAgentToolService';
 import { loadPromptMeta, type PromptVarMeta } from '../../Core/PromptLoader';
@@ -10,7 +11,7 @@ import type { RouteContext } from './types';
 
 export class PromptRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
-        const defaultDirs = [promptTreeHelper.PROMPTS_DIR, getAgendaPromptsDir()];
+        const defaultDirs = [promptTreeHelper.PROMPTS_DIR, getSkillPromptsDir(), getAgendaPromptsDir()];
         app.get('/api/prompts/tree', api(() => {
             const userBaseDir = config.getConfigPath('prompts', true);
             return promptTreeHelper.buildFromRoots(defaultDirs, userBaseDir);

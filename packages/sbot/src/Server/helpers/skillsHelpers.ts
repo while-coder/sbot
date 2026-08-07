@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { SkillService } from 'scorpio.ai';
+import { SkillService } from 'agent.skill';
 
 export class SkillHelper {
     list(skillsDir: string) {
