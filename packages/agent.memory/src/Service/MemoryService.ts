@@ -8,10 +8,21 @@ import {
     T_MemoryWriterPrompt,
     T_MemorySelectorPrompt,
     T_MemorySelectorModel,
-} from "../../Core/tokens";
-import { formatError, runtimeActivity } from "../../Core";
-import { ILogger, ILoggerService } from "../../Logger";
-import { IModelService } from "../../Model";
+} from "../tokens";
+import {
+    contentToString,
+    estimateMessagesTokens,
+    estimateTextTokens,
+    formatError,
+    type ILogger,
+    ILoggerService,
+    IModelService,
+    MessageRole,
+    renderConversation,
+    runtimeActivity,
+    type ChatMessage,
+    truncateForLog,
+} from "scorpio.ai";
 import {
     type MemoryToolDescs,
     type MemoryWriterOpStats,
@@ -27,9 +38,6 @@ import {
     type MemoryWorkspaceScope,
     type MemoryTarget,
 } from "../Storage/IMemoryStore";
-import { type ChatMessage, MessageRole, estimateTextTokens, estimateMessagesTokens } from "../../Saver";
-import { contentToString, truncateForLog } from "../../Utils/contentUtils";
-import { renderConversation } from "../../Utils/conversationUtils";
 import { memoryServicePool } from "./MemoryServicePool";
 import { GlobalMemoryService } from "./GlobalMemoryService";
 import {
@@ -195,7 +203,7 @@ const MEMORY_SCOPE_WRITER_INSTRUCTION = [
 ].join('\n');
 
 /**
- * Memory 系统的运行时协调器。每个 memoryProfile 一个实例（由 sbot 侧 MemoryServicePool 管理），
+ * Memory 系统的运行时协调器。每个 memoryProfile 一个实例（由 MemoryServicePool 管理），
  * 内部同时管理全局 Store 与按 workPath 惰性创建的工作区 Store。
  *
  * 三个职责：

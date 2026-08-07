@@ -1,8 +1,8 @@
 import type { MemoryScope, MemorySearchHit, MemoryRow, PendingMemoryJobRow } from "../Storage/IMemoryStore";
-import type { ChatMessage } from "../../Saver";
+import type { ChatMessage } from "scorpio.ai";
 
 /**
- * Memory 系统对外接口。运行时由 SingleAgentService 持有：
+ * Memory 系统对外接口。Agent 运行时由 MemoryAgentPlugin 消费：
  *
  * - **读注入**：`getSystemMessage()` 渲染好的 markdown 块注入 system prompt
  * - **工具调用**：`readMemory(slug, scope)` / `search(query)` 由 `read_memory` / `search_memory` 工具执行

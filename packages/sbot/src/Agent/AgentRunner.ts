@@ -8,7 +8,6 @@ import {
     ILoggerService,
     IEmbeddingService,
     IAgentSaverService,
-    IMemoryService,
     IAgentPlugin,
     T_ChannelSessionId,
     TimeUtils,
@@ -26,6 +25,7 @@ import {
     T_NoteCachePath,
     loadNotePrompt,
 } from "agent.note";
+import { MemoryPluginLease } from "agent.memory";
 import {
     IWikiService,
     IWikiDatabase,
@@ -157,14 +157,14 @@ export class AgentRunner {
 
         let noteLease: NotePluginLease | null = null;
         let wikiLease: WikiPluginLease | null = null;
-        let memoryService: IMemoryService | null = null;
+        let memoryLease: MemoryPluginLease | null = null;
         let agendaLease: AgendaPluginLease | null = null;
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
         let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
         try {
             noteLease = await AgentRunner.registerNotePlugin(container, notes ?? []);
             wikiLease = await AgentRunner.registerWikiPlugin(container, wikis ?? []);
-            memoryService = await AgentRunner.registerMemoryService(container, options.memoryId, memoryWorkPath);
+            memoryLease = AgentRunner.registerMemoryPlugin(container, options.memoryId, memoryWorkPath);
             agendaLease = AgentRunner.registerAgendaPlugin(container, options.agendaId);
 
             saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
@@ -189,7 +189,7 @@ export class AgentRunner {
             await agent?.dispose();
             await noteLease?.release();
             await wikiLease?.release();
-            memoryService?.release();
+            memoryLease?.release();
             agendaLease?.release();
             await saverHandle?.release();
         }
@@ -316,22 +316,18 @@ export class AgentRunner {
         return lease;
     }
 
-    /**
-     * Memory（skill 风格）系统注册。命中 memoryProfiles 才注册；否则不启用记忆。
-     * 返回 acquire 到的 service 引用；caller（run finally）负责调 service.release()
-     * 来减 refCount。
-     */
-    private static async registerMemoryService(
+    /** Memory capability plugin 注册；lease 与 pool acquire 的 scoped 引用配对。 */
+    private static registerMemoryPlugin(
         container: ServiceContainer,
         memoryId: string | null | undefined,
         workPath: string,
-    ): Promise<IMemoryService | null> {
+    ): MemoryPluginLease | null {
         if (!memoryId) return null;
         const profileConfig = config.getMemoryProfile(memoryId);
         if (!profileConfig?.enabled) return null;
-        const service = await memoryServicePool.acquire(memoryId, workPath);
-        if (service) container.registerInstance(IMemoryService, service);
-        return service;
+        const lease = new MemoryPluginLease(memoryServicePool.acquire(memoryId, workPath));
+        AgentRunner.registerAgentPlugin(container, lease.plugin);
+        return lease;
     }
 
     /**

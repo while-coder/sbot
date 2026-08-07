@@ -25,18 +25,3 @@ export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDesc
 
 /** 当前 channel session 的 DB 主键。注入给 SingleAgentService 和 capability plugins。 */
 export const T_ChannelSessionId           = Symbol("scorpio:T_ChannelSessionId");
-
-// Memory tokens（skill-style 记忆系统）
-export const T_MemoryDir    = Symbol("scorpio:T_MemoryDir");
-export const T_MemoryDbPath = Symbol("scorpio:T_MemoryDbPath");
-/**
- * 注入到主 agent system prompt 的 memory_read 模板。
- * 占位符 `{{ memory_menu }}` 在 MemoryService 渲染时替换为当前 menu（slug + description 列表）。
- */
-export const T_MemoryReadTemplate = Symbol("scorpio:T_MemoryReadTemplate");
-/** MemoryWriter LLM 的 system prompt（已加载文件内容）。 */
-export const T_MemoryWriterPrompt = Symbol("scorpio:T_MemoryWriterPrompt");
-/** MemorySelector LLM 的 system prompt（已加载文件内容）。 */
-export const T_MemorySelectorPrompt = Symbol("scorpio:T_MemorySelectorPrompt");
-/** MemorySelector 使用的模型；未单独配置时由应用层传入 writerModel。 */
-export const T_MemorySelectorModel = Symbol("scorpio:T_MemorySelectorModel");

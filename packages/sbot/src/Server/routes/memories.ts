@@ -3,7 +3,7 @@ import { config } from '../../Core/Config';
 import { memoryServicePool } from '../../Memory/MemoryServicePool';
 import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
-import { MemoryScope } from 'scorpio.ai';
+import { MemoryScope } from 'agent.memory';
 
 function requireMemoryId(value: unknown): string {
     if (value == null) throwBad('Missing memoryId');

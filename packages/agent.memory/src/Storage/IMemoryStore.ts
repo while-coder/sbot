@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../../Saver";
+import type { ChatMessage } from "scorpio.ai";
 
 /**
  * Memory 存储层接口。单 Store 维度：全局或某个 workPath 各自对应一个 SQLite 文件

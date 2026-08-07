@@ -1,3 +1,8 @@
+/** Long-term Memory capability plugin。 */
+
+export * from './tokens';
+export * from './prompts';
+
 // ── Storage ──
 export {
     IMemoryStore,
@@ -42,6 +47,10 @@ export {
     type MemoryServiceConfig,
     type MemoryServiceConfigResolver,
 } from './Service/MemoryServicePool';
+
+// ── Agent plugin ──
+export { MemoryAgentPlugin } from './Plugin/MemoryAgentPlugin';
+export { MemoryPluginLease } from './Plugin/MemoryPluginLease';
 
 // ── Tools ──
 export {

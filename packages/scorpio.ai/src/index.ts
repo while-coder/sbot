@@ -52,12 +52,6 @@ export {
   T_DBTable,
   T_ReactSystemPromptTemplate,
   T_ReactSubNodePrompt,
-  T_MemoryDir,
-  T_MemoryDbPath,
-  T_MemoryReadTemplate,
-  T_MemoryWriterPrompt,
-  T_MemorySelectorPrompt,
-  T_MemorySelectorModel,
   T_ModelCallTimeout,
   T_ToolOverflowDir,
   T_CompactPromptTemplate,
@@ -150,49 +144,6 @@ export {
   HybridSearcher,
   type HybridSearcherOptions,
 } from "./Retrieval";
-
-// ========================================
-// Memory - 长期记忆（skill 风格 + MemoryLLM CRUD + FTS5 检索）
-// ========================================
-export {
-  IMemoryStore,
-  MemoryStore,
-  MemoryOpAction,
-  MemoryOpSchema,
-  MemoryWriteOutputSchema,
-  IMemoryService,
-  MemoryService,
-  GlobalMemoryService,
-  ScopedMemoryService,
-  MemoryServicePool,
-  memoryServicePool,
-  MemoryToolProvider,
-  READ_MEMORY_TOOL_NAME,
-  SEARCH_MEMORY_TOOL_NAME,
-  REMEMBER_MEMORY_TOOL_NAME,
-  MemoryKind,
-  MemoryScope,
-  type StoredMemoryRow,
-  type MemoryRow,
-  type MemoryBodyMode,
-  type StoredMemoryMenuEntry,
-  type MemoryMenuEntry,
-  type StoredMemorySearchHit,
-  type MemorySearchHit,
-  type CreateMemoryInput,
-  type UpdateMemoryInput,
-  MemoryPendingJobType,
-  type PendingMemoryJobRow,
-  type MemoryPendingJobStatus,
-  type MemoryWorkspaceScope,
-  type MemoryTarget,
-  type MemoryWriteOutput,
-  type MemoryOp,
-  type MemoryWriterOpStats,
-  type MemoryServiceConfig,
-  type MemoryServiceConfigResolver,
-  type MemoryToolDescs,
-} from "./Memory";
 
 // ========================================
 // Trigger - 通用 session 投递语义
@@ -376,7 +327,7 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 // ========================================
 // Utils - 工具函数
 // ========================================
-export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, detectImageMimeType, setMaxImageSize, appendAttachmentsToMessageContent, writeAttachmentInput } from "./Utils/contentUtils";
+export { contentToString, truncateForLog, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, detectImageMimeType, setMaxImageSize, appendAttachmentsToMessageContent, writeAttachmentInput } from "./Utils/contentUtils";
 export type { MediaCategory } from "./Utils/contentUtils";
 export { withRetry } from "./Utils/withRetry";
 export { UsageTracker, UsageState, type UsageData } from "./Utils/UsageTracker";

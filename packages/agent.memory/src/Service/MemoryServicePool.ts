@@ -6,10 +6,8 @@ import {
     T_MemoryWriterPrompt,
     T_MemorySelectorPrompt,
     T_MemorySelectorModel,
-} from "../../Core/tokens";
-import { formatError } from "../../Core";
-import { ILogger, ILoggerService } from "../../Logger";
-import { IModelService } from "../../Model";
+} from "../tokens";
+import { formatError, type ILogger, ILoggerService, IModelService } from "scorpio.ai";
 import { IMemoryStore } from "../Storage/IMemoryStore";
 import { MemoryStore } from "../Storage/MemoryStore";
 import type { GlobalMemoryService } from "./GlobalMemoryService";

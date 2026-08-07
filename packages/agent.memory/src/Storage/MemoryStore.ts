@@ -4,7 +4,7 @@ import { existsSync, mkdirSync } from "fs";
 import * as fs from "fs/promises";
 import path from "path";
 import { inject } from "scorpio.di";
-import { T_MemoryDir, T_MemoryDbPath } from "../../Core/tokens";
+import { T_MemoryDir, T_MemoryDbPath } from "../tokens";
 import {
     IMemoryStore,
     MemoryKind,
@@ -20,8 +20,7 @@ import {
     type MemoryTarget,
     MemoryScope,
 } from "./IMemoryStore";
-import { HybridSearcher } from "../../Retrieval";
-import { MessageRole, type ChatMessage } from "../../Saver";
+import { HybridSearcher, MessageRole, type ChatMessage } from "scorpio.ai";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MEMORY_KINDS = new Set<string>(Object.values(MemoryKind));

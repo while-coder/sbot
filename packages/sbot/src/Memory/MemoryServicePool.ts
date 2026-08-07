@@ -1,20 +1,21 @@
 import path from "path";
 import {
     memoryServicePool,
+    loadMemoryPrompt,
     type MemoryServiceConfigResolver,
-} from "scorpio.ai";
+} from "agent.memory";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
-import { loadPrompt } from "../Core/PromptLoader";
 
 const DEFAULT_WRITER_PROMPT = "memory/writer/default.md";
 const DEFAULT_SELECTOR_PROMPT = "memory/selector/default.md";
 const DEFAULT_READ_PROMPT   = "memory/reader/default.md";
+const promptOverrides = config.getConfigPath('prompts', true);
 
 /**
  * sbot 侧 MemoryServicePool 适配层。
  *
- * Pool 单例已在 scorpio.ai 内创建，这里只负责注入 sbot 特有的解析逻辑：
+ * Pool 单例已在 agent.memory 内创建，这里只负责注入 sbot 特有的解析逻辑：
  *   memoryId → MemoryServiceConfig（profile / model / prompt 文件）
  */
 const resolveConfig: MemoryServiceConfigResolver = (memoryId) => {
@@ -44,9 +45,9 @@ const resolveConfig: MemoryServiceConfigResolver = (memoryId) => {
         dbPath: path.join(memoryDir, "memory.db"),
         writerModel,
         selectorModel,
-        writerPrompt: loadPrompt(profile.writerPromptFile ?? DEFAULT_WRITER_PROMPT),
-        selectorPrompt: loadPrompt(DEFAULT_SELECTOR_PROMPT),
-        readTemplate: loadPrompt(profile.readPromptFile ?? DEFAULT_READ_PROMPT),
+        writerPrompt: loadMemoryPrompt(profile.writerPromptFile ?? DEFAULT_WRITER_PROMPT, promptOverrides),
+        selectorPrompt: loadMemoryPrompt(DEFAULT_SELECTOR_PROMPT, promptOverrides),
+        readTemplate: loadMemoryPrompt(profile.readPromptFile ?? DEFAULT_READ_PROMPT, promptOverrides),
     };
 };
 
