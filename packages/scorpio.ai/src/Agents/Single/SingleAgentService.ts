@@ -3,8 +3,6 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { IModelService } from "../../Model";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
-import { IWikiService } from "../../Wiki";
-import { WikiToolProvider } from "../../Wiki";
 import { IAgentSaverService } from "../../Saver";
 import { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "../../Saver/ConversationCompactor";
 import { IAgentToolService } from "../../AgentTool";
@@ -97,12 +95,11 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
-        @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
         @inject(IAgentPlugin, { optional: true }) plugins?: IAgentPlugin[],
     ) {
-        super(loggerService, agentSaver, wikiServices);
+        super(loggerService, agentSaver);
         this.modelService = modelService;
         this.memoryService = memoryService;
         this.toolService = toolService;
@@ -182,8 +179,6 @@ export class SingleAgentService extends AgentServiceBase {
 
         // ── 动态部分（每次请求可能变化） ──
         const dynamicParts: string[] = [...this.dynamicSystemPrompts];
-        const queryText = contentToString(query);
-
         if (this.memoryService) {
             // 注入 Memory（skill 风格）menu prompt：
             // 渲染好的 read 模板 + slug/description 列表；agent 通过
@@ -192,12 +187,6 @@ export class SingleAgentService extends AgentServiceBase {
             if (memoryMenu) dynamicParts.push(memoryMenu);
         }
 
-        if (this.wikiServices.length > 0) {
-            const wikiMessages = await Promise.all(this.wikiServices.map(w => w.getSystemMessage(queryText)));
-            for (const msg of wikiMessages) {
-                if (msg) dynamicParts.push(msg);
-            }
-        }
         dynamicParts.push(...await this.collectPluginPrompts(AgentPluginPromptKind.Dynamic, ctx));
 
         const contentBlocks: Array<{ type: string; text: string }> = [];
@@ -210,16 +199,13 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /**
-     * 构建本轮所有可用工具（toolService + Wiki + Memory + 能力插件）
+     * 构建本轮所有可用工具（toolService + Memory + 能力插件）
      *
      * 插件工具追加在最末：同名去重时框架自有工具胜出，maxTools 截断也优先砍插件工具。
      * ctx 统一排在首位（也是必需参数唯一能放的位置——不能跟在可选的 callback / signal 之后）。
      */
     protected async buildTools(ctx: AgentPluginContext, _callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
-        if (this.wikiServices.length > 0) {
-            tools.push(...WikiToolProvider.getTools(this.wikiServices));
-        }
         if (this.memoryService) {
             tools.push(...MemoryToolProvider.getTools(this.memoryService));
         }

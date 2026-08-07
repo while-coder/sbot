@@ -1,6 +1,7 @@
-/**
- * Wiki 知识库模块（资料库模式）
- */
+/** 聚合式 Wiki capability plugin。 */
+
+export * from "./tokens";
+export * from "./prompts";
 
 // ===== 接口 + Symbol Token =====
 export { IWikiService } from "./Service/IWikiService";
@@ -14,6 +15,10 @@ export { IWikiDatabase } from "./Database/IWikiDatabase";
 
 // ===== 工具 =====
 export { WikiToolProvider, WIKI_SEARCH_TOOL_NAME, WIKI_READ_TOOL_NAME, type WikiToolDescs } from "./Tools/WikiToolProvider";
+
+// ===== Agent 插件 =====
+export { WikiAgentPlugin } from "./Plugin/WikiAgentPlugin";
+export { WikiPluginLease } from "./Plugin/WikiPluginLease";
 
 // ===== 类型定义 =====
 export {

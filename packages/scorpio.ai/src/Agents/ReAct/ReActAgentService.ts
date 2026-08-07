@@ -1,7 +1,6 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { contentToString } from "../../Utils/contentUtils";
-import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, TaskBackedSaver, ConversationCompactor, IConversationCompactor, ContentPartType, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
@@ -69,13 +68,12 @@ export class ReActAgentService extends SingleAgentService {
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
-    @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
     @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
     @inject(T_SpawnDepth, { optional: true }) spawnDepth?: number,
     @inject(IAgentPlugin, { optional: true }) plugins?: IAgentPlugin[],
   ) {
-    super(thinkModelService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, toolService, wikiServices, modelCallTimeout, compactor, plugins);
+    super(thinkModelService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, toolService, modelCallTimeout, compactor, plugins);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
     this.spawnDepth = spawnDepth ?? 0;
@@ -154,7 +152,6 @@ export class ReActAgentService extends SingleAgentService {
         subContainer.registerInstance(T_ChannelSessionId, this.channelSessionId);
         // P7：把深度透传给子容器，子 ReAct agent 据此继续校验。
         subContainer.registerInstance(T_SpawnDepth, childDepth);
-        if (this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
         // 故意不透传 memory：抽取（extractFromConversation）无条件随 service 触发，
         // 而子 agent 的 Human 消息是编排者合成的 task 指令、非真实用户输入，抽取会污染记忆/日程。

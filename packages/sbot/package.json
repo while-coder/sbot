@@ -41,6 +41,7 @@
     "agent.agenda": "workspace:*",
     "agent.note": "workspace:*",
     "agent.skill": "workspace:*",
+    "agent.wiki": "workspace:*",
     "axios": "catalog:",
     "channel.base": "workspace:*",
     "channel.dingtalk": "workspace:*",

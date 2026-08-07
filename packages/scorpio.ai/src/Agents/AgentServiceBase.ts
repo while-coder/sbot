@@ -1,5 +1,4 @@
 import { ServiceContainer } from "scorpio.di";
-import { IWikiService } from "../Wiki";
 import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, ContentPartType, MessageKind, MessageRole, type MessageContent, type ContentPart, type TokenUsage } from "../Saver";
 import { ILoggerService, ILogger } from "../Logger";
 import { resizeImageIfNeeded, detectImageMimeType } from "../Utils/contentUtils";
@@ -97,7 +96,7 @@ export const T_SummaryModelService = Symbol("scorpio:T_SummaryModelService");
 
 /**
  * Agent 服务基类
- * 仅保留所有 Agent 共用的最小状态：saver、wiki、logger 和系统提示词管理。
+ * 仅保留所有 Agent 共用的最小状态：saver、logger 和系统提示词管理。
  * 模型、技能、工具等 SingleAgent 专属逻辑由 SingleAgentService 自行持有。
  */
 export class AgentCancelledError extends Error {
@@ -109,16 +108,13 @@ export class AgentCancelledError extends Error {
 
 export abstract class AgentServiceBase {
     protected saverService: IAgentSaverService;
-    protected wikiServices: IWikiService[];
     protected loggerService?: ILoggerService;
     protected logger?: ILogger;
     constructor(
         loggerService?: ILoggerService,
         agentSaver?: IAgentSaverService,
-        wikiServices?: IWikiService[],
     ) {
         this.saverService = agentSaver ?? new AgentMemorySaver();
-        this.wikiServices = wikiServices ?? [];
         this.loggerService = loggerService;
         this.logger = loggerService?.getLogger(this.constructor.name);
     }
@@ -188,7 +184,6 @@ export abstract class AgentServiceBase {
      */
     async dispose() {
         await this.saverService.dispose();
-        await Promise.all(this.wikiServices.map(w => w.dispose()));
     }
 
 }

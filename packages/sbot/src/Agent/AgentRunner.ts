@@ -8,11 +8,6 @@ import {
     ILoggerService,
     IEmbeddingService,
     IAgentSaverService,
-    IWikiService, IWikiDatabase,
-    WikiService,
-    T_WikiSystemPromptTemplate,
-    T_WikiToolDescs,
-    T_WikiCachePath,
     IMemoryService,
     IAgentPlugin,
     T_ChannelSessionId,
@@ -31,6 +26,16 @@ import {
     T_NoteCachePath,
     loadNotePrompt,
 } from "agent.note";
+import {
+    IWikiService,
+    IWikiDatabase,
+    WikiService,
+    WikiPluginLease,
+    T_WikiSystemPromptTemplate,
+    T_WikiToolDescs,
+    T_WikiCachePath,
+    loadWikiPrompt,
+} from "agent.wiki";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config } from "../Core/Config";
 import { loadWorkspaceContext } from "../Core/WorkspaceContext";
@@ -151,13 +156,14 @@ export class AgentRunner {
         container.registerInstance(T_ChannelSessionId, channelSessionId);
 
         let noteLease: NotePluginLease | null = null;
+        let wikiLease: WikiPluginLease | null = null;
         let memoryService: IMemoryService | null = null;
         let agendaLease: AgendaPluginLease | null = null;
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
         let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
         try {
             noteLease = await AgentRunner.registerNotePlugin(container, notes ?? []);
-            await AgentRunner.registerWikiServices(container, wikis ?? []);
+            wikiLease = await AgentRunner.registerWikiPlugin(container, wikis ?? []);
             memoryService = await AgentRunner.registerMemoryService(container, options.memoryId, memoryWorkPath);
             agendaLease = AgentRunner.registerAgendaPlugin(container, options.agendaId);
 
@@ -182,6 +188,7 @@ export class AgentRunner {
         } finally {
             await agent?.dispose();
             await noteLease?.release();
+            await wikiLease?.release();
             memoryService?.release();
             agendaLease?.release();
             await saverHandle?.release();
@@ -276,13 +283,14 @@ export class AgentRunner {
 
         const sub = new ServiceContainer();
         sub.registerInstance(IWikiDatabase, db);
+        const promptOverrides = config.getConfigPath('prompts', true);
 
         const args: Record<string | symbol, any> = {
             [T_WikiCachePath]: wikiDir,
-            [T_WikiSystemPromptTemplate]: loadPrompt('wiki/system.txt'),
+            [T_WikiSystemPromptTemplate]: loadWikiPrompt('wiki/system.txt', promptOverrides),
             [T_WikiToolDescs]: {
-                search: loadPrompt('tools/wiki/search.txt'),
-                read: loadPrompt('tools/wiki/read.txt'),
+                search: loadWikiPrompt('tools/wiki/search.txt', promptOverrides),
+                read: loadWikiPrompt('tools/wiki/read.txt', promptOverrides),
             },
         };
         if (embedding) args[IEmbeddingService] = embedding;
@@ -291,16 +299,21 @@ export class AgentRunner {
         return sub.resolve<IWikiService>(IWikiService);
     }
 
-    private static async registerWikiServices(
+    /**
+     * 将所有 Wiki 数据源聚合成一个 Agent capability plugin。
+     * 返回的 lease 持有数据源；子 Agent 只继承插件引用，不获得释放权。
+     */
+    private static async registerWikiPlugin(
         container: ServiceContainer,
         wikis: string[],
-    ): Promise<void> {
-        if (wikis.length === 0) return;
+    ): Promise<WikiPluginLease | null> {
+        if (wikis.length === 0) return null;
         const results = await Promise.all(wikis.map(wikiId => AgentRunner.buildWikiService(wikiId)));
         const services = results.filter((s): s is IWikiService => s !== null);
-        if (services.length > 0) {
-            container.registerInstance(IWikiService, services);
-        }
+        if (services.length === 0) return null;
+        const lease = new WikiPluginLease(services);
+        AgentRunner.registerAgentPlugin(container, lease.plugin);
+        return lease;
     }
 
     /**

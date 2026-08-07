@@ -21,7 +21,6 @@ export const T_PostCompactContinuation       = Symbol("scorpio:T_PostCompactCont
 export const T_MaxHistoryRounds              = Symbol("scorpio:T_MaxHistoryRounds");
 
 // Tool description tokens（库内工具描述外置注入）
-export const T_WikiToolDescs              = Symbol("scorpio:T_WikiToolDescs");
 export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
 
 /** 当前 channel session 的 DB 主键。注入给 SingleAgentService 和 capability plugins。 */
@@ -41,8 +40,3 @@ export const T_MemoryWriterPrompt = Symbol("scorpio:T_MemoryWriterPrompt");
 export const T_MemorySelectorPrompt = Symbol("scorpio:T_MemorySelectorPrompt");
 /** MemorySelector 使用的模型；未单独配置时由应用层传入 writerModel。 */
 export const T_MemorySelectorModel = Symbol("scorpio:T_MemorySelectorModel");
-
-// Wiki tokens
-export const T_WikiSystemPromptTemplate    = Symbol("scorpio:T_WikiSystemPromptTemplate");
-/** Wiki HybridSearcher 的 cachePath（单 wikiId 一份 searcher.sqlite）。 */
-export const T_WikiCachePath               = Symbol("scorpio:T_WikiCachePath");

@@ -1,5 +1,6 @@
-import { ChatToolCall, ToolApproval, DISPATCH_TASK_TOOL_NAME, WIKI_SEARCH_TOOL_NAME, WIKI_READ_TOOL_NAME } from "scorpio.ai";
+import { ChatToolCall, ToolApproval, DISPATCH_TASK_TOOL_NAME } from "scorpio.ai";
 import { NOTE_SEARCH_TOOL_NAME } from "agent.note";
+import { WIKI_SEARCH_TOOL_NAME, WIKI_READ_TOOL_NAME } from "agent.wiki";
 import { AGENDA_CREATE_TOOL_NAME, AGENDA_LIST_TOOL_NAME, AGENDA_GET_TOOL_NAME, AGENDA_EDIT_TOOL_NAME, AGENDA_CLOSE_TOOL_NAME, AGENDA_WIKI_TOOL_NAME } from "agent.agenda";
 import { READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from "agent.skill";
 import { SessionService, ASK_TOOL_NAME, SEND_FILE_TOOL_NAME } from "channel.base";

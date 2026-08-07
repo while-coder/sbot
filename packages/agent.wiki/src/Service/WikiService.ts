@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
-import { inject, init, T_WikiSystemPromptTemplate, T_WikiToolDescs, T_WikiCachePath } from "../../Core";
-import { HybridSearcher } from "../../Retrieval/HybridSearcher";
-import { IEmbeddingService } from "../../Embedding";
+import { inject, init } from "scorpio.di";
+import { HybridSearcher, IEmbeddingService } from "scorpio.ai";
+import { T_WikiSystemPromptTemplate, T_WikiToolDescs, T_WikiCachePath } from "../tokens";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
 import { WikiPage } from "../Types";
 import { IWikiService } from "./IWikiService";
@@ -106,6 +106,7 @@ export class WikiService implements IWikiService {
   // -- Lifecycle ------------------------------------------------------------
 
   async dispose(): Promise<void> {
+    this.searcher.dispose();
     await this.db.dispose();
   }
 

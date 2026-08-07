@@ -1,4 +1,5 @@
-import type { IWikiDatabase, IEmbeddingService } from "scorpio.ai";
+import type { IEmbeddingService } from "scorpio.ai";
+import type { IWikiDatabase } from "agent.wiki";
 import type { ConfigField } from "sbot.plugin";
 
 /**

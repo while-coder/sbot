@@ -58,15 +58,12 @@ export {
   T_MemoryWriterPrompt,
   T_MemorySelectorPrompt,
   T_MemorySelectorModel,
-  T_WikiSystemPromptTemplate,
-  T_WikiCachePath,
   T_ModelCallTimeout,
   T_ToolOverflowDir,
   T_CompactPromptTemplate,
   T_PostCompactMessageTemplate,
   T_PostCompactContinuation,
   T_MaxHistoryRounds,
-  T_WikiToolDescs,
   T_MCPUtilityToolDescs,
   T_ChannelSessionId,
   parseJson,
@@ -113,29 +110,6 @@ export {
   EmbeddingConfig,
   EmbeddingProvider,
 } from "./Embedding";
-
-// ========================================
-// Wiki - 知识库系统
-// ========================================
-export {
-  // 接口 + Symbol Token
-  IWikiService,
-
-  // 实现类
-  WikiService,
-
-  // 存储层
-  IWikiDatabase,
-
-  // 工具
-  WikiToolProvider,
-  WIKI_SEARCH_TOOL_NAME,
-  WIKI_READ_TOOL_NAME,
-  type WikiToolDescs,
-
-  // 类型定义
-  WikiPage,
-} from "./Wiki";
 
 // ========================================
 // Saver - 状态持久化
