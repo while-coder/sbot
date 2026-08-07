@@ -3,7 +3,6 @@ import { MCPContentType } from "../../Tools/Core";
 import { IModelService } from "../../Model";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
-import { INoteService } from "../../Note";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole } from "../AgentServiceBase";
 
 import { ContentPartType, type MessageContent } from "../../Saver/IAgentSaverService";
@@ -29,10 +28,9 @@ export class GenerativeAgentService extends AgentServiceBase {
         @inject(T_DynamicSystemPrompts, { optional: true }) dynamicSystemPrompts?: string[],
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
-        @inject(INoteService, { optional: true }) noteServices?: INoteService[],
         @inject(T_MaxHistoryRounds, { optional: true }) maxHistoryRounds?: number,
     ) {
-        super(loggerService, agentSaver, noteServices);
+        super(loggerService, agentSaver);
         this.modelService = modelService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];

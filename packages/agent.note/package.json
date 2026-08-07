@@ -1,0 +1,26 @@
+{
+  "name": "agent.note",
+  "version": "0.0.1",
+  "description": "Aggregated Note capability plugin for Scorpio agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force && node scripts/copy-assets.cjs"
+  },
+  "dependencies": {
+    "@langchain/core": "catalog:",
+    "@langchain/textsplitters": "^1.0.1",
+    "better-sqlite3": "catalog:",
+    "scorpio.ai": "workspace:*",
+    "scorpio.di": "workspace:*",
+    "uuid": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "catalog:",
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  },
+  "private": true
+}

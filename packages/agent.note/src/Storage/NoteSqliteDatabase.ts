@@ -1,7 +1,8 @@
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
-import { inject, T_DBPath } from "../../Core";
+import { inject } from "scorpio.di";
+import { T_DBPath } from "scorpio.ai";
 import { Note } from "../types";
 import { INoteDatabase } from "./INoteDatabase";
 

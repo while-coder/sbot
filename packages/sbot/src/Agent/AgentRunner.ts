@@ -6,13 +6,8 @@ import {
     ServiceContainer,
     IAgentCallback,
     ILoggerService,
-    INoteService, INoteDatabase,
-    NoteService,
     IEmbeddingService,
     IAgentSaverService,
-    T_NoteSystemPromptTemplate,
-    T_NoteToolDescs,
-    T_NoteCachePath,
     IWikiService, IWikiDatabase,
     WikiService,
     T_WikiSystemPromptTemplate,
@@ -26,6 +21,16 @@ import {
     runtimeActivity,
 } from "scorpio.ai";
 import { AgendaPluginLease } from "agent.agenda";
+import {
+    INoteService,
+    INoteDatabase,
+    NoteService,
+    NotePluginLease,
+    T_NoteSystemPromptTemplate,
+    T_NoteToolDescs,
+    T_NoteCachePath,
+    loadNotePrompt,
+} from "agent.note";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config } from "../Core/Config";
 import { loadWorkspaceContext } from "../Core/WorkspaceContext";
@@ -144,14 +149,18 @@ export class AgentRunner {
         // SingleAgentService 将它放入 AgentPluginContext，供需要会话归属的插件使用。
         const channelSessionId = parseInt(dbSessionId, 10) || 0;
         container.registerInstance(T_ChannelSessionId, channelSessionId);
-        await AgentRunner.registerNoteServices(container, notes ?? []);
-        await AgentRunner.registerWikiServices(container, wikis ?? []);
-        const memoryService = await AgentRunner.registerMemoryService(container, options.memoryId, memoryWorkPath);
-        const agendaLease = AgentRunner.registerAgendaPlugin(container, options.agendaId);
 
+        let noteLease: NotePluginLease | null = null;
+        let memoryService: IMemoryService | null = null;
+        let agendaLease: AgendaPluginLease | null = null;
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
         let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
         try {
+            noteLease = await AgentRunner.registerNotePlugin(container, notes ?? []);
+            await AgentRunner.registerWikiServices(container, wikis ?? []);
+            memoryService = await AgentRunner.registerMemoryService(container, options.memoryId, memoryWorkPath);
+            agendaLease = AgentRunner.registerAgendaPlugin(container, options.agendaId);
+
             saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
             container.registerInstance(IAgentSaverService, saverHandle.saver);
 
@@ -172,6 +181,7 @@ export class AgentRunner {
             await agent.stream(query, callbacks, signal);
         } finally {
             await agent?.dispose();
+            await noteLease?.release();
             memoryService?.release();
             agendaLease?.release();
             await saverHandle?.release();
@@ -204,12 +214,13 @@ export class AgentRunner {
         const sub = new ServiceContainer();
         if (loggerService) sub.registerInstance(ILoggerService, loggerService);
         const dbPath = config.getNoteDBPath(noteId);
+        const promptOverrides = config.getConfigPath('prompts', true);
         sub.registerInstance(INoteDatabase, NoteDatabaseManager.getInstance().acquire(dbPath));
 
         const args: Record<string | symbol, any> = {
             [T_NoteCachePath]: config.getNoteCachePath(noteId),
-            [T_NoteSystemPromptTemplate]: loadPrompt('note/system.txt'),
-            [T_NoteToolDescs]: { search: loadPrompt('tools/note/search.txt') },
+            [T_NoteSystemPromptTemplate]: loadNotePrompt('note/system.txt', promptOverrides),
+            [T_NoteToolDescs]: { search: loadNotePrompt('tools/note/search.txt', promptOverrides) },
         };
         if (embedding) args[IEmbeddingService] = embedding;
 
@@ -217,16 +228,21 @@ export class AgentRunner {
         return sub.resolve<INoteService>(INoteService);
     }
 
-    private static async registerNoteServices(
+    /**
+     * 将所有 Note 数据源聚合成一个 Agent capability plugin。
+     * 返回的 lease 持有数据源；子 Agent 只继承插件引用，不获得释放权。
+     */
+    private static async registerNotePlugin(
         container: ServiceContainer,
         notes: string[],
-    ): Promise<void> {
+    ): Promise<NotePluginLease | null> {
         const loggerService = container.isRegistered(ILoggerService) ? container.resolve<LoggerService>(ILoggerService) : undefined
         const results = await Promise.all(notes.map(noteId => AgentRunner.buildNoteService(noteId, loggerService)));
         const services = results.filter((s): s is INoteService => s !== null);
-        if (services.length > 0) {
-            container.registerInstance(INoteService, services);
-        }
+        if (services.length === 0) return null;
+        const lease = new NotePluginLease(services);
+        AgentRunner.registerAgentPlugin(container, lease.plugin);
+        return lease;
     }
 
     static async createWikiService(wikiId: string): Promise<IWikiService> {
@@ -317,7 +333,18 @@ export class AgentRunner {
         const profileConfig = config.getAgendaProfile(agendaId);
         if (!profileConfig?.enabled) return null;
         const lease = new AgendaPluginLease(agendaServicePool.acquire(agendaId));
-        container.registerInstance(IAgentPlugin, [lease.plugin]);
+        AgentRunner.registerAgentPlugin(container, lease.plugin);
         return lease;
+    }
+
+    /** 追加一个 capability，保留本轮已经注册的其他插件。 */
+    private static registerAgentPlugin(container: ServiceContainer, plugin: IAgentPlugin): void {
+        const existing = container.isRegistered(IAgentPlugin)
+            ? container.resolve<IAgentPlugin[]>(IAgentPlugin)
+            : [];
+        container.registerInstance(IAgentPlugin, [
+            ...existing.filter(item => item.name !== plugin.name),
+            plugin,
+        ]);
     }
 }

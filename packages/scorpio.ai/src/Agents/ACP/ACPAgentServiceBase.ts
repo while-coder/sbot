@@ -5,7 +5,6 @@ import type * as schema from "@agentclientprotocol/sdk";
 import { IAgentSaverService } from "../../Saver";
 import { ILoggerService } from "../../Logger";
 import { formatError } from "../../Core";
-import { INoteService } from "../../Note";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole, ToolApproval } from "../AgentServiceBase";
 import type { MessageContent } from "../../Saver/IAgentSaverService";
 
@@ -46,9 +45,8 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         initTimeoutMs: number,
         loggerService?: ILoggerService,
         agentSaver?: IAgentSaverService,
-        noteServices?: INoteService[],
     ) {
-        super(loggerService, agentSaver, noteServices);
+        super(loggerService, agentSaver);
         this.command = command;
         this.args = args;
         this.env = env ?? {};

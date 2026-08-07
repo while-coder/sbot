@@ -1,4 +1,4 @@
-import { INoteDatabase, NoteSqliteDatabase } from "scorpio.ai";
+import { INoteDatabase, NoteSqliteDatabase } from "agent.note";
 import { LoggerService } from "../Core/LoggerService";
 
 const logger = LoggerService.getLogger('NoteDatabaseManager');

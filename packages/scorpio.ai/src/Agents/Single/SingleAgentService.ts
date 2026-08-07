@@ -3,7 +3,6 @@ import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { IModelService } from "../../Model";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
-import { INoteService, NoteToolProvider } from "../../Note";
 import { IWikiService } from "../../Wiki";
 import { WikiToolProvider } from "../../Wiki";
 import { IAgentSaverService } from "../../Saver";
@@ -98,13 +97,12 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
-        @inject(INoteService, { optional: true }) noteServices?: INoteService[],
         @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
         @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
         @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
         @inject(IAgentPlugin, { optional: true }) plugins?: IAgentPlugin[],
     ) {
-        super(loggerService, agentSaver, noteServices, wikiServices);
+        super(loggerService, agentSaver, wikiServices);
         this.modelService = modelService;
         this.memoryService = memoryService;
         this.toolService = toolService;
@@ -194,12 +192,6 @@ export class SingleAgentService extends AgentServiceBase {
             if (memoryMenu) dynamicParts.push(memoryMenu);
         }
 
-        if (this.noteServices.length > 0) {
-            const noteMessages = await Promise.all(this.noteServices.map(n => n.getSystemMessage(queryText)));
-            for (const msg of noteMessages) {
-                if (msg) dynamicParts.push(msg);
-            }
-        }
         if (this.wikiServices.length > 0) {
             const wikiMessages = await Promise.all(this.wikiServices.map(w => w.getSystemMessage(queryText)));
             for (const msg of wikiMessages) {
@@ -218,16 +210,13 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /**
-     * 构建本轮所有可用工具（toolService + 笔记 + Wiki + Memory + 能力插件）
+     * 构建本轮所有可用工具（toolService + Wiki + Memory + 能力插件）
      *
      * 插件工具追加在最末：同名去重时框架自有工具胜出，maxTools 截断也优先砍插件工具。
      * ctx 统一排在首位（也是必需参数唯一能放的位置——不能跟在可选的 callback / signal 之后）。
      */
     protected async buildTools(ctx: AgentPluginContext, _callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
         const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
-        if (this.noteServices.length > 0) {
-            tools.push(...NoteToolProvider.getTools(this.noteServices));
-        }
         if (this.wikiServices.length > 0) {
             tools.push(...WikiToolProvider.getTools(this.wikiServices));
         }

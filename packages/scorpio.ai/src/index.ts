@@ -52,8 +52,6 @@ export {
   T_DBTable,
   T_ReactSystemPromptTemplate,
   T_ReactSubNodePrompt,
-  T_NoteSystemPromptTemplate,
-  T_NoteCachePath,
   T_MemoryDir,
   T_MemoryDbPath,
   T_MemoryReadTemplate,
@@ -68,7 +66,6 @@ export {
   T_PostCompactMessageTemplate,
   T_PostCompactContinuation,
   T_MaxHistoryRounds,
-  T_NoteToolDescs,
   T_WikiToolDescs,
   T_MCPUtilityToolDescs,
   T_ChannelSessionId,
@@ -116,26 +113,6 @@ export {
   EmbeddingConfig,
   EmbeddingProvider,
 } from "./Embedding";
-
-// ========================================
-// Note - 笔记/资料库系统
-// ========================================
-export {
-  // 接口 + Symbol Token
-  INoteService,
-
-  // 实现类
-  NoteService,
-
-  // 存储层
-  INoteDatabase,
-  NoteSqliteDatabase,
-
-  // 类型定义
-  Note,
-  NOTE_SEARCH_TOOL_NAME,
-  type NoteToolDescs,
-} from "./Note";
 
 // ========================================
 // Wiki - 知识库系统

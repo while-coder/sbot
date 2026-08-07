@@ -1,7 +1,6 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { contentToString } from "../../Utils/contentUtils";
-import { INoteService } from "../../Note";
 import { IWikiService } from "../../Wiki";
 import { IAgentSaverService, TaskBackedSaver, ConversationCompactor, IConversationCompactor, ContentPartType, type MessageContent } from "../../Saver";
 import { ILoggerService } from "../../Logger";
@@ -39,7 +38,7 @@ interface TaskRecord {
  * ReAct 多 Agent 编排服务，继承 SingleAgentService。
  *
  * 将子 Agent 封装为工具，由 thinkModel 驱动标准的 agent → tools → agent 循环。
- * 重写 buildSystemMessage / buildTools，其余流程（saver、note、StateGraph 循环）复用父类。
+ * 重写 buildSystemMessage / buildTools，其余流程（saver、StateGraph 循环）复用父类。
  */
 export class ReActAgentService extends SingleAgentService {
   /** contextMode:state 注入的父对话消息条数上限 */
@@ -70,14 +69,13 @@ export class ReActAgentService extends SingleAgentService {
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
-    @inject(INoteService, { optional: true }) noteServices?: INoteService[],
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
     @inject(T_ModelCallTimeout, { optional: true }) modelCallTimeout?: number,
     @inject(IConversationCompactor, { optional: true }) compactor?: ConversationCompactor,
     @inject(T_SpawnDepth, { optional: true }) spawnDepth?: number,
     @inject(IAgentPlugin, { optional: true }) plugins?: IAgentPlugin[],
   ) {
-    super(thinkModelService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, plugins);
+    super(thinkModelService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, toolService, wikiServices, modelCallTimeout, compactor, plugins);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
     this.spawnDepth = spawnDepth ?? 0;
@@ -156,7 +154,6 @@ export class ReActAgentService extends SingleAgentService {
         subContainer.registerInstance(T_ChannelSessionId, this.channelSessionId);
         // P7：把深度透传给子容器，子 ReAct agent 据此继续校验。
         subContainer.registerInstance(T_SpawnDepth, childDepth);
-        if (this.noteServices.length > 0) subContainer.registerInstance(INoteService, this.noteServices);
         if (this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
         // 故意不透传 memory：抽取（extractFromConversation）无条件随 service 触发，

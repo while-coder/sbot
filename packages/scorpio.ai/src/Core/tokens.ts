@@ -10,9 +10,6 @@ export const T_DBUrl = Symbol("scorpio:T_DBUrl");
 export const T_DBTable = Symbol("scorpio:T_DBTable");
 export const T_ReactSystemPromptTemplate = Symbol("scorpio:T_ReactSystemPromptTemplate");
 export const T_ReactSubNodePrompt        = Symbol("scorpio:T_ReactSubNodePrompt");
-export const T_NoteSystemPromptTemplate = Symbol("scorpio:T_NoteSystemPromptTemplate");
-/** Note HybridSearcher 的 cachePath（每个 note 一份 searcher.sqlite）。 */
-export const T_NoteCachePath            = Symbol("scorpio:T_NoteCachePath");
 
 export const T_ModelCallTimeout           = Symbol("scorpio:T_ModelCallTimeout");
 export const T_ToolOverflowDir            = Symbol("scorpio:T_ToolOverflowDir");
@@ -24,7 +21,6 @@ export const T_PostCompactContinuation       = Symbol("scorpio:T_PostCompactCont
 export const T_MaxHistoryRounds              = Symbol("scorpio:T_MaxHistoryRounds");
 
 // Tool description tokens（库内工具描述外置注入）
-export const T_NoteToolDescs              = Symbol("scorpio:T_NoteToolDescs");
 export const T_WikiToolDescs              = Symbol("scorpio:T_WikiToolDescs");
 export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
 

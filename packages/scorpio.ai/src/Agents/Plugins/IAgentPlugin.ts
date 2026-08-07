@@ -5,8 +5,7 @@ import type { ChatMessage, IAgentSaverService } from "../../Saver";
 /**
  * Agent 能力插件的运行上下文。每次 stream 构造一份，不跨轮复用。
  *
- * 字段对齐现有硬编码子系统各自需要的入参：query 对应 note / wiki 的 queryText，
- * channelSessionId 对应 agenda 写 trigger / pending job 的会话归属。
+ * query 供 note 等检索插件构造查询，channelSessionId 供 agenda 等插件关联会话。
  */
 export interface AgentPluginContext {
     /** 本轮用户输入的纯文本形式（多模态 content 已拍平），供检索类插件构造查询。 */
@@ -98,7 +97,7 @@ export interface IAgentPlugin {
 }
 
 /**
- * IAgentPlugin 的依赖注入 token。注册值为**插件数组**（与 INoteService / IWikiService 同套路）：
+ * IAgentPlugin 的依赖注入 token。注册值为**插件数组**：
  * `container.registerInstance(IAgentPlugin, [pluginA, pluginB])`。
  */
 export const IAgentPlugin = Symbol("IAgentPlugin");

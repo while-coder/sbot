@@ -1,7 +1,7 @@
-/**
- * 笔记模块（资料库模式）
- * 提供语义搜索和手动写入能力
- */
+/** 聚合式 Note capability plugin。 */
+
+export * from "./tokens";
+export * from "./prompts";
 
 // ===== 接口 + Symbol Token =====
 export { INoteService } from "./Service/INoteService";
@@ -15,6 +15,10 @@ export { NoteSqliteDatabase } from "./Storage/NoteSqliteDatabase";
 
 // ===== 工具 =====
 export { NoteToolProvider, NOTE_SEARCH_TOOL_NAME, type NoteToolDescs } from "./Tools/NoteToolProvider";
+
+// ===== Agent 插件 =====
+export { NoteAgentPlugin } from "./Plugin/NoteAgentPlugin";
+export { NotePluginLease } from "./Plugin/NotePluginLease";
 
 // ===== 类型定义 =====
 export {

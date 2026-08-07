@@ -2,7 +2,7 @@ import path from "path";
 import { existsSync, mkdirSync } from "fs";
 import Database from "better-sqlite3";
 import { IEmbeddingService } from "../Embedding";
-import { cosineSimilarity } from "../Note/utils";
+import { cosineSimilarity } from "./cosineSimilarity";
 
 /**
  * 自管 SQLite 的混合检索器。

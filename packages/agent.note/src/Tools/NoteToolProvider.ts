@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
-import { TimeUtils } from "../../Utils/TimeUtils";
+import { TimeUtils } from "scorpio.ai";
 import { INoteService } from "../Service/INoteService";
 
 export const NOTE_SEARCH_TOOL_NAME = 'note_search' as const;
