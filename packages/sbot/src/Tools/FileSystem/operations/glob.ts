@@ -52,7 +52,7 @@ function searchWithRg(dir: string, pattern: string, includeHidden: boolean, time
         if (includeHidden) args.push('--hidden');
         args.push(dir);
 
-        const proc = spawn('rg', args);
+        const proc = spawn('rg', args, { windowsHide: true });
         const files: Array<{ path: string; mtime: number }> = [];
         let killed = false;
         let timedOut = false;

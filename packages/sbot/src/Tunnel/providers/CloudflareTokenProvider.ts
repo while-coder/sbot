@@ -36,7 +36,8 @@ export class CloudflareTokenProvider implements TunnelProvider {
         this.emitLog(`Starting cloudflared tunnel run (token mode)`);
 
         const proc = spawn(bin, ["tunnel", "run", "--token", this.token, "--no-autoupdate"], {
-            stdio: ["ignore", "pipe", "pipe"],
+            stdio:       ["ignore", "pipe", "pipe"],
+            windowsHide: true,
         });
         this.proc = proc;
 

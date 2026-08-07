@@ -2,7 +2,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { fork, type ChildProcess } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import { LoggerService } from '../../Core/LoggerService';
 
@@ -269,10 +269,10 @@ export class PtyService {
                     return;
                 }
                 try {
-                    worker = fork(workerPath, [], {
+                    worker = spawn(process.execPath, [workerPath], {
                         stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
-                        execArgv: [],
                         env: { ...process.env, NODE_OPTIONS: '' },
+                        windowsHide: true,
                     });
                 } catch (e: any) {
                     logger.error(`pty worker fork failed: ${e?.message ?? e}`);

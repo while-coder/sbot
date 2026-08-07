@@ -42,7 +42,7 @@ function searchWithRg(
         if (fileGlob) args.push(`--iglob=${fileGlob}`);
         args.push('--', pattern, dir);
 
-        const proc = spawn('rg', args);
+        const proc = spawn('rg', args, { windowsHide: true });
         const byFile = new Map<string, FileMatches>();
         const fileOrder: string[] = [];
         let totalMatches = 0;

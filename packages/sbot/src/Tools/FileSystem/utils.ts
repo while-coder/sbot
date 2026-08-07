@@ -16,7 +16,7 @@ let rgAvailable: boolean | null = null;
 export function checkRg(): Promise<boolean> {
     if (rgAvailable !== null) return Promise.resolve(rgAvailable);
     return new Promise(resolve => {
-        const proc = spawn('rg', ['--version'], { stdio: 'ignore' });
+        const proc = spawn('rg', ['--version'], { stdio: 'ignore', windowsHide: true });
         proc.on('close', code => { rgAvailable = code === 0; resolve(rgAvailable!); });
         proc.on('error', () => { rgAvailable = false; resolve(false); });
     });

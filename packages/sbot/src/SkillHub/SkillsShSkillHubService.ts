@@ -148,6 +148,7 @@ export class SkillsShSkillHubService implements ISkillHubService {
         timeout: 120_000,
         shell: true,
         stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
         // 避免继承 Node debug 端口
         env: { ...process.env, NODE_OPTIONS: '' },
       });

@@ -106,8 +106,9 @@ export function registerCommands(program: Command): void {
                 console.log('服务已关闭');
             }
             const child = spawn('npm', ['install', '-g', `${NPM_PACKAGE}@latest`], {
-                stdio: 'inherit',
-                shell: true,
+                stdio:       'inherit',
+                shell:       true,
+                windowsHide: true,
             });
             child.on('error', (err) => {
                 console.error(`更新失败: ${err.message}`);

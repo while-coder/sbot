@@ -65,7 +65,7 @@ function binaryName(): string {
 function whichSync(cmd: string): string | undefined {
     try {
         const probe = process.platform === "win32" ? "where" : "which";
-        const r = spawnSync(probe, [cmd], { encoding: "utf8" });
+        const r = spawnSync(probe, [cmd], { encoding: "utf8", windowsHide: true });
         if (r.status === 0) {
             const first = r.stdout.split(/\r?\n/).map(s => s.trim()).find(Boolean);
             if (first && fs.existsSync(first)) return first;
@@ -100,7 +100,7 @@ function sha256OfFile(filePath: string): string {
 /** 解压 .tgz 中名为 cloudflared 的成员到 dest（不依赖 npm tar 包，调系统 tar） */
 function extractTgzCloudflared(tgzPath: string, destBinary: string): void {
     const destDir = path.dirname(destBinary);
-    const tar = spawnSync("tar", ["-xzf", tgzPath, "-C", destDir, "cloudflared"], { encoding: "utf8" });
+    const tar = spawnSync("tar", ["-xzf", tgzPath, "-C", destDir, "cloudflared"], { encoding: "utf8", windowsHide: true });
     if (tar.status !== 0) {
         throw new Error(`tar -xzf failed (status=${tar.status}): ${tar.stderr || tar.stdout}`);
     }

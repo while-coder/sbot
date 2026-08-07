@@ -81,7 +81,7 @@ async function main() {
                 const preview = cmd.includes('\n') ? cmd.split('\n')[0] + '...' : cmd;
                 logger.info(`Startup command [${i + 1}/${cmds.length}]: ${preview}`);
                 try {
-                    execSync(cmd, { stdio: 'inherit' });
+                    execSync(cmd, { stdio: 'inherit', windowsHide: true });
                 } catch (e: any) {
                     logger.error(`Startup command [${i + 1}] failed: ${e?.message ?? e}`);
                 }

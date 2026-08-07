@@ -27,7 +27,8 @@ export class CloudflareQuickProvider implements TunnelProvider {
         this.emitLog(`Starting cloudflared --url http://localhost:${localPort}`);
 
         const proc = spawn(bin, ["tunnel", "--url", `http://localhost:${localPort}`, "--no-autoupdate"], {
-            stdio: ["ignore", "pipe", "pipe"],
+            stdio:       ["ignore", "pipe", "pipe"],
+            windowsHide: true,
         });
         this.proc = proc;
 

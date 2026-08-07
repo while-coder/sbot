@@ -51,8 +51,9 @@ let currentShell: string | undefined;
 export function isCommandAvailable(interpreter: string): boolean {
     try {
         execSync(os.platform() === 'win32' ? `where ${interpreter}` : `which ${interpreter}`, {
-            stdio:   'ignore',
-            timeout: PROBE_TIMEOUT_MS,
+            stdio:       'ignore',
+            timeout:     PROBE_TIMEOUT_MS,
+            windowsHide: true,
         });
         return true;
     } catch {

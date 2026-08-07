@@ -18,7 +18,7 @@ function enableWindows(): void {
     const vbs = `Set WshShell = CreateObject("WScript.Shell")\r\nWshShell.Run """${nodePath}"" ""${sbotBin}""", 0, False\r\n`;
     const vbsPath = getWindowsStartupPath();
     // 清理旧的注册表条目（如果存在）
-    try { execFileSync("reg", ["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", APP_NAME, "/f"], { stdio: "pipe" }); } catch { /* ignore */ }
+    try { execFileSync("reg", ["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", APP_NAME, "/f"], { stdio: "pipe", windowsHide: true }); } catch { /* ignore */ }
     fs.writeFileSync(vbsPath, vbs, "utf-8");
 }
 
@@ -26,7 +26,7 @@ function disableWindows(): void {
     const vbsPath = getWindowsStartupPath();
     if (fs.existsSync(vbsPath)) fs.unlinkSync(vbsPath);
     // 也清理旧的注册表条目
-    try { execFileSync("reg", ["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", APP_NAME, "/f"], { stdio: "pipe" }); } catch { /* ignore */ }
+    try { execFileSync("reg", ["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", APP_NAME, "/f"], { stdio: "pipe", windowsHide: true }); } catch { /* ignore */ }
 }
 
 function isEnabledWindows(): boolean {
@@ -66,13 +66,13 @@ function enableMacOS(): void {
 </plist>`;
     fs.mkdirSync(path.dirname(plistPath), { recursive: true });
     fs.writeFileSync(plistPath, plist, "utf-8");
-    execSync(`launchctl load -w "${plistPath}"`, { stdio: "pipe" });
+    execSync(`launchctl load -w "${plistPath}"`, { stdio: "pipe", windowsHide: true });
 }
 
 function disableMacOS(): void {
     const plistPath = getLaunchAgentPath();
     if (fs.existsSync(plistPath)) {
-        try { execSync(`launchctl unload -w "${plistPath}"`, { stdio: "pipe" }); } catch { /* ignore */ }
+        try { execSync(`launchctl unload -w "${plistPath}"`, { stdio: "pipe", windowsHide: true }); } catch { /* ignore */ }
         fs.unlinkSync(plistPath);
     }
 }
@@ -105,22 +105,22 @@ WantedBy=default.target
 `;
     fs.mkdirSync(path.dirname(servicePath), { recursive: true });
     fs.writeFileSync(servicePath, unit, "utf-8");
-    execSync("systemctl --user daemon-reload", { stdio: "pipe" });
-    execSync(`systemctl --user enable ${APP_NAME}.service`, { stdio: "pipe" });
+    execSync("systemctl --user daemon-reload", { stdio: "pipe", windowsHide: true });
+    execSync(`systemctl --user enable ${APP_NAME}.service`, { stdio: "pipe", windowsHide: true });
 }
 
 function disableLinux(): void {
     const servicePath = getSystemdServicePath();
-    try { execSync(`systemctl --user disable ${APP_NAME}.service`, { stdio: "pipe" }); } catch { /* ignore */ }
+    try { execSync(`systemctl --user disable ${APP_NAME}.service`, { stdio: "pipe", windowsHide: true }); } catch { /* ignore */ }
     if (fs.existsSync(servicePath)) {
         fs.unlinkSync(servicePath);
     }
-    try { execSync("systemctl --user daemon-reload", { stdio: "pipe" }); } catch { /* ignore */ }
+    try { execSync("systemctl --user daemon-reload", { stdio: "pipe", windowsHide: true }); } catch { /* ignore */ }
 }
 
 function isEnabledLinux(): boolean {
     try {
-        const out = execSync(`systemctl --user is-enabled ${APP_NAME}.service`, { stdio: "pipe" }).toString().trim();
+        const out = execSync(`systemctl --user is-enabled ${APP_NAME}.service`, { stdio: "pipe", windowsHide: true }).toString().trim();
         return out === "enabled";
     } catch {
         return false;
