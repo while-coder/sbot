@@ -14,6 +14,7 @@ Select the channel type and fill in the credentials, then assign agent + saver +
 | WeChat | QR code login (credentials auto-populated) |
 | DingTalk | Client ID, Client Secret (AppKey / AppSecret, Stream mode) |
 | QQ | App ID, Client Secret (QQ Bot Open Platform, WebSocket Gateway) |
+| Tencent Yuanbao | App ID, App Secret |
 | OneBot (QQ) | WS Host, WS Port, optional Access Token |
 | XiaoAI | Mi account ID, Login credential, Speaker name |
 
@@ -100,6 +101,17 @@ The QQ channel connects an official bot from the [QQ Bot Open Platform](https://
 ::: tip QQ vs OneBot
 Use **QQ** for an official QQ bot via the open platform. Use **OneBot** below to bridge an unofficial QQ adapter (NapCat / Lagrange) over reverse WebSocket.
 :::
+
+## Tencent Yuanbao
+
+The Yuanbao channel connects through the official protobuf WebSocket gateway and supports direct/group chats plus image and file transfer.
+
+1. Open Tencent Yuanbao and go to **My Bots** → **Create Bot**
+2. Obtain the **App ID** and **App Secret** from the bot's developer settings
+3. In Web UI → **Channels**, create a **Yuanbao** channel and enter both credentials
+4. Group messages require an explicit @bot mention by default; this can be disabled in the channel settings
+
+Agent streaming output is accumulated and sent once complete. Yuanbao does not support in-place message editing or interactive forms.
 
 ## OneBot (QQ / Telegram bridges / etc.)
 

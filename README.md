@@ -146,7 +146,7 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 - **Agenda** — Conversation-driven reminders, schedules, and routines with absolute / interval / cron triggers; optionally synced from the conversation after every turn and delivered to any session or channel
 - **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
-- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), OneBot (v11 reverse WebSocket), XiaoAI, REST API, WebSocket
+- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), Tencent Yuanbao, OneBot (v11 reverse WebSocket), XiaoAI, REST API, WebSocket
 - **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo, ask
 - **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
 - **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources
@@ -166,7 +166,7 @@ Full guide, with step-by-step setup and per-feature reference, lives at
 - **Storage & knowledge** — [Savers](https://while-coder.github.io/sbot/guide/savers) · [Notes](https://while-coder.github.io/sbot/guide/note) · [Wiki](https://while-coder.github.io/sbot/guide/wiki)
 - **Automation** — [Memory](https://while-coder.github.io/sbot/guide/memory) · [Agenda](https://while-coder.github.io/sbot/guide/agenda) · [Heartbeat](https://while-coder.github.io/sbot/guide/heartbeat)
 - **Tools & skills** — [Built-in Tools](https://while-coder.github.io/sbot/guide/tools) · [MCP Tools](https://while-coder.github.io/sbot/guide/mcp) · [Skills](https://while-coder.github.io/sbot/guide/skills)
-- **Channels** — [Channels](https://while-coder.github.io/sbot/guide/channels) (Lark/Feishu · Slack · WeCom · WeChat · DingTalk · QQ · OneBot · XiaoAI)
+- **Channels** — [Channels](https://while-coder.github.io/sbot/guide/channels) (Lark/Feishu · Slack · WeCom · WeChat · DingTalk · QQ · Yuanbao · OneBot · XiaoAI)
 
 ---
 

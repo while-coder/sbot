@@ -145,7 +145,7 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **日程（Agenda）** — 由对话驱动的提醒、日程与周期任务，支持 absolute / interval / cron 触发器；可每轮对话后从对话自动同步，并投递到任意会话或渠道
 - **心跳唤醒** — 可配置定时提示词，让 Agent 在任意渠道周期性主动发起任务
 - **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态；支持全局与 Agent 级独立配置，故障自动重启
-- **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、OneBot（v11 反向 WebSocket）、小爱音箱、REST API、WebSocket
+- **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、腾讯元宝、OneBot（v11 反向 WebSocket）、小爱音箱、REST API、WebSocket
 - **内置工具** — Shell 执行、文件系统、归档操作、媒体文件读取、Python/PowerShell 内联执行、Web 抓取/下载、Cron 调度、待办事项
 - **技能系统** — 可安装的 Prompt 模块，支持从 Clawhub、skills.sh、skillhub.cn 远程安装
 - **Agent 商店** — 浏览并一键安装预打包 Agent（含模型、Prompt、工具、技能、MCP 服务器配置），支持自定义源
@@ -165,7 +165,7 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **存储与知识** — [存储](https://while-coder.github.io/sbot/zh/guide/savers) · [笔记](https://while-coder.github.io/sbot/zh/guide/note) · [知识库](https://while-coder.github.io/sbot/zh/guide/wiki)
 - **自动化** — [记忆](https://while-coder.github.io/sbot/zh/guide/memory) · [日程](https://while-coder.github.io/sbot/zh/guide/agenda) · [心跳唤醒](https://while-coder.github.io/sbot/zh/guide/heartbeat)
 - **工具与技能** — [内置工具](https://while-coder.github.io/sbot/zh/guide/tools) · [MCP 工具](https://while-coder.github.io/sbot/zh/guide/mcp) · [技能](https://while-coder.github.io/sbot/zh/guide/skills)
-- **渠道** — [渠道配置](https://while-coder.github.io/sbot/zh/guide/channels)（飞书/Lark · Slack · 企业微信 · 微信 · 钉钉 · QQ · OneBot · 小爱）
+- **渠道** — [渠道配置](https://while-coder.github.io/sbot/zh/guide/channels)（飞书/Lark · Slack · 企业微信 · 微信 · 钉钉 · QQ · 元宝 · OneBot · 小爱）
 
 ---
 

@@ -103,7 +103,7 @@ Open `http://localhost:5500` after starting sbot. Follow these steps in order:
 
 Optional next steps:
 
-- **Connect a channel** — sidebar → **Channels** for Lark/Slack/WeCom/WeChat/DingTalk/QQ/OneBot/XiaoAI. See [Channels](./channels)
+- **Connect a channel** — sidebar → **Channels** for Lark/Slack/WeCom/WeChat/DingTalk/QQ/Yuanbao/OneBot/XiaoAI. See [Channels](./channels)
 - **Enable Wiki** — long-term knowledge base. See [Wiki](./wiki)
 - **Enable Notes** — vector-recall memory. See [Notes](./note)
 - **Enable Memory** — automatic long-term memory extracted by a background MemoryLLM. See [Memory](./memory)

@@ -44,6 +44,7 @@
     "channel.lark": "workspace:*",
     "channel.onebot": "workspace:*",
     "channel.qq": "workspace:*",
+    "channel.yuanbao": "workspace:*",
     "channel.remote-agent": "workspace:*",
     "channel.slack": "workspace:*",
     "channel.wechat": "workspace:*",

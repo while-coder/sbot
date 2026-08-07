@@ -1,0 +1,23 @@
+{
+  "name": "channel.yuanbao",
+  "version": "0.0.1",
+  "description": "Tencent Yuanbao Bot channel integration (protobuf WebSocket)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "axios": "catalog:",
+    "channel.base": "workspace:*",
+    "protobufjs": "^7.5.4",
+    "ws": "catalog:"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

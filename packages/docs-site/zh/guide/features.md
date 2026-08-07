@@ -13,7 +13,7 @@
 - **日程（Agenda）** —— 由对话驱动的提醒、日程与周期任务，支持 absolute / interval / cron 触发器；可每轮对话后从对话自动同步，并投递到任意会话或渠道
 - **心跳唤醒** —— 可配置的周期性自激活，让 Agent 在任意渠道主动执行预定提示词
 - **MCP 工具** —— 标准 MCP 协议（stdio / HTTP / SSE），接入任意 MCP 工具生态；支持 Agent 级与全局服务器，故障自动重启
-- **多渠道** —— Web UI、CLI、飞书 / Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、OneBot（QQ）、小爱、REST API、WebSocket
+- **多渠道** —— Web UI、CLI、飞书 / Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、腾讯元宝、OneBot（QQ）、小爱、REST API、WebSocket
 - **内置工具** —— Shell 执行、文件系统、归档操作、媒体文件读取、Python / PowerShell 内联执行、Web 抓取 / 下载、等待、会话搜索、跨渠道发消息
 - **内置 MCP 预设** —— Playwright、Markitdown、Exa 可在 MCP 工具列表中与自定义 MCP 服务器一起启用
 - **技能系统** —— 可安装的 Prompt 模块，支持从 Clawhub、skills.sh、skillhub.cn 远程安装

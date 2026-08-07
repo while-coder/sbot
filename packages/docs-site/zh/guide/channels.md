@@ -14,6 +14,7 @@
 | 微信 WeChat | 扫码登录（凭据自动获取） |
 | 钉钉 DingTalk | Client ID、Client Secret |
 | QQ（官方 Bot） | App ID、Client Secret |
+| 腾讯元宝 | App ID、App Secret |
 | OneBot（QQ 完整协议） | WS Host、WS Port、可选 Access Token |
 | 小爱 XiaoAI | 小米账号 ID、登录凭据、音箱名称 |
 
@@ -162,6 +163,17 @@
 - **不支持 Markdown 模板**（需在 QQ 平台单独申请 Markdown 权限和模板 ID）。
 - **不支持卡片按钮 / 表单**：审批 / Ask 在 QQ 模式下没有交互 UI（按超时策略处理）。如需完整 QQ 体验请考虑 OneBot 渠道。
 - 同一 `msg_id` 下的回复 **`msg_seq` 必须自增**，本实现已自动处理。
+
+## 腾讯元宝
+
+元宝频道通过官方 protobuf WebSocket 长连接接入，支持私聊、群聊及图片/文件收发。
+
+1. 打开腾讯元宝，进入 **我的 Bot** → **创建 Bot**
+2. 在 Bot 的开发配置中获取 **App ID** 和 **App Secret**
+3. 在 Web UI → **渠道** 中创建 **元宝** 渠道并填入这两个凭据
+4. 群聊默认仅响应明确 @Bot 的消息，可在渠道配置中关闭此限制
+
+Agent 流式输出会在完成后一次性发送；元宝不支持原地编辑消息或交互表单。
 
 ## OneBot（QQ / Telegram 桥接 等）
 
