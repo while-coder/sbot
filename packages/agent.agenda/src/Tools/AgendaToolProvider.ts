@@ -12,7 +12,10 @@ import {
     type AgendaTriggerEdit,
 } from "../types";
 import { IAgendaService } from "../Service/IAgendaService";
-import { AgendaRenderMode, formatAgendaXml } from "../format";
+import {
+    AgendaRenderMode,
+    formatAgendaXml,
+} from "../format";
 import { DEFAULT_LIST_LIMIT, DETAIL_FIRES_LIMIT } from "../limits";
 import { createAgendaTriggerSchemas } from "../triggerSchemas";
 

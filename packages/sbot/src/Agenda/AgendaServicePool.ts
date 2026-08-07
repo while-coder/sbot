@@ -4,20 +4,24 @@ import {
     type AgendaToolDescs,
     AgendaExtractor,
     IAgendaExtractor,
+    T_AgendaExtractorSystemPrompt,
+    T_AgendaSelectorSystemPrompt,
+    loadAgendaPrompt,
+} from "agent.agenda";
+import {
     IModelService,
     ServiceContainer,
     ILoggerService,
-    T_AgendaExtractorSystemPrompt,
-    T_AgendaSelectorSystemPrompt,
 } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
-import { loadPrompt } from "../Core/PromptLoader";
-import { agendaStorePool } from "./AgendaStorePool";
-import { agendaTriggerEnginePool } from "./AgendaTriggerEnginePool";
+import { agendaStorePool, agendaTriggerEnginePool } from "./AgendaRuntime";
 
 const DEFAULT_SYNC_PROMPT = "agenda/sync/default.txt";
 const DEFAULT_SELECTOR_PROMPT = "agenda/sync/selector.txt";
+const promptOverrideRoot = config.getConfigPath("prompts", true);
+
+const loadPrompt = (relPath: string) => loadAgendaPrompt(relPath, promptOverrideRoot);
 
 const sharedToolDescs: AgendaToolDescs = {
     create: loadPrompt('agenda/tools/create.txt'),

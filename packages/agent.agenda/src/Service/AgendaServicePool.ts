@@ -1,6 +1,6 @@
 import { ServiceContainer } from "scorpio.di";
-import { T_AgendaToolDescs, formatError } from "../../Core";
-import { ILogger, ILoggerService } from "../../Logger";
+import { formatError, type ILogger, ILoggerService } from "scorpio.ai";
+import { T_AgendaToolDescs } from "../tokens";
 import { DEFAULT_PENDING_JOB_LIMIT } from "../limits";
 import { IAgendaStore, type PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";

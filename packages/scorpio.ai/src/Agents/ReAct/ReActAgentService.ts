@@ -10,7 +10,6 @@ import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_C
 import { IAgentPlugin, type AgentPluginContext } from "../Plugins";
 import { ISkillService } from "../../Skills";
 import { IMemoryService } from "../../Memory";
-import { IAgendaService } from "../../Agenda";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
 import { createDispatchTaskTool, createListTasksTool, TaskContextMode, TaskStatus, type RunDispatchTaskFn, type TaskInfo } from "../../Tools";
@@ -72,7 +71,6 @@ export class ReActAgentService extends SingleAgentService {
     @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
     @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
-    @inject(IAgendaService, { optional: true }) agendaService?: IAgendaService,
     @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
     @inject(INoteService, { optional: true }) noteServices?: INoteService[],
     @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
@@ -81,7 +79,7 @@ export class ReActAgentService extends SingleAgentService {
     @inject(T_SpawnDepth, { optional: true }) spawnDepth?: number,
     @inject(IAgentPlugin, { optional: true }) plugins?: IAgentPlugin[],
   ) {
-    super(thinkModelService, skillService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, agendaService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, plugins);
+    super(thinkModelService, skillService, toolOverflowDir, channelSessionId, staticSystemPrompts, dynamicSystemPrompts, loggerService, agentSaver, memoryService, toolService, noteServices, wikiServices, modelCallTimeout, compactor, plugins);
     this.agentSubNodes = agentSubNodes;
     this.agentFactory = agentFactory;
     this.spawnDepth = spawnDepth ?? 0;
@@ -163,7 +161,7 @@ export class ReActAgentService extends SingleAgentService {
         if (this.noteServices.length > 0) subContainer.registerInstance(INoteService, this.noteServices);
         if (this.wikiServices.length > 0) subContainer.registerInstance(IWikiService, this.wikiServices);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
-        // 故意不透传 memory / agenda：抽取（extractFromConversation）无条件随 service 触发，
+        // 故意不透传 memory：抽取（extractFromConversation）无条件随 service 触发，
         // 而子 agent 的 Human 消息是编排者合成的 task 指令、非真实用户输入，抽取会污染记忆/日程。
         // 真实用户内容由编排者自身 turn 末尾统一抽取，子任务无需重复参与。
         // 插件按同一原则区分：抽取类插件默认 inheritToSubAgent=false 不下传，纯检索类显式置 true 才下传。

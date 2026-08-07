@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../../Saver";
+import type { ChatMessage } from "scorpio.ai";
 import type { PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import type { AgendaCloseOutcome } from "../types";
 import type {

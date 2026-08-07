@@ -7,7 +7,7 @@ import {
     type AgendaListFilter,
     type AgendaRecord,
     type AgendaUpdatePatch,
-} from 'scorpio.ai';
+} from 'agent.agenda';
 import { agendaServicePool, agendaStorePool, agendaTriggerEnginePool } from '../../Agenda';
 import { config } from '../../Core/Config';
 import { api, throwBad } from '../../utils';

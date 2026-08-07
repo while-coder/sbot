@@ -1,4 +1,4 @@
-import { TimeUtils } from "../Utils/TimeUtils";
+import { TimeUtils } from "scorpio.ai";
 import {
     type AgendaRecord,
     type AgendaTrigger,

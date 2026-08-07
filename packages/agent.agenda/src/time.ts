@@ -1,4 +1,4 @@
-import { TimeUtils } from "../Utils/TimeUtils";
+import { TimeUtils } from "scorpio.ai";
 import { AgendaTimeUnit, AgendaTriggerKind, type AgendaRelativeTime, type AgendaTrigger } from "./types";
 
 /** Agenda 默认触发宽限窗口：错过该时长的 absolute 触发被视为 missed。 */

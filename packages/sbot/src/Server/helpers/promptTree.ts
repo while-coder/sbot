@@ -1,11 +1,32 @@
 import fs from 'fs';
 import path from 'path';
-import { dirFirstByName } from '../../utils';
+
+function dirFirstByName(a: fs.Dirent, b: fs.Dirent): number {
+    if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+    return a.name.localeCompare(b.name);
+}
 
 export type PromptNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; isUserOnly?: boolean; children?: PromptNode[] };
 
 export class PromptTreeHelper {
     readonly PROMPTS_DIR = path.resolve(__dirname, '../../../prompts');
+
+    buildFromRoots(defaultDirs: string[], userBaseDir = ''): PromptNode[] {
+        let result: PromptNode[] = [];
+        for (const dir of defaultDirs) {
+            result = this.mergeDefaults(result, this.build(dir));
+        }
+        if (userBaseDir && fs.existsSync(userBaseDir)) {
+            result = this.overlayUser(result, this.build(userBaseDir));
+        }
+        return this.sortNodes(result);
+    }
+
+    resolveDefault(defaultDirs: string[], relPath: string): string | undefined {
+        return defaultDirs
+            .map(dir => path.join(dir, relPath))
+            .find(filePath => fs.existsSync(filePath));
+    }
 
     build(dir: string, basePath = '', userBaseDir = ''): PromptNode[] {
         if (!fs.existsSync(dir)) return [];
@@ -42,6 +63,50 @@ export class PromptTreeHelper {
             }
         }
         return result;
+    }
+
+    private mergeDefaults(base: PromptNode[], extra: PromptNode[]): PromptNode[] {
+        const result = [...base];
+        for (const node of extra) {
+            const current = result.find(item => item.name === node.name && item.type === node.type);
+            if (!current) {
+                result.push(node);
+            } else if (node.type === 'dir') {
+                current.children = this.mergeDefaults(current.children ?? [], node.children ?? []);
+            }
+        }
+        return this.sortNodes(result);
+    }
+
+    private overlayUser(defaults: PromptNode[], users: PromptNode[]): PromptNode[] {
+        const result = [...defaults];
+        for (const user of users) {
+            const current = result.find(item => item.name === user.name && item.type === user.type);
+            if (!current) {
+                result.push(this.markUserOnly(user));
+            } else if (user.type === 'dir') {
+                current.children = this.overlayUser(current.children ?? [], user.children ?? []);
+                current.isOverride = current.children.some(item => item.isOverride || item.isUserOnly);
+            } else {
+                current.isOverride = true;
+            }
+        }
+        return this.sortNodes(result);
+    }
+
+    private markUserOnly(node: PromptNode): PromptNode {
+        return {
+            ...node,
+            isUserOnly: true,
+            children: node.children?.map(child => this.markUserOnly(child)),
+        };
+    }
+
+    private sortNodes(nodes: PromptNode[]): PromptNode[] {
+        return nodes.sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
     }
 }
 

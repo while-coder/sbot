@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../../Saver";
+import type { ChatMessage } from "scorpio.ai";
 import type {
     AgendaItem,
     AgendaRecord,

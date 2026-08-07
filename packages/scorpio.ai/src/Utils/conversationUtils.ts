@@ -2,14 +2,14 @@ import { type ChatMessage, MessageRole } from "../Saver";
 import { contentToString } from "./contentUtils";
 
 /**
- * 把一组 ChatMessage 渲染成可喂给后台 LLM（MemoryWriter / AgendaExtractor 等）的纯文本 transcript。
+ * 把一组 ChatMessage 渲染成可喂给后台 LLM 的纯文本 transcript。
  *
  * - human → `human: ...`
  * - ai → `ai: ...`，含 tool_calls 时附 `\n  tool_calls: name(args), ...`；纯 tool_calls 无文本时变 `ai (tool_calls): ...`
  * - tool → `tool[name][status]: ...`
  * - system → 跳过
  *
- * 为什么共享：Memory 与 Agenda 的后台抽取 LLM 都用同一形态的 transcript 作为输入，
+ * 为什么共享：多个后台抽取能力都用同一形态的 transcript 作为输入，
  * 抽到一个工具里避免两份实现漂移。tool_call args 通过 safeJson 截断到 2k，避免大 payload 喂到 LLM。
  */
 export function renderConversation(messages: ChatMessage[]): string {

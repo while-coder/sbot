@@ -1,25 +1,32 @@
 import {
-    AgendaStatus,
-    AgendaTriggerKind,
-    computeNextAfterFire,
-    DEFAULT_GRACE_MS,
     SessionDeliveryMode,
     TimeUtils,
     formatError,
-    type IAgendaStore,
-    type IAgendaTriggerEngine,
+    type ILogger,
+} from "scorpio.ai";
+import {
+    AgendaStatus,
+    AgendaTriggerKind,
     type AgendaItem,
     type AgendaTrigger,
-} from "scorpio.ai";
+} from "../types";
+import { computeNextAfterFire, DEFAULT_GRACE_MS } from "../time";
+import type { IAgendaStore } from "../Storage/IAgendaStore";
+import type { IAgendaTriggerEngine } from "./IAgendaTriggerEngine";
+import { TimerExecutor } from "./TimerExecutor";
 
 /** trigger_fire.message 描述的截断长度。 */
 const FIRE_LOG_DESC_MAX = 100;
-import { LoggerService } from "../Core/LoggerService";
-import { TimerExecutor } from "../Core/TimerExecutor";
-import { triggerSession } from "../Core/triggerSession";
-import { resolveAgendaDelivery } from "./Delivery";
 
-const logger = LoggerService.getLogger("Agenda/TriggerEngine.ts");
+export interface AgendaDeliveryRequest {
+    agendaId: string;
+    item: AgendaItem;
+    trigger: AgendaTrigger;
+}
+
+export type AgendaDeliveryHandler = (
+    request: AgendaDeliveryRequest,
+) => Promise<{ ok: boolean; error?: string }>;
 
 /** Absolute（一次性）触发投递失败后的重试间隔。 */
 const ABSOLUTE_RETRY_INTERVAL_MS = 5 * 60 * 1000;
@@ -31,13 +38,15 @@ const ABSOLUTE_RETRY_DEADLINE_MS = 30 * 60 * 1000;
  * 内部 timer 池仅追踪该模板的 trigger，跨模板操作由 AgendaTriggerEnginePool 协调。
  */
 export class AgendaTriggerEngine implements IAgendaTriggerEngine {
-    private executor = new TimerExecutor<NodeJS.Timeout>({ name: "AgendaTrigger", stop: handle => clearTimeout(handle), concurrencyGuard: true });
+    private executor = new TimerExecutor<NodeJS.Timeout>({ stop: handle => clearTimeout(handle), concurrencyGuard: true });
     private started = false;
     private startPromise?: Promise<void>;
 
     constructor(
         private readonly agendaId: string,
         private readonly store: IAgendaStore,
+        private readonly delivery: AgendaDeliveryHandler,
+        private readonly logger?: ILogger,
     ) {}
 
     /**
@@ -57,7 +66,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         for (const trigger of triggers) {
             await this.reload(trigger.id);
         }
-        logger.info(`Agenda trigger engine [agenda=${this.agendaId}] started, loaded ${triggers.length} trigger(s)`);
+        this.logger?.info(`Agenda trigger engine [agenda=${this.agendaId}] started, loaded ${triggers.length} trigger(s)`);
     }
 
     stopAll(): void {
@@ -159,15 +168,15 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                     if (retryAt - originalAt < ABSOLUTE_RETRY_DEADLINE_MS) {
                         await this.store.updateTrigger(freshTrigger.id, { nextFireAt: retryAt });
                         this.schedule(freshTrigger.id, retryAt);
-                        logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed, retry at ${new Date(retryAt).toISOString()}`);
+                        this.logger?.warn(`Agenda trigger [${freshTrigger.id}] delivery failed, retry at ${new Date(retryAt).toISOString()}`);
                         return;
                     }
                     await this.disableMissedTrigger(freshTrigger);
-                    logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed past retry deadline; giving up`);
+                    this.logger?.warn(`Agenda trigger [${freshTrigger.id}] delivery failed past retry deadline; giving up`);
                     return;
                 }
                 await this.disableMissedTrigger(freshTrigger);
-                logger.warn(`Agenda trigger [${freshTrigger.id}] delivery failed; expr unparseable, giving up`);
+                this.logger?.warn(`Agenda trigger [${freshTrigger.id}] delivery failed; expr unparseable, giving up`);
                 return;
             }
 
@@ -212,20 +221,13 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
      * 返回是否投递成功 + 失败原因（无会话 / 通道异常均记 warn 并返回 ok:false）。
      */
     private async deliver(item: AgendaItem, trigger: AgendaTrigger): Promise<{ ok: boolean; error?: string }> {
-        const delivery = await resolveAgendaDelivery(this.agendaId, item, trigger);
         try {
-            if (!delivery) throw new Error("无投递会话");
-            const result = await triggerSession({
-                targetId: delivery.id,
-                message: trigger.message,
-                mode: trigger.action,
-                tag: `Agenda trigger [${trigger.id}]`,
-            });
-            if (!result.ok) logger.warn(`Agenda trigger [${trigger.id}] delivery failed`);
-            return { ok: result.ok };
+            const result = await this.delivery({ agendaId: this.agendaId, item, trigger });
+            if (!result.ok) this.logger?.warn(`Agenda trigger [${trigger.id}] delivery failed`);
+            return result;
         } catch (e: any) {
             const error = formatError(e);
-            logger.warn(`Agenda trigger [${trigger.id}] failed: ${formatError(e, true)}`);
+            this.logger?.warn(`Agenda trigger [${trigger.id}] failed: ${formatError(e, true)}`);
             return { ok: false, error };
         }
     }
@@ -258,7 +260,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
     private async markMissed(trigger: AgendaTrigger, scheduledAt: number): Promise<void> {
         await this.disableMissedTrigger(trigger);
-        logger.warn(`Agenda trigger [${trigger.id}] missed scheduled fire at ${new Date(scheduledAt).toISOString()} beyond grace window`);
+        this.logger?.warn(`Agenda trigger [${trigger.id}] missed scheduled fire at ${new Date(scheduledAt).toISOString()} beyond grace window`);
     }
 
     /**
@@ -315,6 +317,6 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         }
 
         if (enabled && nextFireAt) this.schedule(trigger.id, nextFireAt);
-        logger.info(`Agenda trigger [${trigger.id}] advanced from ${new Date(scheduledAt).toISOString()} to ${nextFireAt ? new Date(nextFireAt).toISOString() : 'disabled'}`);
+        this.logger?.info(`Agenda trigger [${trigger.id}] advanced from ${new Date(scheduledAt).toISOString()} to ${nextFireAt ? new Date(nextFireAt).toISOString() : 'disabled'}`);
     }
 }

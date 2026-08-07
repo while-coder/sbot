@@ -1,5 +1,6 @@
-import { AgendaStatus, TimeUtils } from "scorpio.ai";
-import { agendaStorePool } from "../Agenda/AgendaStorePool";
+import { AgendaStatus } from "agent.agenda";
+import { TimeUtils } from "scorpio.ai";
+import { agendaStorePool } from "../Agenda";
 import { LoggerService } from "../Core/LoggerService";
 import { type HeartbeatCommonRow } from "../Core/Database";
 

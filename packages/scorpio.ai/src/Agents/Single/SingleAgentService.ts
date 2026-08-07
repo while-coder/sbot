@@ -4,7 +4,6 @@ import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeo
 import { IModelService } from "../../Model";
 import { ISkillService } from "../../Skills";
 import { IMemoryService, MemoryToolProvider } from "../../Memory";
-import { IAgendaService, AgendaToolProvider } from "../../Agenda";
 import { INoteService, NoteToolProvider } from "../../Note";
 import { IWikiService } from "../../Wiki";
 import { WikiToolProvider } from "../../Wiki";
@@ -78,15 +77,13 @@ export class SingleAgentService extends AgentServiceBase {
     protected modelService: IModelService;
     protected skillService: ISkillService;
     protected memoryService?: IMemoryService;
-    protected agendaService?: IAgendaService;
     protected toolService?: IAgentToolService;
     protected staticSystemPrompts: string[];
     protected dynamicSystemPrompts: string[];
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
     protected toolOverflowDir: string;
-    /** 当前请求归属的 channel session db id；agenda tool 写新 trigger 的 channelSessionId
-     *  与 extractFromConversation 入队 pending job 的 channelSessionId 都用它。
+    /** 当前请求归属的 channel session db id，供 Agent capability plugin 使用。
      *  必传——caller（AgentRunner / ReActAgentService 子任务路径）务必把 T_ChannelSessionId 注册进容器。 */
     protected channelSessionId: number;
     /** 能力插件：把 system prompt + 工具 + turn 末尾副作用打包成可插拔单元，注册进容器即生效。
@@ -103,7 +100,6 @@ export class SingleAgentService extends AgentServiceBase {
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
         @inject(IAgentSaverService, { optional: true }) agentSaver?: IAgentSaverService,
         @inject(IMemoryService, { optional: true }) memoryService?: IMemoryService,
-        @inject(IAgendaService, { optional: true }) agendaService?: IAgendaService,
         @inject(IAgentToolService, { optional: true }) toolService?: IAgentToolService,
         @inject(INoteService, { optional: true }) noteServices?: INoteService[],
         @inject(IWikiService, { optional: true }) wikiServices?: IWikiService[],
@@ -115,7 +111,6 @@ export class SingleAgentService extends AgentServiceBase {
         this.modelService = modelService;
         this.skillService = skillService;
         this.memoryService = memoryService;
-        this.agendaService = agendaService;
         this.toolService = toolService;
         this.staticSystemPrompts = staticSystemPrompts ?? [];
         this.dynamicSystemPrompts = dynamicSystemPrompts ?? [];
@@ -242,9 +237,6 @@ export class SingleAgentService extends AgentServiceBase {
         }
         if (this.wikiServices.length > 0) {
             tools.push(...WikiToolProvider.getTools(this.wikiServices));
-        }
-        if (this.agendaService) {
-            tools.push(...AgendaToolProvider.getTools(this.agendaService, this.channelSessionId));
         }
         if (this.memoryService) {
             tools.push(...MemoryToolProvider.getTools(this.memoryService));
@@ -642,17 +634,13 @@ export class SingleAgentService extends AgentServiceBase {
             await this.recordException(err);
             throw err;
         }
-        // 静默后台提取：memory / agenda 都在 turn 末尾以 fire-and-forget 入队，
-        // 内部走"pending job + 串行 LLM 抽取"，不阻塞主响应流。
+        // 静默后台提取：memory 在 turn 末尾以 fire-and-forget 入队；其他能力由插件钩子处理。
         const conversation: ChatMessage[] = [
             { role: MessageRole.Human, content: query },
             ...outputMessages,
         ];
         if (this.memoryService) {
             this.memoryService.extractFromConversation(conversation);
-        }
-        if (this.agendaService) {
-            this.agendaService.extractFromConversation(conversation, this.channelSessionId);
         }
         this.notifyPluginsTurnCompleted(ctx, conversation);
 

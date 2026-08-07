@@ -38,6 +38,7 @@
     "@langchain/core": "catalog:",
     "@lydell/node-pty": "^1.1.0",
     "adm-zip": "^0.5.17",
+    "agent.agenda": "workspace:*",
     "axios": "catalog:",
     "channel.base": "workspace:*",
     "channel.dingtalk": "workspace:*",

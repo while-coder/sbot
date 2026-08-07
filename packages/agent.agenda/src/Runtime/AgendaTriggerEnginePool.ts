@@ -1,27 +1,36 @@
-import { agendaStorePool } from "./AgendaStorePool";
-import { LoggerService } from "../Core/LoggerService";
-import { AgendaTriggerEngine } from "./TriggerEngine";
-
-const logger = LoggerService.getLogger("Agenda/AgendaTriggerEnginePool.ts");
+import type { ILogger } from "scorpio.ai";
+import { AgendaTriggerEngine, type AgendaDeliveryHandler } from "../TriggerEngine/AgendaTriggerEngine";
+import type { AgendaStorePool } from "./AgendaStorePool";
 
 /**
  * 维护 agendaId → AgendaTriggerEngine 的映射。
  * 每个引擎绑定一个 agenda 模板 + 对应 store，跨模板协调（启动/关闭/模板删除）由 pool 承担。
  */
-class AgendaTriggerEnginePool {
+export class AgendaTriggerEnginePool {
     private cache = new Map<string, AgendaTriggerEngine>();
+
+    constructor(
+        private readonly agendaStorePool: AgendaStorePool,
+        private readonly delivery: AgendaDeliveryHandler,
+        private readonly logger?: ILogger,
+    ) {}
 
     get(agendaId: string): AgendaTriggerEngine {
         let engine = this.cache.get(agendaId);
         if (!engine) {
-            engine = new AgendaTriggerEngine(agendaId, agendaStorePool.get(agendaId));
+            engine = new AgendaTriggerEngine(
+                agendaId,
+                this.agendaStorePool.get(agendaId),
+                this.delivery,
+                this.logger,
+            );
             this.cache.set(agendaId, engine);
             // 运行期懒创建的引擎（进程启动后才新增/启用的 agenda profile）也必须 start，
             // 否则 reload()→schedule() 命中 !started 静默丢弃 timer，trigger 永不触发。
             // start() 幂等且同步置 started=true，随后的 create()→reload() 即可正常调度；
             // boot 时 startAll() 仍可 await 同一 startPromise，加载语义不变。
             void engine.start().catch(e =>
-                logger.warn(`Agenda trigger engine [agenda=${agendaId}] lazy start failed: ${e?.message ?? String(e)}`),
+                this.logger?.warn(`Agenda trigger engine [agenda=${agendaId}] lazy start failed: ${e?.message ?? String(e)}`),
             );
         }
         return engine;
@@ -36,13 +45,13 @@ class AgendaTriggerEnginePool {
     }
 
     async startAll(): Promise<void> {
-        const agendaIds = agendaStorePool.listAllAgendaIds();
+        const agendaIds = this.agendaStorePool.listAllAgendaIds();
         for (const agendaId of agendaIds) {
             try {
                 await this.get(agendaId).start();
             } catch (e: any) {
                 // 单个模板启动失败（如 sqlite 文件损坏）不应阻塞其他模板的调度。
-                logger.warn(`Agenda trigger engine [agenda=${agendaId}] start failed: ${e?.message ?? String(e)}`);
+                this.logger?.warn(`Agenda trigger engine [agenda=${agendaId}] start failed: ${e?.message ?? String(e)}`);
             }
         }
     }
@@ -51,5 +60,3 @@ class AgendaTriggerEnginePool {
         for (const engine of this.cache.values()) engine.stopAll();
     }
 }
-
-export const agendaTriggerEnginePool = new AgendaTriggerEnginePool();

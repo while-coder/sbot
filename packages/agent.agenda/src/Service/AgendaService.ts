@@ -1,7 +1,12 @@
 import { inject } from "scorpio.di";
-import { T_AgendaToolDescs, formatError, runtimeActivity } from "../../Core";
-import { ILoggerService, type ILogger } from "../../Logger";
-import type { ChatMessage } from "../../Saver";
+import {
+    formatError,
+    runtimeActivity,
+    ILoggerService,
+    type ILogger,
+    type ChatMessage,
+    TimeUtils,
+} from "scorpio.ai";
 import {
     AgendaAssignee,
     AgendaPriority,
@@ -24,7 +29,12 @@ import {
     type AgendaTriggerUpdatePatch,
     type AgendaUpdatePatch,
 } from "../types";
-import { AgendaRenderMode, formatAgendaListXml, formatAgendaXml } from "../format";
+import {
+    AgendaRenderMode,
+    formatAgendaListXml,
+    formatAgendaXml,
+} from "../format";
+import { T_AgendaToolDescs } from "../tokens";
 import {
     DEFAULT_LIST_LIMIT,
     DEFAULT_PENDING_JOB_LIMIT,
@@ -38,7 +48,6 @@ import {
 } from "../Extractor/IAgendaExtractor";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
 import { IAgendaStore, type PendingAgendaJobRow } from "../Storage/IAgendaStore";
-import { TimeUtils } from "../../Utils/TimeUtils";
 import { computeInitialNextFire, relativeToMs } from "../time";
 import { type AgendaToolDescs, IAgendaService } from "./IAgendaService";
 import { agendaServicePool } from "./AgendaServicePool";

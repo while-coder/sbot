@@ -1,3 +1,5 @@
+import { SessionDeliveryMode } from "scorpio.ai";
+
 // ===== Enums =====
 
 /**
@@ -70,7 +72,6 @@ export enum AgendaTriggerKind {
  * agenda trigger / heartbeat 都共用这一套，定义集中在 SessionDeliveryMode；
  * 这里以历史名 `AgendaTriggerAction` 对外别名导出，保持 agenda 模块对外的命名一致性。
  */
-import { SessionDeliveryMode } from "../Trigger";
 export { SessionDeliveryMode as AgendaTriggerAction };
 
 // ===== DTOs =====

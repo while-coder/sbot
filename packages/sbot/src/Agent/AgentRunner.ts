@@ -19,12 +19,13 @@ import {
     T_WikiToolDescs,
     T_WikiCachePath,
     IMemoryService,
-    IAgendaService,
+    IAgentPlugin,
     T_ChannelSessionId,
     TimeUtils,
     type MessageContent,
     runtimeActivity,
 } from "scorpio.ai";
+import { AgendaPluginLease } from "agent.agenda";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config } from "../Core/Config";
 import { loadWorkspaceContext } from "../Core/WorkspaceContext";
@@ -140,14 +141,13 @@ export class AgentRunner {
 
         const container = new ServiceContainer();
         container.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-        // SingleAgentService 把它传给 AgendaToolProvider 作为新 trigger 的 channelSessionId，
-        // 也作为 extractFromConversation push pending job 时的 channelSessionId。
+        // SingleAgentService 将它放入 AgentPluginContext，供需要会话归属的插件使用。
         const channelSessionId = parseInt(dbSessionId, 10) || 0;
         container.registerInstance(T_ChannelSessionId, channelSessionId);
         await AgentRunner.registerNoteServices(container, notes ?? []);
         await AgentRunner.registerWikiServices(container, wikis ?? []);
         const memoryService = await AgentRunner.registerMemoryService(container, options.memoryId, memoryWorkPath);
-        const agendaService = await AgentRunner.registerAgendaService(container, options.agendaId);
+        const agendaLease = AgentRunner.registerAgendaPlugin(container, options.agendaId);
 
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
         let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
@@ -173,7 +173,7 @@ export class AgentRunner {
         } finally {
             await agent?.dispose();
             memoryService?.release();
-            agendaService?.release();
+            agendaLease?.release();
             await saverHandle?.release();
         }
     }
@@ -306,21 +306,18 @@ export class AgentRunner {
     }
 
     /**
-     * Agenda 系统注册（pool 单例 + refCount）。命中 agendaProfile 才注册；否则不启用 agenda。
-     * 返回 acquire 到的 service 引用；caller（run finally）负责调 service.release()
-     * 来减 refCount。channelSessionId 不进 service 构造器，由 SingleAgentService 通过
-     * T_ChannelSessionId 注入到 agenda tool / extractFromConversation 调用点。
+     * Agenda capability plugin 注册（pool 单例 + refCount）。命中启用的 profile 才注册。
+     * lease 由 run finally 释放；Agent 只通过 IAgentPlugin 消费能力，不感知 AgendaService。
      */
-    private static async registerAgendaService(
+    private static registerAgendaPlugin(
         container: ServiceContainer,
         agendaId: string | null | undefined,
-    ): Promise<IAgendaService | null> {
+    ): AgendaPluginLease | null {
         if (!agendaId) return null;
         const profileConfig = config.getAgendaProfile(agendaId);
         if (!profileConfig?.enabled) return null;
-        const service = await agendaServicePool.acquire(agendaId);
-        container.registerInstance(IAgendaService, service);
-        return service;
+        const lease = new AgendaPluginLease(agendaServicePool.acquire(agendaId));
+        container.registerInstance(IAgentPlugin, [lease.plugin]);
+        return lease;
     }
 }
-1

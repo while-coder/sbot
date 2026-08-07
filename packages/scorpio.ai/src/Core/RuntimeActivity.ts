@@ -1,7 +1,7 @@
 /**
  * 进程内运行引用计数。
  *
- * Agent 整轮执行、Memory/Agenda 后台 drain 和每次模型调用都持有同一个引用；
+ * Agent 整轮执行、后台 drain 和每次模型调用都持有同一个引用；
  * 宿主关闭时只需停止新工作并等待计数归零。
  */
 class RuntimeActivity {

@@ -1,6 +1,5 @@
-import path from "path";
-import { AgendaStore, type AgendaRecord, type AgendaTrigger } from "scorpio.ai";
-import { config } from "../Core/Config";
+import { AgendaStore } from "../Storage/AgendaStore";
+import type { AgendaRecord, AgendaTrigger } from "../types";
 
 /**
  * 维护 agendaId → AgendaStore 的映射。
@@ -9,14 +8,18 @@ import { config } from "../Core/Config";
  * 注：旧版按 profileId 反推 store（itemId/triggerId 编进 profileId）的设计已废弃，
  * 调用方现在持有 agendaId，直接 get(agendaId) 即可。
  */
-class AgendaStorePool {
+export class AgendaStorePool {
     private cache = new Map<string, AgendaStore>();
+
+    constructor(
+        private readonly resolveDbPath: (agendaId: string) => string,
+        private readonly resolveAgendaIds: () => string[],
+    ) {}
 
     get(agendaId: string): AgendaStore {
         let store = this.cache.get(agendaId);
         if (!store) {
-            const dbPath = path.join(config.getAgendaPath(agendaId), "agenda.db");
-            store = new AgendaStore(dbPath);
+            store = new AgendaStore(this.resolveDbPath(agendaId));
             this.cache.set(agendaId, store);
         }
         return store;
@@ -31,7 +34,7 @@ class AgendaStorePool {
     }
 
     listAllAgendaIds(): string[] {
-        return Object.keys(config.settings.agendaProfiles ?? {});
+        return this.resolveAgendaIds();
     }
 
     async listEnabledTriggersAcross(agendaIds: string[]): Promise<AgendaTrigger[]> {
@@ -54,5 +57,3 @@ class AgendaStorePool {
         this.cache.clear();
     }
 }
-
-export const agendaStorePool = new AgendaStorePool();
