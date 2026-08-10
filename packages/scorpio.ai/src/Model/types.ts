@@ -12,7 +12,7 @@ export enum ModelProvider {
 
 export interface ThinkingConfig {
   type: "adaptive" | "enabled" | "disabled";
-  budgetTokens?: number;
+  budget_tokens?: number;
 }
 
 export interface AnthropicConfig {

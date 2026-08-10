@@ -55,13 +55,13 @@ const thinkingType = computed({
     if (!v) { form.value.anthropic = { ...form.value.anthropic, thinking: undefined }; return }
     form.value.anthropic = {
       ...form.value.anthropic,
-      thinking: { type: v as any, ...(v === 'enabled' ? { budgetTokens: form.value.anthropic?.thinking?.budgetTokens ?? 8192 } : {}) },
+      thinking: { type: v as any, ...(v === 'enabled' ? { budget_tokens: form.value.anthropic?.thinking?.budget_tokens ?? 8192 } : {}) },
     }
   },
 })
 const thinkingBudget = computed({
-  get: () => form.value.anthropic?.thinking?.budgetTokens,
-  set: (v: number | undefined) => { if (form.value.anthropic?.thinking) form.value.anthropic.thinking.budgetTokens = v },
+  get: () => form.value.anthropic?.thinking?.budget_tokens,
+  set: (v: number | undefined) => { if (form.value.anthropic?.thinking) form.value.anthropic.thinking.budget_tokens = v },
 })
 const promptCaching = computed({
   get: () => form.value.anthropic?.promptCaching ?? false,
@@ -145,7 +145,7 @@ async function save() {
     if (body.maxTools === undefined || body.maxTools === null) delete body.maxTools
     if (body.anthropic) {
       if (!body.anthropic.thinking) delete body.anthropic.thinking
-      else if (body.anthropic.thinking.type !== 'enabled') delete body.anthropic.thinking.budgetTokens
+      else if (body.anthropic.thinking.type !== 'enabled') delete body.anthropic.thinking.budget_tokens
       if (!body.anthropic.promptCaching) delete body.anthropic.promptCaching
       if (!Object.keys(body.anthropic).length) delete body.anthropic
     }

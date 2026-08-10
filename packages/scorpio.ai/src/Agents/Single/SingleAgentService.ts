@@ -286,7 +286,9 @@ export class SingleAgentService extends AgentServiceBase {
             );
             throw err;
         }
-        if (!lastChunk) return { messages: [] };
+        if (!lastChunk) {
+            throw new Error('模型流结束，但没有返回任何消息');
+        }
 
         // 部分 provider（Ollama / 某些 OpenAI 兼容端点）不返回 tool_call.id，补一个 uuid。
         // 必须补在入 saver 之前：callToolsNode 从 saver 重读 tool_calls，补齐后
@@ -305,7 +307,49 @@ export class SingleAgentService extends AgentServiceBase {
             delete lastChunk.usage;
         }
 
+        SingleAgentService.assertActionableModelOutput(lastChunk);
+
         return { messages: [lastChunk] };
+    }
+
+    /**
+     * thinking / signature 只用于模型内部续接，当前渠道不会把它们渲染给用户。
+     * 若模型既没有可显示内容也没有工具调用，继续执行只会把本轮静默地当成成功结束。
+     */
+    private static assertActionableModelOutput(message: ChatMessage): void {
+        if (message.tool_calls?.length || SingleAgentService.hasRenderableContent(message.content)) return;
+
+        const stopReason = message.additional_kwargs?.stop_reason
+            ?? message.additional_kwargs?.finish_reason;
+        if (stopReason === 'max_tokens' || stopReason === 'length') {
+            throw new Error('模型输出达到最大 Token 限制，但未生成可显示内容或工具调用，请重试或调整 thinking/maxTokens 配置');
+        }
+        const reason = stopReason ? `，stop_reason=${stopReason}` : '';
+        throw new Error(`模型未生成可显示内容或工具调用${reason}`);
+    }
+
+    private static hasRenderableContent(content: MessageContent | undefined): boolean {
+        if (typeof content === 'string') return content.trim().length > 0;
+        if (!Array.isArray(content)) return false;
+
+        return content.some((part: any) => {
+            if (typeof part === 'string') return part.trim().length > 0;
+            if (!part || typeof part !== 'object') return false;
+            switch (part.type) {
+                case 'text':
+                    return typeof part.text === 'string' && part.text.trim().length > 0;
+                case 'image_url':
+                    return Boolean(part.image_url?.url);
+                case 'inlineData':
+                    return Boolean(part.inlineData?.data);
+                case 'image':
+                case 'audio':
+                case 'document':
+                    return Boolean(part.data || part.dataUrl);
+                default:
+                    return false;
+            }
+        });
     }
 
     /**

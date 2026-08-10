@@ -19,7 +19,7 @@ function rowKindClass(m: StoredMessage) {
     exception: isException(m),
   }
 }
-import { fmtTs, fmtDateSep } from '../messageRender'
+import { fmtTs, fmtDateSep, getContentParts } from '../messageRender'
 import { inlineArgs, resultPreviewFromMessage } from '../toolCallFormat'
 import { resolveLabels, tpl } from '../labels'
 import ContentParts from './_ContentParts.vue'
@@ -191,7 +191,7 @@ function contentCharLen(content?: DisplayContent): number {
 
         <!-- AI message -->
         <div v-else-if="msg.message.role === MessageRole.AI" class="msg-row ai" :class="rowKindClass(msg)">
-          <div v-if="msg.message.content" class="msg-bubble ai">
+          <div v-if="getContentParts(msg.message.content).length > 0" class="msg-bubble ai">
             <div class="msg-role-bar">
               <span class="msg-role">{{ L.roleAi }}</span>
               <span v-if="isArchived(msg)" class="msg-archived-tag">{{ L.archivedTag }}</span>
