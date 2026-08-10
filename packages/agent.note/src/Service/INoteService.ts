@@ -1,4 +1,4 @@
-import { Note, NoteResult } from "../types";
+import { Note, NoteResult } from "../shared";
 import { NoteToolDescs } from "../Tools/NoteToolProvider";
 
 /**

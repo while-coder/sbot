@@ -1,10 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { inject } from "scorpio.di";
 import { formatError, HybridSearcher, IEmbeddingService, ILoggerService, type ILogger, TimeUtils } from "scorpio.ai";
-import { T_NoteSystemPromptTemplate, T_NoteToolDescs, T_NoteCachePath } from "../tokens";
-import { NoteResult } from "../types";
+import { Note, NoteResult, T_NoteSystemPromptTemplate, T_NoteToolDescs, T_NoteCachePath } from "../shared";
 import { INoteDatabase } from "../Storage/INoteDatabase";
-import { Note } from "../types";
 import { INoteService } from "./INoteService";
 import { CharacterTextSplitter } from "@langchain/textsplitters";
 import { NoteToolDescs } from "../Tools/NoteToolProvider";

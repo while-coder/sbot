@@ -1,7 +1,6 @@
 /** 聚合式 Note capability plugin。 */
 
-export * from "./tokens";
-export * from "./prompts";
+export * from "./shared";
 
 // ===== 接口 + Symbol Token =====
 export { INoteService } from "./Service/INoteService";
@@ -19,9 +18,3 @@ export { NoteToolProvider, NOTE_SEARCH_TOOL_NAME, type NoteToolDescs } from "./T
 // ===== Agent 插件 =====
 export { NoteAgentPlugin } from "./Plugin/NoteAgentPlugin";
 export { NotePluginLease } from "./Plugin/NotePluginLease";
-
-// ===== 类型定义 =====
-export {
-  Note,
-  NoteResult,
-} from "./types";

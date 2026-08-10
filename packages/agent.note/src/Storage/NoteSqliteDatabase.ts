@@ -3,7 +3,7 @@ import { existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import { inject } from "scorpio.di";
 import { T_DBPath } from "scorpio.ai";
-import { Note } from "../types";
+import { Note } from "../shared";
 import { INoteDatabase } from "./INoteDatabase";
 
 /**

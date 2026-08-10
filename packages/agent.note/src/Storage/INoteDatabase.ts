@@ -1,4 +1,4 @@
-import { Note } from "../types";
+import { Note } from "../shared";
 
 /**
  * 笔记数据库接口（资料库模式）
