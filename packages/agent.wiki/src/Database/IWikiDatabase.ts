@@ -1,4 +1,4 @@
-import { WikiPage } from "../Types";
+import { WikiPage } from "../shared";
 
 /**
  * Wiki 数据库接口

@@ -1,9 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { inject, init } from "scorpio.di";
 import { HybridSearcher, IEmbeddingService } from "scorpio.ai";
-import { T_WikiSystemPromptTemplate, T_WikiToolDescs, T_WikiCachePath } from "../tokens";
+import { T_WikiSystemPromptTemplate, T_WikiToolDescs, T_WikiCachePath, WikiPage } from "../shared";
 import { IWikiDatabase } from "../Database/IWikiDatabase";
-import { WikiPage } from "../Types";
 import { IWikiService } from "./IWikiService";
 import { WikiToolDescs } from "../Tools/WikiToolProvider";
 

@@ -1,7 +1,6 @@
 /** 聚合式 Wiki capability plugin。 */
 
-export * from "./tokens";
-export * from "./prompts";
+export * from "./shared";
 
 // ===== 接口 + Symbol Token =====
 export { IWikiService } from "./Service/IWikiService";
@@ -20,7 +19,3 @@ export { WikiToolProvider, WIKI_SEARCH_TOOL_NAME, WIKI_READ_TOOL_NAME, type Wiki
 export { WikiAgentPlugin } from "./Plugin/WikiAgentPlugin";
 export { WikiPluginLease } from "./Plugin/WikiPluginLease";
 
-// ===== 类型定义 =====
-export {
-    WikiPage,
-} from "./Types";

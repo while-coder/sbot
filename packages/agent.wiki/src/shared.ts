@@ -3,6 +3,24 @@ import path from "path";
 
 const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 
+export const T_WikiSystemPromptTemplate = Symbol("agent.wiki:T_WikiSystemPromptTemplate");
+/** Wiki HybridSearcher 的 cachePath（每个 Wiki 一份 searcher.sqlite）。 */
+export const T_WikiCachePath = Symbol("agent.wiki:T_WikiCachePath");
+export const T_WikiToolDescs = Symbol("agent.wiki:T_WikiToolDescs");
+
+/**
+ * Wiki 页面
+ */
+export interface WikiPage {
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  version: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export function getWikiPromptsDir(): string {
     return path.join(__dirname, "prompts");
 }

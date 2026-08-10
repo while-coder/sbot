@@ -1,4 +1,4 @@
-import { WikiPage } from "../Types";
+import { WikiPage } from "../shared";
 import { WikiToolDescs } from "../Tools/WikiToolProvider";
 
 /**
