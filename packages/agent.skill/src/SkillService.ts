@@ -1,6 +1,11 @@
-import { Skill } from "./types";
+import {
+    Skill,
+    T_SkillSystemPromptTemplate,
+    T_SkillToolReadDesc,
+    T_SkillToolListDesc,
+    T_SkillToolExecDesc,
+} from "./shared";
 import { parseSkill, isValidSkillDirectory } from "./parser";
-import { formatSkillItems } from "./formatSkillItems";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import fs from "fs";
@@ -22,16 +27,20 @@ import {
     UsageState,
 } from "scorpio.ai";
 import { inject } from "scorpio.di";
-import {
-    T_SkillSystemPromptTemplate,
-    T_SkillToolReadDesc,
-    T_SkillToolListDesc,
-    T_SkillToolExecDesc,
-} from "./tokens";
-
 export const READ_SKILL_FILE_TOOL_NAME = 'read_skill_file';
 export const EXECUTE_SKILL_SCRIPT_TOOL_NAME = 'execute_skill_script';
 export const LIST_SKILL_FILES_TOOL_NAME = 'list_skill_files';
+
+function formatSkillItems(skills: Skill[]): string {
+  return skills
+    .map(skill => {
+      const usage = new UsageTracker(skill.path).get();
+      const usageAttr = usage ? ` uses="${usage.useCount}" lastUsed="${usage.lastUsedAt ?? 'never'}"` : '';
+      const typeAttr = skill.type ? ` type="${skill.type}"` : '';
+      return `  <skill name="${skill.name}" path="${skill.path}"${typeAttr}${usageAttr}>${skill.description}</skill>`;
+    })
+    .join("\n");
+}
 
 export class SkillService implements IAgentPlugin {
   readonly name = "skills";

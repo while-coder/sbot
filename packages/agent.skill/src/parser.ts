@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import type { Skill } from './types';
+import type { Skill } from './shared';
 
 /**
  * 解析单个 skill 目录中的 SKILL.md 文件

@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { Skill } from './types';
+import { Skill } from './shared';
 import { parseSkill, isValidSkillDirectory } from './parser';
 import { ILoggerService, formatError } from 'scorpio.ai';
 
