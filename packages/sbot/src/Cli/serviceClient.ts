@@ -12,7 +12,10 @@ export function isServiceRunning(port: number): Promise<boolean> {
 /** 请求本地 sbot 服务关闭，返回是否成功 */
 export function shutdownService(port: number): Promise<boolean> {
     return new Promise(resolve => {
-        const req = http.request(`http://localhost:${port}/api/shutdown`, { method: 'POST' }, (res) => {
+        const req = http.request(`http://localhost:${port}/api/shutdown`, {
+            method: 'POST',
+            headers: { 'X-Sbot-Shutdown-Source': 'cli' },
+        }, (res) => {
             resolve(res.statusCode === 200);
         });
         req.on('error', () => resolve(false));

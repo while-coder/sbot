@@ -6,6 +6,7 @@ import { spawn, execSync } from "child_process";
 import { fetchLatestRelease, compareSemver } from "sbot.commons";
 import { config } from "./Core/Config";
 import { registerCommands, applyPort } from "./Cli/commands";
+import { initializeProcessLog, setProcessExitReason } from "./Cli/ProcessLog";
 
 const program = new Command();
 program
@@ -47,6 +48,7 @@ program
         if (options.port) {
             applyPort(options.port, msg => console.warn(msg));
         }
+        initializeProcessLog();
         await main();
     });
 
@@ -68,10 +70,20 @@ async function main() {
 
     const logger = LoggerService.getLogger('index.ts');
     logger.info("=========================Starting===========================")
+    const shutdownForSignal = (signal: NodeJS.Signals) => {
+        setProcessExitReason(`signal_${signal}`, true);
+        logger.info(`Shutdown requested via ${signal}`);
+        void httpServer.shutdown();
+    };
     try {
         process.on('uncaughtException', function(err, origin) {
             logger.error(`Uncaught exception: ${err?.stack}\n${origin}`)
         })
+        process.once('SIGINT', () => shutdownForSignal('SIGINT'));
+        process.once('SIGTERM', () => shutdownForSignal('SIGTERM'));
+        if (process.platform !== 'win32') {
+            process.once('SIGHUP', () => shutdownForSignal('SIGHUP'));
+        }
 
         // 执行启动命令
         const cmds = config.settings.startupCommands;
@@ -102,6 +114,7 @@ async function main() {
 
         logger.info("=========================Started successfully=============")
     } catch (e) {
+        setProcessExitReason("startup_failure", false);
         logger.error("=========================Startup failed==================")
         if (e instanceof Error) {
             logger.error(`Error: ${e.message}`)
