@@ -5,9 +5,58 @@
 
 import fs from 'fs';
 import path from 'path';
+import yaml from 'js-yaml';
 import { Skill } from './shared';
-import { parseSkill, isValidSkillDirectory } from './parser';
 import { ILoggerService, formatError } from 'scorpio.ai';
+
+/**
+ * 解析单个 skill 目录中的 SKILL.md 文件，提取 YAML frontmatter 元数据。
+ */
+export function parseSkill(skillDir: string): Skill | null {
+    const skillMdPath = path.join(skillDir, 'SKILL.md');
+    if (!fs.existsSync(skillMdPath)) {
+        return null;
+    }
+
+    try {
+        const content = fs.readFileSync(skillMdPath, 'utf-8');
+        if (!content.trimStart().startsWith('---')) {
+            return null;
+        }
+
+        const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+        if (!frontmatterMatch) {
+            return null;
+        }
+
+        const raw = yaml.load(frontmatterMatch[1]) as Record<string, any>;
+        const name = raw.name ?? path.basename(skillDir);
+        return {
+            name,
+            description: raw.description ?? name,
+            license: raw.license,
+            path: skillDir,
+            type: raw.type,
+            metadata: raw.metadata,
+        };
+    } catch {
+        return null;
+    }
+}
+
+/** 验证目录存在、是目录且包含 SKILL.md。 */
+export function isValidSkillDirectory(skillDir: string): boolean {
+    if (!fs.existsSync(skillDir)) {
+        return false;
+    }
+
+    const stat = fs.statSync(skillDir);
+    if (!stat.isDirectory()) {
+        return false;
+    }
+
+    return fs.existsSync(path.join(skillDir, 'SKILL.md'));
+}
 
 /**
  * 从指定目录加载所有 skills

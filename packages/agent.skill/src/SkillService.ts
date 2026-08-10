@@ -5,7 +5,7 @@ import {
     T_SkillToolListDesc,
     T_SkillToolExecDesc,
 } from "./shared";
-import { parseSkill, isValidSkillDirectory } from "./parser";
+import { parseSkill, isValidSkillDirectory } from "./loader";
 import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import fs from "fs";

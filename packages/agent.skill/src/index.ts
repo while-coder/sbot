@@ -1,5 +1,4 @@
 export * from "./shared";
-export * from "./parser";
 export * from "./loader";
 export {
     SkillService,
