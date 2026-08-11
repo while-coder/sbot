@@ -1,5 +1,12 @@
 packages:
-  - packages/*
+  - packages/apps/*
+  - packages/backend/*
+  - packages/backend/llm/*
+  - packages/backend/plugins/*
+  - packages/backend/plugins/agent/*
+  - packages/backend/plugins/channel/*
+  - packages/backend/plugins/wiki/*
+  - packages/shared/*
 
 catalog:
   '@langchain/core': ^1.1.49

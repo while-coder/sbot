@@ -26,8 +26,8 @@ jobs:
         uses: while-coder/workflows/.github/actions/resolve-release-info@main
         with:
           tag-prefix: app-v
-          package-json: packages/app/package.json
-          changelog: packages/app/CHANGELOG.md
+          package-json: packages/apps/client/package.json
+          changelog: packages/apps/client/CHANGELOG.md
 
   prepare-release:
     needs: check
@@ -45,9 +45,9 @@ jobs:
     needs: [check, prepare-release]
     uses: while-coder/workflows/.github/workflows/tauri-desktop-release.yml@main
     with:
-      project-path: packages/app
-      cargo-lock-path: packages/app/src-tauri/Cargo.lock
-      cargo-target-path: packages/app/src-tauri/target
+      project-path: packages/apps/client
+      cargo-lock-path: packages/apps/client/src-tauri/Cargo.lock
+      cargo-target-path: packages/apps/client/src-tauri/target
       tag-name: ${{ needs.check.outputs.tag }}
       release-name: app v${{ needs.check.outputs.version }}
       release-body: ${{ needs.check.outputs.notes }}
@@ -58,9 +58,9 @@ jobs:
     if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
     uses: while-coder/workflows/.github/workflows/tauri-android-release.yml@main
     with:
-      project-path: packages/app
-      cargo-lock-path: packages/app/src-tauri/Cargo.lock
-      cargo-target-path: packages/app/src-tauri/target
+      project-path: packages/apps/client
+      cargo-lock-path: packages/apps/client/src-tauri/Cargo.lock
+      cargo-target-path: packages/apps/client/src-tauri/target
       tag-name: ${{ needs.check.outputs.tag }}
       version: ${{ needs.check.outputs.version }}
       asset-prefix: sbot-client
@@ -72,9 +72,9 @@ jobs:
     if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
     uses: while-coder/workflows/.github/workflows/tauri-ios-unsigned.yml@main
     with:
-      project-path: packages/app
-      cargo-lock-path: packages/app/src-tauri/Cargo.lock
-      cargo-target-path: packages/app/src-tauri/target
+      project-path: packages/apps/client
+      cargo-lock-path: packages/apps/client/src-tauri/Cargo.lock
+      cargo-target-path: packages/apps/client/src-tauri/target
       tag-name: ${{ needs.check.outputs.tag }}
       version: ${{ needs.check.outputs.version }}
       asset-prefix: sbot-client
@@ -100,15 +100,15 @@ jobs:
         id: vscode
         shell: bash
         run: |
-          VERSION=$(node -p "require('./packages/vscode-extension/package.json').version")
+          VERSION=$(node -p "require('./packages/apps/sbot-vscode/package.json').version")
           if [ "$VERSION" != "${{ needs.check.outputs.version }}" ]; then
-            echo "::error::App version (${{ needs.check.outputs.version }}) does not match packages/vscode-extension/package.json version ($VERSION). Run pnpm run release:app to keep them in sync."
+            echo "::error::App version (${{ needs.check.outputs.version }}) does not match packages/apps/sbot-vscode/package.json version ($VERSION). Run pnpm run release:app to keep them in sync."
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Package VSIX
-        working-directory: packages/vscode-extension
+        working-directory: packages/apps/sbot-vscode
         run: npx --yes @vscode/vsce package --no-dependencies --out "sbot-vscode-${{ steps.vscode.outputs.version }}.vsix"
 
       - name: Upload VSIX to release
@@ -117,7 +117,7 @@ jobs:
           REPO: ${{ github.repository }}
           TAG: ${{ needs.check.outputs.tag }}
           VERSION: ${{ steps.vscode.outputs.version }}
-        run: gh release upload "$TAG" "packages/vscode-extension/sbot-vscode-${VERSION}.vsix" -R "$REPO" --clobber
+        run: gh release upload "$TAG" "packages/apps/sbot-vscode/sbot-vscode-${VERSION}.vsix" -R "$REPO" --clobber
 
   publish-manifest:
     needs: [check, release-desktop]

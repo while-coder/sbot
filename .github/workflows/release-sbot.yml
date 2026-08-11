@@ -29,11 +29,11 @@ jobs:
         id: version
         shell: bash
         run: |
-          PKG_VERSION=$(node -p "require('./packages/sbot/package.json').version")
+          PKG_VERSION=$(node -p "require('./packages/backend/sbot/package.json').version")
           if [ "${{ github.event_name }}" = "push" ]; then
             TAG_VERSION="${GITHUB_REF_NAME#sbot-v}"
             if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-              echo "::error::Tag version ($TAG_VERSION) does not match packages/sbot/package.json version ($PKG_VERSION)"
+              echo "::error::Tag version ($TAG_VERSION) does not match packages/backend/sbot/package.json version ($PKG_VERSION)"
               exit 1
             fi
           fi
@@ -45,7 +45,7 @@ jobs:
         shell: bash
         run: |
           BODY=$(node -e "
-            const p = require('./packages/sbot/package.json');
+            const p = require('./packages/backend/sbot/package.json');
             const en = p.releasenoteEn || '';
             const zh = p.releasenoteZh || '';
             process.stdout.write([en, zh].filter(Boolean).join('\n\n'));
@@ -69,10 +69,10 @@ jobs:
       #     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # - name: Build Docker image
-      #   run: node packages/sbot/scripts/docker.js build
+      #   run: node packages/backend/sbot/scripts/docker.js build
 
       # - name: Push Docker image
-      #   run: node packages/sbot/scripts/docker.js publish
+      #   run: node packages/backend/sbot/scripts/docker.js publish
 
       - name: Recreate GitHub Release
         if: github.event_name == 'push'

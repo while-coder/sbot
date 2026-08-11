@@ -1,0 +1,19 @@
+import { ssrRenderAttrs } from "vue/server-renderer";
+import { useSSRContext } from "vue";
+import { _ as _export_sfc } from "./plugin-vue_export-helper.1tPrXgE0.js";
+const __pageData = JSON.parse('{"title":"Savers (Chat Storage)","description":"","frontmatter":{},"headers":[],"relativePath":"guide/savers.md","filePath":"guide/savers.md"}');
+const _sfc_main = { name: "guide/savers.md" };
+function _sfc_ssrRender(_ctx, _push, _parent, _attrs, $props, $setup, $data, $options) {
+  _push(`<div${ssrRenderAttrs(_attrs)}><h1 id="savers-chat-storage" tabindex="-1">Savers (Chat Storage) <a class="header-anchor" href="#savers-chat-storage" aria-label="Permalink to &quot;Savers (Chat Storage)&quot;">​</a></h1><p>Sidebar → <strong>Chat Storage</strong> → New</p><p>A Saver is the storage backend for conversation history — every chat session and channel must reference one. Pick a backend that matches the lifetime and durability you want.</p><h2 id="backends" tabindex="-1">Backends <a class="header-anchor" href="#backends" aria-label="Permalink to &quot;Backends&quot;">​</a></h2><table tabindex="0"><thead><tr><th>Backend</th><th>Description</th><th>Best for</th></tr></thead><tbody><tr><td><strong>File</strong></td><td>One JSON file per conversation thread under <code>~/.sbot/savers/&lt;saver-id&gt;/</code></td><td>Default choice; durable, easy to inspect or back up</td></tr><tr><td><strong>SQLite</strong></td><td>Single SQLite database file</td><td>Many concurrent threads, faster searches</td></tr><tr><td><strong>Memory</strong></td><td>In-process, cleared when the session ends</td><td>One-off Q&amp;A, stateless assistants</td></tr></tbody></table><h2 id="configuration" tabindex="-1">Configuration <a class="header-anchor" href="#configuration" aria-label="Permalink to &quot;Configuration&quot;">​</a></h2><table tabindex="0"><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td>Name</td><td>Display name</td></tr><tr><td>Type</td><td><code>File</code> / <code>SQLite</code> / <code>Memory</code></td></tr><tr><td>Path</td><td>Storage location for File / SQLite (defaults to <code>~/.sbot/savers/&lt;id&gt;/</code>)</td></tr></tbody></table><h2 id="conversation-compaction" tabindex="-1">Conversation Compaction <a class="header-anchor" href="#conversation-compaction" aria-label="Permalink to &quot;Conversation Compaction&quot;">​</a></h2><p>When a conversation exceeds a configurable token threshold, sbot automatically summarizes earlier messages and replaces them with a compact recap — preserving continuity while keeping per-turn token cost bounded. This compaction is independent of the saver backend; the full untrimmed transcript stays on disk while the agent sees only the active window.</p><h2 id="assignment" tabindex="-1">Assignment <a class="header-anchor" href="#assignment" aria-label="Permalink to &quot;Assignment&quot;">​</a></h2><p>Savers are picked per-session or per-channel. The same Saver can be reused across many sessions — each conversation thread is stored independently.</p><h2 id="tips" tabindex="-1">Tips <a class="header-anchor" href="#tips" aria-label="Permalink to &quot;Tips&quot;">​</a></h2><ul><li>For a personal assistant you&#39;ll come back to: use <strong>File</strong></li><li>For a high-volume IM channel: use <strong>SQLite</strong></li><li>For an &quot;ask once and forget&quot; REST integration: use <strong>Memory</strong></li></ul></div>`);
+}
+const _sfc_setup = _sfc_main.setup;
+_sfc_main.setup = (props, ctx) => {
+  const ssrContext = useSSRContext();
+  (ssrContext.modules || (ssrContext.modules = /* @__PURE__ */ new Set())).add("guide/savers.md");
+  return _sfc_setup ? _sfc_setup(props, ctx) : void 0;
+};
+const savers = /* @__PURE__ */ _export_sfc(_sfc_main, [["ssrRender", _sfc_ssrRender]]);
+export {
+  __pageData,
+  savers as default
+};

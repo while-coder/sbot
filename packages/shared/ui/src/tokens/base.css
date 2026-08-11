@@ -1,0 +1,131 @@
+/* @sbot/ui — Design Tokens
+ *
+ * 基础 token，浅色默认值。暗色由 theme-dark.css 通过 html[data-theme="dark"] 覆盖。
+ * 命名空间：--sui-*
+ *
+ * 颜色 hex 严格 1:1 映射 admin/Layout.vue 现有取值，避免视觉漂移。
+ */
+
+:root {
+  /* ── 中性背景 ─────────────────────────────────────────── */
+  --sui-bg:            #fff;       /* 主背景（modal-box, .card, .form-group input） */
+  --sui-bg-subtle:     #fafaf9;    /* 次背景（.sidebar 选中、.card-list、table th 等） */
+  --sui-bg-soft:       #f5f4f2;    /* 悬停/卡片底（topbar-link hover, msg-bubble.ai） */
+  --sui-bg-hover:      #ebe9e6;    /* 列表项 hover（check-item:hover, tree hover） */
+  --sui-bg-active:     #e8e4e0;    /* 选中态 */
+  --sui-bg-page:       #fff;       /* 页面级背景 */
+
+  /* ── 中性前景 ─────────────────────────────────────────── */
+  --sui-fg:            #1c1c1c;    /* 主文本（.btn-primary, .modal-header h3） */
+  --sui-fg-strong:     #1c1c1c;
+  --sui-fg-secondary:  #3d3d3d;    /* 次要文本（.form-group label） */
+  --sui-fg-muted:      #6b6b6b;    /* 弱化（.card-title, table th, .form-section-title） */
+  --sui-fg-soft:       #888;       /* 占位/标签关闭按钮 */
+  --sui-fg-disabled:   #9b9b9b;    /* 禁用/loading（.modal-close, .hint） */
+
+  /* ── 边框 ─────────────────────────────────────────────── */
+  --sui-border:        #e8e6e3;    /* 主边框 */
+  --sui-border-subtle: #ece8e4;    /* 次边框（tree-category） */
+  --sui-border-strong: #d6d4d0;    /* 按钮 outline 边框 */
+  --sui-border-dashed: #bbb;       /* tag-add-select 虚线边 */
+
+  /* ── 主色（深黑系，admin 当前风格） ──────────────────── */
+  --sui-primary:        #1c1c1c;
+  --sui-primary-hover:  #333;
+  --sui-on-primary:     #fff;
+
+  /* ── 危险色 ──────────────────────────────────────────── */
+  --sui-danger:         #ef4444;
+  --sui-danger-hover:   #dc2626;
+  --sui-danger-soft:    #fee2e2;
+  --sui-on-danger-soft: #991b1b;
+  --sui-danger-strong:  #e53e3e;   /* tag-remove:hover */
+  --sui-on-primary-danger: #fff;
+
+  /* ── 信息 / 强调（蓝） ───────────────────────────────── */
+  --sui-info:           #3b82f6;
+  --sui-info-soft:      #dbeafe;
+  --sui-on-info-soft:   #1d4ed8;
+  --sui-info-strong:    #1e3a5f;   /* dark 用 */
+  --sui-info-link:      #4f46e5;   /* table-link-btn */
+  --sui-info-link-hover:#3730a3;
+
+  /* ── 警告 / 自定义橙 ─────────────────────────────────── */
+  --sui-warning-soft:   #fef08a;   /* status-warn 等 */
+  --sui-on-warning-soft:#713f12;
+  --sui-warning-bg:     #fffbeb;   /* prompts-vars-bar 等 */
+  --sui-warning-fg:     #c05c00;   /* prompts-var-chip 文字 */
+  --sui-warning-chip-bg:#fff3e0;   /* prompts-var-chip 底 */
+  --sui-warning-label:  #8b6c2a;   /* vars-label */
+  --sui-tool-bg:        #fefce8;   /* msg-bubble.tool */
+  --sui-on-tool-bg:     #713f12;
+
+  /* ── 成功（绿） ──────────────────────────────────────── */
+  --sui-success-soft:   #dcfce7;
+  --sui-on-success-soft:#166534;
+  --sui-success-fg:     #16a34a;   /* tree-user-badge */
+
+  /* ── 紫（强调辅色，param-type 等） ───────────────────── */
+  --sui-violet:         #8b5cf6;
+  --sui-violet-soft:    #ede9fe;
+  --sui-violet-bg:      #f5f3ff;
+
+  /* ── 青（param-enum） ────────────────────────────────── */
+  --sui-cyan:           #0891b2;
+
+  /* ── 中性灰（switch-track 等） ───────────────────────── */
+  --sui-neutral-mid:    #d1d5db;
+
+  /* ── 阴影 ────────────────────────────────────────────── */
+  --sui-shadow-xs:      0 1px 2px rgba(0,0,0,0.04);
+  --sui-shadow-sm:      0 1px 3px rgba(0,0,0,0.04);
+  --sui-shadow-md:      0 4px 16px rgba(0,0,0,0.08);
+  --sui-shadow-lg:      0 8px 40px rgba(0,0,0,0.10);
+  --sui-shadow-toast:   0 4px 16px rgba(0,0,0,0.15);
+
+  /* ── 蒙层（modal-overlay 等） ────────────────────────── */
+  --sui-mask:           rgba(0,0,0,0.4);
+  --sui-mask-strong:    rgba(0,0,0,0.5);
+  --sui-mask-soft:      rgba(0,0,0,0.3);
+
+  /* ── 字体 ────────────────────────────────────────────── */
+  --sui-font:           'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sui-font-mono:      'Consolas', 'Monaco', monospace;
+  --sui-fs-xxs:         10px;      /* msg-time, msg-role */
+  --sui-fs-xs:          11px;      /* badge, hint, table th */
+  --sui-fs-sm:          12px;      /* btn-sm, tag-item, card-title */
+  --sui-fs-md:          13px;      /* base 文本 / 按钮 / 表单 */
+  --sui-fs-lg:          14px;
+  --sui-fs-xl:          15px;      /* modal-header h3 */
+  --sui-fs-2xl:         16px;      /* topbar-title */
+
+  /* ── 间距 ────────────────────────────────────────────── */
+  --sui-sp-1:           4px;
+  --sui-sp-2:           6px;
+  --sui-sp-3:           8px;
+  --sui-sp-4:           10px;
+  --sui-sp-5:           12px;
+  --sui-sp-6:           14px;
+  --sui-sp-7:           16px;
+  --sui-sp-8:           20px;
+
+  /* ── 圆角 ────────────────────────────────────────────── */
+  --sui-radius-xs:      3px;
+  --sui-radius-sm:      4px;
+  --sui-radius-md:      6px;
+  --sui-radius-lg:      8px;
+  --sui-radius-xl:      10px;
+  --sui-radius-pill:    12px;      /* chat-info-chip */
+  --sui-radius-full:    9999px;
+
+  /* ── 层级 ────────────────────────────────────────────── */
+  --sui-z-dropdown:     100;
+  --sui-z-modal:        1000;
+  --sui-z-modal-nest:   1100;
+  --sui-z-toast:        9999;
+
+  /* ── 过渡 ────────────────────────────────────────────── */
+  --sui-transition-fast: .12s;
+  --sui-transition-base: .15s;
+  --sui-transition-slow: .2s;
+}

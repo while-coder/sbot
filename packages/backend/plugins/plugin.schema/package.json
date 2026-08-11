@@ -1,0 +1,16 @@
+{
+  "name": "plugin.schema",
+  "version": "0.0.1",
+  "description": "Shared configuration schema for sbot channel and wiki plugins",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

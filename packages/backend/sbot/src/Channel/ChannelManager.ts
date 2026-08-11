@@ -1,0 +1,313 @@
+import { ChannelPlugin, ChannelPluginContext, IChannelService, ChannelSessionInfo, ChannelCapability } from "channel.base";
+import { ChannelUserRow, database, type ChannelSessionRow } from "../Core/Database";
+import { TimeUtils, formatError } from "scorpio.ai";
+import { Op } from "sequelize";
+import { sessionManager } from "../Session/SessionManager";
+import { channelDataService } from "../Session/ChannelDataService";
+import { LoggerService } from "../Core/LoggerService";
+import { config } from "../Core/Config";
+import { compareSemver, fetchLatestRelease, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from "@sbot/shared";
+import { PluginLoader } from "./PluginLoader";
+import { channelPluginRegistry } from "./ChannelPluginRegistry";
+import { WEB_CHANNEL_TOOLS } from "./web/WebSocketSessionHandler";
+
+const logger = LoggerService.getLogger("ChannelManager.ts");
+
+// ── 事件去重 ──────────────────────────────────────────────────────────────────
+
+const HourMilliseconds = 1000 * 60 * 60;
+const CheckInterval = HourMilliseconds;
+const ExpireTime = HourMilliseconds * 24 * 3;
+let checkTime = 0;
+
+async function filterEvent(eventId: string): Promise<boolean> {
+    const now = TimeUtils.now();
+    if (now >= checkTime) {
+        checkTime = now + CheckInterval;
+        await database.destroy(database.message, { where: { expireTime: { [Op.lt]: now } } });
+    }
+    if ((await database.count(database.message, { where: { id: eventId } })) > 0) return false;
+    await database.create(database.message, { id: eventId, expireTime: now + ExpireTime });
+    return true;
+}
+
+// ── 更新检查 ──────────────────────────────────────────────────────────────────
+
+async function checkForUpdate(sendMessage: (msg: string) => Promise<void>): Promise<void> {
+    const now = TimeUtils.now();
+    const checkUpdateTime = config.settings.checkUpdateTime ?? 0;
+    if (now < checkUpdateTime) return;
+
+    // 先更新时间，避免并发消息重复触发
+    config.setCheckUpdateTime(now + HourMilliseconds);
+
+    const latest = await fetchLatestRelease();
+    if (latest && compareSemver(config.pkg.version, latest.tag) < 0) {
+        const note = latest.releasenoteEn || latest.releasenoteZh;
+        const releasenoteSection = note ? `\n\n**What's new:**\n${note}` : '';
+        const message = [
+            `## 🎉 New version available: ${latest.tag}`,
+            ``,
+            `Current version: **v${config.pkg.version}**`,
+            ``,
+            `[View release notes](${latest.url})${releasenoteSection}`,
+        ].join('\n');
+        await sendMessage(message);
+        const next = new Date();
+        next.setDate(next.getDate() + 3);
+        next.setHours(0, 0, 0, 0);
+        config.setCheckUpdateTime(next.getTime());
+    }
+}
+
+// ── DB 辅助函数 ───────────────────────────────────────────────────────────────
+
+function hasChanged(row: Record<string, any>, data: Record<string, any>): boolean {
+    return Object.keys(data).some(k => row[k] !== data[k]);
+}
+
+/** 解析 channel_session.metadata（JSON 字符串）；空串或非法 JSON 返回 {}。 */
+function parseSessionMetadata(raw: string | undefined): Record<string, any> {
+    if (!raw) return {};
+    try {
+        const v = JSON.parse(raw);
+        return v && typeof v === 'object' ? v : {};
+    } catch {
+        return {};
+    }
+}
+
+async function doInitSession(channelId: string, ctx: import("channel.base").InitSessionContext): Promise<{ dbUserId: number; dbSessionId: number }> {
+    const { userId, userOpenId, userName, userInfo, sessionId, sessionName, sendUpdate, userAvatar, sessionAvatar, metadata } = ctx;
+    const userData: Record<string, any> = { userName, userInfo };
+    if (userOpenId !== undefined) userData.openId = userOpenId;
+    if (userAvatar !== undefined) userData.avatar = userAvatar;
+    const [dbUser, userCreated] = await database.findOrCreate<ChannelUserRow>(database.channelUser, {
+        where: { channelId, userId },
+        defaults: userData,
+    });
+    if (!userCreated && hasChanged(dbUser, userData)) {
+        await database.update(database.channelUser, userData, { where: { channelId, userId } });
+    }
+
+    const { session: dbSession } = await channelDataService.ensureSession(channelId, sessionId, {
+        autoSessionName: sessionName ?? null,
+        sessionAvatar,
+        metadata,
+    });
+
+    if (sendUpdate && config.settings.autoCheckUpdate !== false) checkForUpdate(sendUpdate).catch(() => {});
+    return { dbUserId: dbUser.id, dbSessionId: dbSession.id };
+}
+
+// ── ChannelManager ────────────────────────────────────────────────────────────
+
+export type SendResult = { ok: true } | { ok: false; error: string };
+
+export class ChannelManager {
+    private pluginLoader = new PluginLoader();
+    private services = new Map<string, IChannelService>();
+
+    async init(): Promise<void> {
+        await this.pluginLoader.loadAll();
+
+        const channels = Object.entries(config.settings.channels || {});
+        if (channels.length === 0) {
+            logger.info("No channel configuration, skipping startup");
+            return;
+        }
+
+        let started = 0;
+        for (const [channelId] of channels) {
+            if (await this.startChannel(channelId)) started++;
+        }
+        logger.info(`ChannelManager initialized, started ${started} channel(s)`);
+    }
+
+    private async startChannel(channelId: string): Promise<boolean> {
+        const channel = config.getChannel(channelId);
+        if (!channel) return false;
+
+        if (channel.type === WEB_CHANNEL_TYPE) return false;
+
+        const plugin = channelPluginRegistry.get(channel.type);
+        if (!plugin) {
+            logger.warn(`Unknown channel type [${channel.type}], skipping channel [${channel.name || channelId}]`);
+            return false;
+        }
+        const name = channel.name ? `${channel.name} (${channelId})` : channelId;
+        const label = `[${name}] (${plugin.type})`;
+        try {
+            const ctx: ChannelPluginContext = {
+                config: channel.config ?? {},
+                logger,
+                filterEvent,
+                initSession: async (initCtx) => {
+                    const { dbUserId, dbSessionId } = await doInitSession(channelId, initCtx);
+                    return { channelId, userId: initCtx.userId, sessionId: initCtx.sessionId, dbUserId, dbSessionId };
+                },
+                loadSessionMetadata: async () => {
+                    const rows = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { channelId } });
+                    const result: Record<string, Record<string, any>> = {};
+                    for (const r of rows) result[r.sessionId] = parseSessionMetadata(r.metadata);
+                    return result;
+                },
+                onReceiveMessage: async (session, query, args) =>
+                    sessionManager.onReceiveChannelMessage(query, { ...args, channelType: plugin.type, channelId, dbSessionId: session.dbSessionId }),
+                onTriggerAction: async (session, args) =>
+                    sessionManager.onTriggerChannelAction(session.dbSessionId, args),
+            };
+            const service = await plugin.init(ctx);
+            if (service) {
+                this.services.set(channelId, service);
+                logger.info(`Channel ${label} started successfully`);
+                return true;
+            }
+            logger.warn(`Channel ${label} init returned nothing, skipped`);
+            return false;
+        } catch (e: any) {
+            logger.error(`Channel ${label} failed to start: ${e.message}\n${e.stack}`);
+            return false;
+        }
+    }
+
+    private stopChannel(channelId: string): void {
+        const service = this.services.get(channelId);
+        if (!service) return;
+        const channel = config.getChannel(channelId);
+        const name = channel?.name ? `${channel.name} (${channelId})` : channelId;
+        const label = `[${name}] (${channel?.type})`;
+        try {
+            service.dispose?.();
+            this.services.delete(channelId);
+            logger.info(`Channel ${label} disposed`);
+        } catch (e) {
+            logger.error(`Channel ${label} failed to dispose: ${e}`);
+        }
+    }
+
+    getPlugin(type: string): ChannelPlugin | undefined {
+        return channelPluginRegistry.get(type);
+    }
+
+    getPluginList(): Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean; tools?: { name: string; label: string }[] }> {
+        const list: Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean; tools?: { name: string; label: string }[] }> = [
+            { type: WEB_CHANNEL_TYPE, label: 'Web', configSchema: {}, builtin: true, tools: WEB_CHANNEL_TOOLS },
+        ];
+        for (const p of channelPluginRegistry.list()) {
+            list.push({ type: p.type, label: p.label, configSchema: p.configSchema, builtin: false, tools: p.tools });
+        }
+        return list;
+    }
+
+    async dispose(): Promise<void> {
+        for (const [channelId] of this.services) {
+            this.stopChannel(channelId);
+        }
+    }
+
+    async reload(): Promise<void> {
+        await this.dispose();
+        await this.init();
+        logger.info("ChannelManager reload completed");
+    }
+
+    async reloadChannel(channelId: string): Promise<void> {
+        if (channelId === WEB_CHANNEL_ID) {
+            logger.debug("Built-in web channel reload skipped");
+            return;
+        }
+        this.stopChannel(channelId);
+        await this.startChannel(channelId);
+    }
+
+    getChannel(channelId: string) { return config.getChannel(channelId); }
+    getService(channelId: string) { return this.services.get(channelId); }
+
+    /** 由内置 channel（WEB_CHANNEL_ID）等不走 plugin 路径的 service 主动注册。dispose 时统一回收。 */
+    registerService(channelId: string, service: IChannelService): void {
+        this.services.set(channelId, service);
+    }
+
+    async sendTextToSession(dbSessionId: number, text: string): Promise<SendResult> {
+        try {
+            const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { id: dbSessionId } });
+            if (!row) return { ok: false, error: `session not found: dbSessionId=${dbSessionId}` };
+            const service = this.services.get(row.channelId);
+            if (!service?.sendTextToSession) return { ok: false, error: `channel ${row.channelId} does not support sendTextToSession` };
+            await service.sendTextToSession(row.sessionId, text);
+            return { ok: true };
+        } catch (e: any) {
+            const error = formatError(e);
+            logger.warn(`sendTextToSession(${dbSessionId}) failed: ${formatError(e, true)}`);
+            return { ok: false, error };
+        }
+    }
+
+    async sendFileToSession(dbSessionId: number, file: string | Buffer, fileName?: string): Promise<SendResult> {
+        try {
+            const row = await database.findOne<ChannelSessionRow>(database.channelSession, { where: { id: dbSessionId } });
+            if (!row) return { ok: false, error: `session not found: dbSessionId=${dbSessionId}` };
+            const service = this.services.get(row.channelId);
+            if (!service?.sendFileToSession) return { ok: false, error: `channel ${row.channelId} does not support sendFileToSession` };
+            await service.sendFileToSession(row.sessionId, file, fileName);
+            return { ok: true };
+        } catch (e: any) {
+            const error = formatError(e);
+            logger.warn(`sendFileToSession(${dbSessionId}) failed: ${formatError(e, true)}`);
+            return { ok: false, error };
+        }
+    }
+
+    async sendTextToUser(dbUserId: number, text: string): Promise<SendResult> {
+        try {
+            const row = await database.findOne<ChannelUserRow>(database.channelUser, { where: { id: dbUserId } });
+            if (!row) return { ok: false, error: `user not found: dbUserId=${dbUserId}` };
+            const service = this.services.get(row.channelId);
+            if (!service?.sendTextToUser) return { ok: false, error: `channel ${row.channelId} does not support sendTextToUser` };
+            await service.sendTextToUser(row.userId, text);
+            return { ok: true };
+        } catch (e: any) {
+            const error = formatError(e);
+            logger.warn(`sendTextToUser(${dbUserId}) failed: ${formatError(e, true)}`);
+            return { ok: false, error };
+        }
+    }
+
+    async sendFileToUser(dbUserId: number, file: string | Buffer, fileName?: string): Promise<SendResult> {
+        try {
+            const row = await database.findOne<ChannelUserRow>(database.channelUser, { where: { id: dbUserId } });
+            if (!row) return { ok: false, error: `user not found: dbUserId=${dbUserId}` };
+            const service = this.services.get(row.channelId);
+            if (!service?.sendFileToUser) return { ok: false, error: `channel ${row.channelId} does not support sendFileToUser` };
+            await service.sendFileToUser(row.userId, file, fileName);
+            return { ok: true };
+        } catch (e: any) {
+            const error = formatError(e);
+            logger.warn(`sendFileToUser(${dbUserId}) failed: ${formatError(e, true)}`);
+            return { ok: false, error };
+        }
+    }
+
+    /**
+     * 返回某 channel 当前 service 的发送能力。未启动或类型未知返回空数组。
+     */
+    getChannelCapabilities(channelId: string): ChannelCapability[] {
+        const service = this.services.get(channelId);
+        if (!service) return [];
+        const caps: ChannelCapability[] = [];
+        if (service.sendTextToSession) caps.push(ChannelCapability.Text);
+        if (service.sendFileToSession) caps.push(ChannelCapability.File);
+        if (service.sendTextToUser)    caps.push(ChannelCapability.TextUser);
+        if (service.sendFileToUser)    caps.push(ChannelCapability.FileUser);
+        return caps;
+    }
+
+    /** 运行时加载单个插件（按 kind 分发到对应注册表）。返回 channel 插件供调用方使用。 */
+    async loadPlugin(moduleOrPath: string): Promise<ChannelPlugin | undefined> {
+        const plugin = this.pluginLoader.loadPlugin(moduleOrPath);
+        return plugin && plugin.kind === "channel" ? plugin : undefined;
+    }
+}
+
+export const channelManager = new ChannelManager();

@@ -1,0 +1,122 @@
+{
+  "name": "sbot-vscode",
+  "displayName": "sbot",
+  "description": "Chat with sbot AI server inside VS Code",
+  "version": "0.0.4",
+  "publisher": "while",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/while-coder/sbot.git",
+    "directory": "packages/apps/sbot-vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "sbotSecondaryViewContainer",
+          "title": "SBOT",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "sbotSecondaryViewContainer": [
+        {
+          "type": "webview",
+          "id": "sbot.chatView",
+          "name": "SBOT",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "sbot.openChat",
+        "title": "sbot: Open Chat in Sidebar",
+        "icon": "media/icon.png"
+      },
+      {
+        "command": "sbot.openChatInEditor",
+        "title": "sbot: Open Chat in Editor",
+        "icon": "media/icon.png"
+      },
+      {
+        "command": "sbot.selectServer",
+        "title": "sbot: Select Server"
+      }
+    ],
+    "configuration": {
+      "title": "sbot",
+      "properties": {
+        "sbot.chatViewLayout": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "compact",
+            "wide"
+          ],
+          "default": "compact",
+          "description": "Controls the sbot chat layout in VS Code.",
+          "enumDescriptions": [
+            "Automatically switch between compact and wide layouts based on view width.",
+            "Always use the compact layout.",
+            "Always use the wide layout."
+          ]
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "sbot.openChat",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "sbot.openChatInEditor",
+          "group": "navigation@100"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "pnpm run build:ext && pnpm run build:webview",
+    "build:ext": "node scripts/build-ext.mjs",
+    "build:webview": "vite build",
+    "watch:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "watch:webview": "vite build --watch",
+    "dev": "concurrently \"pnpm run watch:ext\" \"pnpm run watch:webview\"",
+    "install-ext": "node scripts/install.mjs",
+    "package": "pnpm run build && vsce package --no-dependencies --skip-license"
+  },
+  "dependencies": {
+    "@sbot/chat-ui": "workspace:*",
+    "axios": "catalog:",
+    "@sbot/ui": "workspace:*",
+    "@sbot/shared": "workspace:*",
+    "ws": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/vscode": "1.85.0",
+    "@types/ws": "catalog:",
+    "@vscode/vsce": "^3.9.2",
+    "@vitejs/plugin-vue": "catalog:",
+    "concurrently": "^10.0.3",
+    "esbuild": "^0.28.1",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vue": "catalog:"
+  }
+}

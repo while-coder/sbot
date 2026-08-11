@@ -1,0 +1,19 @@
+import { ssrRenderAttrs } from "vue/server-renderer";
+import { useSSRContext } from "vue";
+import { _ as _export_sfc } from "./plugin-vue_export-helper.1tPrXgE0.js";
+const __pageData = JSON.parse('{"title":"Heartbeat","description":"","frontmatter":{},"headers":[],"relativePath":"guide/heartbeat.md","filePath":"guide/heartbeat.md"}');
+const _sfc_main = { name: "guide/heartbeat.md" };
+function _sfc_ssrRender(_ctx, _push, _parent, _attrs, $props, $setup, $data, $options) {
+  _push(`<div${ssrRenderAttrs(_attrs)}><h1 id="heartbeat" tabindex="-1">Heartbeat <a class="header-anchor" href="#heartbeat" aria-label="Permalink to &quot;Heartbeat&quot;">​</a></h1><p>Sidebar → <strong>Heartbeats</strong> → New</p><p>Heartbeat lets an agent wake itself up on a fixed interval and run a prompt without any user message — useful for monitoring, daily summaries, scheduled outreach, or any &quot;check in periodically and do X&quot; workflow.</p><h2 id="when-to-use-heartbeat-vs-agenda" tabindex="-1">When to Use Heartbeat vs Agenda <a class="header-anchor" href="#when-to-use-heartbeat-vs-agenda" aria-label="Permalink to &quot;When to Use Heartbeat vs Agenda&quot;">​</a></h2><table tabindex="0"><thead><tr><th>Need</th><th>Use</th></tr></thead><tbody><tr><td>Run a fixed prompt every N seconds/minutes</td><td><strong>Heartbeat</strong></td></tr><tr><td>Track reminders, routines, or one-off tasks from conversation content</td><td><a href="./agenda.html">Agenda</a></td></tr><tr><td>Run on cron (e.g. weekdays at 9am) with item state and fire history</td><td><a href="./agenda.html">Agenda</a></td></tr></tbody></table><p>Heartbeat is a fixed-interval loop attached to an agent + target. Agenda is the stateful system for reminders, routines, and cron-style triggers.</p><h2 id="configuration" tabindex="-1">Configuration <a class="header-anchor" href="#configuration" aria-label="Permalink to &quot;Configuration&quot;">​</a></h2><table tabindex="0"><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td>Name</td><td>Display name</td></tr><tr><td>Agent</td><td>Which agent should run on each tick</td></tr><tr><td>Target</td><td>A specific channel user, web session, or working directory</td></tr><tr><td>Interval</td><td>Tick period (seconds/minutes/hours)</td></tr><tr><td>Prompt</td><td>Prompt template the agent receives on each tick</td></tr><tr><td>Enabled</td><td>Toggle without deleting</td></tr></tbody></table><h2 id="examples" tabindex="-1">Examples <a class="header-anchor" href="#examples" aria-label="Permalink to &quot;Examples&quot;">​</a></h2><ul><li><strong>Status digest</strong> — every 1h, summarize new messages in a busy Lark group and drop the digest in a &quot;summary&quot; thread</li><li><strong>Watchdog</strong> — every 5min, query a health endpoint via the Web tool; ping you only on failure</li><li><strong>Standup buddy</strong> — every weekday morning, ask the user how yesterday went and write a note</li></ul><h2 id="notes" tabindex="-1">Notes <a class="header-anchor" href="#notes" aria-label="Permalink to &quot;Notes&quot;">​</a></h2><ul><li>Each heartbeat target gets its own conversation thread (isolated history)</li><li>Combine with <a href="./memory.html">Memory</a> so the agent learns from each tick</li><li>For stateful reminders/schedules driven by conversation content, use <a href="./agenda.html">Agenda</a> instead</li><li>Disable a heartbeat to pause without losing its config</li></ul></div>`);
+}
+const _sfc_setup = _sfc_main.setup;
+_sfc_main.setup = (props, ctx) => {
+  const ssrContext = useSSRContext();
+  (ssrContext.modules || (ssrContext.modules = /* @__PURE__ */ new Set())).add("guide/heartbeat.md");
+  return _sfc_setup ? _sfc_setup(props, ctx) : void 0;
+};
+const heartbeat = /* @__PURE__ */ _export_sfc(_sfc_main, [["ssrRender", _sfc_ssrRender]]);
+export {
+  __pageData,
+  heartbeat as default
+};

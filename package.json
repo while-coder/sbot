@@ -4,16 +4,16 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "test": "pnpm -r --if-present run test",
-    "build:core": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.llm run build && pnpm --filter scorpio.llm.openai run build && pnpm --filter scorpio.llm.anthropic run build && pnpm --filter scorpio.llm.gemini run build && pnpm --filter scorpio.llm.ollama run build && pnpm --filter scorpio.llm.cohere run build && pnpm --filter scorpio.llm.voyage run build && pnpm --filter scorpio.ai run build && pnpm --filter agent.skill run build && pnpm --filter agent.agenda run build && pnpm --filter sbot.plugin run build && pnpm --filter sbot.commons run build",
+    "build:core": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.llm run build && pnpm --filter scorpio.llm.openai run build && pnpm --filter scorpio.llm.anthropic run build && pnpm --filter scorpio.llm.gemini run build && pnpm --filter scorpio.llm.ollama run build && pnpm --filter scorpio.llm.cohere run build && pnpm --filter scorpio.llm.voyage run build && pnpm --filter scorpio.ai run build && pnpm --filter agent.skill run build && pnpm --filter agent.agenda run build && pnpm --filter plugin.schema run build && pnpm --filter @sbot/shared run build",
     "build:wiki": "pnpm --filter wiki.base run build && pnpm --filter wiki.local run build && pnpm --filter wiki.gdrive run build",
     "build:channel": "pnpm --filter channel.base run build && pnpm --filter channel.lark run build && pnpm --filter channel.slack run build && pnpm --filter channel.wecom run build && pnpm --filter channel.wechat run build && pnpm --filter channel.onebot run build && pnpm --filter channel.xiaoai run build && pnpm --filter channel.dingtalk run build && pnpm --filter channel.qq run build && pnpm --filter channel.yuanbao run build && pnpm --filter channel.remote-agent run build",
     "build:deps": "pnpm run build:core && pnpm run build:wiki && pnpm run build:channel",
-    "assets": "pnpm --filter shared-assets run distribute",
+    "assets": "pnpm --filter @sbot/assets run distribute",
 
-    "debug:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build && pnpm --filter @qingfeng346/sbot run debug",
-    "build:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-admin run build && pnpm --filter @qingfeng346/sbot run build",
+    "debug:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run debug",
+    "build:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run build",
     "publish:sbot": "pnpm run build:sbot && pnpm --filter @qingfeng346/sbot publish --no-git-checks --access public",
-    "link:sbot": "pnpm run build:sbot && npm link packages/sbot/dist",
+    "link:sbot": "pnpm run build:sbot && npm link packages/backend/sbot/dist",
     "unlink:sbot": "npm unlink -g @qingfeng346/sbot",
 
     "build:remote-agent-client": "pnpm --filter @qingfeng346/remote-agent-client run build",
@@ -24,34 +24,34 @@
     "build:cli": "pnpm run build:deps && pnpm --filter sbot-cli run build",
     "publish:cli": "pnpm run build:cli && pnpm --filter sbot-cli publish --no-git-checks",
 
-    "debug:admin": "pnpm run build:deps && pnpm --filter sbot-admin run debug",
-    "build:admin": "pnpm run build:deps && pnpm --filter sbot-admin run build",
+    "debug:admin": "pnpm run build:deps && pnpm --filter @sbot/admin run debug",
+    "build:admin": "pnpm run build:deps && pnpm --filter @sbot/admin run build",
 
     "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run package",
     "publish:vscode": "pnpm run build:vscode && start https://marketplace.visualstudio.com/manage/publishers/",
 
-    "debug:app": "pnpm run assets && pnpm --filter @sbot/app run dev",
-    "build:app:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run macos:build",
-    "build:app:windows": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run windows:build",
-    "build:app:linux": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run linux:build",
+    "debug:app": "pnpm run assets && pnpm --filter @sbot/client run dev",
+    "build:app:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run macos:build",
+    "build:app:windows": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run windows:build",
+    "build:app:linux": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run linux:build",
 
-    "init:app:android": "pnpm --filter @sbot/app run android:init",
-    "debug:app:android": "pnpm run assets && pnpm --filter @sbot/app run android:dev",
-    "build:app:android": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run android:build",
+    "init:app:android": "pnpm --filter @sbot/client run android:init",
+    "debug:app:android": "pnpm run assets && pnpm --filter @sbot/client run android:dev",
+    "build:app:android": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run android:build",
 
-    "init:app:ios": "pnpm --filter @sbot/app run ios:init",
-    "debug:app:ios": "pnpm run assets && pnpm --filter @sbot/app run ios:dev",
-    "build:app:ios": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/app run ios:build",
+    "init:app:ios": "pnpm --filter @sbot/client run ios:init",
+    "debug:app:ios": "pnpm run assets && pnpm --filter @sbot/client run ios:dev",
+    "build:app:ios": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run ios:build",
 
     "release:sbot": "node scripts/release.js sbot",
     "release:app": "node scripts/release.js app",
     "release:cli": "node scripts/release.js cli",
 
-    "debug:docs": "pnpm --filter sbot-docs run dev",
-    "build:docs": "pnpm --filter sbot-docs run build",
+    "debug:docs": "pnpm --filter @sbot/docs run dev",
+    "build:docs": "pnpm --filter @sbot/docs run build",
 
-    "docker:sbot": "pnpm run build:sbot && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js save",
-    "docker:sbot:publish": "pnpm run build:sbot && node packages/sbot/scripts/docker.js build && node packages/sbot/scripts/docker.js publish"
+    "docker:sbot": "pnpm run build:sbot && node packages/backend/sbot/scripts/docker.js build && node packages/backend/sbot/scripts/docker.js save",
+    "docker:sbot:publish": "pnpm run build:sbot && node packages/backend/sbot/scripts/docker.js build && node packages/backend/sbot/scripts/docker.js publish"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

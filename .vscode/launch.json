@@ -5,32 +5,22 @@
       "type": "node",
       "request": "launch",
       "name": "Launch sbot",
-      "program": "${workspaceFolder}/packages/sbot/debug/index.js",
+      "program": "${workspaceFolder}/packages/backend/sbot/debug/index.js",
       "preLaunchTask": "launch:sbot",
       "sourceMaps": true,
       "outFiles": [
-        "${workspaceFolder}/packages/sbot/debug/**/*.js",
-        "${workspaceFolder}/packages/sbot.commons/dist/**/*.js",
-        "${workspaceFolder}/packages/scorpio.di/dist/**/*.js",
-        "${workspaceFolder}/packages/scorpio.ai/dist/**/*.js",
-        "${workspaceFolder}/packages/sbot.plugin/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.base/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.lark/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.slack/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.wecom/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.wechat/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.onebot/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.xiaoai/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.dingtalk/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.qq/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.yuanbao/dist/**/*.js",
-        "${workspaceFolder}/packages/channel.remote-agent/dist/**/*.js",
-        "${workspaceFolder}/packages/wiki.base/dist/**/*.js",
-        "${workspaceFolder}/packages/wiki.local/dist/**/*.js",
-        "${workspaceFolder}/packages/wiki.gdrive/dist/**/*.js"
+        "${workspaceFolder}/packages/backend/sbot/debug/**/*.js",
+        "${workspaceFolder}/packages/shared/shared/dist/**/*.js",
+        "${workspaceFolder}/packages/backend/scorpio.di/dist/**/*.js",
+        "${workspaceFolder}/packages/backend/llm/*/dist/**/*.js",
+        "${workspaceFolder}/packages/backend/scorpio.ai/dist/**/*.js",
+        "${workspaceFolder}/packages/backend/plugins/plugin.schema/dist/**/*.js",
+        "${workspaceFolder}/packages/backend/plugins/agent/*/dist/**/*.js",
+        "${workspaceFolder}/packages/backend/plugins/channel/*/dist/**/*.js",
+        "${workspaceFolder}/packages/backend/plugins/wiki/*/dist/**/*.js"
       ],
       "env": { "NODE_ENV": "development" },
-      "cwd": "${workspaceFolder}/packages/sbot",
+      "cwd": "${workspaceFolder}/packages/backend/sbot",
       "skipFiles": ["<node_internals>/**"]
     },
     {
@@ -39,10 +29,10 @@
       "request": "launch",
       "args": [
         "${workspaceFolder}",
-        "--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-extension"
+        "--extensionDevelopmentPath=${workspaceFolder}/packages/apps/sbot-vscode"
       ],
       "outFiles": [
-        "${workspaceFolder}/packages/vscode-extension/dist/**/*.js"
+        "${workspaceFolder}/packages/apps/sbot-vscode/dist/**/*.js"
       ],
       "preLaunchTask": "build:vscode-extension"
     },
@@ -50,16 +40,16 @@
       "type": "node",
       "request": "launch",
       "name": "Launch cli",
-      "program": "${workspaceFolder}/packages/cli/debug/main.js",
+      "program": "${workspaceFolder}/packages/apps/sbot-cli/debug/main.js",
       "preLaunchTask": "debug:cli",
       "console": "externalTerminal",
       "sourceMaps": true,
       "outFiles": [
-        "${workspaceFolder}/packages/cli/debug/**/*.js",
-        "${workspaceFolder}/packages/sbot.commons/dist/**/*.js",
-        "${workspaceFolder}/packages/sbot.commons/esm/**/*.js"
+        "${workspaceFolder}/packages/apps/sbot-cli/debug/**/*.js",
+        "${workspaceFolder}/packages/shared/shared/dist/**/*.js",
+        "${workspaceFolder}/packages/shared/shared/esm/**/*.js"
       ],
-      "cwd": "${workspaceFolder}/packages/cli",
+      "cwd": "${workspaceFolder}/packages/apps/sbot-cli",
       "skipFiles": ["<node_internals>/**"]
     },
     {
@@ -67,14 +57,14 @@
       "request": "launch",
       "name": "Launch app",
       "command": "pnpm dev",
-      "cwd": "${workspaceFolder}/packages/app"
+      "cwd": "${workspaceFolder}/packages/apps/client"
     },
     {
       "name": "Launch AdminUI",
       "type": "pwa-chrome",
       "request": "launch",
       "url": "http://localhost:5173/webui/",
-      "webRoot": "${workspaceFolder}/packages/admin",
+      "webRoot": "${workspaceFolder}/packages/apps/admin",
       "sourceMapPathOverrides": {
         "webpack:///./*": "${webRoot}/*",
         "/@fs/*": "/*"

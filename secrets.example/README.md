@@ -37,14 +37,14 @@ keytool -genkeypair -v \
   -dname "CN=sbot, OU=dev, O=qingfeng346, L=., S=., C=CN" && \
 cp secrets.example/keystore.properties.example secrets/keystore.properties && \
 sed -i "s|^keyAlias=.*|keyAlias=$ALIAS|; s|^storePassword=.*|storePassword=$PASS|; s|^keyPassword=.*|keyPassword=$PASS|" secrets/keystore.properties && \
-pnpm --filter @sbot/app exec tauri signer generate -w ../../secrets/tauri-updater.key -p "" --ci
+pnpm --filter @sbot/client exec tauri signer generate -w ../../secrets/tauri-updater.key -p "" --ci
 ```
 
 跑完会得到 `release.jks` / `keystore.properties` / `tauri-updater.key{,.pub}`。
 
 > ⚠️ **`release.jks` 已存在时**先 `rm secrets/release.jks` 再跑，否则 keytool 会往现有文件追加 entry。
 >
-> ⚠️ **`tauri-updater.key` 别重新生成**——除非同步替换 `packages/app/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`，否则旧版本 app 会全部更新失败。已有现网用户时跳过最后一行 `tauri signer generate`。
+> ⚠️ **`tauri-updater.key` 别重新生成**——除非同步替换 `packages/apps/client/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`，否则旧版本 app 会全部更新失败。已有现网用户时跳过最后一行 `tauri signer generate`。
 
 ### 分步执行
 
@@ -65,11 +65,11 @@ cp secrets.example/keystore.properties.example secrets/keystore.properties
 **Tauri Updater：**
 
 ```bash
-pnpm --filter @sbot/app exec tauri signer generate \
+pnpm --filter @sbot/client exec tauri signer generate \
   -w ../../secrets/tauri-updater.key -p "" --ci
 ```
 
-公钥需同步到 `packages/app/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`，更换密钥后必须替换。
+公钥需同步到 `packages/apps/client/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`，更换密钥后必须替换。
 
 ---
 
@@ -135,7 +135,7 @@ CI 一律用 PAT，不要用账号密码。
    - **Scopes**：选 **Custom defined** → 默认列表里没有 Marketplace，点底部 **Show all scopes** 展开 → 找到 **Marketplace** → 勾 `Manage`
 4. **Create** → 立即复制 token（只显示一次，关掉就没了）
 
-Publisher 必须先在 Marketplace 创建好（当前为 `while`），且 [packages/vscode-extension/package.json](../packages/vscode-extension/package.json) 的 `publisher` 字段要与之匹配。
+Publisher 必须先在 Marketplace 创建好（当前为 `while`），且 [packages/apps/sbot-vscode/package.json](../packages/apps/sbot-vscode/package.json) 的 `publisher` 字段要与之匹配。
 
 token 过期后 `Release App` workflow 的 `publish-vscode` job 会失败，重新申请 PAT 并更新 secret 即可。
 

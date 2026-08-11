@@ -1,0 +1,8 @@
+/* @sbot/ui — Token entry
+ *
+ * 一次性引入所有 token。消费者：
+ *   import '@sbot/ui/tokens/index.css'
+ */
+
+@import './base.css';
+@import './theme-dark.css';

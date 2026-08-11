@@ -1,0 +1,17 @@
+{
+  "name": "@sbot/shared",
+  "version": "0.0.1",
+  "description": "Shared TypeScript interfaces and types for sbot packages",
+  "main": "dist/index.js",
+  "module": "esm/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist esm && tsc -b --force && tsc -p tsconfig.esm.json && node scripts/write-esm-pkg.cjs"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

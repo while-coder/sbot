@@ -7,23 +7,23 @@ const fs = require('fs');
 const TARGETS = {
   app: {
     tagPrefix: 'app-v',
-    tauriConf: 'packages/app/src-tauri/tauri.conf.json',
-    pkgJson: 'packages/app/package.json',
-    companionPkgJsons: ['packages/vscode-extension/package.json'],
+    tauriConf: 'packages/apps/client/src-tauri/tauri.conf.json',
+    pkgJson: 'packages/apps/client/package.json',
+    companionPkgJsons: ['packages/apps/sbot-vscode/package.json'],
     overwriteExistingRelease: true,
   },
   sbot: {
     tagPrefix: 'sbot-v',
-    pkgJson: 'packages/sbot/package.json',
+    pkgJson: 'packages/backend/sbot/package.json',
     overwriteExistingRelease: true,
     releaseNotes: {
-      en: 'packages/sbot/ReleaseNote.md',
-      zh: 'packages/sbot/ReleaseNote.zh.md',
+      en: 'packages/backend/sbot/ReleaseNote.md',
+      zh: 'packages/backend/sbot/ReleaseNote.zh.md',
     },
   },
   cli: {
     tagPrefix: 'cli-v',
-    pkgJson: 'packages/cli/package.json',
+    pkgJson: 'packages/apps/sbot-cli/package.json',
     overwriteExistingRelease: true,
   },
 };

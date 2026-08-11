@@ -17,7 +17,7 @@
       "command": "pnpm",
       "args": [
         "--filter",
-        "sbot-admin",
+        "@sbot/admin",
         "run",
         "debug",
         "--",
