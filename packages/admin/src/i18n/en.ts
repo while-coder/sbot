@@ -731,6 +731,9 @@ export default {
   },
   logs: {
     title: 'Logs',
+    lifecycle: 'Lifecycle Logs',
+    lifecycle_file: 'Lifecycle Logs (process.log)',
+    lifecycle_empty: 'No lifecycle entries yet. Sbot startup and exit events will appear here.',
     all_levels: 'All Levels',
     search_placeholder: 'Search keyword...',
     last_n: 'Last {n} lines',

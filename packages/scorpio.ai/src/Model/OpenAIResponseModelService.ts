@@ -1,4 +1,4 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { type ChatOpenAIFields } from "@langchain/openai";
 import { ModelConfig } from "./types";
 import { OpenAIModelService } from "./OpenAIModelService";
 
@@ -11,7 +11,7 @@ export class OpenAIResponseModelService extends OpenAIModelService {
     super(config);
   }
 
-  protected override buildChatOpenAIOptions(): ConstructorParameters<typeof ChatOpenAI>[0] {
+  protected override buildChatOpenAIOptions(): ChatOpenAIFields {
     return {
       ...super.buildChatOpenAIOptions(),
       useResponsesApi: true,

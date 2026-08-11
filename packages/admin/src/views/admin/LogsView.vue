@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { useToast, SButton, SSelect, SInput, SPageToolbar } from 'sbot-ui'
@@ -23,13 +23,25 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 const levels = ['', 'DEBUG', 'INFO', 'WARN', 'ERROR']
 const intervalOptions = [3, 5, 10, 30]
+const lifecycleLogFile = 'process.log'
+const hasLifecycleLog = computed(() => files.value.includes(lifecycleLogFile))
+const isLifecycleLog = computed(() => selectedFile.value === lifecycleLogFile)
+const emptyText = computed(() => isLifecycleLog.value ? t('logs.lifecycle_empty') : t('logs.empty'))
+
+function fileLabel(file: string): string {
+  return file === lifecycleLogFile ? t('logs.lifecycle_file') : file
+}
+
+function selectLifecycleLog() {
+  if (hasLifecycleLog.value) selectedFile.value = lifecycleLogFile
+}
 
 async function loadFiles() {
   try {
     const res = await apiFetch('/api/logs')
     files.value = res.data || []
     if (files.value.length && !selectedFile.value) {
-      selectedFile.value = files.value[0]
+      selectedFile.value = files.value.find(file => file !== lifecycleLogFile) || files.value[0]
     }
   } catch (e: any) {
     show(e.message, 'error')
@@ -113,8 +125,16 @@ onUnmounted(() => stopAutoRefresh())
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar :title="t('logs.title')">
+      <SButton
+        :type="isLifecycleLog ? 'primary' : 'outline'"
+        size="sm"
+        :disabled="!hasLifecycleLog"
+        @click="selectLifecycleLog"
+      >
+        {{ t('logs.lifecycle') }}
+      </SButton>
       <SSelect v-model="selectedFile" size="sm" class="logs-file-select">
-        <option v-for="f in files" :key="f" :value="f">{{ f }}</option>
+        <option v-for="f in files" :key="f" :value="f">{{ fileLabel(f) }}</option>
       </SSelect>
       <SSelect v-model="levelFilter" size="sm" @change="loadContent()">
         <option value="">{{ t('logs.all_levels') }}</option>
@@ -139,7 +159,7 @@ onUnmounted(() => stopAutoRefresh())
     </SPageToolbar>
     <div ref="logRef" class="log-viewer">
       <div v-if="loading" class="log-empty">{{ t('common.loading') }}</div>
-      <div v-else-if="!lines.length" class="log-empty">{{ t('logs.empty') }}</div>
+      <div v-else-if="!lines.length" class="log-empty">{{ emptyText }}</div>
       <template v-else>
         <div v-for="(line, i) in lines" :key="i" class="log-line" :class="lineClass(line)">{{ line }}</div>
       </template>

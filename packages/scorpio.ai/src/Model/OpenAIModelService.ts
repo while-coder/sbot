@@ -1,8 +1,28 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { type BaseMessageChunk } from "@langchain/core/messages";
+import { ChatOpenAI, ChatOpenAICompletions, type ChatOpenAIFields } from "@langchain/openai";
 import { ModelServiceBase } from "./ModelServiceBase";
 import { type StructuredInvokeOptions } from "./IModelService";
 import { type ChatMessage } from "../Saver/IAgentSaverService";
 import { getInvokeConfig, StructuredOutputMethod, toStructuredInput } from "./structuredOutput";
+
+/**
+ * 部分 OpenAI 兼容端点不会在首个流式 delta 中返回 role。
+ * LangChain 默认会把这种 delta 转成 ChatMessageChunk，导致后续无法按 AI 消息处理；
+ * 模型输出在缺少显式 role 时应按 assistant 解析。
+ */
+class CompatibleChatOpenAICompletions extends ChatOpenAICompletions {
+  protected override _convertCompletionsDeltaToBaseMessageChunk(
+    delta: Record<string, any>,
+    rawResponse: any,
+    defaultRole?: any,
+  ): BaseMessageChunk {
+    return super._convertCompletionsDeltaToBaseMessageChunk(
+      delta,
+      rawResponse,
+      defaultRole ?? "assistant",
+    );
+  }
+}
 
 /**
  * OpenAI 模型服务实现
@@ -10,7 +30,7 @@ import { getInvokeConfig, StructuredOutputMethod, toStructuredInput } from "./st
  */
 export class OpenAIModelService extends ModelServiceBase<ChatOpenAI> {
 
-  protected buildChatOpenAIOptions(): ConstructorParameters<typeof ChatOpenAI>[0] {
+  protected buildChatOpenAIOptions(): ChatOpenAIFields {
     return {
       configuration: {
         baseURL: this.config.baseURL,
@@ -67,7 +87,11 @@ export class OpenAIModelService extends ModelServiceBase<ChatOpenAI> {
   }
 
   protected createModel(): ChatOpenAI {
-    return new ChatOpenAI(this.buildChatOpenAIOptions());
+    const options = this.buildChatOpenAIOptions();
+    return new ChatOpenAI({
+      ...options,
+      completions: new CompatibleChatOpenAICompletions(options),
+    });
   }
 
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T> {
