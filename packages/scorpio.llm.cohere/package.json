@@ -1,0 +1,14 @@
+{
+  "name": "scorpio.llm.cohere",
+  "version": "0.0.1",
+  "description": "Cohere embedding provider for scorpio.llm",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "rimraf dist && tsc -b --force" },
+  "dependencies": {
+    "@langchain/cohere": "^1.0.5",
+    "scorpio.llm": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": { "@types/node": "catalog:", "rimraf": "catalog:", "typescript": "catalog:" }
+}

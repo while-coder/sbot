@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
 import { ModelProvider, EmbeddingProvider, ModelServiceFactory, EmbeddingServiceFactory } from "scorpio.ai";
+import { registerBuiltInLlmProviders } from "./LlmProviders";
 export type { AgentSubNode } from "scorpio.ai";
 import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "sbot.commons";
 export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "sbot.commons";
@@ -142,6 +143,7 @@ class Config {
   readonly pkg: { version: string; name: string; description: string; releasenoteEn?: string; releasenoteZh?: string };
 
   constructor() {
+    registerBuiltInLlmProviders();
     this.pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
 
     // 获取用户目录

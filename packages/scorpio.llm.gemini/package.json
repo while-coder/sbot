@@ -1,0 +1,14 @@
+{
+  "name": "scorpio.llm.gemini",
+  "version": "0.0.1",
+  "description": "Gemini model and embedding provider for scorpio.llm",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "rimraf dist && tsc -b --force" },
+  "dependencies": {
+    "@langchain/google-genai": "^2.1.31",
+    "scorpio.llm": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": { "@types/node": "catalog:", "rimraf": "catalog:", "typescript": "catalog:" }
+}

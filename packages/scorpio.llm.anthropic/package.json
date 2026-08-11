@@ -1,0 +1,15 @@
+{
+  "name": "scorpio.llm.anthropic",
+  "version": "0.0.1",
+  "description": "Anthropic model provider for scorpio.llm",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "rimraf dist && tsc -b --force" },
+  "dependencies": {
+    "@langchain/anthropic": "^1.4.1",
+    "@langchain/core": "catalog:",
+    "scorpio.llm": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": { "@types/node": "catalog:", "rimraf": "catalog:", "typescript": "catalog:" }
+}

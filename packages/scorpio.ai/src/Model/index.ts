@@ -3,22 +3,17 @@
  * 提供 LLM 模型服务接口和实现
  */
 
-// ===== 接口 + DI Token + 公共基类 =====
-export { IModelService } from "./IModelService";
-export type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelService";
-export { ModelServiceBase } from "./ModelServiceBase";
-
-// ===== 实现类 =====
-export { OpenAIModelService } from "./OpenAIModelService";
-export { OpenAIResponseModelService } from "./OpenAIResponseModelService";
-export { OllamaModelService } from "./OllamaModelService";
-export { AnthropicModelService } from "./AnthropicModelService";
-export { GeminiModelService } from "./GeminiModelService";
-export { GeminiImageModelService } from "./GeminiImageModelService";
+// ===== Provider 无关接口和公共基类 =====
+export { IModelService, ModelProvider, ModelServiceBase, StructuredOutputMethod } from "scorpio.llm";
+export type {
+  AnthropicConfig,
+  GeminiConfig,
+  ModelConfig,
+  ModelInvokeOptions,
+  StructuredInvokeOptions,
+  ThinkingConfig,
+} from "scorpio.llm";
 
 // ===== 工厂和配置 =====
 export { ModelServiceFactory } from "./ModelServiceFactory";
 export { RetryModelServiceProxy } from "./RetryModelServiceProxy";
-
-// ===== 类型定义 =====
-export { ModelConfig, ModelProvider, AnthropicConfig, GeminiConfig, ThinkingConfig } from "./types";

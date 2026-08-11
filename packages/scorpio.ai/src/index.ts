@@ -76,9 +76,6 @@ export {
   IModelService,
   ModelServiceBase,
 
-  // 实现类
-  OpenAIModelService,
-
   // 工厂和配置
   ModelServiceFactory,
 
@@ -93,9 +90,6 @@ export {
 export {
   // 接口 + Symbol Token
   IEmbeddingService,
-
-  // 实现类
-  OpenAIEmbeddingService,
 
   // 工厂和配置
   EmbeddingServiceFactory,

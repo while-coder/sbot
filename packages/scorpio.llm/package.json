@@ -1,0 +1,19 @@
+{
+  "name": "scorpio.llm",
+  "version": "0.0.1",
+  "description": "Provider-neutral LLM contracts, base services, and registries",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "@langchain/core": "catalog:"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -822,6 +822,24 @@ importers:
       scorpio.di:
         specifier: workspace:*
         version: link:../scorpio.di
+      scorpio.llm.anthropic:
+        specifier: workspace:*
+        version: link:../scorpio.llm.anthropic
+      scorpio.llm.cohere:
+        specifier: workspace:*
+        version: link:../scorpio.llm.cohere
+      scorpio.llm.gemini:
+        specifier: workspace:*
+        version: link:../scorpio.llm.gemini
+      scorpio.llm.ollama:
+        specifier: workspace:*
+        version: link:../scorpio.llm.ollama
+      scorpio.llm.openai:
+        specifier: workspace:*
+        version: link:../scorpio.llm.openai
+      scorpio.llm.voyage:
+        specifier: workspace:*
+        version: link:../scorpio.llm.voyage
       sequelize:
         specifier: ^6.37.8
         version: 6.37.8(sqlite3@6.0.1)
@@ -914,27 +932,12 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ^0.26.0
         version: 0.26.0(zod@4.4.3)
-      '@langchain/anthropic':
-        specifier: ^1.4.1
-        version: 1.4.1(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
-      '@langchain/cohere':
-        specifier: ^1.0.5
-        version: 1.0.5(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
       '@langchain/core':
         specifier: 'catalog:'
         version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
-      '@langchain/google-genai':
-        specifier: ^2.1.31
-        version: 2.1.31(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
       '@langchain/mcp-adapters':
         specifier: ^1.1.3
         version: 1.1.3(@cfworker/json-schema@4.1.1)(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))(@langchain/langgraph@1.4.2(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))(react@19.2.5)(vue@3.5.38(typescript@6.0.3))(zod-to-json-schema@3.25.1(zod@4.4.3))(zod@4.4.3))
-      '@langchain/ollama':
-        specifier: ^1.2.7
-        version: 1.2.7(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
-      '@langchain/openai':
-        specifier: ^1.4.7
-        version: 1.4.7(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))(ws@8.21.0)
       better-sqlite3:
         specifier: 'catalog:'
         version: 12.11.1
@@ -944,9 +947,6 @@ importers:
       cron:
         specifier: 'catalog:'
         version: 4.4.0
-      langchain:
-        specifier: ^1.4.5
-        version: 1.4.5(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))(openai@6.43.0(ws@8.21.0)(zod@4.4.3))(react@19.2.5)(vue@3.5.38(typescript@6.0.3))(zod-to-json-schema@3.25.1(zod@4.4.3))
       pg:
         specifier: ^8.21.0
         version: 8.21.0
@@ -956,6 +956,9 @@ importers:
       scorpio.di:
         specifier: workspace:*
         version: link:../scorpio.di
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../scorpio.llm
       sharp:
         specifier: ^0.35.1
         version: 0.35.1
@@ -990,6 +993,142 @@ importers:
       reflect-metadata:
         specifier: 'catalog:'
         version: 0.2.2
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/scorpio.llm:
+    dependencies:
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/scorpio.llm.anthropic:
+    dependencies:
+      '@langchain/anthropic':
+        specifier: ^1.4.1
+        version: 1.4.1(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../scorpio.llm
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/scorpio.llm.cohere:
+    dependencies:
+      '@langchain/cohere':
+        specifier: ^1.0.5
+        version: 1.0.5(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../scorpio.llm
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/scorpio.llm.gemini:
+    dependencies:
+      '@langchain/google-genai':
+        specifier: ^2.1.31
+        version: 2.1.31(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../scorpio.llm
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/scorpio.llm.ollama:
+    dependencies:
+      '@langchain/ollama':
+        specifier: ^1.2.7
+        version: 1.2.7(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../scorpio.llm
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/scorpio.llm.openai:
+    dependencies:
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
+      '@langchain/openai':
+        specifier: ^1.4.7
+        version: 1.4.7(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))(ws@8.21.0)
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../scorpio.llm
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/scorpio.llm.voyage:
+    dependencies:
+      '@langchain/openai':
+        specifier: ^1.4.7
+        version: 1.4.7(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))(ws@8.21.0)
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../scorpio.llm
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -4794,12 +4933,6 @@ packages:
 
   keytar@7.9.0:
     resolution: {integrity: sha512-VPD8mtVtm5JNtA2AErl6Chp06JBfy7diFQ7TQQhdpWOl6MrCRB+eRbvAZUsbGQS9kiMq0coJsy0W0vHpDCkWsQ==}
-
-  langchain@1.4.5:
-    resolution: {integrity: sha512-P625jmIg91XwZoll6H3tyOLux1wQPjSptdGdiDdSrZVyUmeWKwzJu0+mmJjluNRCQVgzqCZzy1RWkz9p+vb+3A==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@langchain/core': ^1.1.49
 
   langsmith@0.5.9:
     resolution: {integrity: sha512-mT88HlYTz7IZzVJP/OM7D6PAR3kzcbPGjYDJpx64ua9WiJXFqQx6YKewxIIxkVSZCb9I/9TiYvPYfZ4rawOdEg==}
@@ -10901,24 +11034,6 @@ snapshots:
       node-addon-api: 4.3.0
       prebuild-install: 7.1.3
     optional: true
-
-  langchain@1.4.5(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))(openai@6.43.0(ws@8.21.0)(zod@4.4.3))(react@19.2.5)(vue@3.5.38(typescript@6.0.3))(zod-to-json-schema@3.25.1(zod@4.4.3)):
-    dependencies:
-      '@langchain/core': 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
-      '@langchain/langgraph': 1.4.2(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))(react@19.2.5)(vue@3.5.38(typescript@6.0.3))(zod-to-json-schema@3.25.1(zod@4.4.3))(zod@4.4.3)
-      '@langchain/langgraph-checkpoint': 1.1.1(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
-      langsmith: 0.5.9(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-      - '@opentelemetry/exporter-trace-otlp-proto'
-      - '@opentelemetry/sdk-trace-base'
-      - openai
-      - react
-      - react-dom
-      - svelte
-      - vue
-      - zod-to-json-schema
 
   langsmith@0.5.9(openai@6.43.0(ws@8.21.0)(zod@4.4.3)):
     dependencies:

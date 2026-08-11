@@ -1,13 +1,5 @@
-import { IModelService } from "./IModelService";
-import { ModelServiceBase } from "./ModelServiceBase";
-import { OpenAIModelService } from "./OpenAIModelService";
-import { OpenAIResponseModelService } from "./OpenAIResponseModelService";
-import { OllamaModelService } from "./OllamaModelService";
-import { AnthropicModelService } from "./AnthropicModelService";
-import { GeminiModelService } from "./GeminiModelService";
-import { GeminiImageModelService } from "./GeminiImageModelService";
+import { type IModelService, type ModelConfig, llmProviderRegistry } from "scorpio.llm";
 import { RetryModelServiceProxy } from "./RetryModelServiceProxy";
-import { ModelConfig, ModelProvider } from "./types";
 
 /**
  * 模型服务工厂
@@ -27,29 +19,6 @@ export class ModelServiceFactory {
    * @returns 模型服务实例
    */
   static getModelService(config: ModelConfig): IModelService {
-    let service: ModelServiceBase;
-    switch (config.provider) {
-      case ModelProvider.Anthropic:
-        service = new AnthropicModelService(config);
-        break;
-      case ModelProvider.Ollama:
-        service = new OllamaModelService(config);
-        break;
-      case ModelProvider.OpenAIResponse:
-        service = new OpenAIResponseModelService(config);
-        break;
-      case ModelProvider.GeminiImage:
-        service = new GeminiImageModelService(config);
-        break;
-      case ModelProvider.Gemini:
-        service = new GeminiModelService(config);
-        break;
-      // OpenAI, Azure, Groq, Mistral, DeepSeek, and any OpenAI-compatible provider
-      default:
-        service = new OpenAIModelService(config);
-        break;
-    }
-    service.initialize();
-    return new RetryModelServiceProxy(service);
+    return new RetryModelServiceProxy(llmProviderRegistry.createModel(config));
   }
 }

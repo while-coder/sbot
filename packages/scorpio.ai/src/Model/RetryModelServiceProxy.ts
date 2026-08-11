@@ -1,7 +1,5 @@
-import { IModelService } from "./IModelService";
-import type { ModelInvokeOptions, StructuredInvokeOptions } from "./IModelService";
+import { type ChatMessage, type IModelService, type ModelInvokeOptions, type StructuredInvokeOptions } from "scorpio.llm";
 import { withRetry } from "../Utils/withRetry";
-import { type ChatMessage } from "../Saver/IAgentSaverService";
 import { runtimeActivity } from "../Core/RuntimeActivity";
 
 export class RetryModelServiceProxy implements IModelService {

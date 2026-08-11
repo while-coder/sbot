@@ -1,34 +1,7 @@
-import { CohereEmbeddingService } from "./CohereEmbeddingService";
-import { GoogleEmbeddingService } from "./GoogleEmbeddingService";
-import { IEmbeddingService } from "./IEmbeddingService";
-import { OllamaEmbeddingService } from "./OllamaEmbeddingService";
-import { OpenAIEmbeddingService } from "./OpenAIEmbeddingService";
-import { VoyageAIEmbeddingService } from "./VoyageAIEmbeddingService";
-import { EmbeddingConfig, EmbeddingProvider } from "./types";
+import { type EmbeddingConfig, type IEmbeddingService, llmProviderRegistry } from "scorpio.llm";
 
 export class EmbeddingServiceFactory {
   static getEmbeddingService(config: EmbeddingConfig): IEmbeddingService {
-    let service: IEmbeddingService;
-
-    switch (config.provider) {
-      case EmbeddingProvider.Ollama:
-        service = new OllamaEmbeddingService(config);
-        break;
-      case EmbeddingProvider.Gemini:
-        service = new GoogleEmbeddingService(config);
-        break;
-      case EmbeddingProvider.VoyageAI:
-        service = new VoyageAIEmbeddingService(config);
-        break;
-      case EmbeddingProvider.Cohere:
-        service = new CohereEmbeddingService(config);
-        break;
-      default:
-        service = new OpenAIEmbeddingService(config);
-        break;
-    }
-
-    service.initialize();
-    return service;
+    return llmProviderRegistry.createEmbedding(config);
   }
 }

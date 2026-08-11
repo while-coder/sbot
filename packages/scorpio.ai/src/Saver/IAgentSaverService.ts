@@ -1,121 +1,14 @@
-// ─── Neutral message types (no LangChain dependency) ────────────────────────
+import type { ChatMessage } from "scorpio.llm";
 
-export interface TokenUsage {
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-    cache_creation_input_tokens?: number;
-    cache_read_input_tokens?: number;
-}
-
-export enum MessageRole {
-    Human  = 'human',
-    AI     = 'ai',
-    Tool   = 'tool',
-    System = 'system',
-}
-
-export interface ChatToolCall {
-    id?: string;
-    name: string;
-    args: Record<string, any>;
-    type?: string;
-}
-
-// ─── Content parts (discriminated union by `type`) ───────────────────────────
-
-/**
- * 多模态消息内容 part 的判别符
- *
- * 该集合由本仓库内部 + 直连 LLM/Channel 时实际出现的取值聚合而来。
- * 透传给 SDK 时还可能出现 provider 专属取值，由 `ContentPart` 末尾的兜底分支兼容。
- */
-export const ContentPartType = {
-    Text:     'text',
-    /** Anthropic / ACP 风格：data + mimeType */
-    Image:    'image',
-    /** OpenAI 兼容风格：image_url.url */
-    ImageUrl: 'image_url',
-    Audio:    'audio',
-} as const;
-export type ContentPartType = typeof ContentPartType[keyof typeof ContentPartType];
-
-/** 文本 part，可选携带 Anthropic 的 cache 标记 */
-interface TextPart {
-    type: 'text';
-    text: string;
-    cache_control?: any;
-}
-
-/** Anthropic / ACP 风格的图像 part（base64 + mimeType） */
-interface ImagePart {
-    type: 'image';
-    data: string;
-    mimeType?: string;
-}
-
-/** OpenAI 兼容风格的图像 part（dataUrl 或外链） */
-interface ImageUrlPart {
-    type: 'image_url';
-    image_url: { url: string };
-    mimeType?: string;
-}
-
-/** 音频 part（base64 + mimeType） */
-interface AudioPart {
-    type: 'audio';
-    data: string;
-    mimeType?: string;
-}
-
-/**
- * 多模态消息 part 的判别联合类型。
- *
- * - 已知形状：`TextPart` / `ImagePart` / `ImageUrlPart` / `AudioPart`
- * - 末尾的开放分支用于透传 provider 专属 part（如 `tool_use` / `tool_result` / `thinking` 等），
- *   避免类型阻塞迭代；仍保留 `type: string` 以维持运行时一致性。
- */
-export type ContentPart =
-    | TextPart
-    | ImagePart
-    | ImageUrlPart
-    | AudioPart
-    | { type: string; [key: string]: any };
-
-/**
- * 中性化的消息结构，不依赖任何 LLM 框架
- *
- * - human   : 用户输入
- * - ai      : 模型输出（可含 tool_calls）
- * - tool    : 工具执行结果（含 tool_call_id）
- */
-export interface ChatMessage {
-    role: MessageRole;
-    content: string | ContentPart[];
-    /** AI 消息发起的工具调用列表 */
-    tool_calls?: ChatToolCall[];
-    /** Tool 消息关联的 tool_call_id */
-    tool_call_id?: string;
-    /** Tool 消息的工具名 */
-    name?: string;
-    /** Tool 消息的执行状态（success / error） */
-    status?: string;
-    /** 消息唯一 ID */
-    id?: string;
-    additional_kwargs?: Record<string, any>;
-    /** 模型返回的 token 用量（仅 AI 消息，不持久化） */
-    usage?: TokenUsage;
-}
-
-/** Reusable alias for ChatMessage.content — text or multimodal content parts. */
-export type MessageContent = ChatMessage['content'];
-
-/** Inline file attachment supplied alongside a channel message. */
-export interface AttachmentInput {
-    name: string;
-    dataUrl?: string;
-    content?: string;
-}
+export { MessageRole, ContentPartType } from "scorpio.llm";
+export type {
+    AttachmentInput,
+    ChatMessage,
+    ChatToolCall,
+    ContentPart,
+    MessageContent,
+    TokenUsage,
+} from "scorpio.llm";
 
 // ─── Push options ────────────────────────────────────────────────────────────
 

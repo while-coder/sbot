@@ -1,0 +1,14 @@
+{
+  "name": "scorpio.llm.ollama",
+  "version": "0.0.1",
+  "description": "Ollama model and embedding provider for scorpio.llm",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "rimraf dist && tsc -b --force" },
+  "dependencies": {
+    "@langchain/ollama": "^1.2.7",
+    "scorpio.llm": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": { "@types/node": "catalog:", "rimraf": "catalog:", "typescript": "catalog:" }
+}

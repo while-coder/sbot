@@ -21,7 +21,7 @@ export {
 } from "./IAgentSaverService";
 
 // ===== LangChain 转换（仅在 Agent 执行层需要） =====
-export { toChatMessage, toBaseMessage, toBaseMessages } from "./messageConverter";
+export { toChatMessage, toBaseMessage, toBaseMessages } from "scorpio.llm";
 export { estimateTextTokens, estimateMessageTokens, estimateMessagesTokens } from "./messageSerializer";
 
 // ===== 实现类 =====
