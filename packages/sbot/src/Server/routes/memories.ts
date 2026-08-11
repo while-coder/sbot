@@ -20,6 +20,18 @@ function optionalString(value: unknown): string | undefined {
     return text || undefined;
 }
 
+function requireSlug(value: unknown): string {
+    const slug = String(value ?? '').trim();
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug)) throwBad('Missing or invalid memory slug');
+    return slug;
+}
+
+function requireCommit(value: unknown): string {
+    const commit = String(value ?? '').trim();
+    if (!/^[0-9a-f]{7,40}$/i.test(commit)) throwBad('Missing or invalid memory history commit');
+    return commit;
+}
+
 function requireScope(value: unknown, name: string): MemoryScope {
     const raw = Array.isArray(value) ? value[0] : value;
     if (raw === MemoryScope.Global || raw === MemoryScope.Workspace) return raw;
@@ -95,6 +107,51 @@ export class MemoryRoutes {
             }
         }));
 
+        /** 当前全局/工作区范围的本地 Git 历史；slug 可选，用于单条 memory 过滤。 */
+        app.get('/api/memories/:id/history', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const limit = Math.max(1, Math.min(Number(req.query.limit ?? 50) || 50, 200));
+            const slug = optionalString(req.query.slug);
+            if (slug) requireSlug(slug);
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
+            try {
+                return { memoryId, history: service.listHistory(limit, slug) };
+            } finally {
+                service.release();
+            }
+        }));
+
+        /** 某次提交在当前范围内的 unified diff。 */
+        app.get('/api/memories/:id/history/:commit', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const commit = requireCommit(req.params.commit);
+            const slug = optionalString(req.query.slug);
+            if (slug) requireSlug(slug);
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
+            try {
+                return { memoryId, history: service.getHistoryDiff(commit, slug) };
+            } finally {
+                service.release();
+            }
+        }));
+
+        /** 将单条 memory 恢复到指定 commit 的文件版本，并立即重建该范围索引。 */
+        app.post('/api/memories/:id/history/:commit/restore/:slug', api(async (req) => {
+            const memoryId = requireMemoryId(req.params.id);
+            const commit = requireCommit(req.params.commit);
+            const slug = requireSlug(req.params.slug);
+            const target = requireViewTarget(req.query.viewScope, req.query.workPath);
+            const service = acquireMemoryService(memoryId, target);
+            try {
+                const row = await service.restoreMemory(commit, slug);
+                return { memoryId, commit, slug, row };
+            } finally {
+                service.release();
+            }
+        }));
+
         /** 手动整理：入队合并重复、删除明显冗余、压缩过长 memory 的后台 job。 */
         app.post('/api/memories/:id/consolidate/run', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
@@ -145,8 +202,7 @@ export class MemoryRoutes {
         /** 单条 memory 全文。 */
         app.get('/api/memories/:id/entries/:slug', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const slug = String(req.params.slug ?? '').trim();
-            if (!slug) throwBad('Missing slug');
+            const slug = requireSlug(req.params.slug);
             const target = requireViewTarget(req.query.viewScope, req.query.workPath);
             const entryScope = requireScope(req.query.entryScope, 'entryScope');
             const service = acquireMemoryService(memoryId, target);
@@ -160,17 +216,16 @@ export class MemoryRoutes {
             }
         }));
 
-        /** 软删除单条 memory：文件移到 .archive/，DB 行 DELETE。 */
+        /** 删除单条 memory：删除 Markdown + DB 行，历史版本由本地 Git 保存。 */
         app.delete('/api/memories/:id/entries/:slug', api(async (req) => {
             const memoryId = requireMemoryId(req.params.id);
-            const slug = String(req.params.slug ?? '').trim();
-            if (!slug) throwBad('Missing slug');
+            const slug = requireSlug(req.params.slug);
             const target = requireViewTarget(req.query.viewScope, req.query.workPath);
             const entryScope = requireScope(req.query.entryScope, 'entryScope');
             const service = acquireMemoryService(memoryId, target);
             try {
-                const archive = await service.deleteMemory(slug, entryScope);
-                return { memoryId, slug, archive };
+                await service.deleteMemory(slug, entryScope);
+                return { memoryId, slug };
             } finally {
                 service.release();
             }

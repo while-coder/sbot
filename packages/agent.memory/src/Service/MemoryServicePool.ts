@@ -23,7 +23,7 @@ import type { MemoryWorkspaceScope } from "../Storage/IMemoryStore";
 export interface MemoryServiceConfig {
     /** MemoryProfileConfig.name，用于日志与诊断。 */
     memoryName?: string;
-    /** memory 根目录（含 `memories/<slug>.md` 与 `.archive/`） */
+    /** memory 根目录（含全局/工作区 Markdown、本地 Git 与运行索引） */
     memoryDir: string;
     /** SQLite 文件绝对路径（含 memories 索引 + memory_pending_messages job 队列） */
     dbPath: string;

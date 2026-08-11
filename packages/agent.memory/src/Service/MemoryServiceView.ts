@@ -8,6 +8,7 @@ import type {
 } from "../Storage/IMemoryStore";
 import type { IMemoryService, MemoryToolDescs } from "./IMemoryService";
 import type { MemoryService } from "./MemoryService";
+import type { MemoryHistoryDiff, MemoryHistoryEntry } from "../History/MemoryHistory";
 
 /**
  * 绑定 MemoryTarget 的轻量视图。Store、模型、队列和生命周期均由 owner 持有；
@@ -43,8 +44,20 @@ export abstract class MemoryServiceView implements IMemoryService {
         return this.owner.listAll(this.target);
     }
 
-    deleteMemory(slug: string, scope: MemoryScope): Promise<string> {
+    deleteMemory(slug: string, scope: MemoryScope): Promise<void> {
         return this.owner.deleteMemory(slug, scope, this.target);
+    }
+
+    listHistory(limit?: number, slug?: string): MemoryHistoryEntry[] {
+        return this.owner.listHistory(this.target, limit, slug);
+    }
+
+    getHistoryDiff(commit: string, slug?: string): MemoryHistoryDiff {
+        return this.owner.getHistoryDiff(commit, this.target, slug);
+    }
+
+    restoreMemory(commit: string, slug: string): Promise<MemoryRow> {
+        return this.owner.restoreMemory(commit, slug, this.target);
     }
 
     extractFromConversation(messages: ChatMessage[]): void {

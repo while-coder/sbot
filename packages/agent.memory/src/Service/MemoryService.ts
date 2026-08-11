@@ -45,6 +45,11 @@ import {
     WORKSPACE_MEMORY_DIR,
     WORKSPACE_MEMORY_META_FILE,
 } from "./ScopedMemoryService";
+import {
+    MemoryHistory,
+    type MemoryHistoryDiff,
+    type MemoryHistoryEntry,
+} from "../History/MemoryHistory";
 
 // 读路径（每轮注入 system prompt）—— 高频常驻成本，截到 evidence/recency 排序里的头部就够，
 // 模型未命中时还有 search_memory 工具兜底。
@@ -223,6 +228,7 @@ export class MemoryService {
     private readonly selectorModel: IModelService;
     private readonly writerPrompt: string;
     private readonly selectorPrompt: string;
+    private readonly history: MemoryHistory;
     private isRunning = false;
     private refCount = 0;
     private disposed = false;
@@ -245,6 +251,7 @@ export class MemoryService {
         this.selectorModel = selectorModel;
         this.writerPrompt = writerPrompt;
         this.selectorPrompt = selectorPrompt;
+        this.history = new MemoryHistory(this.store.rootDir);
     }
 
     // ── 生命周期：refCount 配对，归零一次性 teardown ──
@@ -347,6 +354,7 @@ export class MemoryService {
         const stats = await service.reconcile(false);
         if (firstReconcile && (stats.indexed > 0 || stats.pruned > 0)) {
             this.logMemory('info', `工作区记忆初始化对账: path=${workspace.path}，索引=${stats.indexed}，清理=${stats.pruned}`);
+            this.recordHistory(`Synchronize workspace memory files (${workspace.key})`);
         }
         return service.store;
     }
@@ -474,12 +482,31 @@ export class MemoryService {
         return [...workspaceRows, ...globalRows];
     }
 
-    async deleteMemory(slug: string, scope: MemoryScope, viewTarget: MemoryTarget): Promise<string> {
+    async deleteMemory(slug: string, scope: MemoryScope, viewTarget: MemoryTarget): Promise<void> {
         const target = this.entryTarget(scope, viewTarget);
         const targetStore = await this.storeForTarget(target);
-        const archive = await targetStore.softDelete(slug, Date.now());
-        this.logMemory('info', `记忆管理删除: scope=${target.scope}, slug=${slug}, 归档=${archive}`);
-        return archive;
+        await targetStore.delete(slug);
+        this.recordHistory(`Delete memory (${this.targetLabel(target)}): ${slug}`);
+        this.logMemory('info', `记忆管理删除: scope=${target.scope}, slug=${slug}`);
+    }
+
+    listHistory(target: MemoryTarget, limit?: number, slug?: string): MemoryHistoryEntry[] {
+        return this.history.list(target, limit, slug);
+    }
+
+    getHistoryDiff(commit: string, target: MemoryTarget, slug?: string): MemoryHistoryDiff {
+        return this.history.diff(commit, target, slug);
+    }
+
+    async restoreMemory(commit: string, slug: string, target: MemoryTarget): Promise<MemoryRow> {
+        const targetStore = await this.storeForTarget(target);
+        this.history.restore(commit, target, slug);
+        await targetStore.reconcile();
+        const restored = await targetStore.getBySlug(slug);
+        if (!restored) throw new Error(`Restored memory could not be indexed: ${slug}`);
+        this.recordHistory(`Restore memory (${this.targetLabel(target)}): ${slug} from ${commit.slice(0, 8)}`);
+        this.logMemory('info', `恢复记忆: scope=${target.scope}, slug=${slug}, commit=${commit.slice(0, 8)}`);
+        return { ...restored, scope: target.scope };
     }
 
     // ── 写路径：入队 + 串行消费 ──
@@ -559,6 +586,7 @@ export class MemoryService {
                 try {
                     this.logMemory('info', `${log.start}：${log.subject}`);
                     const stats = await this.runPendingJob(next);
+                    this.recordHistory(this.jobHistoryMessage(next, stats));
                     this.store.deletePendingJob(next.id);
                     this.logMemory('info', `${log.done}：${log.subject}${this.jobDoneSuffix(stats)}`);
                 } catch (e: any) {
@@ -580,6 +608,7 @@ export class MemoryService {
             const stats = await this.store.reconcile();
             if (stats.indexed > 0 || stats.pruned > 0) {
                 this.logMemory('info', `记忆初始化对账: 索引=${stats.indexed}, 清理=${stats.pruned}`);
+                this.recordHistory('Synchronize global memory files');
             }
         } catch (e: any) {
             this.logMemory('warn', `记忆初始化对账失败: 错误=${formatError(e, true)}`);
@@ -1075,7 +1104,7 @@ export class MemoryService {
                         this.logMemory('info', `修改记忆：scope=${target!.scope}, ${op.slug} - ${truncateForLog(op.reason)}`);
                         break;
                     case MemoryOpAction.Delete:
-                        await target!.store.softDelete(op.slug, now);
+                        await target!.store.delete(op.slug);
                         out.delete++;
                         this.logMemory('info', `删除记忆：scope=${target!.scope}, ${op.slug} - ${truncateForLog(op.reason)}`);
                         break;
@@ -1188,6 +1217,34 @@ export class MemoryService {
                 this.logger?.error(line);
                 break;
         }
+    }
+
+    private recordHistory(message: string): void {
+        try {
+            const commit = this.history.record(message);
+            if (commit) this.logMemory('debug', `记忆历史已提交: ${commit.slice(0, 8)} ${message}`);
+        } catch (e: any) {
+            // Git 历史是审计层；提交失败不能让已经完成的 Memory CRUD 重跑 LLM。
+            // 工作树会保持 dirty，下一次成功提交会一并保存这些文件变化。
+            this.logMemory('warn', `记忆历史提交失败: ${formatError(e, true)}`);
+        }
+    }
+
+    private targetLabel(target: MemoryTarget): string {
+        return target.scope === MemoryScope.Global
+            ? MemoryScope.Global
+            : `${MemoryScope.Workspace}:${target.workspace.key}`;
+    }
+
+    private jobHistoryMessage(job: PendingMemoryJobRow, stats: MemoryJobStats): string {
+        const action = job.type === MemoryPendingJobType.Extract
+            ? 'Extract memories'
+            : job.type === MemoryPendingJobType.Consolidate
+                ? 'Consolidate memories'
+                : 'Synchronize memory files';
+        const target = this.targetForJob(job);
+        const changes = `create=${stats.create}, update=${stats.update}, delete=${stats.delete}`;
+        return `${action} #${job.id} (${this.targetLabel(target)}): ${changes}`;
     }
 
     private jobDoneSuffix(stats: MemoryJobStats): string {

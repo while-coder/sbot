@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, useConfirm, SButton, SModal, SBadge, SSelect, STabBar, STab } from 'sbot-ui'
+import { useToast, useConfirm, SButton, SModal, SBadge, SInput, SSelect, STabBar, STab } from 'sbot-ui'
 
 interface MemorySummary {
   slug: string
@@ -29,6 +29,18 @@ interface MemoryJob {
   updatedAt: number
 }
 
+interface MemoryHistoryEntry {
+  hash: string
+  shortHash: string
+  committedAt: number
+  message: string
+}
+
+interface MemoryHistoryDiff extends MemoryHistoryEntry {
+  diff: string
+  restorable: boolean
+}
+
 const { t } = useI18n()
 const { show } = useToast()
 const { confirm } = useConfirm()
@@ -39,18 +51,25 @@ const labelOverride = ref('')
 const workspaceScopes = ref<WorkspaceScope[]>([])
 const selectedWorkPath = ref('')
 
-const tab = ref<'memories' | 'jobs'>('memories')
+const tab = ref<'memories' | 'history' | 'jobs'>('memories')
 const loading = ref(false)
 const jobsLoading = ref(false)
+const historyLoading = ref(false)
+const diffLoading = ref(false)
 const bodyLoading = ref(false)
 const consolidating = ref(false)
 const reconciling = ref(false)
 const deleting = ref(false)
+const restoring = ref(false)
 const retryingJobId = ref<number | null>(null)
 const deletingJobId = ref<number | null>(null)
 
 const rows = ref<MemorySummary[]>([])
 const jobs = ref<MemoryJob[]>([])
+const history = ref<MemoryHistoryEntry[]>([])
+const historySlug = ref('')
+const selectedHistoryHash = ref('')
+const selectedHistory = ref<MemoryHistoryDiff | null>(null)
 const selectedKey = ref('')
 const selectedBody = ref('')
 
@@ -72,6 +91,9 @@ async function openByMemoryId(id: string | null | undefined, label?: string) {
   tab.value = 'memories'
   visible.value = true
   selectedWorkPath.value = ''
+  historySlug.value = ''
+  selectedHistoryHash.value = ''
+  selectedHistory.value = null
   if (memoryId.value) {
     await loadScopes()
     await loadMemories()
@@ -86,12 +108,15 @@ async function loadScopes() {
 async function changeScope() {
   selectedKey.value = ''
   selectedBody.value = ''
+  selectedHistoryHash.value = ''
+  selectedHistory.value = null
   await refreshCurrentTab()
 }
 
 async function refreshCurrentTab() {
   if (!memoryId.value) return
   if (tab.value === 'memories') await loadMemories()
+  else if (tab.value === 'history') await loadHistory()
   else await loadJobs()
 }
 
@@ -127,6 +152,66 @@ async function loadJobs() {
   }
 }
 
+async function loadHistory() {
+  if (!memoryId.value) return
+  historyLoading.value = true
+  try {
+    const query = [viewQuery.value, 'limit=50']
+    const slug = historySlug.value.trim()
+    if (slug) query.push(`slug=${encodeURIComponent(slug)}`)
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/history?${query.join('&')}`)
+    const list = (res.data?.history || []) as MemoryHistoryEntry[]
+    history.value = list
+    const next = list.find(item => item.hash === selectedHistoryHash.value) || list[0]
+    selectedHistoryHash.value = next?.hash || ''
+    if (next) await loadHistoryDiff(next)
+    else selectedHistory.value = null
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function loadHistoryDiff(item: MemoryHistoryEntry) {
+  if (!memoryId.value) return
+  selectedHistoryHash.value = item.hash
+  diffLoading.value = true
+  try {
+    const query = [viewQuery.value]
+    const slug = historySlug.value.trim()
+    if (slug) query.push(`slug=${encodeURIComponent(slug)}`)
+    const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/history/${item.hash}?${query.join('&')}`)
+    selectedHistory.value = res.data?.history as MemoryHistoryDiff
+  } catch (e: any) {
+    selectedHistory.value = null
+    show(e.message, 'error')
+  } finally {
+    diffLoading.value = false
+  }
+}
+
+async function restoreHistoryVersion() {
+  const item = selectedHistory.value
+  const slug = historySlug.value.trim()
+  if (!memoryId.value || !item || !slug || restoring.value) return
+  if (!await confirm(t('memory_profiles.confirm_restore_memory', { slug, commit: item.shortHash }), { danger: true })) return
+  restoring.value = true
+  try {
+    await apiFetch(
+      `/api/memories/${encodeURIComponent(memoryId.value)}/history/${item.hash}/restore/${encodeURIComponent(slug)}?${viewQuery.value}`,
+      'POST',
+      {},
+    )
+    show(t('memory_profiles.restore_memory_done'))
+    await loadHistory()
+  } catch (e: any) {
+    show(e.message, 'error')
+  } finally {
+    restoring.value = false
+  }
+}
+
 async function selectMemory(memory: MemorySummary) {
   const key = rowKey(memory)
   if (selectedKey.value === key && selectedBody.value) return
@@ -147,6 +232,13 @@ async function loadBody(memory: MemorySummary) {
   } finally {
     bodyLoading.value = false
   }
+}
+
+function openMemoryHistory(memory: MemorySummary) {
+  historySlug.value = memory.slug
+  selectedHistoryHash.value = ''
+  selectedHistory.value = null
+  tab.value = 'history'
 }
 
 async function runConsolidate() {
@@ -259,6 +351,7 @@ function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' |
 watch(tab, value => {
   if (!visible.value || !memoryId.value) return
   if (value === 'memories') loadMemories()
+  else if (value === 'history') loadHistory()
   else loadJobs()
 })
 
@@ -270,6 +363,7 @@ defineExpose({ openByMemoryId })
     <div class="memory-viewer">
       <STabBar v-model="tab" class="memory-tabs">
         <STab name="memories">{{ t('memory_profiles.viewer_memories') }}</STab>
+        <STab name="history">{{ t('memory_profiles.viewer_history') }}</STab>
         <STab name="jobs">{{ t('memory_profiles.viewer_jobs') }}</STab>
       </STabBar>
 
@@ -329,6 +423,9 @@ defineExpose({ openByMemoryId })
                 <SBadge :variant="kindVariant(selected.kind)" size="sm">{{ selected.kind }}</SBadge>
                 <SBadge variant="neutral" size="sm">{{ t('memory_profiles.evidence') }} {{ selected.evidenceCount }}</SBadge>
                 <SBadge variant="neutral" size="sm">{{ t('memory_profiles.read_count') }} {{ selected.readCount }}</SBadge>
+                <SButton type="outline" size="sm" @click="openMemoryHistory(selected)">
+                  {{ t('memory_profiles.view_memory_history') }}
+                </SButton>
                 <SButton type="danger" size="sm" :loading="deleting" @click="deleteMemory(selected)">
                   {{ t('memory_profiles.delete_memory') }}
                 </SButton>
@@ -339,6 +436,73 @@ defineExpose({ openByMemoryId })
               <span>{{ t('memory_profiles.created_at') }}: {{ fmtTime(selected.createdAt) }}</span>
             </div>
             <pre class="memory-body">{{ bodyLoading ? t('memory_profiles.loading') : (selectedBody || t('memory_profiles.no_body')) }}</pre>
+          </section>
+        </div>
+      </div>
+
+      <div v-else-if="tab === 'history'" class="memory-tab-pane">
+        <div class="memory-tab-toolbar memory-history-toolbar">
+          <SSelect v-model="selectedWorkPath" size="sm" @change="changeScope">
+            <option value="">{{ t('memory_profiles.scope_global') }}</option>
+            <option v-for="scope in workspaceScopes" :key="scope.key" :value="scope.path">
+              {{ t('memory_profiles.scope_workspace_context', { path: scope.path }) }}
+            </option>
+          </SSelect>
+          <div class="memory-actions memory-history-filter">
+            <SInput
+              v-model="historySlug"
+              size="sm"
+              :placeholder="t('memory_profiles.history_slug_placeholder')"
+              @keyup.enter="loadHistory"
+            />
+            <SButton type="outline" size="sm" :loading="historyLoading" @click="loadHistory">
+              {{ t('memory_profiles.view_history') }}
+            </SButton>
+          </div>
+        </div>
+
+        <div class="memory-pane memory-history-pane">
+          <aside class="memory-list memory-history-list">
+            <div v-if="historyLoading" class="memory-empty">{{ t('memory_profiles.loading') }}</div>
+            <div v-else-if="history.length === 0" class="memory-empty">{{ t('memory_profiles.no_history') }}</div>
+            <button
+              v-for="item in history"
+              v-else
+              :key="item.hash"
+              class="memory-row memory-history-row"
+              :class="{ active: item.hash === selectedHistoryHash }"
+              @click="loadHistoryDiff(item)"
+            >
+              <div class="memory-row-head">
+                <code class="memory-history-hash">{{ item.shortHash }}</code>
+                <span class="memory-history-time">{{ fmtTime(item.committedAt) }}</span>
+              </div>
+              <div class="memory-row-title">{{ item.message }}</div>
+            </button>
+          </aside>
+
+          <section class="memory-detail">
+            <div v-if="selectedHistory" class="memory-detail-head">
+              <div>
+                <div class="memory-detail-title">{{ selectedHistory.message }}</div>
+                <div class="memory-detail-slug">{{ selectedHistory.hash }}</div>
+              </div>
+              <SButton
+                v-if="historySlug.trim() && selectedHistory.restorable"
+                type="outline"
+                size="sm"
+                :loading="restoring"
+                @click="restoreHistoryVersion"
+              >
+                {{ t('memory_profiles.restore_memory') }}
+              </SButton>
+            </div>
+            <div v-if="selectedHistory" class="memory-detail-meta memory-history-meta">
+              <span>{{ t('memory_profiles.committed_at') }}: {{ fmtTime(selectedHistory.committedAt) }}</span>
+              <span v-if="!historySlug.trim()">{{ t('memory_profiles.restore_requires_slug') }}</span>
+              <span v-else-if="!selectedHistory.restorable">{{ t('memory_profiles.version_deleted') }}</span>
+            </div>
+            <pre class="memory-body memory-diff">{{ diffLoading ? t('memory_profiles.loading') : (selectedHistory?.diff || t('memory_profiles.no_diff')) }}</pre>
           </section>
         </div>
       </div>
@@ -433,6 +597,15 @@ defineExpose({ openByMemoryId })
   white-space: nowrap;
 }
 
+.memory-history-filter {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.memory-history-filter :deep(.s-input) {
+  width: min(320px, 100%);
+}
+
 .memory-pane {
   flex: 1;
   min-height: 0;
@@ -491,9 +664,19 @@ defineExpose({ openByMemoryId })
 
 .memory-row-slug,
 .memory-detail-slug,
+.memory-history-hash,
 .memory-job-grid code {
   font-family: var(--sui-font-mono);
   font-size: var(--sui-fs-xs);
+}
+
+.memory-history-time {
+  color: var(--sui-fg-subtle);
+  font-size: var(--sui-fs-xs);
+}
+
+.memory-history-hash {
+  color: var(--sui-color-primary);
 }
 
 /* title 是唯一标签，最长 150 字符——列表里裁到两行，全文在右侧详情区 */
@@ -558,6 +741,15 @@ defineExpose({ openByMemoryId })
   line-height: 1.5;
 }
 
+.memory-diff {
+  white-space: pre-wrap;
+  tab-size: 2;
+}
+
+.memory-history-meta {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
 .memory-jobs {
   flex: 1;
   min-height: 0;
@@ -603,6 +795,14 @@ defineExpose({ openByMemoryId })
   .memory-detail-head {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .memory-history-filter {
+    width: 100%;
+  }
+
+  .memory-history-filter :deep(.s-input) {
+    width: 100%;
   }
 
   .memory-pane {

@@ -25,6 +25,13 @@ export {
 } from './Storage/IMemoryStore';
 export { MemoryStore } from './Storage/MemoryStore';
 
+// ── Local Git history ──
+export {
+    MemoryHistory,
+    type MemoryHistoryEntry,
+    type MemoryHistoryDiff,
+} from './History/MemoryHistory';
+
 // ── Service（含 LLM 抽取与 transcript 渲染） ──
 export {
     IMemoryService,

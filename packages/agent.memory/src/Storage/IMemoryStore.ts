@@ -9,8 +9,7 @@ import type { ChatMessage } from "scorpio.ai";
  * - 检索：search_memory / read_memory 工具调用（search + getBySlug + recordRead）
  * - 待处理 job 队列：抽取/整理入队，MemoryService 串行消费
  *
- * delete 是软删除：文件移到 `memories/.archive/<slug>.md`，DB 行删除。
- * archived 文件由后台 cron 30 天后清理（不在本接口范围内）。
+ * delete 直接删除 Markdown，历史版本由 profile 根目录下的本地 Git 保存。
  */
 
 export enum MemoryKind {
@@ -156,7 +155,6 @@ export type PendingMemoryJobRow = PendingMemoryJobBase & (
 export interface IMemoryStore {
     readonly rootDir: string;
     readonly memoriesDir: string;
-    readonly archiveDir: string;
 
     // ── CRUD ──
 
@@ -172,11 +170,8 @@ export interface IMemoryStore {
      */
     update(input: UpdateMemoryInput, now: number): Promise<StoredMemoryRow>;
 
-    /**
-     * 软删除：移文件到 `memories/.archive/<slug>-<now>.md` + DB DELETE。
-     * slug 不存在抛错。返回 archive 文件名。
-     */
-    softDelete(slug: string, now: number): Promise<string>;
+    /** 删除 Markdown + DB 行；历史版本由本地 Git 保存。slug 不存在抛错。 */
+    delete(slug: string): Promise<void>;
 
     getBySlug(slug: string): Promise<StoredMemoryRow | null>;
 
@@ -252,7 +247,7 @@ export interface IMemoryStore {
     dispose(): void;
 
     /**
-     * 物理删除：rm `rootDir`（含 memories/、.archive/、searcher.sqlite）+ dbPath。
+     * 物理删除：rm `rootDir`（含 memories/、本地 Git、searcher.sqlite）+ dbPath。
      * 调用前必须 dispose() —— 否则 sqlite handle 仍开着，Windows 上 rm 会因文件锁失败。
      * 仅在 profile 删除路径调用，由 MemoryService.markForDeletion() 触发。
      */

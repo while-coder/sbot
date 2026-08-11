@@ -1,5 +1,6 @@
 import type { MemoryScope, MemorySearchHit, MemoryRow, PendingMemoryJobRow } from "../Storage/IMemoryStore";
 import type { ChatMessage } from "scorpio.ai";
+import type { MemoryHistoryDiff, MemoryHistoryEntry } from "../History/MemoryHistory";
 
 /**
  * Memory 系统对外接口。Agent 运行时由 MemoryAgentPlugin 消费：
@@ -66,10 +67,18 @@ export interface IMemoryService {
     listAll(): Promise<MemoryRow[]>;
 
     /**
-     * admin 删除单条 memory：软删除（文件移到 .archive/，DB 行 DELETE）。
-     * slug 不存在抛错。返回 archive 文件名。
+     * admin 删除单条 memory：删除 Markdown 与 DB 行，Git 保留历史版本。
      */
-    deleteMemory(slug: string, scope: MemoryScope): Promise<string>;
+    deleteMemory(slug: string, scope: MemoryScope): Promise<void>;
+
+    /** 当前视图范围的 Git 修改历史；slug 传入时只看这一条 memory。 */
+    listHistory(limit?: number, slug?: string): MemoryHistoryEntry[];
+
+    /** 查看某次提交在当前视图范围内的 Git diff。 */
+    getHistoryDiff(commit: string, slug?: string): MemoryHistoryDiff;
+
+    /** 把当前视图中的单条 memory 恢复到指定提交版本，并重建该 Store 索引。 */
+    restoreMemory(commit: string, slug: string): Promise<MemoryRow>;
 
     /**
      * 每轮对话结束后同步触发：把消息快照入队 SQLite，触发后台串行抽取。

@@ -31,13 +31,12 @@ const DEFAULT_KIND = MemoryKind.Fact;
  *
  * - FS 是真源：每条 memory 一个文件 `memories/<slug>.md`
  * - DB 是 FTS 索引 + 检索元数据；可重建（reconcile 走盘对账）
- * - delete 是软删除：文件移到 `memories/.archive/<slug>-<deletedAt>.md`，DB 行 DELETE
+ * - delete 直接删除 Markdown + DB 行；历史版本由 profile 本地 Git 保存
  *
  * 单连接、同步 better-sqlite3，跨步原子操作走 db.transaction()。
  */
 export class MemoryStore implements IMemoryStore {
     public readonly memoriesDir: string;
-    public readonly archiveDir: string;
     private _db: Database.Database | undefined;
     private _searcher: HybridSearcher | undefined;
 
@@ -46,11 +45,9 @@ export class MemoryStore implements IMemoryStore {
         @inject(T_MemoryDbPath) private readonly dbPath: string,
     ) {
         this.memoriesDir = path.join(rootDir, "memories");
-        this.archiveDir = path.join(this.memoriesDir, ".archive");
-        // mkdir 是 init 时唯一必须 eager 做的副作用：reconcile / softDelete / create
-        // 都需要这两个目录已存在。db / searcher 仍走 lazy getter，第一次用时自动建。
+        // mkdir 是 init 时唯一必须 eager 做的副作用：reconcile / create 都需要目录存在。
+        // db / searcher 仍走 lazy getter，第一次用时自动建。
         if (!existsSync(this.memoriesDir)) mkdirSync(this.memoriesDir, { recursive: true });
-        if (!existsSync(this.archiveDir)) mkdirSync(this.archiveDir, { recursive: true });
     }
 
     /**
@@ -224,22 +221,19 @@ export class MemoryStore implements IMemoryStore {
         return row;
     }
 
-    async softDelete(slug: string, now: number): Promise<string> {
+    async delete(slug: string): Promise<void> {
         const existing = await this.getBySlug(slug);
-        if (!existing) throw new Error(`MemoryStore.softDelete: slug not found: ${slug}`);
+        if (!existing) throw new Error(`MemoryStore.delete: slug not found: ${slug}`);
 
         const filePath = this.slugToPath(slug);
-        const archiveName = `${slug}-${now}.md`;
-        const archivePath = path.join(this.archiveDir, archiveName);
-
-        // FS 操作先于 DB DELETE：万一 rename 失败，DB 行还在，下次还能看见
+        // FS 操作先于 DB DELETE：万一 unlink 失败，DB 行还在，下次还能看见。
+        // 删除前内容已经在 profile 的 Git 历史里，不再维护重复的 .archive 副本。
         if (existsSync(filePath)) {
-            await fs.rename(filePath, archivePath);
+            await fs.unlink(filePath);
         }
 
         this.db.prepare(`DELETE FROM memories WHERE slug = ?`).run(slug);
         // FTS5 由 HybridSearcher 内部 syncCorpus 在下一次 search 时基于 list() 对账清理
-        return archiveName;
     }
 
     async getBySlug(slug: string): Promise<StoredMemoryRow | null> {
@@ -313,7 +307,7 @@ export class MemoryStore implements IMemoryStore {
     // ── reconcile ──
 
     async reconcile(): Promise<{ indexed: number; pruned: number }> {
-        // 走 memories/ 顶层的 *.md（不递归，不含 .archive/）
+        // 只读取 memories/ 顶层的 *.md（不递归）。
         const fsFiles = new Set<string>();
         const entries = await fs.readdir(this.memoriesDir, { withFileTypes: true }).catch(e => {
             if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [] as import('fs').Dirent[];
