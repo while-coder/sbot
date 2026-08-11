@@ -8,6 +8,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
   initialize(): void {
     if (!this.config.apiKey) throw new Error("Embedding config missing apiKey");
     this.embeddings = new OpenAIEmbeddings({
+      ...(this.config.config ?? {}),
       modelName: this.config.model || "text-embedding-ada-002",
       openAIApiKey: this.config.apiKey,
       configuration: { baseURL: this.config.baseURL },

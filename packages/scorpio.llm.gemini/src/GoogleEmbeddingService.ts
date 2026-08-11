@@ -8,8 +8,10 @@ export class GoogleEmbeddingService implements IEmbeddingService {
   initialize(): void {
     if (!this.config.apiKey) throw new Error("Embedding config missing apiKey");
     this.embeddings = new GoogleGenerativeAIEmbeddings({
+      ...(this.config.config ?? {}),
       modelName: this.config.model || "text-embedding-004",
       apiKey: this.config.apiKey,
+      baseUrl: this.config.baseURL,
     });
   }
 

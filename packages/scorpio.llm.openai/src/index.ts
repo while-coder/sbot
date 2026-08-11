@@ -10,7 +10,7 @@ import { OpenAIResponseModelService } from "./OpenAIResponseModelService";
 
 export { OpenAIModelService, OpenAIResponseModelService, OpenAIEmbeddingService };
 
-async function listOpenAIModels(config: { baseURL: string; apiKey: string }): Promise<string[]> {
+async function listOpenAIModels(config: { baseURL?: string; apiKey: string }): Promise<string[]> {
   if (!config.baseURL) throw new Error("baseURL is required");
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
@@ -49,9 +49,38 @@ export function registerOpenAIProvider(registry: LlmProviderRegistry = llmProvid
     },
     listModels: listOpenAIModels,
   });
-  registry.registerEmbedding(EmbeddingProvider.OpenAI, config => {
-    const service = new OpenAIEmbeddingService(config);
-    service.initialize();
-    return service;
+  registry.registerEmbedding({
+    type: EmbeddingProvider.OpenAI,
+    label: "OpenAI Compatible",
+    configSchema: {
+      dimensions: {
+        label: "向量维度",
+        type: "number",
+        description: "仅 text-embedding-3 及后续模型支持",
+      },
+      batchSize: {
+        label: "批处理数量",
+        type: "number",
+        description: "单次请求包含的最大文档数量，OpenAI 最大 2048",
+      },
+      stripNewLines: {
+        label: "移除换行",
+        type: "boolean",
+        default: true,
+        description: "向量化前移除文本中的换行符",
+      },
+    },
+    defaults: {
+      baseURL: "https://api.openai.com/v1",
+      model: "text-embedding-ada-002",
+      config: { stripNewLines: true },
+    },
+    apiKeyRequired: true,
+    createEmbedding: config => {
+      const service = new OpenAIEmbeddingService(config);
+      service.initialize();
+      return service;
+    },
+    listEmbeddings: listOpenAIModels,
   });
 }

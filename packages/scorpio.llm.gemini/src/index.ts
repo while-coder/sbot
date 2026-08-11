@@ -36,6 +36,21 @@ async function listGeminiModels(config: any, imageFirst: boolean): Promise<strin
   }
 }
 
+async function listGeminiEmbeddings(config: any): Promise<string[]> {
+  if (!config.apiKey) throw new Error("apiKey is required for Gemini");
+  const base = (config.baseURL || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/v1/models`, { headers: { "x-goog-api-key": config.apiKey } });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data: any = await res.json();
+    return (data.models || [])
+      .filter((model: any) => model.supportedGenerationMethods?.includes("embedContent"))
+      .map((model: any) => (model.name as string).replace(/^models\//, ""));
+  } catch {
+    return ["text-embedding-004", "embedding-001"];
+  }
+}
+
 export function registerGeminiProvider(registry: LlmProviderRegistry = llmProviderRegistry): void {
   registry.registerModel({
     type: ModelProvider.Gemini,
@@ -69,9 +84,40 @@ export function registerGeminiProvider(registry: LlmProviderRegistry = llmProvid
     },
     listModels: config => listGeminiModels(config, true),
   });
-  registry.registerEmbedding(EmbeddingProvider.Gemini, config => {
-    const service = new GoogleEmbeddingService(config);
-    service.initialize();
-    return service;
+  registry.registerEmbedding({
+    type: EmbeddingProvider.Gemini,
+    label: "Google Gemini",
+    configSchema: {
+      taskType: {
+        label: "任务类型",
+        type: "select",
+        description: "当前 SDK 仅对 embedding-001 模型支持任务类型",
+        options: [
+          { label: "不指定", value: "" },
+          { label: "检索查询", value: "RETRIEVAL_QUERY" },
+          { label: "检索文档", value: "RETRIEVAL_DOCUMENT" },
+          { label: "语义相似度", value: "SEMANTIC_SIMILARITY" },
+          { label: "分类", value: "CLASSIFICATION" },
+          { label: "聚类", value: "CLUSTERING" },
+        ],
+      },
+      title: {
+        label: "文档标题",
+        type: "string",
+        description: "仅检索文档任务使用",
+        showWhen: { field: "taskType", eq: "RETRIEVAL_DOCUMENT" },
+      },
+    },
+    defaults: {
+      baseURL: "https://generativelanguage.googleapis.com",
+      model: "text-embedding-004",
+    },
+    apiKeyRequired: true,
+    createEmbedding: config => {
+      const service = new GoogleEmbeddingService(config);
+      service.initialize();
+      return service;
+    },
+    listEmbeddings: listGeminiEmbeddings,
   });
 }

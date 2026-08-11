@@ -7,6 +7,7 @@ export class OllamaEmbeddingService implements IEmbeddingService {
 
   initialize(): void {
     this.embeddings = new OllamaEmbeddings({
+      ...(this.config.config ?? {}),
       baseUrl: this.config.baseURL ?? "http://localhost:11434",
       model: this.config.model,
     });

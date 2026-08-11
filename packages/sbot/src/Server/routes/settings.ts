@@ -1,7 +1,11 @@
 import express from 'express';
 import { randomUUID } from 'crypto';
 import { setMaxImageSize } from 'scorpio.ai';
-import { llmProviderRegistry, type ModelConfig as LlmModelConfig } from 'scorpio.llm';
+import {
+    llmProviderRegistry,
+    type EmbeddingConfig as LlmEmbeddingConfig,
+    type ModelConfig as LlmModelConfig,
+} from 'scorpio.llm';
 import { config } from '../../Core/Config';
 import { database, parseNotes, type ChannelSessionRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
@@ -57,6 +61,23 @@ export class SettingsRoutes {
                 config: { ...definition.defaults?.config, ...body.config },
             } as LlmModelConfig;
             return llmProviderRegistry.listModels(modelConfig);
+        }));
+
+        app.get('/api/embedding-providers', api(() => llmProviderRegistry.listEmbeddingProviders()));
+
+        app.post('/api/embeddings/available', api(async req => {
+            const body = req.body as Partial<LlmEmbeddingConfig>;
+            if (!body.provider) throwBad('provider is required');
+            const definition = llmProviderRegistry.getEmbeddingProvider(body.provider);
+            if (!definition) throwBad(`Unknown embedding provider: ${body.provider}`);
+            if (definition.apiKeyRequired && !body.apiKey) throwBad('apiKey is required');
+
+            const embeddingConfig = {
+                ...definition.defaults,
+                ...body,
+                config: { ...definition.defaults?.config, ...body.config },
+            } as LlmEmbeddingConfig;
+            return llmProviderRegistry.listEmbeddings(embeddingConfig);
         }));
 
         const getSettings = () => ctx.settingsWithAgents();

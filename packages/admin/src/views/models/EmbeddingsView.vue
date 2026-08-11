@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
@@ -7,6 +7,7 @@ import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPag
 import type { STableColumn } from 'sbot-ui'
 import { EmbeddingProvider } from '@/shared/types'
 import type { EmbeddingConfig } from '@/shared/types'
+import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import ResourceRefs from '@/components/ResourceRefs.vue'
 import { useResourceRefs } from '@/composables/useResourceRefs'
 
@@ -35,19 +36,93 @@ const refs = makeResourceRefs({
 })
 const expandedIds = ref<string[]>([])
 
-const providerDefaults: Record<string, { baseURL: string; apiKey: string; model: string }> = {
-  [EmbeddingProvider.OpenAI]:   { baseURL: 'https://api.openai.com/v1',   apiKey: 'sk-...',  model: 'text-embedding-ada-002' },
-  [EmbeddingProvider.Ollama]:   { baseURL: 'http://localhost:11434',       apiKey: '',         model: 'nomic-embed-text' },
-  [EmbeddingProvider.Gemini]:   { baseURL: 'https://generativelanguage.googleapis.com', apiKey: 'AIza...', model: 'text-embedding-004' },
-  [EmbeddingProvider.VoyageAI]: { baseURL: 'https://api.voyageai.com/v1', apiKey: 'pa-...',   model: 'voyage-3' },
-  [EmbeddingProvider.Cohere]:   { baseURL: 'https://api.cohere.com/v2',   apiKey: 'sk-...',   model: 'embed-v4.0' },
+interface ProviderField {
+  label: string
+  type: 'string' | 'textarea' | 'password' | 'boolean' | 'number' | 'select'
+  required?: boolean
+  description?: string
+  default?: string | boolean | number
+  options?: Array<{ label: string; value: string }>
+  showWhen?: ShowWhen
 }
 
-const defaults = computed(() => providerDefaults[form.value.provider] || providerDefaults[EmbeddingProvider.OpenAI])
-const isOllama = computed(() => form.value.provider === EmbeddingProvider.Ollama)
-const isGemini = computed(() => form.value.provider === EmbeddingProvider.Gemini)
+interface EmbeddingProviderDefinition {
+  type: string
+  label: string
+  configSchema: Record<string, ProviderField>
+  defaults?: { baseURL?: string; model?: string; config?: Record<string, any> }
+  baseURLEnabled?: boolean
+  apiKeyEnabled?: boolean
+  apiKeyRequired?: boolean
+  supportsModelListing: boolean
+}
 
-const canPick = computed(() => isGemini.value || isOllama.value || !!form.value.baseURL)
+const providers = ref<EmbeddingProviderDefinition[]>([])
+const showModal = ref(false)
+const editingName = ref<string | null>(null)
+const showApiKey = ref(false)
+const privateFieldVisible = ref<Record<string, boolean>>({})
+const form = ref<EmbeddingConfig>({
+  name: '', provider: EmbeddingProvider.OpenAI, baseURL: '', apiKey: '', model: '', config: {},
+})
+
+const currentProvider = computed(() => providers.value.find(provider => provider.type === form.value.provider))
+const providerOptions = computed<EmbeddingProviderDefinition[]>(() => {
+  const options = providers.value.length > 0
+    ? [...providers.value]
+    : Object.values(EmbeddingProvider).map(type => ({ type, label: type, configSchema: {}, supportsModelListing: false }))
+  if (form.value.provider && !options.some(provider => provider.type === form.value.provider)) {
+    options.push({ type: form.value.provider, label: form.value.provider, configSchema: {}, supportsModelListing: false })
+  }
+  return options
+})
+const currentSchema = computed(() => currentProvider.value?.configSchema ?? {})
+const providerConfig = computed<Record<string, any>>({
+  get: () => form.value.config ?? {},
+  set: value => { form.value.config = value },
+})
+const visibleSchemaEntries = computed(() =>
+  Object.entries(currentSchema.value).filter(([, field]) => isConfigFieldVisible(field, form.value.config)),
+)
+const baseURLEnabled = computed(() => currentProvider.value?.baseURLEnabled !== false)
+const apiKeyEnabled = computed(() => currentProvider.value?.apiKeyEnabled !== false)
+const apiKeyRequired = computed(() => currentProvider.value?.apiKeyRequired ?? form.value.provider !== EmbeddingProvider.Ollama)
+const providerBaseURL = computed(() => currentProvider.value?.defaults?.baseURL ?? '')
+const providerModel = computed(() => currentProvider.value?.defaults?.model ?? '')
+const canPick = computed(() => {
+  if (!currentProvider.value?.supportsModelListing) return false
+  if (!form.value.baseURL) return false
+  return !apiKeyRequired.value || !!form.value.apiKey
+})
+
+onMounted(() => { void loadProviders() })
+
+async function loadProviders() {
+  try {
+    const res = await apiFetch('/api/embedding-providers')
+    providers.value = res.data as EmbeddingProviderDefinition[]
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+function defaultPrivateConfig(provider = currentProvider.value): Record<string, any> {
+  const result = { ...(provider?.defaults?.config ?? {}) }
+  for (const [key, field] of Object.entries(provider?.configSchema ?? {})) {
+    if (result[key] === undefined && field.default !== undefined) result[key] = field.default
+  }
+  return result
+}
+
+function onProviderChange() {
+  const provider = currentProvider.value
+  form.value.baseURL = provider?.defaults?.baseURL ?? ''
+  form.value.model = provider?.defaults?.model ?? ''
+  form.value.apiKey = ''
+  form.value.config = defaultPrivateConfig(provider)
+  showApiKey.value = false
+  privateFieldVisible.value = {}
+}
 
 const showPicker    = ref(false)
 const pickerLoading = ref(false)
@@ -63,11 +138,11 @@ async function openPicker() {
   pickerFilter.value  = ''
   showPicker.value    = true
   try {
-    const provider = form.value.provider as string
-    const res = await apiFetch('/api/models/available', 'POST', {
+    const res = await apiFetch('/api/embeddings/available', 'POST', {
       baseURL:  form.value.baseURL,
       apiKey:   form.value.apiKey,
-      provider,
+      provider: form.value.provider,
+      config:   form.value.config,
     })
     pickerModels.value = res.data as string[]
   } catch (e: any) {
@@ -83,22 +158,24 @@ function pickModel(m: string) {
   showPicker.value = false
 }
 
-const showModal   = ref(false)
-const editingName = ref<string | null>(null)
-const showApiKey  = ref(false)
-const form = ref<EmbeddingConfig>({
-  name: '', provider: EmbeddingProvider.OpenAI, baseURL: '', apiKey: '', model: '',
-})
-
 function openAdd() {
   editingName.value = null
   showApiKey.value  = false
-  form.value = { name: '', provider: EmbeddingProvider.OpenAI, baseURL: '', apiKey: '', model: '' }
+  const provider = providers.value.find(item => item.type === EmbeddingProvider.OpenAI) ?? providers.value[0]
+  form.value = {
+    name: '',
+    provider: provider?.type ?? EmbeddingProvider.OpenAI,
+    baseURL: provider?.defaults?.baseURL ?? '',
+    apiKey: '',
+    model: provider?.defaults?.model ?? '',
+    config: defaultPrivateConfig(provider),
+  }
   showModal.value = true
 }
 
 function openEdit(id: string) {
   const e = embeddings.value[id]
+  const provider = providers.value.find(item => item.type === e.provider)
   editingName.value = id
   showApiKey.value  = false
   form.value = {
@@ -107,16 +184,38 @@ function openEdit(id: string) {
     baseURL: e.baseURL,
     apiKey: e.apiKey,
     model: e.model,
+    config: { ...defaultPrivateConfig(provider), ...(e.config ?? {}) },
   }
   showModal.value = true
 }
 
 async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
-  if (!isOllama.value && !form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
+  if (apiKeyRequired.value && !form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
   if (!form.value.model.trim()) { show(t('common.model_required'), 'error'); return }
+  for (const [key, field] of visibleSchemaEntries.value) {
+    const value = form.value.config?.[key]
+    if (field.required && (value === undefined || value === null || value === '')) {
+      show(`${field.label} is required`, 'error')
+      return
+    }
+  }
   try {
-    const body = { ...form.value }
+    const body: any = { ...form.value }
+    if (!baseURLEnabled.value) delete body.baseURL
+    if (!apiKeyEnabled.value) body.apiKey = ''
+    if (currentProvider.value) {
+      const providerConfig: Record<string, any> = {}
+      for (const [key, field] of Object.entries(currentSchema.value)) {
+        if (!isConfigFieldVisible(field, body.config)) continue
+        const value = body.config?.[key]
+        if (value !== undefined && value !== null && value !== '') providerConfig[key] = value
+      }
+      if (Object.keys(providerConfig).length > 0) body.config = providerConfig
+      else delete body.config
+    } else if (!body.config || Object.keys(body.config).length === 0) {
+      delete body.config
+    }
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/embeddings/${encodeURIComponent(id)}`, 'PUT', body)
@@ -188,16 +287,16 @@ async function refresh() {
         <SInput v-model="form.name" :placeholder="t('embeddings.name_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('common.provider') + ' *'">
-        <SSelect v-model="form.provider">
-          <option v-for="p in Object.values(EmbeddingProvider)" :key="p" :value="p">{{ p }}</option>
+        <SSelect v-model="form.provider" @change="onProviderChange">
+          <option v-for="provider in providerOptions" :key="provider.type" :value="provider.type">{{ provider.label }}</option>
         </SSelect>
       </SFormItem>
-      <SFormItem :label="t('common.base_url')">
-        <SInput v-model="form.baseURL" :placeholder="defaults.baseURL" />
+      <SFormItem v-if="baseURLEnabled" :label="t('common.base_url')">
+        <SInput v-model="form.baseURL" :placeholder="providerBaseURL" />
       </SFormItem>
-      <SFormItem v-if="!isOllama" :label="t('common.api_key') + ' *'">
+      <SFormItem v-if="apiKeyEnabled" :label="t('common.api_key') + (apiKeyRequired ? ' *' : '')">
         <div class="apikey-field">
-          <SInput v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="defaults.apiKey" class="apikey-input" />
+          <SInput v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="API Key" class="apikey-input" />
           <SButton type="outline" size="sm" class="apikey-toggle" @click="showApiKey = !showApiKey">
             {{ showApiKey ? t('common.hide') : t('common.show') }}
           </SButton>
@@ -205,10 +304,31 @@ async function refresh() {
       </SFormItem>
       <SFormItem :label="t('common.model') + ' *'">
         <div class="model-field">
-          <SInput v-model="form.model" :placeholder="defaults.model" class="model-input" />
+          <SInput v-model="form.model" :placeholder="providerModel" class="model-input" />
           <SButton type="outline" size="sm" class="model-pick-btn" :disabled="!canPick" @click="openPicker">{{ t('models.pick') }}</SButton>
         </div>
       </SFormItem>
+      <template v-for="[key, field] in visibleSchemaEntries" :key="key">
+        <SFormItem :label="field.label + (field.required ? ' *' : '')">
+          <SSelect v-if="field.type === 'select'" v-model="providerConfig[key]">
+            <option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </SSelect>
+          <label v-else-if="field.type === 'boolean'" class="checkbox-label">
+            <input v-model="providerConfig[key]" type="checkbox" />
+            {{ field.description || '' }}
+          </label>
+          <SInput v-else-if="field.type === 'number'" v-model.number="providerConfig[key]" type="number" :placeholder="field.description || ''" />
+          <div v-else-if="field.type === 'password'" class="apikey-field">
+            <SInput v-model="providerConfig[key]" :type="privateFieldVisible[key] ? 'text' : 'password'" :placeholder="field.description || ''" class="apikey-input" />
+            <SButton type="outline" size="sm" @click="privateFieldVisible[key] = !privateFieldVisible[key]">
+              {{ privateFieldVisible[key] ? t('common.hide') : t('common.show') }}
+            </SButton>
+          </div>
+          <SInput v-else-if="field.type === 'textarea'" v-model="providerConfig[key]" multiline :placeholder="field.description || ''" />
+          <SInput v-else v-model="providerConfig[key]" :placeholder="field.description || ''" />
+          <template v-if="field.type !== 'boolean' && field.description" #hint>{{ field.description }}</template>
+        </SFormItem>
+      </template>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
         <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
@@ -247,6 +367,12 @@ async function refresh() {
 }
 .apikey-input, .model-input {
   flex: 1;
+}
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  cursor: pointer;
 }
 .picker-filter-bar {
   display: flex;

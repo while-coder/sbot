@@ -8,6 +8,7 @@ export class VoyageAIEmbeddingService implements IEmbeddingService {
   initialize(): void {
     if (!this.config.apiKey) throw new Error("Embedding config missing apiKey");
     this.embeddings = new OpenAIEmbeddings({
+      ...(this.config.config ?? {}),
       modelName: this.config.model || "voyage-3",
       openAIApiKey: this.config.apiKey,
       configuration: { baseURL: this.config.baseURL || "https://api.voyageai.com/v1" },

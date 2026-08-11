@@ -57,18 +57,43 @@ export interface ModelProviderMetadata {
   supportsModelListing: boolean;
 }
 
+export type EmbeddingProviderDefaults = ModelProviderDefaults;
+
+export interface EmbeddingProviderDefinition {
+  type: string;
+  label: string;
+  configSchema: Record<string, LlmConfigField>;
+  defaults?: EmbeddingProviderDefaults;
+  baseURLEnabled?: boolean;
+  apiKeyEnabled?: boolean;
+  apiKeyRequired?: boolean;
+  createEmbedding: EmbeddingServiceFactory;
+  listEmbeddings?: (config: EmbeddingConfig) => Promise<string[]>;
+}
+
+export interface EmbeddingProviderMetadata {
+  type: string;
+  label: string;
+  configSchema: Record<string, LlmConfigField>;
+  defaults?: EmbeddingProviderDefaults;
+  baseURLEnabled?: boolean;
+  apiKeyEnabled?: boolean;
+  apiKeyRequired?: boolean;
+  supportsModelListing: boolean;
+}
+
 export class LlmProviderRegistry {
   private readonly modelProviders = new Map<string, ModelProviderDefinition>();
-  private readonly embeddingFactories = new Map<string, EmbeddingServiceFactory>();
+  private readonly embeddingProviders = new Map<string, EmbeddingProviderDefinition>();
 
   registerModel(definition: ModelProviderDefinition): void {
     if (this.modelProviders.has(definition.type)) throw new Error(`Model provider already registered: ${definition.type}`);
     this.modelProviders.set(definition.type, definition);
   }
 
-  registerEmbedding(provider: string, factory: EmbeddingServiceFactory): void {
-    if (this.embeddingFactories.has(provider)) throw new Error(`Embedding provider already registered: ${provider}`);
-    this.embeddingFactories.set(provider, factory);
+  registerEmbedding(definition: EmbeddingProviderDefinition): void {
+    if (this.embeddingProviders.has(definition.type)) throw new Error(`Embedding provider already registered: ${definition.type}`);
+    this.embeddingProviders.set(definition.type, definition);
   }
 
   createModel(config: ModelConfig): IModelService {
@@ -101,9 +126,33 @@ export class LlmProviderRegistry {
   }
 
   createEmbedding(config: EmbeddingConfig): IEmbeddingService {
-    const factory = this.embeddingFactories.get(config.provider) ?? this.embeddingFactories.get(EmbeddingProvider.OpenAI);
-    if (!factory) throw new Error(`Embedding provider is not registered: ${config.provider}`);
-    return factory(config);
+    const definition = this.embeddingProviders.get(config.provider) ?? this.embeddingProviders.get(EmbeddingProvider.OpenAI);
+    if (!definition) throw new Error(`Embedding provider is not registered: ${config.provider}`);
+    return definition.createEmbedding(config);
+  }
+
+  getEmbeddingProvider(provider: string): EmbeddingProviderDefinition | undefined {
+    return this.embeddingProviders.get(provider);
+  }
+
+  listEmbeddingProviders(): EmbeddingProviderMetadata[] {
+    return [...this.embeddingProviders.values()].map(definition => ({
+      type: definition.type,
+      label: definition.label,
+      configSchema: definition.configSchema,
+      defaults: definition.defaults,
+      baseURLEnabled: definition.baseURLEnabled,
+      apiKeyEnabled: definition.apiKeyEnabled,
+      apiKeyRequired: definition.apiKeyRequired,
+      supportsModelListing: definition.listEmbeddings != null,
+    }));
+  }
+
+  async listEmbeddings(config: EmbeddingConfig): Promise<string[]> {
+    const definition = this.embeddingProviders.get(config.provider);
+    if (!definition) throw new Error(`Embedding provider is not registered: ${config.provider}`);
+    if (!definition.listEmbeddings) return [];
+    return definition.listEmbeddings(config);
   }
 }
 

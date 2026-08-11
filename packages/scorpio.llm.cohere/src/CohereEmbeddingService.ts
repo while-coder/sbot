@@ -8,6 +8,7 @@ export class CohereEmbeddingService implements IEmbeddingService {
   initialize(): void {
     if (!this.config.apiKey) throw new Error("Embedding config missing apiKey");
     this.embeddings = new CohereEmbeddings({
+      ...(this.config.config ?? {}),
       model: this.config.model || "embed-v4.0",
       apiKey: this.config.apiKey,
     });
