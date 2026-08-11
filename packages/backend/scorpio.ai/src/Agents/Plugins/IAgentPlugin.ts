@@ -1,6 +1,6 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import type { ILogger } from "../../Logger";
-import type { ChatMessage, IAgentSaverService } from "../../Saver";
+import type { ChatMessage, IAgentSaverService } from "scorpio.saver";
 
 /**
  * Agent 能力插件的运行上下文。每次 stream 构造一份，不跨轮复用。

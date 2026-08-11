@@ -1,8 +1,7 @@
 import type * as schema from "@agentclientprotocol/sdk";
 import { inject } from "../../Core";
-import { IAgentSaverService } from "../../Saver";
+import { IAgentSaverService, type MessageContent } from "scorpio.saver";
 import { ILoggerService } from "../../Logger";
-import type { MessageContent } from "../../Saver/IAgentSaverService";
 import { ACPAgentServiceBase, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath, T_ACPInitTimeout } from "./ACPAgentServiceBase";
 
 export class TransientACPAgentService extends ACPAgentServiceBase {

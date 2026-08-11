@@ -1,9 +1,3 @@
-/**
- * Agent Saver 模块
- * 提供对话历史持久化服务
- */
-
-// ===== 接口 + Symbol Token + 中性类型 =====
 export {
     IAgentSaverService,
     MessageRole,
@@ -20,16 +14,18 @@ export {
     type TokenUsage,
 } from "./IAgentSaverService";
 
-// ===== LangChain 转换（仅在 Agent 执行层需要） =====
 export { toChatMessage, toBaseMessage, toBaseMessages } from "scorpio.llm";
 export { estimateTextTokens, estimateMessageTokens, estimateMessagesTokens } from "./messageSerializer";
-
-// ===== 实现类 =====
 export { AgentMemorySaver } from "./AgentMemorySaver";
-export { AgentFileSaver } from "./AgentFileSaver";
-export { AgentSqliteSaver } from "./AgentSqliteSaver";
-export { AgentPostgresSaver } from "./AgentPostgresSaver";
 export { TaskBackedSaver } from "./TaskBackedSaver";
-
-// ===== Compact =====
-export { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "./ConversationCompactor";
+export {
+    SaverProviderRegistry,
+    saverProviderRegistry,
+    registerMemorySaverProvider,
+    formatSaverError,
+    type SaverLogger,
+    type SaverLoggerService,
+    type SaverCreateContext,
+    type SaverProviderDefinition,
+    type SaverProviderMetadata,
+} from "./registry";

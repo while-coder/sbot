@@ -1,4 +1,4 @@
-import { ContentPartType, type AttachmentInput, type ContentPart, type MessageContent } from "../Saver/IAgentSaverService";
+import { ContentPartType, type AttachmentInput, type ContentPart, type MessageContent } from "scorpio.saver";
 
 type TextPart = Extract<ContentPart, { type: typeof ContentPartType.Text }>;
 const isTextPart = (p: ContentPart): p is TextPart => p.type === ContentPartType.Text;

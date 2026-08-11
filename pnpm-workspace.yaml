@@ -2,6 +2,7 @@ packages:
   - packages/apps/*
   - packages/backend/*
   - packages/backend/llm/*
+  - packages/backend/saver/*
   - packages/backend/plugins/*
   - packages/backend/plugins/agent/*
   - packages/backend/plugins/channel/*

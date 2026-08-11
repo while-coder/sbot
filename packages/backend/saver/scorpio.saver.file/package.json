@@ -1,0 +1,19 @@
+{
+  "name": "scorpio.saver.file",
+  "version": "0.0.1",
+  "description": "JSON file provider for scorpio.saver",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "scorpio.saver": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

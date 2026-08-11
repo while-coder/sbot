@@ -1,13 +1,9 @@
 import {
     IAgentSaverService,
-    AgentFileSaver,
-    AgentSqliteSaver,
-    AgentMemorySaver,
-    ServiceContainer,
-    ILoggerService,
-    T_DBPath,
-} from "scorpio.ai";
-import { config, SaverType } from "../Core/Config";
+    saverProviderRegistry,
+    type SaverCreateContext,
+} from "scorpio.saver";
+import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { channelDataService } from "../Session/ChannelDataService";
 
@@ -21,11 +17,11 @@ export interface PooledSaver {
 interface PoolEntry {
     instance: IAgentSaverService;
     refCount: number;
-    dbPath: string;
+    poolKey: string;
 }
 
-// 同一存储位置（dbPath）只持有一个 IAgentSaverService 实例，避免多句柄并发访问同一文件/DB；
-// 引用计数归零时立即 dispose。Memory 类型不进 pool，每次 acquire 都新建。
+// 同一 Provider 存储位置只持有一个实例，避免多句柄并发访问同一文件/DB；
+// 引用计数归零时立即 dispose。非 pooled Provider 每次 acquire 都新建。
 export class SaverPool {
     private static inst: SaverPool;
     private readonly pool = new Map<string, PoolEntry>();
@@ -41,26 +37,43 @@ export class SaverPool {
             throw new Error(`Saver "${saverId}" not configured`);
         }
 
-        if (saverConfig.type === SaverType.Memory) {
-            const instance = await this.buildSaver(SaverType.Memory);
+        const provider = saverProviderRegistry.get(saverConfig.type);
+        if (!provider) {
+            throw new Error(`Saver provider is not registered: ${saverConfig.type}`);
+        }
+
+        const storagePath = provider.fileExtension
+            ? config.getSaverDBPath(saverId, threadId, provider.fileExtension)
+            : undefined;
+        const context: SaverCreateContext = {
+            saverId,
+            threadId,
+            storagePath,
+            config: saverConfig.config ?? {},
+            loggerService: { getLogger: name => LoggerService.getLogger(name) },
+        };
+
+        if (!provider.pooled) {
+            const instance = await provider.create(context);
             return {
                 saver: instance,
                 release: () => instance.dispose(),
             };
         }
 
-        const ext = saverConfig.type === SaverType.File ? '.json' : '.db';
-        const dbPath = config.getSaverDBPath(saverId, threadId, ext);
+        const poolKey = provider.getPoolKey?.(context)
+            ?? storagePath
+            ?? `${saverConfig.type}:${saverId}:${threadId}`;
 
-        const existing = this.pool.get(dbPath);
+        const existing = this.pool.get(poolKey);
         if (existing) {
             existing.refCount++;
             return this.makeHandle(existing);
         }
 
-        const instance = await this.buildSaver(saverConfig.type, dbPath);
-        const entry: PoolEntry = { instance, refCount: 1, dbPath };
-        this.pool.set(dbPath, entry);
+        const instance = await provider.create(context);
+        const entry: PoolEntry = { instance, refCount: 1, poolKey };
+        this.pool.set(poolKey, entry);
         return this.makeHandle(entry);
     }
 
@@ -74,19 +87,6 @@ export class SaverPool {
         return this.acquire(saverId, threadId);
     }
 
-    private async buildSaver(type: SaverType, dbPath?: string): Promise<IAgentSaverService> {
-        const sub = new ServiceContainer();
-        sub.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
-        if (type === SaverType.Memory) {
-            sub.registerSingleton(IAgentSaverService, AgentMemorySaver);
-        } else if (type === SaverType.File) {
-            sub.registerWithArgs(IAgentSaverService, AgentFileSaver, { [T_DBPath]: dbPath });
-        } else {
-            sub.registerWithArgs(IAgentSaverService, AgentSqliteSaver, { [T_DBPath]: dbPath });
-        }
-        return sub.resolve<IAgentSaverService>(IAgentSaverService);
-    }
-
     private makeHandle(entry: PoolEntry): PooledSaver {
         let released = false;
         return {
@@ -96,9 +96,9 @@ export class SaverPool {
                 released = true;
                 entry.refCount--;
                 if (entry.refCount <= 0) {
-                    this.pool.delete(entry.dbPath);
+                    this.pool.delete(entry.poolKey);
                     await entry.instance.dispose().catch(e => {
-                        logger.warn(`Failed to dispose saver ${entry.dbPath}: ${e?.message ?? e}`);
+                        logger.warn(`Failed to dispose saver ${entry.poolKey}: ${e?.message ?? e}`);
                     });
                 }
             },

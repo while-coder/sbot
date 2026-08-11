@@ -2,14 +2,13 @@ import { StateGraph, START, END } from '../../Graph';
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { IModelService } from "../../Model";
-import { IAgentSaverService } from "../../Saver";
-import { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "../../Saver/ConversationCompactor";
+import { IAgentSaverService, ContentPartType, MessageKind, type MessageContent, type ContentPart } from "scorpio.saver";
+import { ConversationCompactor, IConversationCompactor, METADATA_KEY_INPUT_TOKENS } from "../../Conversation";
 import { IAgentToolService } from "../../AgentTool";
 import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, ChatToolCall, MessageRole, type TokenUsage, type OnCreateThinkFn } from "../AgentServiceBase";
 import { IAgentPlugin, AgentPluginPromptKind, type AgentPluginContext, type AgentTurn } from "../Plugins";
-import { ContentPartType, MessageKind, type MessageContent, type ContentPart } from "../../Saver/IAgentSaverService";
 import { contentToString, truncateForLog } from "../../Utils/contentUtils";
 import { v4 as uuidv4 } from "uuid";
 

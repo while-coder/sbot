@@ -1,5 +1,5 @@
 import { ServiceContainer } from "scorpio.di";
-import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, ContentPartType, MessageKind, MessageRole, type MessageContent, type ContentPart, type TokenUsage } from "../Saver";
+import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, ContentPartType, MessageKind, MessageRole, type MessageContent, type ContentPart, type TokenUsage } from "scorpio.saver";
 import { ILoggerService, ILogger } from "../Logger";
 import { resizeImageIfNeeded, detectImageMimeType } from "../Utils/contentUtils";
 import { formatError } from "../Core";

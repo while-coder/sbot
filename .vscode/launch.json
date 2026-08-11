@@ -13,6 +13,7 @@
         "${workspaceFolder}/packages/shared/shared/dist/**/*.js",
         "${workspaceFolder}/packages/backend/scorpio.di/dist/**/*.js",
         "${workspaceFolder}/packages/backend/llm/*/dist/**/*.js",
+        "${workspaceFolder}/packages/backend/saver/*/dist/**/*.js",
         "${workspaceFolder}/packages/backend/scorpio.ai/dist/**/*.js",
         "${workspaceFolder}/packages/backend/plugins/plugin.schema/dist/**/*.js",
         "${workspaceFolder}/packages/backend/plugins/agent/*/dist/**/*.js",

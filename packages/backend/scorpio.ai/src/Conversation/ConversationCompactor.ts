@@ -3,8 +3,7 @@ import { IModelService } from "../Model";
 import { ILoggerService, ILogger } from "../Logger";
 import { T_CompactPromptTemplate, T_PostCompactMessageTemplate, T_PostCompactContinuation } from "../Core/tokens";
 import { T_SummaryModelService } from "../Agents/AgentServiceBase";
-import { ChatMessage, ContentPartType, MessageKind, MessageRole, NewStoredMessage, StoredMessage } from "./IAgentSaverService";
-import { estimateMessageTokens } from "./messageSerializer";
+import { ChatMessage, ContentPartType, MessageKind, MessageRole, NewStoredMessage, StoredMessage, estimateMessageTokens } from "scorpio.saver";
 
 const COMPACT_THRESHOLD = 0.7;
 

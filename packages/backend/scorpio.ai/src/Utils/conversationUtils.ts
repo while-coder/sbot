@@ -1,4 +1,4 @@
-import { type ChatMessage, MessageRole } from "../Saver";
+import { type ChatMessage, MessageRole } from "scorpio.saver";
 import { contentToString } from "./contentUtils";
 
 /**

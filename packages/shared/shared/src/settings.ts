@@ -123,8 +123,10 @@ export interface WikiConfig {
 export interface SaverConfig {
   /** 显示名称 */
   name: string
-  /** 存储类型：file | sqlite | memory */
-  type: SaverType
+  /** Saver Provider 类型；内置 file | sqlite | memory */
+  type: SaverType | string
+  /** Provider 私有配置 */
+  config?: Record<string, unknown>
 }
 
 export interface SubAgentRef {

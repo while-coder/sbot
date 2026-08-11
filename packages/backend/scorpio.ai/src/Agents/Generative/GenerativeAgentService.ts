@@ -1,11 +1,10 @@
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_MaxHistoryRounds } from "../../Core";
 import { MCPContentType } from "../../Tools/Core";
 import { IModelService } from "../../Model";
-import { IAgentSaverService } from "../../Saver";
+import { IAgentSaverService, ContentPartType, type MessageContent } from "scorpio.saver";
 import { ILoggerService } from "../../Logger";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole } from "../AgentServiceBase";
 
-import { ContentPartType, type MessageContent } from "../../Saver/IAgentSaverService";
 
 export { ChatMessage, MessageRole, IAgentCallback, AgentCancelledError } from "../AgentServiceBase";
 

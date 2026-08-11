@@ -8,11 +8,8 @@ import {
     NewStoredMessage,
     ChatMessageOptions,
     MessageKind,
-} from "./IAgentSaverService";
-import { ILoggerService, ILogger } from "../Logger";
-import { formatError } from "../Core";
-import { inject } from "scorpio.di";
-import { T_DBPath } from "../Core/tokens";
+} from "scorpio.saver";
+import { formatSaverError, type SaverLogger, type SaverLoggerService } from "scorpio.saver";
 
 interface TaskEntry {
     messages: StoredMessage[];
@@ -33,13 +30,13 @@ interface ThreadFile {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class AgentFileSaver implements IAgentSaverService {
-    private logger?: ILogger;
+    private logger?: SaverLogger;
     private readonly filePath: string;
     private cache?: ThreadFile;
 
     constructor(
-        @inject(T_DBPath) filePath: string,
-        @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService
+        filePath: string,
+        loggerService?: SaverLoggerService
     ) {
         this.filePath = filePath;
         this.logger = loggerService?.getLogger("AgentFileSaver");
@@ -89,7 +86,7 @@ export class AgentFileSaver implements IAgentSaverService {
                 this.cache.nextId = nextId;
             }
         } catch (error: any) {
-            this.logger?.warn(`读取文件失败: ${formatError(error, true)}`);
+            this.logger?.warn(`读取文件失败: ${formatSaverError(error, true)}`);
             this.cache = { messages: [], thinks: {}, tasks: {}, metadata: {}, nextId: 1 };
         }
         return this.cache!;

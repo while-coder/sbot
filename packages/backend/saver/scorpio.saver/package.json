@@ -1,0 +1,19 @@
+{
+  "name": "scorpio.saver",
+  "version": "0.0.1",
+  "description": "Provider-neutral conversation saver contracts and registry",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "scorpio.llm": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

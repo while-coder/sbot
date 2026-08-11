@@ -1,7 +1,8 @@
 import { type StructuredToolInterface } from "@langchain/core/tools";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { contentToString } from "../../Utils/contentUtils";
-import { IAgentSaverService, TaskBackedSaver, ConversationCompactor, IConversationCompactor, ContentPartType, type MessageContent } from "../../Saver";
+import { IAgentSaverService, TaskBackedSaver, ContentPartType, type MessageContent } from "scorpio.saver";
+import { ConversationCompactor, IConversationCompactor } from "../../Conversation";
 import { ILoggerService } from "../../Logger";
 import { IModelService } from "../../Model";
 import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_CreateAgent, MessageRole, ChatMessage } from "../AgentServiceBase";

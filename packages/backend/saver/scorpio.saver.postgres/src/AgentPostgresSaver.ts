@@ -6,21 +6,18 @@ import {
     NewStoredMessage,
     ChatMessageOptions,
     MessageKind,
-} from "./IAgentSaverService";
-import { ILoggerService, ILogger } from "../Logger";
-import { formatError } from "../Core";
-import { inject } from "scorpio.di";
-import { T_DBUrl, T_DBTable } from "../Core/tokens";
+} from "scorpio.saver";
+import { formatSaverError, type SaverLogger, type SaverLoggerService } from "scorpio.saver";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AgentPostgresSaver
-// messages / thinks 两张表，表名前缀由 T_DBTable 注入
+// messages / thinks 两张表，表名前缀由构造参数传入
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class AgentPostgresSaver implements IAgentSaverService {
     private pool: Pool;
     private setupPromise?: Promise<void>;
-    private logger?: ILogger;
+    private logger?: SaverLogger;
 
     private readonly table: string;
     private get thinksTable() { return `${this.table}_thinks`; }
@@ -29,9 +26,9 @@ export class AgentPostgresSaver implements IAgentSaverService {
     private get taskMetadataTable() { return `${this.table}_task_metadata`; }
 
     constructor(
-        @inject(T_DBTable) table: string,
-        @inject(T_DBUrl) connectionString: string,
-        @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService
+        table: string,
+        connectionString: string,
+        loggerService?: SaverLoggerService
     ) {
         this.table = table;
         this.logger = loggerService?.getLogger("AgentPostgresSaver");
@@ -123,7 +120,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取历史消息失败: ${formatError(error, true)}`);
+            this.logger?.warn(`获取历史消息失败: ${formatSaverError(error, true)}`);
             return [];
         }
     }
@@ -191,7 +188,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 kind: MessageKind.Archive,
             }));
         } catch (error: any) {
-            this.logger?.warn(`Postgres FTS 搜索失败: ${formatError(error, true)}`);
+            this.logger?.warn(`Postgres FTS 搜索失败: ${formatSaverError(error, true)}`);
             return [];
         }
     }
@@ -216,7 +213,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 kind: MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取 think 消息失败: ${formatError(error, true)}`);
+            this.logger?.warn(`获取 think 消息失败: ${formatSaverError(error, true)}`);
             return [];
         }
     }
@@ -263,7 +260,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
                 kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取 task 历史失败: ${formatError(error, true)}`);
+            this.logger?.warn(`获取 task 历史失败: ${formatSaverError(error, true)}`);
             return [];
         }
     }
@@ -343,7 +340,7 @@ export class AgentPostgresSaver implements IAgentSaverService {
         try {
             await this.pool.end();
         } catch (error: any) {
-            this.logger?.error(`AgentPostgresSaver 释放失败: ${formatError(error, true)}`);
+            this.logger?.error(`AgentPostgresSaver 释放失败: ${formatSaverError(error, true)}`);
         }
     }
 }

@@ -2,7 +2,7 @@ import { Command as CommanderCommand } from "commander";
 import { CommandContext, CommandRegistry, ICommand } from "../Command";
 import { AgentCancelledError } from "../Agents/AgentServiceBase";
 import { GlobalLoggerService, ILogger } from "../Logger";
-import { ContentPartType, type MessageContent } from "../Saver/IAgentSaverService";
+import { ContentPartType, type MessageContent } from "scorpio.saver";
 import { formatError } from "../Core";
 
 export enum MessageType { Command = 'command', AI = 'ai' }

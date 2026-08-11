@@ -2,11 +2,10 @@ import { ChildProcess, spawn } from "child_process";
 import { Readable, Writable } from "stream";
 import { ClientSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
 import type * as schema from "@agentclientprotocol/sdk";
-import { IAgentSaverService } from "../../Saver";
+import { IAgentSaverService, type MessageContent } from "scorpio.saver";
 import { ILoggerService } from "../../Logger";
 import { formatError } from "../../Core";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole, ToolApproval } from "../AgentServiceBase";
-import type { MessageContent } from "../../Saver/IAgentSaverService";
 
 import { v4 as uuidv4 } from "uuid";
 

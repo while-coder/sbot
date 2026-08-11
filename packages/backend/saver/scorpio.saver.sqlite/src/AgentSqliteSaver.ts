@@ -8,11 +8,8 @@ import {
     NewStoredMessage,
     ChatMessageOptions,
     MessageKind,
-} from "./IAgentSaverService";
-import { ILoggerService, ILogger } from "../Logger";
-import { formatError } from "../Core";
-import { inject } from "scorpio.di";
-import { T_DBPath } from "../Core/tokens";
+} from "scorpio.saver";
+import { formatSaverError, type SaverLogger, type SaverLoggerService } from "scorpio.saver";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AgentSqliteSaver
@@ -22,11 +19,11 @@ import { T_DBPath } from "../Core/tokens";
 export class AgentSqliteSaver implements IAgentSaverService {
     private _db: Database.Database | undefined;
     private readonly dbPath: string;
-    private logger?: ILogger;
+    private logger?: SaverLogger;
 
     constructor(
-        @inject(T_DBPath) dbPath: string,
-        @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService
+        dbPath: string,
+        loggerService?: SaverLoggerService
     ) {
         this.dbPath = dbPath;
         this.logger = loggerService?.getLogger("AgentSqliteSaver");
@@ -142,7 +139,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取历史消息失败: ${formatError(error, true)}`);
+            this.logger?.warn(`获取历史消息失败: ${formatSaverError(error, true)}`);
             return [];
         }
     }
@@ -190,7 +187,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 kind: MessageKind.Archive,
             }));
         } catch (error: any) {
-            this.logger?.warn(`FTS5 搜索失败: ${formatError(error, true)}`);
+            this.logger?.warn(`FTS5 搜索失败: ${formatSaverError(error, true)}`);
             return [];
         }
     }
@@ -212,7 +209,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 kind: MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取 think 消息失败: ${formatError(error, true)}`);
+            this.logger?.warn(`获取 think 消息失败: ${formatSaverError(error, true)}`);
             return [];
         }
     }
@@ -250,7 +247,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 kind: (r.kind as MessageKind | null) ?? MessageKind.Normal,
             }));
         } catch (error: any) {
-            this.logger?.warn(`获取 task 历史失败: ${formatError(error, true)}`);
+            this.logger?.warn(`获取 task 历史失败: ${formatSaverError(error, true)}`);
             return [];
         }
     }
@@ -304,7 +301,7 @@ export class AgentSqliteSaver implements IAgentSaverService {
         try {
             this._db?.close();
         } catch (error: any) {
-            this.logger?.error(`AgentSqliteSaver 释放失败: ${formatError(error, true)}`);
+            this.logger?.error(`AgentSqliteSaver 释放失败: ${formatSaverError(error, true)}`);
         }
     }
 }

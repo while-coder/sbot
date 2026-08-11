@@ -902,6 +902,82 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  packages/backend/saver/scorpio.saver:
+    dependencies:
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../../llm/scorpio.llm
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/backend/saver/scorpio.saver.file:
+    dependencies:
+      scorpio.saver:
+        specifier: workspace:*
+        version: link:../scorpio.saver
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/backend/saver/scorpio.saver.postgres:
+    dependencies:
+      pg:
+        specifier: ^8.21.0
+        version: 8.21.0
+      scorpio.saver:
+        specifier: workspace:*
+        version: link:../scorpio.saver
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/backend/saver/scorpio.saver.sqlite:
+    dependencies:
+      better-sqlite3:
+        specifier: 'catalog:'
+        version: 12.11.1
+      scorpio.saver:
+        specifier: workspace:*
+        version: link:../scorpio.saver
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: 'catalog:'
+        version: 7.6.13
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/backend/sbot:
     dependencies:
       '@langchain/core':
@@ -1021,6 +1097,15 @@ importers:
       scorpio.llm.voyage:
         specifier: workspace:*
         version: link:../llm/scorpio.llm.voyage
+      scorpio.saver:
+        specifier: workspace:*
+        version: link:../saver/scorpio.saver
+      scorpio.saver.file:
+        specifier: workspace:*
+        version: link:../saver/scorpio.saver.file
+      scorpio.saver.sqlite:
+        specifier: workspace:*
+        version: link:../saver/scorpio.saver.sqlite
       sequelize:
         specifier: ^6.37.8
         version: 6.37.8(sqlite3@6.0.1)
@@ -1098,9 +1183,6 @@ importers:
       cron:
         specifier: 'catalog:'
         version: 4.4.0
-      pg:
-        specifier: ^8.21.0
-        version: 8.21.0
       reflect-metadata:
         specifier: 'catalog:'
         version: 0.2.2
@@ -1110,6 +1192,9 @@ importers:
       scorpio.llm:
         specifier: workspace:*
         version: link:../llm/scorpio.llm
+      scorpio.saver:
+        specifier: workspace:*
+        version: link:../saver/scorpio.saver
       sharp:
         specifier: ^0.35.1
         version: 0.35.1
@@ -1126,9 +1211,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.3
-      '@types/pg':
-        specifier: ^8.20.0
-        version: 8.20.0
       '@types/uuid':
         specifier: 'catalog:'
         version: 11.0.0

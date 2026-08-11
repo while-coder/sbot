@@ -1,0 +1,21 @@
+{
+  "name": "scorpio.saver.sqlite",
+  "version": "0.0.1",
+  "description": "SQLite provider for scorpio.saver",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "better-sqlite3": "catalog:",
+    "scorpio.saver": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/better-sqlite3": "catalog:",
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}
