@@ -14,22 +14,8 @@ export enum ModelProvider {
   GeminiImage = "gemini-image",
 }
 
-export interface ThinkingConfig {
-  type: "adaptive" | "enabled" | "disabled";
-  budget_tokens?: number;
-}
-
-export interface AnthropicConfig {
-  thinking?: ThinkingConfig;
-  promptCaching?: boolean;
-}
-
-export interface GeminiConfig {
-  apiVersion?: string;
-}
-
 export interface ModelConfig {
-  provider: ModelProvider;
+  provider: ModelProvider | string;
   apiKey: string;
   baseURL: string;
   model: string;
@@ -37,8 +23,8 @@ export interface ModelConfig {
   maxTokens?: number;
   contextWindow?: number;
   maxTools?: number;
-  anthropic?: AnthropicConfig;
-  gemini?: GeminiConfig;
+  /** Provider 私有参数，由对应 provider 的 configSchema 定义。 */
+  config?: Record<string, any>;
 }
 
 export interface ModelInvokeOptions {

@@ -822,6 +822,9 @@ importers:
       scorpio.di:
         specifier: workspace:*
         version: link:../scorpio.di
+      scorpio.llm:
+        specifier: workspace:*
+        version: link:../scorpio.llm
       scorpio.llm.anthropic:
         specifier: workspace:*
         version: link:../scorpio.llm.anthropic

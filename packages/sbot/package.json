@@ -70,6 +70,7 @@
     "wiki.gdrive": "workspace:*",
     "scorpio.ai": "workspace:*",
     "scorpio.di": "workspace:*",
+    "scorpio.llm": "workspace:*",
     "scorpio.llm.anthropic": "workspace:*",
     "scorpio.llm.cohere": "workspace:*",
     "scorpio.llm.gemini": "workspace:*",

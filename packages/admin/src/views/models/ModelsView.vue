@@ -7,6 +7,7 @@ import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPag
 import type { STableColumn } from 'sbot-ui'
 import { ModelProvider } from '@/shared/types'
 import type { ModelConfig } from '@/shared/types'
+import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import ResourceRefs from '@/components/ResourceRefs.vue'
 import { useResourceRefs } from '@/composables/useResourceRefs'
 
@@ -27,6 +28,27 @@ const modelColumns = computed<STableColumn[]>(() => [
 ])
 
 const { loadProfiles, makeResourceRefs } = useResourceRefs()
+interface ProviderField {
+  label: string
+  type: 'string' | 'textarea' | 'password' | 'boolean' | 'number' | 'select'
+  required?: boolean
+  description?: string
+  default?: string | boolean | number
+  options?: Array<{ label: string; value: string }>
+  showWhen?: ShowWhen
+}
+
+interface ModelProviderDefinition {
+  type: string
+  label: string
+  configSchema: Record<string, ProviderField>
+  defaults?: { baseURL?: string; model?: string; config?: Record<string, any> }
+  apiKeyEnabled?: boolean
+  apiKeyRequired?: boolean
+  supportsModelListing: boolean
+}
+
+const providers = ref<ModelProviderDefinition[]>([])
 const refs = makeResourceRefs({
   channel: (c, id) => c.intentModel === id,
   profile: (p, id) => p.intentModel === id,
@@ -36,41 +58,72 @@ const refs = makeResourceRefs({
   agendaProfile: (p, id) => p.syncModel === id,
 })
 const expandedIds = ref<string[]>([])
-onMounted(loadProfiles)
+onMounted(() => {
+  void loadProfiles()
+  void loadProviders()
+})
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
+const privateFieldVisible = ref<Record<string, boolean>>({})
 const form = ref<ModelConfig>({
-  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined,
+  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined, config: {},
 })
 
-const isOllama     = computed(() => form.value.provider === ModelProvider.Ollama)
-const isAnthropic  = computed(() => form.value.provider === ModelProvider.Anthropic)
-const isGemini     = computed(() => form.value.provider === ModelProvider.Gemini || form.value.provider === ModelProvider.GeminiImage)
+const currentProvider = computed(() => providers.value.find(provider => provider.type === form.value.provider))
+const providerOptions = computed<ModelProviderDefinition[]>(() => {
+  const options = providers.value.length > 0
+    ? [...providers.value]
+    : Object.values(ModelProvider).map(type => ({ type, label: type, configSchema: {}, supportsModelListing: false }))
+  if (form.value.provider && !options.some(provider => provider.type === form.value.provider)) {
+    options.push({ type: form.value.provider, label: form.value.provider, configSchema: {}, supportsModelListing: false })
+  }
+  return options
+})
+const currentSchema = computed(() => currentProvider.value?.configSchema ?? {})
+const providerConfig = computed<Record<string, any>>({
+  get: () => form.value.config ?? {},
+  set: value => { form.value.config = value },
+})
+const visibleSchemaEntries = computed(() =>
+  Object.entries(currentSchema.value).filter(([, field]) => isConfigFieldVisible(field, form.value.config)),
+)
+const apiKeyEnabled = computed(() => currentProvider.value?.apiKeyEnabled !== false)
+const apiKeyRequired = computed(() => currentProvider.value?.apiKeyRequired ?? form.value.provider !== ModelProvider.Ollama)
+const providerBaseURL = computed(() => currentProvider.value?.defaults?.baseURL ?? '')
+const canPickModels = computed(() => {
+  if (!currentProvider.value?.supportsModelListing) return false
+  if (!form.value.baseURL) return false
+  return !apiKeyRequired.value || !!form.value.apiKey
+})
 
-const thinkingType = computed({
-  get: () => form.value.anthropic?.thinking?.type ?? '',
-  set: (v: string) => {
-    if (!v) { form.value.anthropic = { ...form.value.anthropic, thinking: undefined }; return }
-    form.value.anthropic = {
-      ...form.value.anthropic,
-      thinking: { type: v as any, ...(v === 'enabled' ? { budget_tokens: form.value.anthropic?.thinking?.budget_tokens ?? 8192 } : {}) },
-    }
-  },
-})
-const thinkingBudget = computed({
-  get: () => form.value.anthropic?.thinking?.budget_tokens,
-  set: (v: number | undefined) => { if (form.value.anthropic?.thinking) form.value.anthropic.thinking.budget_tokens = v },
-})
-const promptCaching = computed({
-  get: () => form.value.anthropic?.promptCaching ?? false,
-  set: (v: boolean) => { form.value.anthropic = { ...form.value.anthropic, promptCaching: v || undefined } },
-})
-const geminiApiVersion = computed({
-  get: () => form.value.gemini?.apiVersion ?? '',
-  set: (v: string) => { form.value.gemini = { ...form.value.gemini, apiVersion: v || undefined } },
-})
+async function loadProviders() {
+  try {
+    const res = await apiFetch('/api/llm-providers')
+    providers.value = res.data as ModelProviderDefinition[]
+  } catch (e: any) {
+    show(e.message, 'error')
+  }
+}
+
+function defaultPrivateConfig(provider = currentProvider.value): Record<string, any> {
+  const result = { ...(provider?.defaults?.config ?? {}) }
+  for (const [key, field] of Object.entries(provider?.configSchema ?? {})) {
+    if (result[key] === undefined && field.default !== undefined) result[key] = field.default
+  }
+  return result
+}
+
+function onProviderChange() {
+  const provider = currentProvider.value
+  form.value.baseURL = provider?.defaults?.baseURL ?? ''
+  form.value.model = provider?.defaults?.model ?? ''
+  form.value.apiKey = ''
+  form.value.config = defaultPrivateConfig(provider)
+  showApiKey.value = false
+  privateFieldVisible.value = {}
+}
 
 const showPicker    = ref(false)
 const pickerLoading = ref(false)
@@ -90,6 +143,7 @@ async function openPicker() {
       baseURL:  form.value.baseURL,
       apiKey:   form.value.apiKey,
       provider: form.value.provider,
+      config:   form.value.config,
     })
     pickerModels.value = res.data as string[]
   } catch (e: any) {
@@ -108,12 +162,25 @@ function pickModel(m: string) {
 function openAdd() {
   editingName.value = null
   showApiKey.value  = false
-  form.value = { name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined }
+  const provider = providers.value.find(item => item.type === ModelProvider.OpenAI) ?? providers.value[0]
+  form.value = {
+    name: '',
+    provider: provider?.type ?? ModelProvider.OpenAI,
+    baseURL: provider?.defaults?.baseURL ?? '',
+    apiKey: '',
+    model: provider?.defaults?.model ?? '',
+    temperature: undefined,
+    maxTokens: undefined,
+    contextWindow: undefined,
+    maxTools: undefined,
+    config: defaultPrivateConfig(provider),
+  }
   showModal.value = true
 }
 
 function openEdit(id: string) {
   const m = models.value[id]
+  const provider = providers.value.find(item => item.type === m.provider)
   editingName.value = id
   showApiKey.value  = false
   form.value = {
@@ -126,8 +193,7 @@ function openEdit(id: string) {
     maxTokens: m.maxTokens,
     contextWindow: m.contextWindow,
     maxTools: m.maxTools,
-    anthropic: m.anthropic ? { ...m.anthropic } : undefined,
-    gemini: m.gemini ? { ...m.gemini } : undefined,
+    config: { ...defaultPrivateConfig(provider), ...(m.config ?? {}) },
   }
   showModal.value = true
 }
@@ -135,23 +201,32 @@ function openEdit(id: string) {
 async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
   if (!form.value.baseURL.trim()) { show(t('common.base_url_required'), 'error'); return }
-  if (!isOllama.value && !form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
+  if (apiKeyRequired.value && !form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
   if (!form.value.model.trim()) { show(t('common.model_required'), 'error'); return }
+  for (const [key, field] of visibleSchemaEntries.value) {
+    const value = form.value.config?.[key]
+    if (field.required && (value === undefined || value === null || value === '')) {
+      show(`${field.label} is required`, 'error')
+      return
+    }
+  }
   try {
     const body: any = { ...form.value }
     if (body.temperature === undefined || body.temperature === null) delete body.temperature
     if (body.maxTokens === undefined || body.maxTokens === null) delete body.maxTokens
     if (body.contextWindow === undefined || body.contextWindow === null) delete body.contextWindow
     if (body.maxTools === undefined || body.maxTools === null) delete body.maxTools
-    if (body.anthropic) {
-      if (!body.anthropic.thinking) delete body.anthropic.thinking
-      else if (body.anthropic.thinking.type !== 'enabled') delete body.anthropic.thinking.budget_tokens
-      if (!body.anthropic.promptCaching) delete body.anthropic.promptCaching
-      if (!Object.keys(body.anthropic).length) delete body.anthropic
-    }
-    if (body.gemini) {
-      if (!body.gemini.apiVersion) delete body.gemini.apiVersion
-      if (!Object.keys(body.gemini).length) delete body.gemini
+    if (currentProvider.value) {
+      const providerConfig: Record<string, any> = {}
+      for (const [key, field] of Object.entries(currentSchema.value)) {
+        if (!isConfigFieldVisible(field, body.config)) continue
+        const value = body.config?.[key]
+        if (value !== undefined && value !== null && value !== '') providerConfig[key] = value
+      }
+      if (Object.keys(providerConfig).length > 0) body.config = providerConfig
+      else delete body.config
+    } else if (!body.config || Object.keys(body.config).length === 0) {
+      delete body.config
     }
     const id = editingName.value
     const res = id
@@ -226,28 +301,46 @@ async function refresh() {
         <SInput v-model="form.name" :placeholder="t('models.name_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('common.provider') + ' *'">
-        <SSelect v-model="form.provider">
-          <option v-for="p in Object.values(ModelProvider)" :key="p" :value="p">{{ p }}</option>
+        <SSelect v-model="form.provider" @change="onProviderChange">
+          <option v-for="provider in providerOptions" :key="provider.type" :value="provider.type">{{ provider.label }}</option>
         </SSelect>
       </SFormItem>
       <SFormItem :label="t('common.base_url') + ' *'">
-        <SInput v-model="form.baseURL" :placeholder="isOllama ? 'http://localhost:11434' : isAnthropic ? 'https://api.anthropic.com' : isGemini ? '' : 'https://api.openai.com/v1'" />
+        <SInput v-model="form.baseURL" :placeholder="providerBaseURL" />
       </SFormItem>
-      <SFormItem v-if="!isOllama" :label="t('common.api_key') + ' *'">
+      <SFormItem v-if="apiKeyEnabled" :label="t('common.api_key') + (apiKeyRequired ? ' *' : '')">
         <div class="apikey-field">
-          <SInput v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" :placeholder="isAnthropic ? 'sk-ant-...' : isGemini ? 'AIza...' : 'sk-...'" class="apikey-input" />
+          <SInput v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="API Key" class="apikey-input" />
           <SButton type="outline" size="sm" @click="showApiKey = !showApiKey">{{ showApiKey ? t('common.hide') : t('common.show') }}</SButton>
         </div>
       </SFormItem>
       <SFormItem :label="t('models.model') + ' *'">
         <div class="model-field">
-          <SInput v-model="form.model" :placeholder="isOllama ? 'llama3' : isAnthropic ? 'claude-sonnet-4-6' : isGemini ? 'gemini-2.0-flash' : 'gpt-4'" class="model-input" />
-          <SButton type="outline" size="sm" :disabled="!isAnthropic && !isGemini && !form.baseURL" @click="openPicker">{{ t('models.pick') }}</SButton>
+          <SInput v-model="form.model" placeholder="Model ID" class="model-input" />
+          <SButton type="outline" size="sm" :disabled="!canPickModels" @click="openPicker">{{ t('models.pick') }}</SButton>
         </div>
       </SFormItem>
-      <SFormItem v-if="isGemini" :label="t('models.api_version')">
-        <SInput v-model="geminiApiVersion" placeholder="v1beta" />
-      </SFormItem>
+      <template v-for="[key, field] in visibleSchemaEntries" :key="key">
+        <SFormItem :label="field.label + (field.required ? ' *' : '')">
+          <SSelect v-if="field.type === 'select'" v-model="providerConfig[key]">
+            <option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </SSelect>
+          <label v-else-if="field.type === 'boolean'" class="checkbox-label">
+            <input v-model="providerConfig[key]" type="checkbox" />
+            {{ field.description || '' }}
+          </label>
+          <SInput v-else-if="field.type === 'number'" v-model.number="providerConfig[key]" type="number" :placeholder="field.description || ''" />
+          <div v-else-if="field.type === 'password'" class="apikey-field">
+            <SInput v-model="providerConfig[key]" :type="privateFieldVisible[key] ? 'text' : 'password'" :placeholder="field.description || ''" class="apikey-input" />
+            <SButton type="outline" size="sm" @click="privateFieldVisible[key] = !privateFieldVisible[key]">
+              {{ privateFieldVisible[key] ? t('common.hide') : t('common.show') }}
+            </SButton>
+          </div>
+          <SInput v-else-if="field.type === 'textarea'" v-model="providerConfig[key]" multiline :placeholder="field.description || ''" />
+          <SInput v-else v-model="providerConfig[key]" :placeholder="field.description || ''" />
+          <template v-if="field.type !== 'boolean' && field.description" #hint>{{ field.description }}</template>
+        </SFormItem>
+      </template>
       <SFormItem :label="t('models.temperature')">
         <SInput v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
       </SFormItem>
@@ -259,22 +352,6 @@ async function refresh() {
       </SFormItem>
       <SFormItem :label="t('models.max_tools')">
         <SInput v-model.number="form.maxTools" type="number" step="1" :placeholder="t('models.no_limit')" />
-      </SFormItem>
-      <SFormItem v-if="isAnthropic" :label="t('models.thinking')">
-        <SSelect v-model="thinkingType">
-          <option value="">{{ t('models.thinking_none') }}</option>
-          <option value="adaptive">{{ t('models.thinking_adaptive') }}</option>
-          <option value="enabled">{{ t('models.thinking_enabled') }}</option>
-        </SSelect>
-      </SFormItem>
-      <SFormItem v-if="isAnthropic && thinkingType === 'enabled'" :label="t('models.thinking_budget')">
-        <SInput v-model.number="thinkingBudget" type="number" step="1024" placeholder="8192" />
-      </SFormItem>
-      <SFormItem v-if="isAnthropic" :label="t('models.prompt_caching')">
-        <label class="checkbox-label">
-          <input v-model="promptCaching" type="checkbox" />
-          {{ t('models.prompt_caching_desc') }}
-        </label>
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>

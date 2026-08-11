@@ -1,12 +1,12 @@
 import express from 'express';
 import { randomUUID } from 'crypto';
-import { ModelProvider, setMaxImageSize } from 'scorpio.ai';
+import { setMaxImageSize } from 'scorpio.ai';
+import { llmProviderRegistry, type ModelConfig as LlmModelConfig } from 'scorpio.llm';
 import { config } from '../../Core/Config';
 import { database, parseNotes, type ChannelSessionRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
 import { channelManager } from '../../Channel/ChannelManager';
 import { WEB_CHANNEL_ID } from 'sbot.commons';
-import { getKnownModels } from '../modelCatalog';
 import { modelInfoHelper } from '../helpers/modelInfo';
 import { settingsCrudHelper } from '../helpers/settingsCrud';
 import { api, throwBad } from '../../utils';
@@ -41,65 +41,22 @@ export class SettingsRoutes {
             return ctx.settingsWithAgents();
         }));
 
-        // Fetch available models from a provider's baseURL
+        app.get('/api/llm-providers', api(() => llmProviderRegistry.listModelProviders()));
+
+        // Fetch available models through the provider that owns the model config.
         app.post('/api/models/available', api(async req => {
-            const { baseURL, apiKey, provider, apiVersion } = req.body as { baseURL?: string; apiKey?: string; provider?: string; apiVersion?: string };
+            const body = req.body as Partial<LlmModelConfig>;
+            if (!body.provider) throwBad('provider is required');
+            const definition = llmProviderRegistry.getModelProvider(body.provider);
+            if (!definition) throwBad(`Unknown model provider: ${body.provider}`);
+            if (definition.apiKeyRequired && !body.apiKey) throwBad('apiKey is required');
 
-            if (provider === ModelProvider.Anthropic) {
-                const base = (baseURL || 'https://api.anthropic.com').replace(/\/$/, '');
-                if (!apiKey) throwBad('apiKey is required for Anthropic');
-                try {
-                    const headers: Record<string, string> = {
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01',
-                    };
-                    const res = await fetch(`${base}/v1/models`, { headers });
-                    if (!res.ok) throw new Error(`${res.status}`);
-                    const data: any = await res.json();
-                    return (data.data || []).map((m: any) => m.id as string);
-                } catch {
-                    return getKnownModels(ModelProvider.Anthropic);
-                }
-            }
-
-            if (provider === ModelProvider.Gemini || provider === ModelProvider.GeminiImage) {
-                if (!apiKey) throwBad('apiKey is required for Gemini');
-                const base = (baseURL || 'https://generativelanguage.googleapis.com').replace(/\/$/, '');
-                try {
-                    const headers: Record<string, string> = { 'x-goog-api-key': apiKey };
-                    const ver = apiVersion || 'v1beta';
-                    const res = await fetch(`${base}/${ver}/models`, { headers });
-                    if (!res.ok) throw new Error(`${res.status}`);
-                    const data: any = await res.json();
-                    return (data.models || []).map((m: any) => (m.name as string).replace(/^models\//, ''));
-                } catch {
-                    const imageModels = getKnownModels(ModelProvider.GeminiImage);
-                    const textModels = getKnownModels(ModelProvider.Gemini);
-                    return provider === ModelProvider.GeminiImage
-                        ? [...imageModels, ...textModels]
-                        : [...textModels, ...imageModels];
-                }
-            }
-
-            if (!baseURL) throwBad('baseURL is required');
-            const base = baseURL!.replace(/\/$/, '');
-
-            if (provider === ModelProvider.Ollama) {
-                const res = await fetch(`${base}/api/tags`);
-                if (!res.ok) throwBad(`Ollama request failed: ${res.status}`);
-                const data: any = await res.json();
-                return (data.models || []).map((m: any) => m.name as string);
-            } else {
-                // OpenAI-compatible
-                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-                const res = await fetch(`${base}/models`, { headers });
-                if (!res.ok) throwBad(`Models request failed: ${res.status}`);
-                const data: any = await res.json();
-                return (data.data || [])
-                    .sort((a: any, b: any) => (b.created ?? 0) - (a.created ?? 0))
-                    .map((m: any) => m.id as string);
-            }
+            const modelConfig = {
+                ...definition.defaults,
+                ...body,
+                config: { ...definition.defaults?.config, ...body.config },
+            } as LlmModelConfig;
+            return llmProviderRegistry.listModels(modelConfig);
         }));
 
         const getSettings = () => ctx.settingsWithAgents();

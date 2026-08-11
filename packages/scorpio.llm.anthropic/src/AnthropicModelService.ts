@@ -18,9 +18,24 @@ const enum CachePosition { First = "first", Last = "last" }
 export class AnthropicModelService extends ModelServiceBase<ChatAnthropic> {
   private cacheControl?: { type: "ephemeral" };
 
+  private get providerConfig(): Record<string, any> {
+    return this.config.config ?? {};
+  }
+
+  private get thinking(): Record<string, any> | undefined {
+    const type = this.providerConfig.thinkingType;
+    if (!type) return undefined;
+    return {
+      type,
+      ...(type === "enabled" && this.providerConfig.thinkingBudget != null
+        ? { budget_tokens: this.providerConfig.thinkingBudget }
+        : {}),
+    };
+  }
+
   constructor(config: ModelConfig) {
     super(config);
-    if (config.anthropic?.promptCaching) this.cacheControl = { type: "ephemeral" };
+    if (this.providerConfig.promptCaching) this.cacheControl = { type: "ephemeral" };
   }
 
   protected createModel(): ChatAnthropic {
@@ -30,7 +45,7 @@ export class AnthropicModelService extends ModelServiceBase<ChatAnthropic> {
       model: this.config.model,
       temperature: this.config.temperature,
       maxTokens: this.config.maxTokens,
-      ...(this.config.anthropic?.thinking && { thinking: this.config.anthropic.thinking as any }),
+      ...(this.thinking && { thinking: this.thinking as any }),
     });
   }
 
@@ -100,7 +115,7 @@ export class AnthropicModelService extends ModelServiceBase<ChatAnthropic> {
   }
 
   private isThinkingEnabled(): boolean {
-    const type = this.config.anthropic?.thinking?.type;
+    const type = this.thinking?.type;
     return type === "enabled" || type === "adaptive";
   }
 

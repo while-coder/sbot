@@ -15,7 +15,7 @@ export class GeminiModelService extends ModelServiceBase<ChatGoogleGenerativeAI>
       apiKey: this.config.apiKey,
       baseUrl: this.config.baseURL,
       model: this.config.model,
-      apiVersion: this.config.gemini?.apiVersion ?? "v1",
+      apiVersion: this.config.config?.apiVersion ?? "v1",
     };
     if (this.config.temperature != null) options.temperature = this.config.temperature;
     if (this.config.maxTokens != null) options.maxOutputTokens = this.config.maxTokens;

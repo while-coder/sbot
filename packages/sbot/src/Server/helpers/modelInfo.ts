@@ -20,7 +20,7 @@ export class ModelInfoHelper {
                     maxOutputTokens = data.max_tokens;
                 }
             } else if (mc.provider === ModelProvider.Gemini || mc.provider === ModelProvider.GeminiImage) {
-                const ver = mc.gemini?.apiVersion || 'v1beta';
+                const ver = mc.config?.apiVersion ?? 'v1';
                 const url = `${base}/${ver}/models/${encodeURIComponent(mc.model)}`;
                 const headers: Record<string, string> = { 'x-goog-api-key': mc.apiKey };
                 const res = await fetch(url, { headers });
