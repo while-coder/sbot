@@ -743,6 +743,7 @@ export default {
   },
   logs: {
     title: '日志',
+    normal: '普通日志',
     lifecycle: '生命周期日志',
     lifecycle_file: '生命周期日志（process.log）',
     lifecycle_empty: '暂无生命周期日志，sbot 启动或退出后会记录在这里',

@@ -743,6 +743,7 @@ export default {
   },
   logs: {
     title: 'Logs',
+    normal: 'Application Logs',
     lifecycle: 'Lifecycle Logs',
     lifecycle_file: 'Lifecycle Logs (process.log)',
     lifecycle_empty: 'No lifecycle entries yet. Sbot startup and exit events will appear here.',
