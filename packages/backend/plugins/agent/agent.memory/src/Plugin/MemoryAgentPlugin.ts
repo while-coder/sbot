@@ -9,8 +9,8 @@ export class MemoryAgentPlugin implements IAgentPlugin {
 
     constructor(private readonly service: IMemoryService) {}
 
-    async getDynamicSystemPrompt(): Promise<string | undefined> {
-        return (await this.service.getSystemMessage()) ?? undefined;
+    async getDynamicSystemPrompt(ctx: AgentPluginContext): Promise<string | undefined> {
+        return (await this.service.getSystemMessage(ctx.query)) ?? undefined;
     }
 
     getTools() {

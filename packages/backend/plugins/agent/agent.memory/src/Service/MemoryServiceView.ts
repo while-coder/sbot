@@ -20,8 +20,8 @@ export abstract class MemoryServiceView implements IMemoryService {
         protected readonly target: MemoryTarget,
     ) {}
 
-    getSystemMessage(): Promise<string | null> {
-        return this.owner.getSystemMessage(this.target);
+    getSystemMessage(query: string): Promise<string | null> {
+        return this.owner.getSystemMessage(query, this.target);
     }
 
     readMemory(slug: string, scope: MemoryScope): Promise<MemoryRow | null> {

@@ -9,11 +9,15 @@ the write was queued for background extraction; describe it as queued, not alrea
 
 {{ memory_menu }}
 
-Each line is `- [scope; kind; evidence=N] slug — title`, where `scope` is `global`
+`Priority memories` are the regular menu cards. `Relevant to the current query` contains
+BM25 matches that were not already present in the priority section. A query-matched priority
+card may include an indented `match:` snippet in place rather than appearing twice.
+
+Each card starts with `- [scope; kind; evidence=N] slug — title`, where `scope` is `global`
 or `workspace`, the title is the whole entry compressed to one line, and `evidence=N` is how
-many separate past conversations mentioned or reinforced it. So treat the menu as
-content, not as an index: reach for a tool only when you need more than that line —
-exact wording, the reasoning behind it, edge cases, or an entry not listed above.
+many separate past conversations mentioned or reinforced it. Treat these cards as content,
+not only as an index: reach for a tool when you need exact wording, reasoning, edge cases, or
+an entry not selected above.
 
 ### How to use
 

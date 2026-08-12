@@ -31,6 +31,7 @@ import {
     IMemoryStore,
     MemoryKind,
     MemoryScope,
+    type MemoryMenuEntry,
     type MemoryRow,
     type MemorySearchHit,
     MemoryPendingJobType,
@@ -51,9 +52,10 @@ import {
     type MemoryHistoryEntry,
 } from "../History/MemoryHistory";
 
-// 读路径（每轮注入 system prompt）—— 高频常驻成本，截到 evidence/recency 排序里的头部就够，
-// 模型未命中时还有 search_memory 工具兜底。
+// 读路径（每轮动态注入）：固定菜单提供跨轮约束，query 命中补当前任务相关片段。
+// 完整正文不进 system prompt，仍由 read_memory 按需读取。
 const DEFAULT_READ_MENU_LIMIT = 50;
+const QUERY_READ_MENU_LIMIT = 5;
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_SCORE_FLOOR = 0.15;
 const DEFAULT_SELECTOR_CONTEXT_WINDOW = 32_000;
@@ -406,18 +408,58 @@ export class MemoryService {
 
     // ── 读路径 ──
 
-    async getSystemMessage(target: MemoryTarget): Promise<string | null> {
-        const menus = await this.listScopedMenus(DEFAULT_READ_MENU_LIMIT, target);
+    async getSystemMessage(query: string, target: MemoryTarget): Promise<string | null> {
+        const normalizedQuery = query.trim();
+        const [menus, queryHits] = await Promise.all([
+            this.listScopedMenus(DEFAULT_READ_MENU_LIMIT, target),
+            normalizedQuery ? this.search(normalizedQuery, QUERY_READ_MENU_LIMIT, target) : Promise.resolve([]),
+        ]);
         const globalMenu = menus.globalMenu
             .map(m => ({ ...m, scope: MemoryScope.Global }));
         const workspaceMenu = menus.workspaceMenu
             .map(m => ({ ...m, scope: MemoryScope.Workspace }));
-        const menu = [...workspaceMenu, ...globalMenu];
-        const count = menu.length;
-        const menuText = count === 0
-            ? "_(empty — no memories recorded yet)_"
-            : menu.map(m => `- [${m.scope}; ${m.kind}; evidence=${m.evidenceCount}] \`${m.slug}\` — ${m.title}`).join("\n");
-        const block = `${count} ${count === 1 ? "entry" : "entries"} indexed.\n\n${menuText}`;
+        // 同 slug 同时存在于 workspace/global 时，当前 workspace 更具体。先放 workspace，
+        // 后续 global 不再覆盖；query hits 也遵循相同规则。
+        const priorityBySlug = new Map<string, MemoryMenuEntry>();
+        for (const entry of [...workspaceMenu, ...globalMenu]) {
+            if (!priorityBySlug.has(entry.slug)) priorityBySlug.set(entry.slug, entry);
+        }
+        const relevantBySlug = new Map<string, MemorySearchHit>();
+        for (const hit of queryHits) {
+            const existing = relevantBySlug.get(hit.slug);
+            if (!existing || (existing.scope === MemoryScope.Global && hit.scope === MemoryScope.Workspace)) {
+                relevantBySlug.set(hit.slug, hit);
+            }
+        }
+
+        const relevantLines = new Map<string, string>();
+        for (const hit of relevantBySlug.values()) {
+            const snippet = MemoryService.cleanMemorySnippet(hit.snippet, hit.title);
+            const line = MemoryService.menuLine(hit);
+            relevantLines.set(hit.slug, snippet ? `${line}\n  match: ${snippet}` : line);
+        }
+
+        const priorityLines: string[] = [];
+        const includedSlugs = new Set<string>();
+        for (const entry of priorityBySlug.values()) {
+            // query 命中的固定条目在原位置补 snippet，不重复列两遍。
+            const relevant = relevantBySlug.get(entry.slug);
+            const line = relevant?.scope === entry.scope
+                ? relevantLines.get(entry.slug)!
+                : MemoryService.menuLine(entry);
+            priorityLines.push(line);
+            includedSlugs.add(entry.slug);
+        }
+
+        const queryLines = [...relevantLines.entries()]
+            .filter(([slug]) => !includedSlugs.has(slug))
+            .map(([, line]) => line);
+        const sections: string[] = [];
+        if (priorityLines.length > 0) sections.push(`### Priority memories\n\n${priorityLines.join('\n')}`);
+        if (queryLines.length > 0) sections.push(`### Relevant to the current query\n\n${queryLines.join('\n')}`);
+        const count = includedSlugs.size + queryLines.length;
+        const menuText = count === 0 ? "_(empty — no memories recorded yet)_" : sections.join('\n\n');
+        const block = `${count} ${count === 1 ? "entry" : "entries"} selected.\n\n${menuText}`;
         return this.readTemplate.replace(/\{\{\s*memory_menu\s*\}\}/g, block);
     }
 
@@ -1164,6 +1206,26 @@ export class MemoryService {
 
     private static scopeSlugKey(scope: MemoryScope, slug: string): string {
         return `${scope}:${slug}`;
+    }
+
+    private static menuLine(entry: Pick<MemoryMenuEntry, 'scope' | 'kind' | 'evidenceCount' | 'slug' | 'title'>): string {
+        return `- [${entry.scope}; ${entry.kind}; evidence=${entry.evidenceCount}] ` +
+            `\`${entry.slug}\` — ${entry.title}`;
+    }
+
+    private static cleanMemorySnippet(snippet: string, title: string): string {
+        const lines = snippet.trim().split(/\r?\n/);
+        const firstLineTitle = lines[0]
+            ?.replace(/<</g, '')
+            .replace(/>>/g, '')
+            .replace(/^#\s*/, '')
+            .trim();
+        if (firstLineTitle === title.trim()) {
+            lines.shift();
+            while (lines[0]?.trim() === '') lines.shift();
+        }
+        const compact = lines.join(' ').replace(/\s+/g, ' ').trim();
+        return compact.length > 600 ? `${compact.slice(0, 597)}...` : compact;
     }
 
     private static catalogLine(row: MemoryRow): string {
