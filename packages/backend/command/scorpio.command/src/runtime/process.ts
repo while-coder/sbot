@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync, spawn, type ChildProcess } from 'child_process';
-import os from 'os';
+import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import { setTimeout as sleep } from 'timers/promises';
 import { StringDecoder } from 'string_decoder';
 import { formatCommandError } from '../errors';
@@ -49,13 +48,15 @@ let safeEnv: NodeJS.ProcessEnv | undefined;
 let currentShell: string | undefined;
 
 export function isCommandAvailable(interpreter: string): boolean {
+    if (typeof interpreter !== 'string' || !interpreter.trim()) return false;
+
     try {
-        execSync(os.platform() === 'win32' ? `where ${interpreter}` : `which ${interpreter}`, {
+        const result = spawnSync(process.platform === 'win32' ? 'where.exe' : 'which', [interpreter], {
             stdio:       'ignore',
             timeout:     PROBE_TIMEOUT_MS,
             windowsHide: true,
         });
-        return true;
+        return !result.error && result.status === 0;
     } catch {
         return false;
     }
