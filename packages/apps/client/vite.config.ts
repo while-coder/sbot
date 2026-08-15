@@ -6,7 +6,7 @@ export default defineConfig({
   base: './',
   clearScreen: false,
   server: {
-    port: 1420,
+    port: 1501,
     strictPort: true,
     fs: { allow: ['../..'] },
   },

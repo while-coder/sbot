@@ -64,7 +64,7 @@
       "name": "Launch AdminUI",
       "type": "pwa-chrome",
       "request": "launch",
-      "url": "http://localhost:5173/webui/",
+      "url": "http://localhost:1500/webui/",
       "webRoot": "${workspaceFolder}/packages/apps/admin",
       "sourceMapPathOverrides": {
         "webpack:///./*": "${webRoot}/*",

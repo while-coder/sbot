@@ -5,8 +5,8 @@
   "identifier": "com.sbot.app",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "pnpm vite dev --port 1420",
+    "devUrl": "http://localhost:1501",
+    "beforeDevCommand": "pnpm vite dev --port 1501",
     "beforeBuildCommand": "pnpm vite build"
   },
   "app": {

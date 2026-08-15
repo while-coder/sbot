@@ -4,7 +4,7 @@
     {
       "label": "admin:kill",
       "type": "shell",
-      "command": "npx kill-port 5173",
+      "command": "npx kill-port 1500",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -22,7 +22,7 @@
         "debug",
         "--",
         "--port",
-        "5173",
+        "1500",
         "--strictPort"
       ],
       "options": {
