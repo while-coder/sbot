@@ -1,4 +1,5 @@
 import { type StructuredToolInterface } from '@langchain/core/tools';
+import { setCommandLogger, type CommandLogger } from 'scorpio.command';
 
 export { createShellTool, createReadProcessTool, createWriteProcessTool } from './shell';
 export { createPythonCodeTool } from './python';
@@ -18,10 +19,12 @@ export interface CommandToolDescriptions {
 
 export interface CreateCommandToolsOptions {
     descriptions: CommandToolDescriptions;
+    logger?: CommandLogger;
 }
 
 export function createCommandTools(options: CreateCommandToolsOptions): StructuredToolInterface[] {
     const { descriptions } = options;
+    setCommandLogger(options.logger);
     return [
         createShellTool(descriptions.shell),
         createReadProcessTool(descriptions.readProcess),

@@ -2,6 +2,7 @@ packages:
   - packages/apps/*
   - packages/backend/*
   - packages/backend/llm/*
+  - packages/backend/command/*
   - packages/backend/saver/*
   - packages/backend/tools/*
   - packages/backend/plugins/*

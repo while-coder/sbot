@@ -19,7 +19,6 @@ import {
     createErrorResult,
     createSuccessResult,
     MCPToolResult,
-    runShellCommand,
     formatWalkTree,
     DEFAULT_WALK_MAX_DEPTH,
     DEFAULT_WALK_LIMIT,
@@ -27,6 +26,7 @@ import {
     UsageState,
 } from "scorpio.ai";
 import { inject } from "scorpio.di";
+import { runShellCommand } from "scorpio.command";
 export const READ_SKILL_FILE_TOOL_NAME = 'read_skill_file';
 export const EXECUTE_SKILL_SCRIPT_TOOL_NAME = 'execute_skill_script';
 export const LIST_SKILL_FILES_TOOL_NAME = 'list_skill_files';
@@ -191,7 +191,11 @@ export class SkillService implements IAgentPlugin {
           const label = `skill ${skillName}`;
           this.logger?.info(`执行 skill ${skillName} (cwd=${cwd}): ${command}`);
 
-          return await runShellCommand(command, cwd, timeout, label, stdin);
+          const result = await runShellCommand(command, cwd, timeout, label, stdin);
+          return {
+            content: result.content.map(part => createTextContent(part.text)),
+            isError: result.isError,
+          };
         } catch (error: any) {
           this.logger?.error(`Error executing skill ${skillName}: ${formatError(error, true)}`);
           return createErrorResult(formatError(error));

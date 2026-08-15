@@ -1,8 +1,8 @@
 import { type ChildProcess } from 'child_process';
 import { type Writable } from 'stream';
-import { GlobalLoggerService } from '../../../Logger';
-import { createTextContent, type MCPToolResult } from '../../Core';
-import { formatError } from '../../../Core';
+import { formatCommandError } from '../errors';
+import { getCommandLogger } from '../logger';
+import { createTextContent, type CommandToolResult } from '../result';
 import {
     appendOutputBuffer,
     createOutputBuffer,
@@ -16,7 +16,7 @@ import {
     spawnRuntimeProcess,
 } from './process';
 
-const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/processManager');
+const getLogger = () => getCommandLogger();
 
 const MAX_SESSIONS = 32;
 const IDLE_TIMEOUT_MS = 10 * 60_000;
@@ -38,7 +38,7 @@ export interface ManagedProcessResult {
     isError?:   boolean;
 }
 
-export function formatProcessResult(result: ManagedProcessResult): MCPToolResult {
+export function formatProcessResult(result: ManagedProcessResult): CommandToolResult {
     const parts: string[] = [];
     if (result.stdout) parts.push(result.stdout.trimEnd());
     if (result.stderr) parts.push(`stderr:\n${result.stderr.trimEnd()}`);
@@ -169,7 +169,7 @@ export class ProcessManager {
                 running: !session.exited,
                 stdout: '',
                 stderr: '',
-                note: `Failed to write stdin to process ${processId}: ${formatError(e)}`,
+                note: `Failed to write stdin to process ${processId}: ${formatCommandError(e)}`,
                 isError: true,
             };
         }
@@ -219,7 +219,7 @@ export class ProcessManager {
 
         let spawnError: string | null = null;
         proc.once('error', (err: Error) => {
-            spawnError = formatError(err);
+            spawnError = formatCommandError(err);
             session.exited = true;
             session.stdinOpen = false;
             this.cleanup(session);
@@ -269,7 +269,7 @@ export class ProcessManager {
         session.cleanup = undefined;
         Promise.resolve()
             .then(cleanup)
-            .catch((e) => logger?.error(`background session cleanup failed: ${formatError(e, true)}`));
+            .catch((e) => getLogger()?.error?.(`background session cleanup failed: ${formatCommandError(e, true)}`));
     }
 
     private wireStreams(session: ProcSession): void {
@@ -295,7 +295,7 @@ export class ProcessManager {
             if (victim) {
                 this.sessions.delete(victim.id);
                 void killProcessTree(victim.proc, () => victim.exited).finally(() => this.cleanup(victim));
-                logger?.info(`pruned background session ${victim.id} to stay under ${MAX_SESSIONS}`);
+                getLogger()?.info?.(`pruned background session ${victim.id} to stay under ${MAX_SESSIONS}`);
             }
         }
         this.sessions.set(session.id, session);

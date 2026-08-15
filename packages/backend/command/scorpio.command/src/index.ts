@@ -24,3 +24,6 @@ export {
     formatProcessResult,
     type ManagedProcessResult,
 } from './runtime/processManager';
+export { createTextContent, createErrorResult, type CommandTextContent, type CommandToolResult } from './result';
+export { formatCommandError } from './errors';
+export { setCommandLogger, getCommandLogger, type CommandLogger } from './logger';

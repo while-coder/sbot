@@ -11,6 +11,7 @@
     "@langchain/core": "catalog:",
     "js-yaml": "^4.2.0",
     "scorpio.ai": "workspace:*",
+    "scorpio.command": "workspace:*",
     "scorpio.di": "workspace:*",
     "zod": "catalog:"
   },

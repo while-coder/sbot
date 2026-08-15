@@ -1,6 +1,6 @@
-import { GlobalLoggerService } from '../../../Logger';
-import { createTextContent, MCPToolResult } from '../../Core';
-import { formatError } from '../../../Core';
+import { formatCommandError } from '../errors';
+import { getCommandLogger } from '../logger';
+import { createTextContent, type CommandToolResult } from '../result';
 import {
     appendOutputBuffer,
     createOutputBuffer,
@@ -13,7 +13,7 @@ import {
     spawnRuntimeProcess,
 } from './process';
 
-const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/foreground');
+const getLogger = () => getCommandLogger();
 
 const IO_DRAIN_TIMEOUT_MS = 2_000;
 
@@ -33,10 +33,10 @@ interface RunOptions {
  * 子进程通用执行器。stdout/stderr 用 Buffer 累积，finish 时一次性解码以正确处理多字节边界；
  * 超时、输出溢出、非 0 退出码、spawn error 都会以 isError=true 返回。
  */
-async function runProcess(file: string, args: string[], opts: RunOptions): Promise<MCPToolResult> {
+async function runProcess(file: string, args: string[], opts: RunOptions): Promise<CommandToolResult> {
     const { cwd, timeout, label, shell, stdin } = opts;
 
-    return new Promise<MCPToolResult>((resolve) => {
+    return new Promise<CommandToolResult>((resolve) => {
         const outBuf = createOutputBuffer();
         const errBuf = createOutputBuffer();
         let timedOut = false;
@@ -120,18 +120,18 @@ async function runProcess(file: string, args: string[], opts: RunOptions): Promi
             settled = true;
             clearTimeout(timeoutTimer);
             if (drainTimer) clearTimeout(drainTimer);
-            logger?.error(`Error executing ${label}: ${formatError(error, true)}`);
-            resolve({ content: [createTextContent(`Error: ${formatError(error)}`)], isError: true });
+            getLogger()?.error?.(`Error executing ${label}: ${formatCommandError(error, true)}`);
+            resolve({ content: [createTextContent(`Error: ${formatCommandError(error)}`)], isError: true });
         });
     });
 }
 
 /** 执行一段 shell 脚本字符串（支持 &&、管道、重定向）。整段交给 shell 解析。 */
-export function runShellCommand(command: string, cwd: string, timeout: number, label: string, stdin?: string): Promise<MCPToolResult> {
+export function runShellCommand(command: string, cwd: string, timeout: number, label: string, stdin?: string): Promise<CommandToolResult> {
     return runProcess(command, [], { cwd, timeout, label, shell: getCurrentShell(), stdin });
 }
 
 /** 执行解释器 + 参数数组。args 直接作为 OS 层参数传递，不经 shell 解析，无引号/转义风险。 */
-export function runProgram(file: string, args: string[], cwd: string, timeout: number, label: string, stdin?: string): Promise<MCPToolResult> {
+export function runProgram(file: string, args: string[], cwd: string, timeout: number, label: string, stdin?: string): Promise<CommandToolResult> {
     return runProcess(file, args, { cwd, timeout, label, shell: false, stdin });
 }

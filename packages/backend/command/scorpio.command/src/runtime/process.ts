@@ -4,10 +4,10 @@ import { execSync, spawn, type ChildProcess } from 'child_process';
 import os from 'os';
 import { setTimeout as sleep } from 'timers/promises';
 import { StringDecoder } from 'string_decoder';
-import { GlobalLoggerService } from '../../../Logger';
-import { formatError } from '../../../Core';
+import { formatCommandError } from '../errors';
+import { getCommandLogger } from '../logger';
 
-const logger = GlobalLoggerService.getLogger('Tools/Process/runtime/process');
+const getLogger = () => getCommandLogger();
 
 export const MAX_OUTPUT_BYTES = 256 * 1024;
 
@@ -67,7 +67,7 @@ export function getCurrentShell(): string {
     if (process.platform !== 'win32') {
         const s = process.env.SHELL;
         currentShell = (s && !SHELL_BLACKLIST.has(path.basename(s))) ? s : '/bin/bash';
-        logger?.info(`using shell: ${currentShell}`);
+        getLogger()?.info?.(`using shell: ${currentShell}`);
         return currentShell;
     }
 
@@ -76,12 +76,12 @@ export function getCurrentShell(): string {
     if (envShell && !SHELL_BLACKLIST.has(path.win32.basename(envShell))) {
         try {
             if (fs.existsSync(envShell)) {
-                currentShell = envShell; logger?.info(`using shell: ${currentShell}`); return currentShell;
+                currentShell = envShell; getLogger()?.info?.(`using shell: ${currentShell}`); return currentShell;
             }
         } catch { /* ignore */ }
     }
     if (process.env.SBOT_BASH_PATH && fs.existsSync(process.env.SBOT_BASH_PATH)) {
-        currentShell = process.env.SBOT_BASH_PATH; logger?.info(`using shell: ${currentShell}`); return currentShell;
+        currentShell = process.env.SBOT_BASH_PATH; getLogger()?.info?.(`using shell: ${currentShell}`); return currentShell;
     }
 
     // 直接探测常见 git-bash 路径，避免 `where git` 在 PATH 含慢盘时同步阻塞主线程。
@@ -93,11 +93,11 @@ export function getCurrentShell(): string {
     ];
     for (const p of candidates) {
         if (!p) continue;
-        try { if (fs.existsSync(p)) { currentShell = p; logger?.info(`using shell: ${currentShell}`); return currentShell; } } catch { /* ignore */ }
+        try { if (fs.existsSync(p)) { currentShell = p; getLogger()?.info?.(`using shell: ${currentShell}`); return currentShell; } } catch { /* ignore */ }
     }
 
     currentShell = process.env.COMSPEC || 'cmd.exe';
-    logger?.info(`using shell: ${currentShell}`);
+    getLogger()?.info?.(`using shell: ${currentShell}`);
     return currentShell;
 }
 
@@ -215,7 +215,7 @@ export async function resolveWorkingDir(workingDir: string | undefined): Promise
     } catch (e: any) {
         if (e?.code === 'ENOENT')    return { error: `Working directory not found: ${cwd}` };
         if (e?.code === 'ETIMEDOUT') return { error: e.message };
-        return { error: `Failed to check working directory: ${formatError(e)}` };
+        return { error: `Failed to check working directory: ${formatCommandError(e)}` };
     }
 }
 

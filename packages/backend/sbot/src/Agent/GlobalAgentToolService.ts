@@ -30,6 +30,7 @@ export function initGlobalAgentToolService() {
                     powershell: loadPrompt('tools/command/ps_code_powershell.txt'),
                 },
             },
+            logger: GlobalLoggerService.getLogger('Tools/Command'),
         });
     }, '命令执行');
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async (params) => {

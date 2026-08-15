@@ -2,7 +2,7 @@ import {
     createShellTool as createCoreShellTool,
     createReadProcessTool as createCoreReadProcessTool,
     createWriteProcessTool as createCoreWriteProcessTool,
-} from 'scorpio.ai';
+} from 'scorpio.command';
 import { type StructuredToolInterface } from '@langchain/core/tools';
 
 export function createShellTool(description: string): StructuredToolInterface {

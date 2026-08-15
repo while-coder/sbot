@@ -1,7 +1,7 @@
 {
-  "name": "scorpio.tools.command",
+  "name": "scorpio.command",
   "version": "0.0.1",
-  "description": "Structured command and script-execution tools for Scorpio agents",
+  "description": "Command execution, script runtime, and process lifecycle library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@langchain/core": "catalog:",
-    "scorpio.command": "workspace:*"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

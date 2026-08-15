@@ -4,8 +4,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
-import { createErrorResult, type MCPToolResult } from '../Core';
-import { formatError } from '../../Core';
+import { formatCommandError } from './errors';
+import { createErrorResult, type CommandToolResult } from './result';
 import { runProgram, runShellCommand } from './runtime/foreground';
 import { isCommandAvailable, resolveWorkingDir } from './runtime/process';
 import { processManager, formatProcessResult } from './runtime/processManager';
@@ -102,7 +102,7 @@ interface ExecuteCodeOptions {
     ext?:        string;
 }
 
-async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Promise<MCPToolResult> {
+async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Promise<CommandToolResult> {
     const { cwd, error: cwdError } = await resolveWorkingDir(input.workingDir);
     if (cwdError) return createErrorResult(cwdError);
 
@@ -123,7 +123,7 @@ async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Prom
     try {
         await fs.promises.writeFile(tmpFile, input.code, 'utf8');
     } catch (e: any) {
-        return createErrorResult(`Failed to write temp script: ${formatError(e)}`);
+        return createErrorResult(`Failed to write temp script: ${formatCommandError(e)}`);
     }
 
     let cleanupByBackgroundManager = false;
@@ -157,7 +157,7 @@ export function createShellTool({ name = 'shell', description }: ShellToolOption
         name,
         description,
         schema: shellToolSchema as any,
-        func: async (input: ShellToolInput): Promise<MCPToolResult> => executeCode(input, {
+        func: async (input: ShellToolInput): Promise<CommandToolResult> => executeCode(input, {
             runtime: CodeRuntime.Shell,
             label:   name,
         }),
@@ -170,7 +170,7 @@ export function createScriptCodeTool({ name, description, runtime, interpreter, 
         name,
         description,
         schema: scriptCodeSchema as any,
-        func: async (input: ScriptCodeInput): Promise<MCPToolResult> => executeCode(input, {
+        func: async (input: ScriptCodeInput): Promise<CommandToolResult> => executeCode(input, {
             runtime,
             label: name,
             interpreter,
@@ -185,7 +185,7 @@ export function createReadProcessTool({ name = 'read_process', description }: Re
         name,
         description,
         schema: readProcessToolSchema as any,
-        func: async ({ processId, yieldMs = 1000 }: ReadProcessToolInput): Promise<MCPToolResult> => {
+        func: async ({ processId, yieldMs = 1000 }: ReadProcessToolInput): Promise<CommandToolResult> => {
             const result = await processManager.readProcess(processId, yieldMs);
             return formatProcessResult(result);
         },
@@ -197,7 +197,7 @@ export function createWriteProcessTool({ name = 'write_process', description }: 
         name,
         description,
         schema: writeProcessToolSchema as any,
-        func: async ({ processId, stdin, close = false }: WriteProcessToolInput): Promise<MCPToolResult> => {
+        func: async ({ processId, stdin, close = false }: WriteProcessToolInput): Promise<CommandToolResult> => {
             const result = await processManager.writeProcess(processId, normalizeStdin(stdin) ?? '', close);
             return formatProcessResult(result);
         },
