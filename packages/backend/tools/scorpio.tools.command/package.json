@@ -1,0 +1,20 @@
+{
+  "name": "scorpio.tools.command",
+  "version": "0.0.1",
+  "description": "Structured command and script-execution tools for Scorpio agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && tsc -b --force"
+  },
+  "dependencies": {
+    "@langchain/core": "catalog:",
+    "scorpio.ai": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  },
+  "private": true
+}

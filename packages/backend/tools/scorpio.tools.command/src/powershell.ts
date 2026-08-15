@@ -1,9 +1,10 @@
 import { type StructuredToolInterface } from '@langchain/core/tools';
-import { loadPrompt } from '../../Core/PromptLoader';
 import { CodeRuntime, createScriptCodeTool, isCommandAvailable } from './utils';
 
+type PsInterpreterName = 'pwsh' | 'powershell';
+
 interface PsInterpreter {
-    interpreter: string;
+    interpreter: PsInterpreterName;
     preArgs:     string[];
 }
 
@@ -18,12 +19,12 @@ function resolvePsInterpreter(): PsInterpreter | null {
     return _psInterpreter;
 }
 
-export function createPsCodeTool(): StructuredToolInterface | null {
+export function createPsCodeTool(descriptions: Record<PsInterpreterName, string>): StructuredToolInterface | null {
     const ps = resolvePsInterpreter();
     if (!ps) return null;
     return createScriptCodeTool({
         name:        'execute_ps_code',
-        description: loadPrompt(`tools/command/ps_code_${ps.interpreter}.txt`),
+        description: descriptions[ps.interpreter],
         runtime:     CodeRuntime.PowerShell,
         interpreter: ps.interpreter,
         preArgs:     ps.preArgs,
