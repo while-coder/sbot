@@ -546,6 +546,9 @@ importers:
       scorpio.ai:
         specifier: workspace:*
         version: link:../../../scorpio.ai
+      scorpio.command:
+        specifier: workspace:*
+        version: link:../../../command/scorpio.command
       scorpio.di:
         specifier: workspace:*
         version: link:../../../scorpio.di
@@ -1109,6 +1112,9 @@ importers:
       scorpio.tools.filesystem:
         specifier: workspace:*
         version: link:../tools/scorpio.tools.filesystem
+      scorpio.tools.command:
+        specifier: workspace:*
+        version: link:../tools/scorpio.tools.command
       sequelize:
         specifier: ^6.37.8
         version: 6.37.8(sqlite3@6.0.1)
@@ -1229,6 +1235,44 @@ importers:
       reflect-metadata:
         specifier: 'catalog:'
         version: 0.2.2
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/backend/command/scorpio.command:
+    dependencies:
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/backend/tools/scorpio.tools.command:
+    dependencies:
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
+      scorpio.command:
+        specifier: workspace:*
+        version: link:../../command/scorpio.command
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
