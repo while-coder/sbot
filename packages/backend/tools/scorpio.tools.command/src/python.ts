@@ -1,5 +1,5 @@
 import { type StructuredToolInterface } from '@langchain/core/tools';
-import { CodeRuntime, createScriptCodeTool, isCommandAvailable } from './utils';
+import { CodeRuntime, createScriptCodeTool, isCommandAvailable, type ProcessManager } from './utils';
 
 // 现代 Linux/macOS 默认只有 python3，Windows 通常是 python；都试一遍。
 let _pythonInterpreter: string | null | undefined;
@@ -11,7 +11,7 @@ function resolvePython(): string | null {
     return _pythonInterpreter;
 }
 
-export function createPythonCodeTool(description: string): StructuredToolInterface | null {
+export function createPythonCodeTool(description: string, processManager: ProcessManager): StructuredToolInterface | null {
     const interpreter = resolvePython();
     if (!interpreter) return null;
     return createScriptCodeTool({
@@ -20,5 +20,6 @@ export function createPythonCodeTool(description: string): StructuredToolInterfa
         runtime:     CodeRuntime.Python,
         interpreter,
         ext:         '.py',
+        processManager,
     });
 }

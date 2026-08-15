@@ -12,5 +12,6 @@ export {
     CodeRuntime,
     CodeToolMode,
     MAX_OUTPUT_BYTES,
+    ProcessManager,
 } from 'scorpio.command';
 export type { ScriptCodeToolOptions } from 'scorpio.command';

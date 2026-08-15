@@ -16,22 +16,27 @@ export enum BuiltinProvider {
 
 export const globalAgentToolService = new AgentToolService(GlobalLoggerService.getLoggerService());
 
+export async function createBuiltinCommandTools(processOwner?: string) {
+    const { createCommandTools } = await import("scorpio.tools.command");
+    return createCommandTools({
+        descriptions: {
+            shell: loadPrompt('tools/command/shell.txt'),
+            readProcess: loadPrompt('tools/command/read_process.txt'),
+            writeProcess: loadPrompt('tools/command/write_process.txt'),
+            pythonCode: loadPrompt('tools/command/python_code.txt'),
+            powerShellCode: {
+                pwsh: loadPrompt('tools/command/ps_code_pwsh.txt'),
+                powershell: loadPrompt('tools/command/ps_code_powershell.txt'),
+            },
+        },
+        logger: GlobalLoggerService.getLogger('Tools/Command'),
+        processOwner,
+    });
+}
+
 export function initGlobalAgentToolService() {
     globalAgentToolService.registerToolFactory(BuiltinProvider.Command, async (_params) => {
-        const { createCommandTools } = await import("scorpio.tools.command");
-        return createCommandTools({
-            descriptions: {
-                shell: loadPrompt('tools/command/shell.txt'),
-                readProcess: loadPrompt('tools/command/read_process.txt'),
-                writeProcess: loadPrompt('tools/command/write_process.txt'),
-                pythonCode: loadPrompt('tools/command/python_code.txt'),
-                powerShellCode: {
-                    pwsh: loadPrompt('tools/command/ps_code_pwsh.txt'),
-                    powershell: loadPrompt('tools/command/ps_code_powershell.txt'),
-                },
-            },
-            logger: GlobalLoggerService.getLogger('Tools/Command'),
-        });
+        return createBuiltinCommandTools();
     }, '命令执行');
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async (params) => {
         const { createFileSystemTools } = await import("scorpio.tools.filesystem");

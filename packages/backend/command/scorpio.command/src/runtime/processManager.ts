@@ -85,6 +85,8 @@ export class ProcessManager {
     private nextProcessId = 1;
     private reaper?: NodeJS.Timeout;
 
+    constructor(private readonly onIdle?: () => void) {}
+
     async exec(command: string, cwd: string, yieldMs: number | undefined, stdin?: string, interactive = false): Promise<ManagedProcessResult> {
         return this.start(command, [], cwd, yieldMs, getCurrentShell(), stdin, undefined, interactive);
     }
@@ -345,6 +347,7 @@ export class ProcessManager {
             if (this.sessions.size === 0 && this.reaper) {
                 clearInterval(this.reaper);
                 this.reaper = undefined;
+                this.onIdle?.();
             }
         }, REAPER_INTERVAL_MS);
         this.reaper.unref?.();

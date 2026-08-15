@@ -31,7 +31,7 @@ import { createChannelTools } from "../Tools/Channel/index";
 import { channelDataService } from "../Session/ChannelDataService";
 import { config, AgentMode, ACPSessionMode, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
-import { globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
+import { createBuiltinCommandTools, globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
 import { ACPAgentPool } from "./ACPAgentPool";
 
@@ -167,6 +167,9 @@ export class AgentFactory {
     }
 
     private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<StructuredToolInterface[]>> = {
+        [BuiltinProvider.Command]: async ({ dbSessionId }) => {
+            return createBuiltinCommandTools(`session:${dbSessionId}`);
+        },
         [BuiltinProvider.SessionSearch]: async ({ container }) => {
             if (!container.isRegistered(IAgentSaverService)) return [];
             const saver = container.resolve<IAgentSaverService>(IAgentSaverService);

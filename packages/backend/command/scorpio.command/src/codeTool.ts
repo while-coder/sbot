@@ -8,7 +8,7 @@ import { formatCommandError } from './errors';
 import { createErrorResult, type CommandToolResult } from './result';
 import { runProgram, runShellCommand } from './runtime/foreground';
 import { isCommandAvailable, resolveWorkingDir } from './runtime/process';
-import { processManager, formatProcessResult } from './runtime/processManager';
+import { ProcessManager, processManager as defaultProcessManager, formatProcessResult } from './runtime/processManager';
 
 export enum CodeRuntime {
     Shell = 'shell',
@@ -73,16 +73,19 @@ type CodeToolInput = ShellToolInput | ScriptCodeInput;
 export interface ShellToolOptions {
     name?: string;
     description: string;
+    processManager?: ProcessManager;
 }
 
 export interface ReadProcessToolOptions {
     name?: string;
     description: string;
+    processManager?: ProcessManager;
 }
 
 export interface WriteProcessToolOptions {
     name?: string;
     description: string;
+    processManager?: ProcessManager;
 }
 
 export interface ScriptCodeToolOptions {
@@ -92,6 +95,7 @@ export interface ScriptCodeToolOptions {
     interpreter: string;
     preArgs?:    string[];
     ext:         string;
+    processManager?: ProcessManager;
 }
 
 interface ExecuteCodeOptions {
@@ -100,6 +104,7 @@ interface ExecuteCodeOptions {
     interpreter?: string;
     preArgs?:    string[];
     ext?:        string;
+    processManager: ProcessManager;
 }
 
 async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Promise<CommandToolResult> {
@@ -109,7 +114,7 @@ async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Prom
     const stdin = normalizeStdin(input.stdin);
     if (opts.runtime === CodeRuntime.Shell) {
         if (input.mode === CodeToolMode.Background) {
-            const result = await processManager.exec(input.code, cwd!, input.yieldMs ?? 1000, stdin, input.interactive ?? false);
+            const result = await opts.processManager.exec(input.code, cwd!, input.yieldMs ?? 1000, stdin, input.interactive ?? false);
             return formatProcessResult(result);
         }
         return runShellCommand(input.code, cwd!, input.timeout ?? 60000, `command "${input.code}"`, stdin);
@@ -135,7 +140,7 @@ async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Prom
         const runArgs = [...(opts.preArgs ?? []), tmpFile];
         if (input.mode === CodeToolMode.Background) {
             cleanupByBackgroundManager = true;
-            const result = await processManager.runProgram(
+            const result = await opts.processManager.runProgram(
                 opts.interpreter,
                 runArgs,
                 cwd!,
@@ -152,7 +157,7 @@ async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Prom
     }
 }
 
-export function createShellTool({ name = 'shell', description }: ShellToolOptions): StructuredToolInterface {
+export function createShellTool({ name = 'shell', description, processManager = defaultProcessManager }: ShellToolOptions): StructuredToolInterface {
     return new DynamicStructuredTool({
         name,
         description,
@@ -160,11 +165,12 @@ export function createShellTool({ name = 'shell', description }: ShellToolOption
         func: async (input: ShellToolInput): Promise<CommandToolResult> => executeCode(input, {
             runtime: CodeRuntime.Shell,
             label:   name,
+            processManager,
         }),
     });
 }
 
-export function createScriptCodeTool({ name, description, runtime, interpreter, preArgs = [], ext }: ScriptCodeToolOptions): StructuredToolInterface | null {
+export function createScriptCodeTool({ name, description, runtime, interpreter, preArgs = [], ext, processManager = defaultProcessManager }: ScriptCodeToolOptions): StructuredToolInterface | null {
     if (!isCommandAvailable(interpreter)) return null;
     return new DynamicStructuredTool({
         name,
@@ -176,11 +182,12 @@ export function createScriptCodeTool({ name, description, runtime, interpreter, 
             interpreter,
             preArgs,
             ext,
+            processManager,
         }),
     });
 }
 
-export function createReadProcessTool({ name = 'read_process', description }: ReadProcessToolOptions): StructuredToolInterface {
+export function createReadProcessTool({ name = 'read_process', description, processManager = defaultProcessManager }: ReadProcessToolOptions): StructuredToolInterface {
     return new DynamicStructuredTool({
         name,
         description,
@@ -192,7 +199,7 @@ export function createReadProcessTool({ name = 'read_process', description }: Re
     });
 }
 
-export function createWriteProcessTool({ name = 'write_process', description }: WriteProcessToolOptions): StructuredToolInterface {
+export function createWriteProcessTool({ name = 'write_process', description, processManager = defaultProcessManager }: WriteProcessToolOptions): StructuredToolInterface {
     return new DynamicStructuredTool({
         name,
         description,
