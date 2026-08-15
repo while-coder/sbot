@@ -1,5 +1,6 @@
 import { AgentToolService, GlobalLoggerService } from "scorpio.ai";
 import { config } from "../Core/Config.js";
+import { loadPrompt } from "../Core/PromptLoader.js";
 
 export enum BuiltinProvider {
     Command = 'builtin_command',
@@ -21,8 +22,23 @@ export function initGlobalAgentToolService() {
         return createCommandTools();
     }, '命令执行');
     globalAgentToolService.registerToolFactory(BuiltinProvider.FileSystem, async (params) => {
-        const { createFileSystemTools } = await import("../Tools/FileSystem/index.js");
-        return createFileSystemTools(params);
+        const { createFileSystemTools } = await import("scorpio.tools.filesystem");
+        return createFileSystemTools({
+            readonly: params?.readonly,
+            descriptions: {
+                read: loadPrompt('tools/fs/read.txt'),
+                readMediaFile: loadPrompt('tools/fs/read_media_file.txt'),
+                write: loadPrompt('tools/fs/write.txt'),
+                edit: loadPrompt('tools/fs/edit.txt'),
+                grep: loadPrompt('tools/fs/grep.txt'),
+                glob: loadPrompt('tools/fs/glob.txt'),
+                ls: loadPrompt('tools/fs/ls.txt'),
+                rm: loadPrompt('tools/fs/rm.txt'),
+                mkdir: loadPrompt('tools/fs/mkdir.txt'),
+                move: loadPrompt('tools/fs/move.txt'),
+            },
+            logger: GlobalLoggerService.getLogger('Tools/FileSystem'),
+        });
     }, '文件系统操作');
     globalAgentToolService.registerToolFactory(BuiltinProvider.WebFetch, async (_params) => {
         const { createWebFetchTools } = await import("../Tools/Web/index.js");

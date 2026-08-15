@@ -5,8 +5,9 @@
  */
 
 import { type StructuredToolInterface } from '@langchain/core/tools';
+import type { ILogger } from 'scorpio.ai';
 
-export { formatSize } from './utils';
+export { formatSize, resolvePath } from './utils';
 
 // 文件内容操作
 export { createReadTool } from './content/read';
@@ -33,9 +34,18 @@ import { createRmTool } from './operations/rm';
 import { createMkdirTool } from './operations/mkdir';
 import { createMoveTool } from './operations/move';
 
+export type FileSystemToolName =
+    | 'read' | 'readMediaFile' | 'write' | 'edit' | 'grep'
+    | 'glob' | 'ls' | 'rm' | 'mkdir' | 'move';
+
 export interface FileSystemToolParams {
     /** 只读模式：仅暴露读类工具，过滤掉 write/edit/mkdir/rm/mv/cp。admin 端传字符串 "true"/"false"，所以这里要兼容两种形态 */
     readonly?: boolean | string;
+}
+
+export interface CreateFileSystemToolsOptions extends FileSystemToolParams {
+    descriptions: Record<FileSystemToolName, string>;
+    logger?: Pick<ILogger, 'error' | 'warn'>;
 }
 
 function parseBool(v: unknown): boolean {
@@ -45,21 +55,25 @@ function parseBool(v: unknown): boolean {
 }
 
 /** 创建所有文件系统工具 */
-export function createFileSystemTools(params?: FileSystemToolParams): StructuredToolInterface[] {
+export function createFileSystemTools(options: CreateFileSystemToolsOptions): StructuredToolInterface[] {
+    const runtime = (name: FileSystemToolName) => ({
+        description: options.descriptions[name],
+        logger: options.logger,
+    });
     const readTools = [
-        createReadTool(),
-        createReadMediaFileTool(),
-        createGrepFilesTool(),
-        createGlobTool(),
-        createLsTool(),
+        createReadTool(runtime('read')),
+        createReadMediaFileTool(runtime('readMediaFile')),
+        createGrepFilesTool(runtime('grep')),
+        createGlobTool(runtime('glob')),
+        createLsTool(runtime('ls')),
     ];
-    if (parseBool(params?.readonly)) return readTools;
+    if (parseBool(options.readonly)) return readTools;
     return [
         ...readTools,
-        createWriteTool(),
-        createEditFileTool(),
-        createMkdirTool(),
-        createRmTool(),
-        createMoveTool(),
+        createWriteTool(runtime('write')),
+        createEditFileTool(runtime('edit')),
+        createMkdirTool(runtime('mkdir')),
+        createRmTool(runtime('rm')),
+        createMoveTool(runtime('move')),
     ];
 }

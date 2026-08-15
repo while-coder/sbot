@@ -3,12 +3,9 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkDir, EXCLUDE_DIRS, checkRg } from '../utils';
-import { loadPrompt } from '../../../Core/PromptLoader';
-
-const logger = LoggerService.getLogger('Tools/FileSystem/operations/glob.ts');
+import type { FileSystemToolRuntime } from '../runtime';
 
 const LIMIT = 100;
 const DEFAULT_TIMEOUT_SEC = 30;
@@ -46,7 +43,7 @@ function globToRegex(pattern: string): RegExp {
 }
 
 // ─── ripgrep 搜索（流式 + 达到上限即终止）──────────────────────────────────
-function searchWithRg(dir: string, pattern: string, includeHidden: boolean, timeoutMs: number): Promise<GlobSearchResult> {
+function searchWithRg(dir: string, pattern: string, includeHidden: boolean, timeoutMs: number, logger?: FileSystemToolRuntime['logger']): Promise<GlobSearchResult> {
     return new Promise((resolve, reject) => {
         const args = ['--files', ...RG_EXCLUDE_ARGS, `--iglob=${pattern}`];
         if (includeHidden) args.push('--hidden');
@@ -77,7 +74,7 @@ function searchWithRg(dir: string, pattern: string, includeHidden: boolean, time
                 if (!killed && exitCode !== 0 && exitCode !== 1 && files.length === 0) {
                     return reject(new Error(`ripgrep: ${stderr.trim() || `exit ${exitCode}`}`));
                 }
-                if (timedOut) logger.warn(`ripgrep glob timed out after ${timeoutMs}ms; returning ${files.length} files`);
+                if (timedOut) logger?.warn(`ripgrep glob timed out after ${timeoutMs}ms; returning ${files.length} files`);
                 resolve({ files, truncated: timedOut });
             }
         };
@@ -117,7 +114,7 @@ function searchWithRg(dir: string, pattern: string, includeHidden: boolean, time
 }
 
 // ─── Node.js fallback（全异步，避免阻塞事件循环）────────────────────────────
-async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boolean, timeoutMs: number): Promise<GlobSearchResult> {
+async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boolean, timeoutMs: number, logger?: FileSystemToolRuntime['logger']): Promise<GlobSearchResult> {
     const useFullPath = hasPathPattern(pattern);
     const regex = globToRegex(pattern);
     const results: Array<{ path: string; mtime: number }> = [];
@@ -128,7 +125,7 @@ async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boo
         if (expired()) return false;
         let entries;
         try { entries = await fsAsync.readdir(d, { withFileTypes: true }); }
-        catch (e: any) { logger.warn(`Cannot access ${d}: ${formatError(e)}`); return true; }
+        catch (e: any) { logger?.warn(`Cannot access ${d}: ${formatError(e)}`); return true; }
         for (const entry of entries) {
             if (results.length >= LIMIT || expired()) return false;
             if (!includeHidden && entry.name.startsWith('.')) continue;
@@ -151,17 +148,17 @@ async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boo
     }
     await walk(dir);
     const timedOut = expired();
-    if (timedOut) logger.warn(`Node.js glob timed out after ${timeoutMs}ms; returning ${results.length} files`);
+    if (timedOut) logger?.warn(`Node.js glob timed out after ${timeoutMs}ms; returning ${results.length} files`);
     return { files: results, truncated: timedOut };
 }
 
 // ─── Tool 定义 ────────────────────────────────────────────────────────────────
 
 /** 按 glob 模式查找文件（ripgrep 优先 + Node.js fallback；按修改时间排序） */
-export function createGlobTool(): StructuredToolInterface {
+export function createGlobTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'glob',
-        description: loadPrompt('tools/fs/glob.txt'),
+        description: runtime.description,
         schema: z.object({
             pattern: z.string().describe('Glob pattern, e.g. **/*.ts, src/**/*.test.js, *.json'),
             path: z.string().describe('Absolute path of the directory to search'),
@@ -173,8 +170,8 @@ export function createGlobTool(): StructuredToolInterface {
                 const abs = checkDir(searchPath);
                 const timeoutMs = Math.round(timeoutSec * 1000);
                 const search = await checkRg()
-                    ? await searchWithRg(abs, pattern, includeHidden, timeoutMs)
-                    : await searchWithNodeJs(abs, pattern, includeHidden, timeoutMs);
+                    ? await searchWithRg(abs, pattern, includeHidden, timeoutMs, runtime.logger)
+                    : await searchWithNodeJs(abs, pattern, includeHidden, timeoutMs, runtime.logger);
                 let files = search.files;
                 let truncated = search.truncated;
 
@@ -194,7 +191,7 @@ export function createGlobTool(): StructuredToolInterface {
                 }
                 return createSuccessResult(createTextContent(lines.join('\n')));
             } catch (e: any) {
-                logger.error(`glob ${searchPath}: ${formatError(e, true)}`);
+                runtime.logger?.error(`glob ${searchPath}: ${formatError(e, true)}`);
                 return createErrorResult(formatError(e));
             }
         },

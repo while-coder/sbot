@@ -4,12 +4,9 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkDir, globToRegex, EXCLUDE_DIRS, checkRg } from '../utils';
-import { loadPrompt } from '../../../Core/PromptLoader';
-
-const logger = LoggerService.getLogger('Tools/FileSystem/content/grep.ts');
+import type { FileSystemToolRuntime } from '../runtime';
 
 const MAX_LINE_LENGTH = 2000;
 const DEFAULT_MAX_MATCHES = 100;
@@ -34,6 +31,7 @@ function searchWithRg(
     fileGlob: string | undefined,
     maxMatches: number,
     timeoutMs: number,
+    logger?: FileSystemToolRuntime['logger'],
 ): Promise<SearchResult> {
     return new Promise((resolve, reject) => {
         const args = ['--json', `--max-columns=${MAX_COLUMNS}`, ...RG_EXCLUDE_ARGS];
@@ -105,7 +103,7 @@ function searchWithRg(
             if (!killed && code !== 0 && code !== 1 && totalMatches === 0) {
                 return reject(new Error(`ripgrep: ${stderr.trim() || `exit ${code}`}`));
             }
-            if (timedOut) logger.warn(`ripgrep timed out after ${timeoutMs}ms; returning ${totalMatches} matches`);
+            if (timedOut) logger?.warn(`ripgrep timed out after ${timeoutMs}ms; returning ${totalMatches} matches`);
             const results = fileOrder.map(fp => byFile.get(fp)!);
             results.sort((a, b) => b.mtime - a.mtime);
             resolve({ results, reachedLimit });
@@ -134,6 +132,7 @@ async function searchWithNodeJs(
     maxFileSize: number,
     maxMatches: number,
     timeoutMs: number,
+    logger?: FileSystemToolRuntime['logger'],
 ): Promise<SearchResult> {
     const searchRegex = useRegex ? new RegExp(pattern) : null;
     const deadline = Date.now() + timeoutMs;
@@ -144,7 +143,7 @@ async function searchWithNodeJs(
         if (expired()) return;
         let entries;
         try { entries = await fsAsync.readdir(d, { withFileTypes: true }); }
-        catch (e: any) { logger.warn(`Cannot access ${d}: ${formatError(e)}`); return; }
+        catch (e: any) { logger?.warn(`Cannot access ${d}: ${formatError(e)}`); return; }
         for (const entry of entries) {
             if (expired()) return;
             if (!includeHidden && entry.name.startsWith('.')) continue;
@@ -191,7 +190,7 @@ async function searchWithNodeJs(
     }
 
     if (expired() && !reachedLimit) reachedLimit = true;
-    if (Date.now() >= deadline) logger.warn(`Node.js grep timed out after ${timeoutMs}ms; returning ${totalMatches} matches`);
+    if (Date.now() >= deadline) logger?.warn(`Node.js grep timed out after ${timeoutMs}ms; returning ${totalMatches} matches`);
     return { results, reachedLimit };
 }
 
@@ -216,10 +215,10 @@ function formatResults(results: FileMatches[], reachedLimit: boolean, maxMatches
 // ─── Tool 定义 ────────────────────────────────────────────────────────────────
 
 /** 跨文件内容搜索（ripgrep 优先 + Node.js fallback；跳过构建目录；按修改时间排序）*/
-export function createGrepFilesTool(): StructuredToolInterface {
+export function createGrepFilesTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'grep',
-        description: loadPrompt('tools/fs/grep.txt'),
+        description: runtime.description,
         schema: z.object({
             path: z.string().describe('Absolute path of the directory to search'),
             pattern: z.string().describe('Text to search for; treated as a regex when useRegex=true'),
@@ -236,16 +235,16 @@ export function createGrepFilesTool(): StructuredToolInterface {
                 let result: SearchResult;
 
                 if (await checkRg()) {
-                    result = await searchWithRg(abs, pattern, useRegex, includeHidden, glob, maxMatches, timeoutMs);
+                    result = await searchWithRg(abs, pattern, useRegex, includeHidden, glob, maxMatches, timeoutMs, runtime.logger);
                 } else {
                     const fileRegex = globToRegex(glob ?? '*');
-                    result = await searchWithNodeJs(abs, pattern, fileRegex, useRegex, includeHidden, MAX_FILE_SIZE, maxMatches, timeoutMs);
+                    result = await searchWithNodeJs(abs, pattern, fileRegex, useRegex, includeHidden, MAX_FILE_SIZE, maxMatches, timeoutMs, runtime.logger);
                 }
 
                 if (result.results.length === 0) return createSuccessResult(createTextContent('No matches found'));
                 return createSuccessResult(createTextContent(formatResults(result.results, result.reachedLimit, maxMatches)));
             } catch (e: any) {
-                logger.error(`grep_files ${searchPath}: ${formatError(e, true)}`);
+                runtime.logger?.error(`grep_files ${searchPath}: ${formatError(e, true)}`);
                 return createErrorResult(formatError(e));
             }
         }

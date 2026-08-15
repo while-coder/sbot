@@ -2,12 +2,9 @@ import fsAsync from 'fs/promises';
 import { createTwoFilesPatch } from 'diff';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkFile, normalizeLineEndings, writeAtomic } from '../utils';
-import { loadPrompt } from '../../../Core/PromptLoader';
-
-const logger = LoggerService.getLogger('Tools/FileSystem/content/edit.ts');
+import type { FileSystemToolRuntime } from '../runtime';
 
 export interface FileEdit { oldText: string; newText: string; useRegex?: boolean; regexFlags?: string; replaceAll?: boolean; }
 
@@ -298,10 +295,10 @@ export async function applyFileEdits(filePath: string, edits: FileEdit[]): Promi
  * - 单文件多编辑：只设顶层 filePath，各 edit 无需重复。
  * - 多文件编辑：各 edit 设各自 filePath，顶层 filePath 可省略。
  */
-export function createEditFileTool(): StructuredToolInterface {
+export function createEditFileTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'edit',
-        description: loadPrompt('tools/fs/edit.txt'),
+        description: runtime.description,
         schema: z.object({
             filePath: z.string().optional().describe('Default file path shared by all edits; each edit\'s own filePath takes precedence'),
             edits: z.array(z.object({
@@ -332,7 +329,7 @@ export function createEditFileTool(): StructuredToolInterface {
                 }
                 return createSuccessResult(createTextContent(diffs.join('')));
             } catch (e: any) {
-                logger.error(`edit_file: ${formatError(e, true)}`);
+                runtime.logger?.error(`edit_file: ${formatError(e, true)}`);
                 return createErrorResult(formatError(e));
             }
         }

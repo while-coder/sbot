@@ -3,12 +3,9 @@ import fsAsync from 'fs/promises';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
-import { loadPrompt } from '../../../Core/PromptLoader';
-
-const logger = LoggerService.getLogger('Tools/FileSystem/content/read.ts');
+import type { FileSystemToolRuntime } from '../runtime';
 
 const DEFAULT_LINE_LIMIT = 2000;
 const MAX_CHARS = 50000;
@@ -126,10 +123,10 @@ function readChars(text: string, from: number, end: number, prefixNote?: string)
 }
 
 /** 读取文件，支持 line/char 模式以及从末尾计数（endLine/endChar） */
-export function createReadTool(): StructuredToolInterface {
+export function createReadTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read',
-        description: loadPrompt('tools/fs/read.txt'),
+        description: runtime.description,
         schema: z.object({
             filePath: z.string().describe('Absolute path to the file'),
             mode: z.enum(ReadMode).optional()
@@ -204,7 +201,7 @@ export function createReadTool(): StructuredToolInterface {
                 }
                 return readLines(lines, from, stopAt);
             } catch (e: any) {
-                logger.error(`read ${filePath}: ${formatError(e, true)}`);
+                runtime.logger?.error(`read ${filePath}: ${formatError(e, true)}`);
                 return createErrorResult(formatError(e));
             }
         }

@@ -2,15 +2,12 @@ import fsAsync from 'fs/promises';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../../Core/LoggerService';
 import {
     createTextContent, createImageContent, createAudioContent, createDocumentContent,
     createErrorResult, createSuccessResult, detectImageMimeType, formatError, type MCPToolResult,
 } from 'scorpio.ai';
 import { checkFile, formatSize } from '../utils';
-import { loadPrompt } from '../../../Core/PromptLoader';
-
-const logger = LoggerService.getLogger('Tools/FileSystem/content/readMediaFile.ts');
+import type { FileSystemToolRuntime } from '../runtime';
 
 const MAX_SIZE = 100 * 1024;
 const MAX_SIZE_LABEL = '100KB';
@@ -50,10 +47,10 @@ function detectMedia(filePath: string): { mimeType: string; category: MediaCateg
     return { mimeType, category };
 }
 
-export function createReadMediaFileTool(): StructuredToolInterface {
+export function createReadMediaFileTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'read_media_file',
-        description: loadPrompt('tools/fs/read_media_file.txt'),
+        description: runtime.description,
         schema: z.object({
             filePath: z.string().describe('Absolute path of the media file'),
         }) as any,
@@ -84,7 +81,7 @@ export function createReadMediaFileTool(): StructuredToolInterface {
                         );
                 }
             } catch (e: any) {
-                logger.error(`read_media_file ${filePath}: ${formatError(e, true)}`);
+                runtime.logger?.error(`read_media_file ${filePath}: ${formatError(e, true)}`);
                 return createErrorResult(formatError(e));
             }
         },

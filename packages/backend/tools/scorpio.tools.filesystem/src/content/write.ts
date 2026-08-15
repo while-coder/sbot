@@ -4,18 +4,15 @@ import path from 'path';
 import { createTwoFilesPatch } from 'diff';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath, writeAtomic, normalizeLineEndings } from '../utils';
-import { loadPrompt } from '../../../Core/PromptLoader';
-
-const logger = LoggerService.getLogger('Tools/FileSystem/content/write.ts');
+import type { FileSystemToolRuntime } from '../runtime';
 
 /** 写入文件，返回 diff（原子替换，防止竞态条件）*/
-export function createWriteTool(): StructuredToolInterface {
+export function createWriteTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'write',
-        description: loadPrompt('tools/fs/write.txt'),
+        description: runtime.description,
         schema: z.object({
             filePath: z.string().describe('Absolute path of the file to write'),
             content: z.string().describe('Content to write to the file'),
@@ -44,7 +41,7 @@ export function createWriteTool(): StructuredToolInterface {
                 while (diff.includes('`'.repeat(ticks))) ticks++;
                 return createSuccessResult(createTextContent(`${'`'.repeat(ticks)}diff\n${diff}${'`'.repeat(ticks)}`));
             } catch (e: any) {
-                logger.error(`write ${filePath}: ${formatError(e, true)}`);
+                runtime.logger?.error(`write ${filePath}: ${formatError(e, true)}`);
                 return createErrorResult(formatError(e));
             }
         }

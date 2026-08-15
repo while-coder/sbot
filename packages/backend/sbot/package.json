@@ -80,6 +80,7 @@
     "scorpio.saver": "workspace:*",
     "scorpio.saver.file": "workspace:*",
     "scorpio.saver.sqlite": "workspace:*",
+    "scorpio.tools.filesystem": "workspace:*",
     "sequelize": "^6.37.8",
     "sqlite3": "^6.0.1",
     "turndown": "^7.2.4",

@@ -5,7 +5,7 @@ import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
-import { resolvePath, formatSize } from '../FileSystem/utils';
+import { resolvePath, formatSize } from 'scorpio.tools.filesystem';
 import { loadPrompt } from '../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/Archive/compress.ts');

@@ -1106,6 +1106,9 @@ importers:
       scorpio.saver.sqlite:
         specifier: workspace:*
         version: link:../saver/scorpio.saver.sqlite
+      scorpio.tools.filesystem:
+        specifier: workspace:*
+        version: link:../tools/scorpio.tools.filesystem
       sequelize:
         specifier: ^6.37.8
         version: 6.37.8(sqlite3@6.0.1)
@@ -1227,6 +1230,34 @@ importers:
         specifier: 'catalog:'
         version: 0.2.2
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.3
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/backend/tools/scorpio.tools.filesystem:
+    dependencies:
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
+      diff:
+        specifier: ^9.0.0
+        version: 9.0.0
+      scorpio.ai:
+        specifier: workspace:*
+        version: link:../../scorpio.ai
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@types/diff':
+        specifier: ^8.0.0
+        version: 8.0.0
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.3

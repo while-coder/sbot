@@ -2,12 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
-import { LoggerService } from '../../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
-import { loadPrompt } from '../../../Core/PromptLoader';
-
-const logger = LoggerService.getLogger('Tools/FileSystem/operations/move.ts');
+import type { FileSystemToolRuntime } from '../runtime';
 
 function moveOne(src: string, dst: string): void {
     try {
@@ -24,10 +21,10 @@ function moveOne(src: string, dst: string): void {
 }
 
 /** Move/rename or copy files and directories, like bash mv / cp. Supports multiple sources. */
-export function createMoveTool(): StructuredToolInterface {
+export function createMoveTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
     return new DynamicStructuredTool({
         name: 'move',
-        description: loadPrompt('tools/fs/move.txt'),
+        description: runtime.description,
         schema: z.object({
             sources: z.array(z.string()).min(1).describe('One or more absolute source paths'),
             dest: z.string().describe('Absolute destination path (directory or new name)'),
@@ -77,7 +74,7 @@ export function createMoveTool(): StructuredToolInterface {
 
                 return createSuccessResult(createTextContent(results.join('\n')));
             } catch (e: any) {
-                logger.error(`move: ${formatError(e, true)}`);
+                runtime.logger?.error(`move: ${formatError(e, true)}`);
                 return createErrorResult(formatError(e));
             }
         }
