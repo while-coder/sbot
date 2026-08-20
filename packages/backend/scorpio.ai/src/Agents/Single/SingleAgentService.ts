@@ -583,6 +583,15 @@ export class SingleAgentService extends AgentServiceBase {
                 this.buildTools(ctx, callback, signal),
             ]);
 
+            // 流程日志：输入与 systemPrompt 合并成一条输出（多 session 并发时不被其他日志插队），
+            // systemPrompt 全量不截断，便于排查 prompt 拼装问题。
+            const sysBlocks = systemMessage?.content as Array<{ type: string; text: string }> | undefined;
+            const sysText = sysBlocks?.map(b => b.text).join('\n\n').trim();
+            this.logger?.info(`本轮输入: ${truncate(contentToString(query), 300)}\n`
+                + (sysText
+                    ? `systemPrompt(${sysText.length} 字):\n${sysText}`
+                    : 'systemPrompt: (无)'));
+
             const graph = new StateGraph<SingleAgentState>()
                 .addNode(GraphNodeType.AGENT, this.callModelNode.bind(this))
                 .addNode(GraphNodeType.TOOLS, this.callToolsNode.bind(this))
