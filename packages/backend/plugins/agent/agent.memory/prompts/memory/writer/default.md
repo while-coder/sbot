@@ -123,6 +123,8 @@ permanent.
 
 ## `noop`
 Nothing in this rollout was worth changing. Required: `reason` (one short sentence).
+Also the right call when the selector was cautious and supplied candidates, but the full
+bodies and transcript do not justify a mutation.
 
 # Examples
 

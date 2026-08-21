@@ -9,7 +9,7 @@ import { ILoggerService } from "../../Logger";
 import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../../Tools';
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, ChatToolCall, MessageRole, type TokenUsage, type OnCreateThinkFn } from "../AgentServiceBase";
 import { IAgentPlugin, AgentPluginPromptKind, type AgentPluginContext, type AgentTurn } from "../Plugins";
-import { contentToString, truncateForLog } from "../../Utils/contentUtils";
+import { contentToString, truncateForLog, normalizeMessageForModel } from "../../Utils/contentUtils";
 import { v4 as uuidv4 } from "uuid";
 
 export {
@@ -247,9 +247,11 @@ export class SingleAgentService extends AgentServiceBase {
         if (!savedHistory || savedHistory.length === 0) {
             throw new Error('historyMessages is empty, cannot call model');
         }
+        // 历史可能由其它 provider 产生（如 Anthropic 的 tool_use/input_json_delta 块），
+        // 送模型前归一化，避免 OpenAI 兼容端点 400（content type 类型错误）
         const messages: ChatMessage[] = [
             ...(state.systemMessage ? [state.systemMessage] : []),
-            ...savedHistory,
+            ...savedHistory.map(normalizeMessageForModel),
         ];
 
         if (state.signal?.aborted) throw new AgentCancelledError();

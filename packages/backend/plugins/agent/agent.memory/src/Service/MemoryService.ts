@@ -54,7 +54,9 @@ import {
 
 // 读路径（每轮动态注入）：固定菜单提供跨轮约束，query 命中补当前任务相关片段。
 // 完整正文不进 system prompt，仍由 read_memory 按需读取。
-const DEFAULT_READ_MENU_LIMIT = 50;
+// 菜单随记忆库增长线性膨胀（每行 ~120 字符），上限要按 system prompt 预算控制；
+// 排序（lastReadAt → evidence → updatedAt）保证截断掉的是最不相关的尾部。
+const DEFAULT_READ_MENU_LIMIT = 20;
 const QUERY_READ_MENU_LIMIT = 5;
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_SCORE_FLOOR = 0.15;
@@ -751,15 +753,11 @@ export class MemoryService {
             {
                 role: MessageRole.System,
                 content: [
+                    // 两阶段契约的静态规则（只改 selected set、完整正文 replace、create/delete 条件、
+                    // 保守 noop）已并入 writer/default.md 的 Inputs / Operations 章节，不再在此重复——
+                    // 这里只注入随请求变化的部分：显式记忆写入的 scope 要求 + scope 路由。
                     this.writerPrompt,
-                    `# Authoritative two-stage curation contract`,
-                    `This is the final curation pass. The selected existing memories below include their full bodies.`,
                     ...(explicitScopes.size > 0 ? [`Messages marked [EXPLICIT MEMORY WRITE] must be persisted using their required scope.`] : []),
-                    `Only update or delete an existing memory shown in that selected set, preserving its exact scope and slug.`,
-                    `When changing a body, return the complete final body without the H1 title line and use bodyMode="replace"; no later merge pass will run.`,
-                    `Create only when none of the selected entries covers the durable fact.`,
-                    `Delete only when the full body and conversation clearly prove the entry is false, superseded, or explicitly forgotten.`,
-                    `Default to noop when the selector was cautious but the full evidence does not justify a mutation.`,
                     `# Memory scope routing`,
                     MEMORY_SCOPE_WRITER_INSTRUCTION,
                 ].join('\n\n'),

@@ -4,6 +4,7 @@ import { ILoggerService, ILogger } from "../Logger";
 import { T_CompactPromptTemplate, T_PostCompactMessageTemplate, T_PostCompactContinuation } from "../Core/tokens";
 import { T_SummaryModelService } from "../Agents/AgentServiceBase";
 import { ChatMessage, ContentPartType, MessageKind, MessageRole, NewStoredMessage, StoredMessage, estimateMessageTokens } from "scorpio.saver";
+import { normalizeMessageForModel } from "../Utils/contentUtils";
 
 const COMPACT_THRESHOLD = 0.7;
 
@@ -47,8 +48,9 @@ export class ConversationCompactor {
      * @param continuation true（默认）追加续作指令，让 Agent 自动接续；false 仅保留摘要正文。
      */
     async compact(messages: StoredMessage[], continuation = true): Promise<NewStoredMessage> {
+        // 摘要模型可能与产生历史的模型不同 provider，同样需要归一化
         const chatMessages: ChatMessage[] = [
-            ...messages.map(s => s.message),
+            ...messages.map(s => normalizeMessageForModel(s.message)),
             { role: MessageRole.Human, content: this.compactInstruction },
         ];
 

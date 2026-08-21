@@ -1,4 +1,4 @@
-import { ContentPartType, type AttachmentInput, type ContentPart, type MessageContent } from "scorpio.saver";
+import { ContentPartType, MessageRole, type AttachmentInput, type ChatMessage, type ChatToolCall, type ContentPart, type MessageContent } from "scorpio.saver";
 
 type TextPart = Extract<ContentPart, { type: typeof ContentPartType.Text }>;
 const isTextPart = (p: ContentPart): p is TextPart => p.type === ContentPartType.Text;
@@ -74,6 +74,76 @@ export function contentToString(content: MessageContent): string {
         .map(p => p.text)
         .filter((t): t is string => !!t)
         .join('\n');
+}
+
+/** 可安全送入任意 provider 的 content 块类型。之外的块（如 Anthropic 流式残留的
+ *  tool_use / input_json_delta / thinking）会被 OpenAI 兼容端点判为非法（400 type 类型错误）。 */
+const MODEL_SAFE_PART_TYPES = new Set<string>([
+    ContentPartType.Text,
+    ContentPartType.Image,
+    ContentPartType.ImageUrl,
+    ContentPartType.Audio,
+]);
+
+/** Anthropic 协议的 tool_use 内容块（id/name/input 对应 ChatToolCall 的 id/name/args）。 */
+interface ToolUsePart {
+    type: 'tool_use';
+    id?: string;
+    name?: string;
+    input?: Record<string, any>;
+}
+
+function isToolUsePart(part: ContentPart): part is ContentPart & ToolUsePart {
+    return part.type === 'tool_use';
+}
+
+/**
+ * 归一化一条要送入模型的历史消息，兼容「会话历史由其它 provider 产生后被切换模型续用」的场景：
+ * - 剔除 provider 专属的内容块（tool_use / input_json_delta / thinking 等流式残留）；
+ * - AI 消息中被剔除的 tool_use 块补写进 tool_calls（按 id/name 与既有条目去重），
+ *   避免只丢块不丢调用导致 ToolMessage 配对校验失败；
+ * - 剩余块若全为 text，折叠为字符串——多数 OpenAI 兼容端点对非 text 块或数组 content 校验严格。
+ *
+ * 返回浅拷贝，不改动 saver 中的原消息（切回 Anthropic 类 provider 时历史仍可用）。
+ */
+export function normalizeMessageForModel(message: ChatMessage): ChatMessage {
+    if (!Array.isArray(message.content)) return message;
+
+    const toolUses: ToolUsePart[] = [];
+    const kept: ContentPart[] = [];
+    for (const part of message.content) {
+        if (isToolUsePart(part)) toolUses.push(part);
+        else if (MODEL_SAFE_PART_TYPES.has(part.type)) kept.push(part);
+    }
+
+    const toolCalls = mergeToolUses(message, toolUses);
+
+    const multimodal = kept.some(part => part.type !== ContentPartType.Text);
+    const content: MessageContent = multimodal
+        ? kept
+        : kept.filter(isTextPart).map(part => part.text ?? '').join('\n');
+
+    return { ...message, content, ...(toolCalls !== undefined && { tool_calls: toolCalls }) };
+}
+
+/** 把 content 中的 tool_use 块并入 tool_calls；无 tool_use 块时原样返回既有 tool_calls。 */
+function mergeToolUses(message: ChatMessage, toolUses: ToolUsePart[]): ChatToolCall[] | undefined {
+    if (toolUses.length === 0) return message.tool_calls;
+    // 非 AI 消息里的 tool_use 块属于脏数据，直接丢弃（由调用方完成），不转成 tool_calls
+    if (message.role !== MessageRole.AI) return message.tool_calls;
+
+    const toolCalls = message.tool_calls ? [...message.tool_calls] : [];
+    for (const tu of toolUses) {
+        const exists = (tu.id != null && toolCalls.some(tc => tc.id === tu.id))
+            || (tu.name != null && toolCalls.some(tc => tc.name === tu.name));
+        if (exists) continue;
+        toolCalls.push({
+            id: tu.id,
+            name: tu.name ?? 'unknown_tool',
+            args: (tu.input && typeof tu.input === 'object') ? tu.input : {},
+        });
+    }
+    return toolCalls;
 }
 
 /** Remove empty/whitespace-only text parts from MessageContent. */
