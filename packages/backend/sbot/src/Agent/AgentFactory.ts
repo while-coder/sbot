@@ -318,6 +318,14 @@ export class AgentFactory {
             }
         });
 
+        // 对齐 createSingle：注册 compactor（否则编排者历史永不压缩）与模型调用超时
+        container.registerWithArgs(IConversationCompactor, ConversationCompactor, {
+            [T_SummaryModelService]: config.getModelService(entry.compactModel || entry.model, true),
+            [T_CompactPromptTemplate]: loadPrompt('compact/instruction.txt'),
+            [T_PostCompactMessageTemplate]: loadPrompt('compact/post_message.txt'),
+            [T_PostCompactContinuation]: loadPrompt('compact/post_continuation.txt'),
+        });
+
         container.registerWithArgs(ReActAgentService, {
             [T_AgentSubNodes]: enrichedSubNodes,
             [T_CreateAgent]: createAgentFn,
@@ -326,6 +334,7 @@ export class AgentFactory {
             [T_ToolOverflowDir]: config.getConfigPath("tool-overflow", true),
             [T_ReactSystemPromptTemplate]: loadPrompt('agent/react_system.txt'),
             [T_ReactSubNodePrompt]: loadPrompt('agent/react_subnode.txt'),
+            ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout * 1000 }),
         });
         return container.resolve(ReActAgentService);
     }
