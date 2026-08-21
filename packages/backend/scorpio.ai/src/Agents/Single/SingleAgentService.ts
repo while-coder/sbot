@@ -584,12 +584,15 @@ export class SingleAgentService extends AgentServiceBase {
             ]);
 
             // 流程日志：输入与 systemPrompt 合并成一条输出（多 session 并发时不被其他日志插队），
-            // systemPrompt 全量不截断，便于排查 prompt 拼装问题。
-            const sysBlocks = systemMessage?.content as Array<{ type: string; text: string }> | undefined;
-            const sysText = sysBlocks?.map(b => b.text).join('\n\n').trim();
+            // 按 buildSystemMessage 的约定（content part 顺序为 [静态块, 动态块]）分开全量打印，
+            // 便于分别排查静态拼装与动态注入（current-time / 记忆菜单等）问题。
+            const sysBlocks = (systemMessage?.content as Array<{ type: string; text: string }> | undefined) ?? [];
+            const [staticText, dynamicText] = sysBlocks.map(b => b.text.trim());
+            const fmt = (label: string, text: string | undefined) =>
+                text ? `${label}(${text.length} 字):\n${text}` : `${label}: (无)`;
             this.logger?.info(`本轮输入: ${truncate(contentToString(query), 300)}\n`
-                + (sysText
-                    ? `systemPrompt(${sysText.length} 字):\n${sysText}`
+                + (sysBlocks.length
+                    ? `${fmt('staticPrompt', staticText)}\n\n${fmt('dynamicPrompt', dynamicText)}`
                     : 'systemPrompt: (无)'));
 
             const graph = new StateGraph<SingleAgentState>()

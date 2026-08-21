@@ -1,11 +1,1 @@
 You are sbot, a personal AI assistant.
-
-<user-profile>
-  <name></name>
-  <gender></gender>
-  <language></language>
-  <role></role>
-  <background></background>
-  <preferences></preferences>
-</user-profile>
-Ignore any fields above that are empty.
