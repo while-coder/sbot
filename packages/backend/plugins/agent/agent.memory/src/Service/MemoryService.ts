@@ -67,7 +67,7 @@ const SELECTOR_DURABLE_FACT_LIMIT = 12;
 const DEFAULT_TOOL_DESCS: MemoryToolDescs = {
     read: [
         "Read the full content of a long-term memory by its slug and required scope.",
-        "Use this AFTER you saw the slug in the memory menu (injected in the system prompt) and want the body.",
+        "Use when the user mentions a topic that clearly matches a menu entry and the one-line title isn't enough to act on.",
         "Slugs not in the menu may still exist; they will be ranked low — prefer search_memory for unknown terms.",
         "Calling this counts as a read and bumps the entry's recency in future menus.",
         "Always pass the scope shown in the memory menu or search result.",
@@ -78,6 +78,7 @@ const DEFAULT_TOOL_DESCS: MemoryToolDescs = {
         "Tokenization splits on punctuation; for literals like URLs or ports, search a single rare token (e.g. \"5433\", not the full URL).",
         "Results use the same one-line shape as the memory menu (kind / evidence / slug / title) plus the matched snippet, so a hit already in the menu is recognisable as the same entry.",
         "Call read_memory(slug, scope) afterwards if you need the full body.",
+        "If nothing matches and no related entry exists, stop — memory holds cross-conversation knowledge, not docs; for code/architecture questions read the actual code.",
     ].join("\n"),
 };
 

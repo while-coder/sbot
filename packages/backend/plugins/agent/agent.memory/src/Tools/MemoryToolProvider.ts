@@ -6,7 +6,9 @@ import { MemoryScope } from "../Storage/IMemoryStore";
 export const READ_MEMORY_TOOL_NAME = 'read_memory' as const;
 export const SEARCH_MEMORY_TOOL_NAME = 'search_memory' as const;
 export const REMEMBER_MEMORY_TOOL_NAME = 'remember_memory' as const;
-const REMEMBER_MEMORY_TOOL_DESCRIPTION = 'Queue a memory only when the user explicitly asks to remember/save it. ' +
+const REMEMBER_MEMORY_TOOL_DESCRIPTION = 'Queue a memory only when the user explicitly asks to remember/save it; ' +
+    'a successful call only queues the write for background extraction — describe it as queued, not already stored. ' +
+    'Pass only the durable content, without the surrounding "remember this" request. ' +
     'Use workspace for project-specific information and global for cross-project facts or preferences.';
 
 /**
