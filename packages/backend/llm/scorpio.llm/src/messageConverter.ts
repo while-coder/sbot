@@ -1,11 +1,31 @@
 import { AIMessage, HumanMessage, ToolMessage, SystemMessage, BaseMessage } from "@langchain/core/messages";
 import { type ChatMessage, MessageRole } from "./messages";
 
+/** langchain `_getType()` 返回的消息类型（含流式 chunk 变体）。 */
+const ChatMessageType = {
+  AI: "ai",
+  Human: "human",
+  System: "system",
+  Tool: "tool",
+  Generic: "generic",
+} as const;
+
+/** ChatMessage/ChatMessageChunk 携带的 role 字面量（网关返回的开放值域，仅列举需归类的）。 */
+const GenericChatRole = {
+  User: "user",
+  System: "system",
+  Developer: "developer",
+  Tool: "tool",
+  Function: "function",
+} as const;
+
 export function toChatMessage(message: BaseMessage): ChatMessage {
   const m = message as any;
-  const name = message.constructor.name;
+  // _getType() 同时覆盖非流式消息与流式 chunk（如 AIMessageChunk、ChatMessageChunk），
+  // 且不受打包/压缩后类名变化影响。
+  const type = message._getType();
 
-  if (name === "AIMessage" || name === "AIMessageChunk") {
+  if (type === ChatMessageType.AI) {
     const usage = m.usage_metadata;
     return {
       role: MessageRole.AI,
@@ -23,7 +43,7 @@ export function toChatMessage(message: BaseMessage): ChatMessage {
     };
   }
 
-  if (name === "ToolMessage") {
+  if (type === ChatMessageType.Tool) {
     return {
       role: MessageRole.Tool,
       content: m.content,
@@ -34,15 +54,33 @@ export function toChatMessage(message: BaseMessage): ChatMessage {
     };
   }
 
-  if (name === "HumanMessage") {
+  if (type === ChatMessageType.Human) {
     return { role: MessageRole.Human, content: m.content, additional_kwargs: m.additional_kwargs };
   }
 
-  if (name === "SystemMessage") {
+  if (type === ChatMessageType.System) {
     return { role: MessageRole.System, content: m.content, additional_kwargs: m.additional_kwargs };
   }
 
-  throw new Error(`Unsupported message type for conversion: ${name}`);
+  if (type === ChatMessageType.Generic) {
+    // 某些兼容网关会返回非标准 role（如 "model"），langchain 会包装成
+    // ChatMessage/ChatMessageChunk；按 role 归类，未知 role 视为模型输出。
+    const role = m.role;
+    if (role === GenericChatRole.User) return { role: MessageRole.Human, content: m.content, additional_kwargs: m.additional_kwargs };
+    if (role === GenericChatRole.System || role === GenericChatRole.Developer) return { role: MessageRole.System, content: m.content, additional_kwargs: m.additional_kwargs };
+    if (role === GenericChatRole.Tool || role === GenericChatRole.Function) {
+      return {
+        role: MessageRole.Tool,
+        content: m.content,
+        tool_call_id: m.tool_call_id,
+        name: m.name,
+        additional_kwargs: m.additional_kwargs,
+      };
+    }
+    return { role: MessageRole.AI, content: m.content, additional_kwargs: m.additional_kwargs };
+  }
+
+  throw new Error(`Unsupported message type for conversion: ${type}`);
 }
 
 export function toBaseMessage(message: ChatMessage): BaseMessage {

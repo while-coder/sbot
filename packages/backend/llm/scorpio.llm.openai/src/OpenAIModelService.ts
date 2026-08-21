@@ -1,7 +1,8 @@
-import type { BaseMessageChunk } from "@langchain/core/messages";
+import type { BaseMessage, BaseMessageChunk } from "@langchain/core/messages";
 import { ChatOpenAI, ChatOpenAICompletions, type ChatOpenAIFields } from "@langchain/openai";
 import {
   type ChatMessage,
+  MessageRole,
   type StructuredInvokeOptions,
   ModelServiceBase,
   StructuredOutputMethod,
@@ -9,17 +10,42 @@ import {
   toStructuredInput,
 } from "scorpio.llm";
 
+/** OpenAI Chat Completions 已知 role，之外的（如部分网关的 "model"）统一按 assistant 处理。 */
+const KNOWN_ROLES = new Set(["system", "developer", "user", "assistant", "tool", "function"]);
+
 class CompatibleChatOpenAICompletions extends ChatOpenAICompletions {
   protected override _convertCompletionsDeltaToBaseMessageChunk(
     delta: Record<string, any>,
     rawResponse: any,
     defaultRole?: any,
   ): BaseMessageChunk {
+    // 非标准 role 会被 langchain 包装成 ChatMessageChunk，导致 tool_calls/usage
+    // 无法按 AIMessageChunk 累加，这里归一为 assistant。
+    if (delta.role != null && !KNOWN_ROLES.has(delta.role)) delta = { ...delta, role: "assistant" };
+    if (defaultRole != null && !KNOWN_ROLES.has(defaultRole)) defaultRole = "assistant";
     return super._convertCompletionsDeltaToBaseMessageChunk(delta, rawResponse, defaultRole ?? "assistant");
   }
 }
 
 export class OpenAIModelService extends ModelServiceBase<ChatOpenAI> {
+  protected override prepareInput(input: string | ChatMessage[]): string | BaseMessage[] {
+    if (typeof input === "string") return input;
+
+    // OpenAI accepts text-part arrays for tool messages, but some compatible
+    // gateways only accept a plain string. Normalize at the provider boundary
+    // so persisted histories with multi-part tool results work as well.
+    const messages = input.map(message => {
+      if (message.role !== MessageRole.Tool || typeof message.content === "string") return message;
+      if (!message.content.every(part => part.type === "text" && typeof part.text === "string")) return message;
+      return {
+        ...message,
+        content: message.content.map(part => (part as { text: string }).text).join("\n\n"),
+      };
+    });
+
+    return super.prepareInput(messages);
+  }
+
   protected buildChatOpenAIOptions(): ChatOpenAIFields {
     return {
       configuration: {
