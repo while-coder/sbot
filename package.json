@@ -10,10 +10,9 @@
     "build:wiki": "pnpm --filter wiki.base run build && pnpm --filter wiki.local run build && pnpm --filter wiki.gdrive run build",
     "build:channel": "pnpm --filter channel.base run build && pnpm --filter channel.lark run build && pnpm --filter channel.slack run build && pnpm --filter channel.wecom run build && pnpm --filter channel.wechat run build && pnpm --filter channel.onebot run build && pnpm --filter channel.xiaoai run build && pnpm --filter channel.dingtalk run build && pnpm --filter channel.qq run build && pnpm --filter channel.yuanbao run build && pnpm --filter channel.remote-agent run build",
     "build:deps": "pnpm run build:core && pnpm run build:wiki && pnpm run build:channel",
-    "assets": "pnpm --filter @sbot/assets run distribute",
 
-    "debug:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run debug",
-    "build:sbot": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run build",
+    "debug:sbot": "pnpm run build:deps && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run debug",
+    "build:sbot": "pnpm run build:deps && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run build",
     "publish:sbot": "pnpm run build:sbot && pnpm --filter @qingfeng346/sbot publish --no-git-checks --access public",
     "link:sbot": "pnpm run build:sbot && npm link packages/backend/sbot/dist",
     "unlink:sbot": "npm unlink -g @qingfeng346/sbot",
@@ -29,27 +28,28 @@
     "debug:admin": "pnpm run build:deps && pnpm --filter @sbot/admin run debug",
     "build:admin": "pnpm run build:deps && pnpm --filter @sbot/admin run build",
 
-    "build:vscode": "pnpm run build:deps && pnpm run assets && pnpm --filter sbot-vscode run package",
+    "build:vscode": "pnpm run build:deps && pnpm --filter sbot-vscode run package",
     "publish:vscode": "pnpm run build:vscode && start https://marketplace.visualstudio.com/manage/publishers/",
 
-    "debug:app": "pnpm run assets && pnpm --filter @sbot/client run dev",
-    "build:app:macos": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run macos:build",
-    "build:app:windows": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run windows:build",
-    "build:app:linux": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run linux:build",
+    "debug:app": "pnpm --filter @sbot/client run dev",
+    "build:app:macos": "pnpm run build:deps && pnpm --filter @sbot/client run macos:build",
+    "build:app:windows": "pnpm run build:deps && pnpm --filter @sbot/client run windows:build",
+    "build:app:linux": "pnpm run build:deps && pnpm --filter @sbot/client run linux:build",
 
     "init:app:android": "pnpm --filter @sbot/client run android:init",
-    "debug:app:android": "pnpm run assets && pnpm --filter @sbot/client run android:dev",
-    "build:app:android": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run android:build",
+    "debug:app:android": "pnpm --filter @sbot/client run android:dev",
+    "build:app:android": "pnpm run build:deps && pnpm --filter @sbot/client run android:build",
 
     "init:app:ios": "pnpm --filter @sbot/client run ios:init",
-    "debug:app:ios": "pnpm run assets && pnpm --filter @sbot/client run ios:dev",
-    "build:app:ios": "pnpm run build:deps && pnpm run assets && pnpm --filter @sbot/client run ios:build",
+    "debug:app:ios": "pnpm --filter @sbot/client run ios:dev",
+    "build:app:ios": "pnpm run build:deps && pnpm --filter @sbot/client run ios:build",
 
     "release:sbot": "node scripts/release.js sbot",
     "release:app": "node scripts/release.js app",
     "release:cli": "node scripts/release.js cli",
 
     "sync:versions": "node scripts/sync-versions.js",
+    "sync:icons": "node scripts/sync-icons.js",
 
     "debug:docs": "pnpm --filter @sbot/docs run dev",
     "build:docs": "pnpm --filter @sbot/docs run build",
