@@ -7,6 +7,7 @@ const fs = require('fs');
 const TARGETS = {
   app: {
     tagPrefix: 'app-v',
+    rootField: 'appVersion',
     tauriConf: 'packages/apps/client/src-tauri/tauri.conf.json',
     pkgJson: 'packages/apps/client/package.json',
     companionPkgJsons: ['packages/apps/sbot-vscode/package.json'],
@@ -14,6 +15,7 @@ const TARGETS = {
   },
   sbot: {
     tagPrefix: 'sbot-v',
+    rootField: 'sbotVersion',
     pkgJson: 'packages/backend/sbot/package.json',
     overwriteExistingRelease: true,
     releaseNotes: {
@@ -120,18 +122,25 @@ async function main() {
 
   const cfg = TARGETS[target];
   const root = path.resolve(__dirname, '..');
+  const rootPkgPath = path.join(root, 'package.json');
+  const rootPkg = readJson(rootPkgPath);
   const confPath = cfg.tauriConf ? path.join(root, cfg.tauriConf) : null;
   const pkgPath = path.join(root, cfg.pkgJson);
 
   const conf = confPath ? readJson(confPath) : null;
   const pkg = fs.existsSync(pkgPath) ? readJson(pkgPath) : null;
 
-  // tauri.conf.json's version may be the literal "../package.json" — treat package.json as source of truth
+  // version source of truth: root package.json field (appVersion / sbotVersion) when defined,
+  // otherwise the target's own package.json
   const confUsesPkgJson = conf ? conf.version === '../package.json' : true;
-  const currentVersion = (pkg && pkg.version) || (conf && !confUsesPkgJson ? conf.version : null);
+  const currentVersion = (cfg.rootField && rootPkg[cfg.rootField])
+    || (pkg && pkg.version)
+    || (conf && !confUsesPkgJson ? conf.version : null);
 
   if (!currentVersion || !SEMVER_RE.test(currentVersion)) {
-    const sources = [cfg.pkgJson, cfg.tauriConf].filter(Boolean).join(' or ');
+    const sources = [cfg.rootField && `package.json#${cfg.rootField}`, cfg.pkgJson, cfg.tauriConf]
+      .filter(Boolean)
+      .join(' or ');
     console.error(`error: cannot resolve current version from ${sources}`);
     process.exit(1);
   }
@@ -176,8 +185,9 @@ async function main() {
     return { rel, path: p, json, outOfSync: json.version !== nextVersion };
   });
   const companionsChanged = companions.some((c) => c.outOfSync);
+  const rootOutOfSync = Boolean(cfg.rootField) && rootPkg[cfg.rootField] !== nextVersion;
 
-  const mutate = versionChanged || notesChanged || companionsChanged;
+  const mutate = versionChanged || notesChanged || companionsChanged || rootOutOfSync;
   const tag = `${cfg.tagPrefix}${nextVersion}`;
 
   console.log(`target  : ${target}`);
@@ -210,6 +220,21 @@ async function main() {
     }
 
     const filesToAdd = [];
+
+    // root package.json is the version source of truth for app/sbot —
+    // targeted replace keeps its formatting (blank-line grouping in scripts) intact
+    if (cfg.rootField && rootOutOfSync) {
+      const content = fs.readFileSync(rootPkgPath, 'utf8');
+      const re = new RegExp(`("${cfg.rootField}"\\s*:\\s*")[^"]*(")`);
+      if (re.test(content)) {
+        fs.writeFileSync(rootPkgPath, content.replace(re, `$1${nextVersion}$2`));
+      } else {
+        rootPkg[cfg.rootField] = nextVersion;
+        writeJson(rootPkgPath, rootPkg);
+      }
+      filesToAdd.push('package.json');
+      console.log(`root     : package.json ${cfg.rootField} → ${nextVersion}`);
+    }
 
     if (pkg && pkg.version !== undefined) {
       pkg.version = nextVersion;

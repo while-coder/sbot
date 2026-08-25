@@ -2,6 +2,8 @@
   "name": "sbot-monorepo",
   "private": true,
   "packageManager": "pnpm@10.33.0",
+  "appVersion": "0.0.4",
+  "sbotVersion": "0.2.9",
   "scripts": {
     "test": "pnpm -r --if-present run test",
     "build:core": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.command run build && pnpm --filter scorpio.llm run build && pnpm --filter scorpio.llm.openai run build && pnpm --filter scorpio.llm.anthropic run build && pnpm --filter scorpio.llm.gemini run build && pnpm --filter scorpio.llm.ollama run build && pnpm --filter scorpio.llm.cohere run build && pnpm --filter scorpio.llm.voyage run build && pnpm --filter scorpio.saver run build && pnpm --filter scorpio.saver.file run build && pnpm --filter scorpio.saver.sqlite run build && pnpm --filter scorpio.saver.postgres run build && pnpm --filter scorpio.ai run build && pnpm --filter scorpio.tools.filesystem run build && pnpm --filter scorpio.tools.command run build && pnpm --filter agent.skill run build && pnpm --filter agent.agenda run build && pnpm --filter plugin.schema run build && pnpm --filter @sbot/shared run build",
@@ -46,6 +48,8 @@
     "release:sbot": "node scripts/release.js sbot",
     "release:app": "node scripts/release.js app",
     "release:cli": "node scripts/release.js cli",
+
+    "sync:versions": "node scripts/sync-versions.js",
 
     "debug:docs": "pnpm --filter @sbot/docs run dev",
     "build:docs": "pnpm --filter @sbot/docs run build",
