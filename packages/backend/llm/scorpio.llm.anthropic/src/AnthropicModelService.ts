@@ -24,7 +24,7 @@ export class AnthropicModelService extends ModelServiceBase<ChatAnthropic> {
 
   private get thinking(): Record<string, any> | undefined {
     const type = this.providerConfig.thinkingType;
-    if (!type) return undefined;
+    if (!type || !this.supportsReasoning) return undefined;
     return {
       type,
       ...(type === "enabled" && this.providerConfig.thinkingBudget != null
@@ -117,6 +117,16 @@ export class AnthropicModelService extends ModelServiceBase<ChatAnthropic> {
   private isThinkingEnabled(): boolean {
     const type = this.thinking?.type;
     return type === "enabled" || type === "adaptive";
+  }
+
+  /**
+   * 目录已明确标记不支持推理时，不向 Anthropic 兼容端发送 thinking 参数；
+   * 目录未收录时保留用户的 Provider 设置，避免把自定义模型误判为不支持。
+   */
+  private get supportsReasoning(): boolean {
+    if (this.config.llmInfo?.reasoning !== undefined) return this.config.llmInfo.reasoning;
+    const info = this.getLLMInfo();
+    return !info.fromCatalog || info.reasoning;
   }
 
   private applyCache(messages: BaseMessage[]): BaseMessage[] {

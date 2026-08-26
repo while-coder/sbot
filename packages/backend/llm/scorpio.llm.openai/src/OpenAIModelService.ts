@@ -115,8 +115,12 @@ export class OpenAIModelService extends ModelServiceBase<ChatOpenAI> {
   }
 
   private defaultStructuredMethod(): StructuredOutputMethod {
+    const info = this.getLLMInfo();
+    // 目录明确声明原生结构化输出时，优先走 JSON mode；否则官方 OpenAI
+    // 保留函数调用作为兼容性更好的默认路径，失败时仍会自动切换。
+    if (info.structuredOutput) return StructuredOutputMethod.JsonMode;
     const baseURL = (this.config.baseURL ?? "").toLowerCase();
-    return !baseURL || baseURL.includes("api.openai.com")
+    return info.toolCall && (!baseURL || baseURL.includes("api.openai.com"))
       ? StructuredOutputMethod.FunctionCalling
       : StructuredOutputMethod.JsonMode;
   }

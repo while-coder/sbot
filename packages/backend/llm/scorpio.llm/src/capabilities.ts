@@ -16,7 +16,7 @@ import path from "path";
  *   磁盘缓存与内存（下次调用生效），失败则继续用本地数据。
  *
  * 解析优先级（按字段独立生效）：
- *   1. 用户显式声明  ModelConfig.llmInfo 对应字段（vision / toolCall / contextWindow / maxOutputTokens）
+ *   1. 用户显式声明  ModelConfig.llmInfo 对应字段（能力项 / contextWindow / maxOutputTokens）
  *   2. models.dev    Provider 内完整 ID 精确匹配，随后跨 Provider 按完整 ID 精确匹配
  *   3. 默认值        各字段独立定义：
  *       vision       目录可用未收录 → false；目录不可用 → true（维持旧行为）
@@ -168,21 +168,30 @@ function extractInfo(model: ModelsDevModel): Partial<LLMInfo> {
  */
 function lookupCatalogInfo(catalog: ModelsDevCatalog, modelId: string, providerId?: string): Partial<LLMInfo> | undefined {
   const provider = providerId ? catalog[providerId] : undefined;
-  const inProvider = provider?.models?.[modelId] ?? provider?.models?.[modelId.toLowerCase()];
+  const findExact = (models?: Record<string, ModelsDevModel>): ModelsDevModel | undefined => {
+    if (!models) return undefined;
+    return models[modelId] ?? Object.entries(models).find(([id]) => id.toLowerCase() === modelId.toLowerCase())?.[1];
+  };
+  const inProvider = findExact(provider?.models);
   if (inProvider) return extractInfo(inProvider);
 
   const matches: Partial<LLMInfo>[] = [];
   for (const entry of Object.values(catalog)) {
-    const model = entry.models?.[modelId] ?? entry.models?.[modelId.toLowerCase()];
+    const model = findExact(entry.models);
     if (model) matches.push(extractInfo(model));
   }
   if (matches.length === 0) return undefined;
 
-  // 同名模型在不同网关的能力通常一致；价格/限制可能不同，冲突时不猜测。
+  // 同名模型在不同网关的能力通常一致；价格冲突时不猜测。
   const agree = <T>(pick: (info: Partial<LLMInfo>) => T | undefined): T | undefined => {
     const values = matches.map(pick).filter(v => v !== undefined);
     if (values.length === 0) return undefined;
     return values.every(v => JSON.stringify(v) === JSON.stringify(values[0])) ? values[0] : undefined;
+  };
+  // 网关限制不一致时，取所有声明中的较小值，确保自动填充不会超出任一已知上限。
+  const conservativeLimit = (pick: (info: Partial<LLMInfo>) => number | undefined): number | undefined => {
+    const values = matches.map(pick).filter((value): value is number => Number.isFinite(value));
+    return values.length > 0 ? Math.min(...values) : undefined;
   };
   return {
     vision: agree(i => i.vision),
@@ -190,8 +199,8 @@ function lookupCatalogInfo(catalog: ModelsDevCatalog, modelId: string, providerI
     reasoning: agree(i => i.reasoning),
     temperature: agree(i => i.temperature),
     structuredOutput: agree(i => i.structuredOutput),
-    contextWindow: agree(i => i.contextWindow),
-    maxOutputTokens: agree(i => i.maxOutputTokens),
+    contextWindow: conservativeLimit(i => i.contextWindow),
+    maxOutputTokens: conservativeLimit(i => i.maxOutputTokens),
     cost: agree(i => i.cost),
     lastUpdated: agree(i => i.lastUpdated),
   };
@@ -208,9 +217,9 @@ export function getLLMInfo(model: string, provider?: string, override?: Partial<
   return {
     vision: override?.vision ?? info?.vision ?? (hasLocal ? false : true),
     toolCall: override?.toolCall ?? info?.toolCall ?? true,
-    reasoning: info?.reasoning ?? false,
-    temperature: info?.temperature ?? true,
-    structuredOutput: info?.structuredOutput ?? false,
+    reasoning: override?.reasoning ?? info?.reasoning ?? false,
+    temperature: override?.temperature ?? info?.temperature ?? true,
+    structuredOutput: override?.structuredOutput ?? info?.structuredOutput ?? false,
     contextWindow: override?.contextWindow ?? info?.contextWindow,
     maxOutputTokens: override?.maxOutputTokens ?? info?.maxOutputTokens,
     cost: info?.cost,

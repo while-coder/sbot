@@ -84,11 +84,10 @@ export abstract class ModelServiceBase<TModel extends BaseChatModel = BaseChatMo
   private llmInfoCache?: LLMInfo;
 
   getLLMInfo(): LLMInfo {
-    return (this.llmInfoCache ??= getLLMInfo(this.config.model, this.config.provider, {
-      ...this.config.llmInfo,
-      contextWindow: this.config.contextWindow,
-      maxOutputTokens: this.config.maxTokens,
-    }));
+    const override = { ...this.config.llmInfo };
+    if (this.config.contextWindow != null) override.contextWindow = this.config.contextWindow;
+    if (this.config.maxTokens != null) override.maxOutputTokens = this.config.maxTokens;
+    return (this.llmInfoCache ??= getLLMInfo(this.config.model, this.config.provider, override));
   }
 
   /**
@@ -97,7 +96,7 @@ export abstract class ModelServiceBase<TModel extends BaseChatModel = BaseChatMo
    * maxTokens 未配置时 LangChain 默认值普遍偏小易截断。
    */
   private applyCatalogDefaults(): void {
-    const info = getLLMInfo(this.config.model, this.config.provider);
+    const info = this.getLLMInfo();
     if (!info.fromCatalog) return;
     const model = this.model as any;
     if (info.temperature === false) model.temperature = undefined;

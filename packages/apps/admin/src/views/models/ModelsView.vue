@@ -70,12 +70,15 @@ const privateFieldVisible = ref<Record<string, boolean>>({})
 const form = ref<ModelConfig>({
   name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined, llmInfo: undefined, config: {},
 })
-type LLMCapabilityKey = 'vision' | 'toolCall'
+type LLMCapabilityKey = 'vision' | 'toolCall' | 'reasoning' | 'temperature' | 'structuredOutput'
 type LLMCapabilityValue = 'true' | 'false'
 
 interface CatalogLLMInfo {
   vision: boolean
   toolCall: boolean
+  reasoning: boolean
+  temperature: boolean
+  structuredOutput: boolean
   contextWindow?: number
   maxOutputTokens?: number
   cost?: { input: number; output: number }
@@ -95,6 +98,16 @@ function overrideValue(key: LLMCapabilityKey) {
 }
 const visionValue = overrideValue('vision')
 const toolCallValue = overrideValue('toolCall')
+const reasoningValue = overrideValue('reasoning')
+const temperatureCapabilityValue = overrideValue('temperature')
+const structuredOutputValue = overrideValue('structuredOutput')
+// 目录明确不支持 Temperature 时保留现有值供查看，但不允许继续编辑；
+// 用户可先在能力覆盖中改为“支持”，以处理目录误判的兼容网关。
+const temperatureReadOnly = computed(() => {
+  const info = autoLLMInfo.value
+  if (!info?.fromCatalog) return false
+  return form.value.llmInfo?.temperature ?? !info.temperature
+})
 
 // 查询结果用于展示并自动填充模型参数；请求版本避免旧模型结果覆盖新模型。
 const autoLLMInfo = ref<CatalogLLMInfo | null>(null)
@@ -145,6 +158,9 @@ function fillLLMInfoFromCatalog(): void {
   }
   setOverride('vision', String(Boolean(info.vision)) as LLMCapabilityValue)
   setOverride('toolCall', String(Boolean(info.toolCall)) as LLMCapabilityValue)
+  setOverride('reasoning', String(Boolean(info.reasoning)) as LLMCapabilityValue)
+  setOverride('temperature', String(Boolean(info.temperature)) as LLMCapabilityValue)
+  setOverride('structuredOutput', String(Boolean(info.structuredOutput)) as LLMCapabilityValue)
   autofillParams(info)
 }
 // 模型参数折叠区标题右侧的 badge：已配置的参数个数（含固化的能力覆盖）
@@ -157,6 +173,9 @@ const paramCount = computed(() => {
   if (f.maxTools != null) n++
   if (f.llmInfo?.vision !== undefined) n++
   if (f.llmInfo?.toolCall !== undefined) n++
+  if (f.llmInfo?.reasoning !== undefined) n++
+  if (f.llmInfo?.temperature !== undefined) n++
+  if (f.llmInfo?.structuredOutput !== undefined) n++
   return n
 })
 
@@ -468,6 +487,24 @@ async function refresh() {
                   {{ autoLLMInfo.toolCall ? t('models.capability_supported') : t('models.capability_unsupported') }}
                 </strong>
               </div>
+              <div class="capability-item">
+                <span>{{ t('models.reasoning') }}</span>
+                <strong :class="autoLLMInfo.reasoning ? 'capability--yes' : 'capability--no'">
+                  {{ autoLLMInfo.reasoning ? t('models.capability_supported') : t('models.capability_unsupported') }}
+                </strong>
+              </div>
+              <div class="capability-item">
+                <span>{{ t('models.temperature_control') }}</span>
+                <strong :class="autoLLMInfo.temperature ? 'capability--yes' : 'capability--no'">
+                  {{ autoLLMInfo.temperature ? t('models.capability_supported') : t('models.capability_unsupported') }}
+                </strong>
+              </div>
+              <div class="capability-item">
+                <span>{{ t('models.structured_output') }}</span>
+                <strong :class="autoLLMInfo.structuredOutput ? 'capability--yes' : 'capability--no'">
+                  {{ autoLLMInfo.structuredOutput ? t('models.capability_supported') : t('models.capability_unsupported') }}
+                </strong>
+              </div>
             </div>
             <div class="catalog-metrics">
               <div v-if="autoLLMInfo.contextWindow" class="catalog-metric">
@@ -496,7 +533,8 @@ async function refresh() {
           </div>
           <div class="parameter-grid">
             <SFormItem :label="t('models.temperature')">
-              <SInput v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
+              <SInput v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" :readonly="temperatureReadOnly" />
+              <template v-if="temperatureReadOnly" #hint>{{ t('models.temperature_unsupported_hint') }}</template>
             </SFormItem>
             <SFormItem :label="t('models.max_tools')">
               <SInput v-model.number="form.maxTools" type="number" step="1" :placeholder="t('models.no_limit')" />
@@ -524,6 +562,24 @@ async function refresh() {
             </SFormItem>
             <SFormItem :label="t('models.tool_call')">
               <SSelect v-model="toolCallValue">
+                <option value="true">{{ t('models.capability_supported') }}</option>
+                <option value="false">{{ t('models.capability_unsupported') }}</option>
+              </SSelect>
+            </SFormItem>
+            <SFormItem :label="t('models.reasoning')">
+              <SSelect v-model="reasoningValue">
+                <option value="true">{{ t('models.capability_supported') }}</option>
+                <option value="false">{{ t('models.capability_unsupported') }}</option>
+              </SSelect>
+            </SFormItem>
+            <SFormItem :label="t('models.temperature_control')">
+              <SSelect v-model="temperatureCapabilityValue">
+                <option value="true">{{ t('models.capability_supported') }}</option>
+                <option value="false">{{ t('models.capability_unsupported') }}</option>
+              </SSelect>
+            </SFormItem>
+            <SFormItem :label="t('models.structured_output')">
+              <SSelect v-model="structuredOutputValue">
                 <option value="true">{{ t('models.capability_supported') }}</option>
                 <option value="false">{{ t('models.capability_unsupported') }}</option>
               </SSelect>
@@ -627,7 +683,8 @@ async function refresh() {
   color: var(--sui-fg-muted);
   font-size: var(--sui-fs-sm);
 }
-.capability-item + .capability-item { border-left: 1px solid var(--sui-border); }
+.capability-item:nth-child(even) { border-left: 1px solid var(--sui-border); }
+.capability-item:nth-child(n + 3) { border-top: 1px solid var(--sui-border); }
 .capability--yes { color: var(--sui-success-fg); }
 .capability--no { color: var(--sui-danger); }
 .catalog-metrics {
@@ -685,7 +742,8 @@ async function refresh() {
   .parameter-grid,
   .capability-list { grid-template-columns: 1fr; }
   .catalog-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .capability-item + .capability-item { border-left: 0; border-top: 1px solid var(--sui-border); }
+  .capability-item:nth-child(even) { border-left: 0; }
+  .capability-item:nth-child(n + 2) { border-top: 1px solid var(--sui-border); }
   .catalog-metric + .catalog-metric { border-left: 1px solid var(--sui-border); }
   .catalog-metric:nth-child(3) { border-left: 0; border-top: 1px solid var(--sui-border); grid-column: 1 / -1; }
   .parameter-grid :deep(.s-form-item) { margin-bottom: var(--sui-sp-4); }
