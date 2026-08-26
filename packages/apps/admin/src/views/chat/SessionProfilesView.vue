@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { profileManager } from '@/managers/profileManager'
+import { modelManager } from '@/managers/modelManager'
 import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable, SModal } from '@sbot/ui'
 import type { STableColumn } from '@sbot/ui'
 import { ApprovalTimeoutValue, IntentFilterMode } from '@sbot/shared'
@@ -100,7 +101,7 @@ const agentOptions = computed(() => Object.entries(store.settings.agents || {}).
 const saverOptions = computed(() => Object.entries(store.settings.savers || {}).map(([id, s]) => ({ id, label: (s as any).name || id })))
 const noteOptions = computed(() => Object.entries(store.settings.notes || {}).map(([id, n]: [string, any]) => ({ id, label: n.name || id })))
 const wikiOptions = computed(() => Object.entries(store.settings.wikis || {}).map(([id, w]) => ({ id, label: (w as any).name || id })))
-const modelOptions = computed(() => Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id })))
+const modelOptions = modelManager.options
 const memoryProfileOptions = computed(() => Object.entries(store.settings.memoryProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
+import { embeddingManager } from '@/managers/embeddingManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import type { NoteConfig } from '@/shared/types'
 import NoteViewModal from './NoteViewModal.vue'
@@ -24,13 +25,7 @@ const columns = computed<STableColumn[]>(() => [
   { key: 'count',     label: t('notes.count_col'),     width: '70px',  align: 'center' },
   { key: 'ops',       label: t('common.ops'),          ops: true,      width: '180px', align: 'center' },
 ])
-const embeddingOptions = computed(() =>
-  Object.entries(store.settings.embeddings || {}).map(([id, e]) => ({
-    id,
-    label: e.name || id,
-    detail: `${e.provider} / ${e.model}`,
-  }))
-)
+const embeddingOptions = embeddingManager.options
 // ── 被引用情况（频道 / 会话档案） ──
 const { loadProfiles, makeResourceRefs } = useResourceRefs()
 const refs = makeResourceRefs({

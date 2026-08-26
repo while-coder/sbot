@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
+import { modelManager } from '@/managers/modelManager'
 import { useToast, useConfirm } from '@sbot/ui'
 import { AgentMode, ACPSessionMode } from '@/shared/types'
 import type { AgentConfig, SubAgentRef } from '@/shared/types'
@@ -45,9 +46,7 @@ const allTagSuggestions = computed(() => {
   }
   return Array.from(set).sort()
 })
-const modelOptions  = computed(() =>
-  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: m.name || id }))
-)
+const modelOptions = modelManager.options
 const agentOptions  = computed(() =>
   Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id, type: (a as any).type || '' }))
 )

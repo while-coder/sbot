@@ -5,6 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { profileManager } from '@/managers/profileManager'
 import { settingsManager } from '@/managers/settingsManager'
+import { modelManager } from '@/managers/modelManager'
 import { saverManager } from '@/managers/saverManager'
 import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from '@sbot/ui'
 import QRCode from 'qrcode'
@@ -147,7 +148,7 @@ const agentOptions  = computed(() => Object.entries(store.settings.agents   || {
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
 const noteOptions   = computed(() => Object.entries(store.settings.notes     || {}).map(([id, n]) => ({ id, label: n.name  || id })))
 const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
-const modelOptions  = computed(() => Object.entries(store.settings.models   || {}).map(([id, m]) => ({ id, label: (m as any).name  || id })))
+const modelOptions  = modelManager.options
 const memoryProfileOptions = computed(() => Object.entries(store.settings.memoryProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 
@@ -835,7 +836,7 @@ async function refresh() {
           <span v-if="c.askTimeout != null && c.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ c.askTimeout }}</span>
           <span v-if="c.mergeWindow != null && c.mergeWindow > 0" class="session-meta-chip">{{ t('channels.merge_window') }}: {{ c.mergeWindow }}ms</span>
           <span v-if="showIntentFilterModeChip(c.intentFilterMode, c.intentModel)" class="session-meta-chip" :class="intentFilterModeClass(c.intentFilterMode)">{{ t('channels.intent_filter_mode') }}: {{ formatIntentFilterMode(c.intentFilterMode) }}</span>
-          <span v-if="(c.intentFilterMode ?? IntentFilterMode.Auto) === IntentFilterMode.Auto && c.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === c.intentModel)?.label || c.intentModel }}</span>
+          <span v-if="(c.intentFilterMode ?? IntentFilterMode.Auto) === IntentFilterMode.Auto && c.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelManager.nameOf(c.intentModel) }}</span>
           <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
           <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
         </template>
@@ -879,7 +880,7 @@ async function refresh() {
                   <span v-if="s.approvalTimeout != null && s.approvalTimeout > 0" class="session-meta-chip">{{ t('channels.approval_timeout') }}: {{ s.approvalTimeout }} / {{ s.approvalTimeoutValue === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : t('channels.approval_timeout_value_deny') }}</span>
                   <span v-if="s.askTimeout != null && s.askTimeout > 0" class="session-meta-chip">{{ t('channels.ask_timeout') }}: {{ s.askTimeout }}</span>
                   <span v-if="showIntentFilterModeChip(s.intentFilterMode, s.intentModel)" class="session-meta-chip" :class="intentFilterModeClass(s.intentFilterMode)">{{ t('channels.intent_filter_mode') }}: {{ formatIntentFilterMode(s.intentFilterMode) }}</span>
-                  <span v-if="(s.intentFilterMode ?? IntentFilterMode.Auto) === IntentFilterMode.Auto && s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelOptions.find(m => m.id === s.intentModel)?.label || s.intentModel }}{{ s.intentThreshold != null ? ` · ${s.intentThreshold}` : '' }}</span>
+                  <span v-if="(s.intentFilterMode ?? IntentFilterMode.Auto) === IntentFilterMode.Auto && s.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelManager.nameOf(s.intentModel) }}{{ s.intentThreshold != null ? ` · ${s.intentThreshold}` : '' }}</span>
                 </template>
               </SEntityList>
               <SEntityList

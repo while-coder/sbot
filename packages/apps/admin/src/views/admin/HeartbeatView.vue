@@ -6,6 +6,7 @@ import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBad
 import type { STableColumn } from '@sbot/ui'
 import { store } from '@/shared/store'
 import { channelManager } from '@/managers/channelManager'
+import { modelManager } from '@/managers/modelManager'
 import { promptFileManager } from '@/managers/promptFileManager'
 import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
 import SessionSelect from '@/components/SessionSelect.vue'
@@ -92,9 +93,7 @@ const heartbeats = ref<HeartbeatItem[]>([])
 const agendaOptions = computed(() =>
   Object.entries(store.settings.agendaProfiles || {}).map(([id, p]: [string, any]) => ({ id, label: p?.name || id }))
 )
-const modelOptions = computed(() =>
-  Object.entries(store.settings.models || {}).map(([id, m]: [string, any]) => ({ id, label: m?.name || id }))
-)
+const modelOptions = modelManager.options
 
 const showModal = ref(false)
 const editingId = ref<number | null>(null)

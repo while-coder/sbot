@@ -7,6 +7,7 @@ import { profileManager } from '@/managers/profileManager'
 import { mcpManager } from '@/managers/mcpManager'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
+import { modelManager } from '@/managers/modelManager'
 import { useToast, useConfirm, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, SSelect, STagFilter, type STableColumn } from '@sbot/ui'
 import AgentModal from './modals/AgentModal.vue'
 import AgentMcpModal from './modals/AgentMcpModal.vue'
@@ -71,7 +72,7 @@ const filteredAgentRows = computed<AgentRow[]>(() => {
     return activeTagFilters.value.every(t => rowTags.includes(t))
   })
 })
-const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || id
+const modelName = (id: string) => modelManager.nameOf(id)
 
 // ── Agent 引用情况（频道 / 会话档案 / 父智能体），方便清理无用资源 ──
 interface ProfileLite { id: number; name: string; agentId: string | null; sessionCount?: number }

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
+import { modelManager } from '@/managers/modelManager'
 import { promptFileManager } from '@/managers/promptFileManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
@@ -26,9 +27,7 @@ const profileList = computed(() =>
   Object.entries(profiles.value).map(([id, p]) => ({ id, ...p })),
 )
 
-const modelOptions = computed(() =>
-  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id })),
-)
+const modelOptions = modelManager.options
 
 // ── 被引用情况（频道 / 会话档案） ──
 const { loadProfiles, makeResourceRefs } = useResourceRefs()
@@ -152,7 +151,7 @@ async function refresh() {
           </SBadge>
         </template>
         <template #syncModel="{ row }">
-          <span v-if="row.syncModel">{{ modelOptions.find(m => m.id === row.syncModel)?.label || row.syncModel }}</span>
+          <span v-if="row.syncModel">{{ modelManager.nameOf(row.syncModel) }}</span>
           <span v-else class="muted">{{ t('agenda_profiles.sync_disabled') }}</span>
         </template>
         <template #prompt="{ row }">

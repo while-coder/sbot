@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
+import { modelManager } from '@/managers/modelManager'
 import { promptFileManager } from '@/managers/promptFileManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import MemoryListModal from '@/components/modals/MemoryListModal.vue'
@@ -28,9 +29,7 @@ const profileList = computed(() =>
   Object.entries(profiles.value).map(([id, p]) => ({ id, ...p })),
 )
 
-const modelOptions = computed(() =>
-  Object.entries(store.settings.models || {}).map(([id, m]) => ({ id, label: (m as any).name || id })),
-)
+const modelOptions = modelManager.options
 
 // ── 被引用情况（频道 / 会话档案） ──
 const { loadProfiles, makeResourceRefs } = useResourceRefs()
@@ -160,7 +159,7 @@ function openMemoryViewer(id: string) {
 
 function modelLabel(id: string | undefined | null): string {
   if (!id) return '-'
-  return modelOptions.value.find(m => m.id === id)?.label || id
+  return modelManager.nameOf(id)
 }
 </script>
 
