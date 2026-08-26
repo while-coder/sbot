@@ -1,11 +1,14 @@
 import { inject } from "scorpio.di";
 import {
+    contentToString,
     formatError,
     runtimeActivity,
     ILoggerService,
+    MessageRole,
     type ILogger,
     type ChatMessage,
     TimeUtils,
+    truncateForLog,
 } from "scorpio.ai";
 import {
     AgendaAssignee,
@@ -70,6 +73,7 @@ export class AgendaService implements IAgendaService {
     private isRunning = false;
     private refCount = 0;
     private disposed = false;
+    private agendaName = '未知配置';
 
     constructor(
         @inject(T_AgendaToolDescs) private toolDescs: AgendaToolDescs,
@@ -82,6 +86,53 @@ export class AgendaService implements IAgendaService {
     }
 
     // ── 生命周期：refCount 配对，归零一次性 evict ──
+
+    /** 由 AgendaServicePool 构造后注入，避免日志从 db 路径反推配置名。 */
+    setAgendaName(agendaName: string | undefined): void {
+        this.agendaName = agendaName?.trim() || '未知配置';
+    }
+
+    /** 显示名称（日志标识）；pool 驱逐等外部日志用。 */
+    get name(): string {
+        return this.agendaName;
+    }
+
+    private logAgenda(level: 'debug' | 'info' | 'warn' | 'error', message: string): void {
+        const line = `[日程:${truncateForLog(this.agendaName, 80)}] ${message}`;
+        switch (level) {
+            case 'debug':
+                this.logger?.debug(line);
+                break;
+            case 'info':
+                this.logger?.info(line);
+                break;
+            case 'warn':
+                this.logger?.warn(line);
+                break;
+            case 'error':
+                this.logger?.error(line);
+                break;
+        }
+    }
+
+    /** 抽取任务的 query 预览：取最后一条用户消息（与 MemoryService.messagePreview 一致）。 */
+    private static messagePreview(messages: ChatMessage[]): string {
+        const message = [...messages].reverse().find(m => m.role === MessageRole.Human) ?? messages[messages.length - 1];
+        if (!message) return '空消息';
+        const text = contentToString(message.content).replace(/\s+/g, ' ').trim();
+        if (!text) return '空消息';
+        return truncateForLog(text);
+    }
+
+    /** job 消费日志的三段式文案（参考 MemoryService.jobLog；agenda 目前只有 Extract 一种 job）。 */
+    private jobLog(job: PendingAgendaJobRow): { start: string; done: string; failed: string; subject: string } {
+        return {
+            start: '开始提取日程',
+            done: '提取日程完成',
+            failed: '提取日程失败',
+            subject: AgendaService.messagePreview(job.messages ?? []),
+        };
+    }
 
     /** Pool 在 acquire 时调用：refCount++。仅 pool 用，不在 IAgendaService 接口语义上向外暴露。 */
     incRef(): void {
@@ -495,7 +546,7 @@ export class AgendaService implements IAgendaService {
         try {
             this.agendaStore.pushPendingMessages(channelSessionId, messages, Date.now());
         } catch (e: any) {
-            this.logger?.warn(`Agenda push pending failed: ${formatError(e, true)}`);
+            this.logAgenda('warn', `日程提取入队失败：query=${AgendaService.messagePreview(messages)}，错误=${formatError(e, true)}`);
             return;
         }
         void this.checkJobs();
@@ -531,14 +582,16 @@ export class AgendaService implements IAgendaService {
                     break;  // store 被关 → 退出 drain
                 }
                 if (!next) break;
+                const log = this.jobLog(next);
                 try {
+                    this.logAgenda('info', `${log.start}：#${next.id}（会话=${next.channelSessionId}）${log.subject}`);
                     const applied = await this.runExtractJob(next.messages, next.channelSessionId);
                     this.agendaStore.deletePendingJob(next.id);
-                    this.logger?.info(`agenda pending extract #${next.id} done: ${applied} action(s) applied`);
+                    this.logAgenda('info', `${log.done}：#${next.id}，应用动作=${applied} 个，${log.subject}`);
                 } catch (e: any) {
                     const errMsg = formatError(e).slice(0, ERROR_MESSAGE_MAX_LEN);
                     try { this.agendaStore.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
-                    this.logger?.warn(`agenda pending extract #${next.id} failed: ${errMsg}`);
+                    this.logAgenda('warn', `${log.failed}：#${next.id}，尝试=${next.attemptCount + 1}，${log.subject}${this.extractor ? `，模型=${this.extractor.modelLabel()}` : ''}，错误=${errMsg}`);
                 }
             }
         } finally {

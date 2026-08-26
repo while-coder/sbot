@@ -24,6 +24,9 @@ export type AgendaAction =
 
 export interface IAgendaExtractor {
     extract(messages: ChatMessage[], existingItems: AgendaRecord[]): Promise<AgendaAction[]>;
+
+    /** 抽取所用模型的标签（名称/provider/model），仅用于日志。 */
+    modelLabel(): string;
 }
 
 export const IAgendaExtractor = Symbol("IAgendaExtractor");

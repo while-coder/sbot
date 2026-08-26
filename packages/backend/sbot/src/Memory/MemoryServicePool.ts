@@ -72,7 +72,7 @@ export function startupExtractAll(): void {
         scheduled++;
         memoryServicePool.forceExtract(id);
     }
-    if (scheduled > 0) logger.info(`Memory startup extract scheduled for ${scheduled} profile(s)`);
+    if (scheduled > 0) logger.info(`启动记忆抽取已排期：${scheduled} 个 profile`);
 }
 
 export { memoryServicePool };

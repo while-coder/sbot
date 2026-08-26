@@ -13,6 +13,8 @@ import { IAgendaService, type AgendaToolDescs } from "./IAgendaService";
  * Agenda 模板 db、TriggerEngine、Extractor 这些应用层概念都由 caller 完成，pool 不参与。
  */
 export interface AgendaServiceConfig {
+    /** 显示名称（profile.name）；不设置时 pool 回退到 agendaId。仅用于日志标识。 */
+    agendaName?: string;
     /** 该 agendaId 对应的存储；由 sbot 侧 agendaStorePool 共享。 */
     agendaStore: IAgendaStore;
     /** 该 agendaId 的触发引擎；由 sbot 侧 agendaTriggerEnginePool 共享。 */
@@ -107,7 +109,7 @@ export class AgendaServicePool {
         for (const [id, cached] of this.cache) {
             if (cached === service) {
                 this.cache.delete(id);
-                this.logger?.info(`AgendaService [${id}] evicted`);
+                this.logger?.info(`日程服务已驱逐：${service.name}（agendaId=${id}）`);
                 return;
             }
         }
@@ -151,14 +153,15 @@ export class AgendaServicePool {
         sub.registerSingleton(IAgendaService, AgendaService);
 
         const service = sub.resolve<AgendaService>(IAgendaService) as AgendaService;
-        this.logger?.info(`AgendaService [${agendaId}] built`);
+        service.setAgendaName(cfg.agendaName ?? agendaId);
+        this.logger?.info(`日程服务已构建：${cfg.agendaName ?? agendaId}（agendaId=${agendaId}）`);
         return service;
     }
 
     private releaseQuietly(service: IAgendaService | undefined, action: string, agendaId: string): void {
         if (!service) return;
         try { service.release(); }
-        catch (e: any) { this.logActionFailed(`${action} release`, agendaId, e); }
+        catch (e: any) { this.logActionFailed(`${action}后释放引用`, agendaId, e); }
     }
 
     private logActionFailed(action: string, agendaId: string, e: any): void {

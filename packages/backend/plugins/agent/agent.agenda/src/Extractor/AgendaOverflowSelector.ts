@@ -90,7 +90,7 @@ export class AgendaOverflowSelector {
             const selected = this.rankRecords([boundedConversation], records)
                 .slice(0, AGENDA_SYNC_FINAL_CANDIDATE_LIMIT)
                 .map(candidate => candidate.record);
-            this.logger?.debug(`AgendaSync selector advised no sync; final writer still runs with ${selected.length} local candidate(s)`);
+            this.logger?.debug(`日程抽取 Selector 建议无需同步，最终 Writer 仍以 ${selected.length} 条本地候选运行`);
             return selected;
         }
 
@@ -125,9 +125,9 @@ export class AgendaOverflowSelector {
             }
         }
         if (best == null) {
-            throw new Error(`AgendaSync ${stage} prompt exceeds input budget even without conversation content`);
+            throw new Error(`日程抽取 ${stage} 阶段的 prompt 即使不含对话内容也超出输入预算`);
         }
-        this.logger?.warn(`AgendaSync ${stage} conversation truncated from ${conversation.length} to ${best.length} chars to fit input budget`);
+        this.logger?.warn(`日程抽取 ${stage} 阶段对话已截断以适配输入预算：${conversation.length} → ${best.length} 字符`);
         return best;
     }
 
@@ -146,9 +146,9 @@ export class AgendaOverflowSelector {
         );
         const activeChunks = chunks.slice(0, AGENDA_SYNC_SELECTOR_BATCH_LIMIT);
         const scannedCount = activeChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-        this.logger?.debug(`AgendaSync candidate scan: items=${records.length}, batches=${activeChunks.length}/${chunks.length}, maxPerBatch=${AGENDA_SYNC_CANDIDATES_PER_BATCH}`);
+        this.logger?.debug(`日程抽取候选扫描：条目=${records.length}，批次=${activeChunks.length}/${chunks.length}，每批候选上限=${AGENDA_SYNC_CANDIDATES_PER_BATCH}`);
         if (scannedCount < records.length) {
-            this.logger?.warn(`AgendaSync selector batch cap reached; locally ranked ${records.length - scannedCount} lower-relevance item(s) were not sent to the model`);
+            this.logger?.warn(`日程抽取 Selector 批次已达上限，${records.length - scannedCount} 条低相关条目未送入模型（按本地排序）`);
         }
 
         const rankedById = new Map(rankedRecords.map(candidate => [candidate.record.item.id, candidate] as const));
@@ -164,7 +164,7 @@ export class AgendaOverflowSelector {
                 for (const [rank, candidate] of output.candidates.slice(0, AGENDA_SYNC_CANDIDATES_PER_BATCH).entries()) {
                     const record = available.get(candidate.id);
                     if (!record) {
-                        this.logger?.warn(`Agenda selector returned an id outside the current batch: #${candidate.id}`);
+                        this.logger?.warn(`日程抽取 Selector 返回了当前批次之外的 id：#${candidate.id}`);
                         continue;
                     }
                     const relevance = Math.max(0, Math.min(100, candidate.relevance ?? (100 - rank)));
@@ -178,7 +178,7 @@ export class AgendaOverflowSelector {
                     }
                 }
             } catch (error: any) {
-                this.logger?.warn(`Agenda selector batch failed; using local ranking: ${formatError(error)}`);
+                this.logger?.warn(`日程抽取 Selector 批次失败，改用本地排序：${formatError(error)}`);
                 for (const record of chunk.slice(0, AGENDA_SYNC_CANDIDATES_PER_BATCH)) {
                     if (selected.has(record.item.id)) continue;
                     const ranked = rankedById.get(record.item.id);

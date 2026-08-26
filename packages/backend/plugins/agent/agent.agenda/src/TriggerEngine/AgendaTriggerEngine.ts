@@ -41,13 +41,35 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     private executor = new TimerExecutor<NodeJS.Timeout>({ stop: handle => clearTimeout(handle), concurrencyGuard: true });
     private started = false;
     private startPromise?: Promise<void>;
+    private readonly agendaName: string;
 
     constructor(
         private readonly agendaId: string,
         private readonly store: IAgendaStore,
         private readonly delivery: AgendaDeliveryHandler,
         private readonly logger?: ILogger,
-    ) {}
+        agendaName?: string,
+    ) {
+        this.agendaName = agendaName?.trim() || agendaId;
+    }
+
+    private logEngine(level: 'debug' | 'info' | 'warn' | 'error', message: string): void {
+        const line = `[日程:${this.agendaName}] ${message}`;
+        switch (level) {
+            case 'debug':
+                this.logger?.debug(line);
+                break;
+            case 'info':
+                this.logger?.info(line);
+                break;
+            case 'warn':
+                this.logger?.warn(line);
+                break;
+            case 'error':
+                this.logger?.error(line);
+                break;
+        }
+    }
 
     /**
      * 幂等 + 可 await：首次调用真正加载并调度已启用 trigger，并发/重复调用共享同一 promise。
@@ -66,7 +88,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         for (const trigger of triggers) {
             await this.reload(trigger.id);
         }
-        this.logger?.info(`Agenda trigger engine [agenda=${this.agendaId}] started, loaded ${triggers.length} trigger(s)`);
+        this.logEngine('info', `触发引擎已启动：已加载 ${triggers.length} 条触发器`);
     }
 
     stopAll(): void {
@@ -147,6 +169,9 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
             // 纯日志：每次实际投递尝试（不论成功与否）都落一行。必须在 absolute
             // 重试/放弃分支前写入，否则最终 Expired 的条目会丢失失败审计记录。
+            if (delivered) {
+                this.logEngine('info', `触发器已${freshTrigger.action === SessionDeliveryMode.Invoke ? '触发 AI 执行' : '投递'}：#${freshTrigger.id}（${this.briefDesc(freshTrigger.message ?? "")}）`);
+            }
             await this.store.insertTriggerFire({
                 triggerId: freshTrigger.id,
                 itemId: item.id,
@@ -168,15 +193,15 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
                     if (retryAt - originalAt < ABSOLUTE_RETRY_DEADLINE_MS) {
                         await this.store.updateTrigger(freshTrigger.id, { nextFireAt: retryAt });
                         this.schedule(freshTrigger.id, retryAt);
-                        this.logger?.warn(`Agenda trigger [${freshTrigger.id}] delivery failed, retry at ${new Date(retryAt).toISOString()}`);
+                        this.logEngine('warn', `触发器投递失败，安排重试：#${freshTrigger.id}（${this.briefDesc(freshTrigger.message ?? "")}），重试时刻=${new Date(retryAt).toISOString()}`);
                         return;
                     }
                     await this.disableMissedTrigger(freshTrigger);
-                    this.logger?.warn(`Agenda trigger [${freshTrigger.id}] delivery failed past retry deadline; giving up`);
+                    this.logEngine('warn', `触发器投递失败且已超出重试期限，放弃：#${freshTrigger.id}（${this.briefDesc(freshTrigger.message ?? "")}）`);
                     return;
                 }
                 await this.disableMissedTrigger(freshTrigger);
-                this.logger?.warn(`Agenda trigger [${freshTrigger.id}] delivery failed; expr unparseable, giving up`);
+                this.logEngine('warn', `触发器投递失败且原定时刻不可解析，放弃：#${freshTrigger.id}（${this.briefDesc(freshTrigger.message ?? "")}）`);
                 return;
             }
 
@@ -201,6 +226,9 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         const ran = await this.executor.execute(triggerId, async () => {
             const res = await this.deliver(item, trigger);
             ok = res.ok;
+            if (ok) {
+                this.logEngine('info', `触发器手动投递成功：#${trigger.id}（${this.briefDesc(trigger.message ?? "")}）`);
+            }
             await this.store.insertTriggerFire({
                 triggerId: trigger.id,
                 itemId: item.id,
@@ -223,11 +251,13 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
     private async deliver(item: AgendaItem, trigger: AgendaTrigger): Promise<{ ok: boolean; error?: string }> {
         try {
             const result = await this.delivery({ agendaId: this.agendaId, item, trigger });
-            if (!result.ok) this.logger?.warn(`Agenda trigger [${trigger.id}] delivery failed`);
+            if (!result.ok) {
+                this.logEngine('warn', `触发器投递失败：#${trigger.id}（${this.briefDesc(trigger.message ?? "")}）${result.error ? `，原因=${result.error}` : ''}`);
+            }
             return result;
         } catch (e: any) {
             const error = formatError(e);
-            this.logger?.warn(`Agenda trigger [${trigger.id}] failed: ${formatError(e, true)}`);
+            this.logEngine('warn', `触发器投递异常：#${trigger.id}（${this.briefDesc(trigger.message ?? "")}），错误=${formatError(e, true)}`);
             return { ok: false, error };
         }
     }
@@ -243,7 +273,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         let result: string;
         if (trigger.action === SessionDeliveryMode.Invoke) result = "已触发 AI 执行";
         else if (ok) result = "已发送";
-        else result = error ? `发送失败: ${error}` : "发送失败";
+        else result = error ? `发送失败：${error}` : "发送失败";
         return `内容：${content}\n结果：${result}`;
     }
 
@@ -260,7 +290,7 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
 
     private async markMissed(trigger: AgendaTrigger, scheduledAt: number): Promise<void> {
         await this.disableMissedTrigger(trigger);
-        this.logger?.warn(`Agenda trigger [${trigger.id}] missed scheduled fire at ${new Date(scheduledAt).toISOString()} beyond grace window`);
+        this.logEngine('warn', `触发器错过触发时刻且超出宽限窗口，已停用：#${trigger.id}（${this.briefDesc(trigger.message ?? "")}），原定时刻=${new Date(scheduledAt).toISOString()}`);
     }
 
     /**
@@ -317,6 +347,6 @@ export class AgendaTriggerEngine implements IAgendaTriggerEngine {
         }
 
         if (enabled && nextFireAt) this.schedule(trigger.id, nextFireAt);
-        this.logger?.info(`Agenda trigger [${trigger.id}] advanced from ${new Date(scheduledAt).toISOString()} to ${nextFireAt ? new Date(nextFireAt).toISOString() : 'disabled'}`);
+        this.logEngine('info', `触发器已推进：#${trigger.id}（${this.briefDesc(trigger.message ?? "")}），本次时刻=${new Date(scheduledAt).toISOString()}，下一时刻=${nextFireAt ? new Date(nextFireAt).toISOString() : '已停用'}`);
     }
 }

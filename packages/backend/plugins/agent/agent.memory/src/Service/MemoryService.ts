@@ -266,6 +266,11 @@ export class MemoryService {
         this.memoryName = memoryName?.trim() || '未知配置';
     }
 
+    /** 显示名称（日志标识）；pool 驱逐等外部日志用。 */
+    get name(): string {
+        return this.memoryName;
+    }
+
     /**
      * 获取绑定规范化 workPath 的工作区服务。同一 owner + workPath 复用同一实例，
      * owner 仍按 memoryId 全局唯一，工作区 Store 与 reconcile 状态互不串扰。
@@ -316,19 +321,19 @@ export class MemoryService {
         for (const workspaceService of this.workspaceServices.values()) {
             try { workspaceService.dispose(); }
             catch (e: any) {
-                this.logMemory('warn', `工作区记忆存储关闭失败: path=${workspaceService.workspace.path}, 错误=${formatError(e, true)}`);
+                this.logMemory('warn', `工作区记忆存储关闭失败：path=${workspaceService.workspace.path}，错误=${formatError(e, true)}`);
             }
         }
         this.workspaceServices.clear();
         try { this.store.dispose(); }
         catch (e: any) {
-            this.logMemory('warn', `全局记忆存储关闭失败: 错误=${formatError(e, true)}`);
+            this.logMemory('warn', `全局记忆存储关闭失败：错误=${formatError(e, true)}`);
         }
         memoryServicePool.evict(this);
         if (this.deleteOnTeardown) {
             // dispose 已关 sqlite handle，rm 安全。fire-and-forget：调用方不需要等物理删除完成。
             this.store.deleteAll().catch(e => {
-                this.logMemory('warn', `记忆存储删除失败: 错误=${formatError(e, true)}`);
+                this.logMemory('warn', `记忆存储删除失败：错误=${formatError(e, true)}`);
             });
         }
     }
@@ -358,7 +363,7 @@ export class MemoryService {
         const firstReconcile = !service.hasReconciled;
         const stats = await service.reconcile(false);
         if (firstReconcile && (stats.indexed > 0 || stats.pruned > 0)) {
-            this.logMemory('info', `工作区记忆初始化对账: path=${workspace.path}，索引=${stats.indexed}，清理=${stats.pruned}`);
+            this.logMemory('info', `工作区记忆初始化对账：path=${workspace.path}，索引=${stats.indexed}，清理=${stats.pruned}`);
             this.recordHistory(`Synchronize workspace memory files (${workspace.key})`);
         }
         return service.store;
@@ -475,7 +480,7 @@ export class MemoryService {
             await store.recordRead(slug, Date.now());
         } catch (e: any) {
             // recordRead 失败不该影响读取本身
-            this.logMemory('warn', `记忆读取计数失败: slug=${slug}, 错误=${formatError(e, true)}`);
+            this.logMemory('warn', `记忆读取计数失败：slug=${slug}，错误=${formatError(e, true)}`);
         }
         return { ...row, scope: target.scope };
     }
@@ -532,7 +537,7 @@ export class MemoryService {
         const targetStore = await this.storeForTarget(target);
         await targetStore.delete(slug);
         this.recordHistory(`Delete memory (${this.targetLabel(target)}): ${slug}`);
-        this.logMemory('info', `记忆管理删除: scope=${target.scope}, slug=${slug}`);
+        this.logMemory('info', `记忆管理删除：scope=${target.scope}，slug=${slug}`);
     }
 
     listHistory(target: MemoryTarget, limit?: number, slug?: string): MemoryHistoryEntry[] {
@@ -550,7 +555,7 @@ export class MemoryService {
         const restored = await targetStore.getBySlug(slug);
         if (!restored) throw new Error(`Restored memory could not be indexed: ${slug}`);
         this.recordHistory(`Restore memory (${this.targetLabel(target)}): ${slug} from ${commit.slice(0, 8)}`);
-        this.logMemory('info', `恢复记忆: scope=${target.scope}, slug=${slug}, commit=${commit.slice(0, 8)}`);
+        this.logMemory('info', `恢复记忆：scope=${target.scope}，slug=${slug}，commit=${commit.slice(0, 8)}`);
         return { ...restored, scope: target.scope };
     }
 
@@ -561,7 +566,7 @@ export class MemoryService {
         try {
             this.store.pushPendingMessages(messages, Date.now(), target);
         } catch (e: any) {
-            this.logMemory('warn', `记忆抽取入队失败: 错误=${formatError(e, true)}`);
+            this.logMemory('warn', `记忆抽取入队失败: query=${MemoryService.messagePreview(messages)}，错误=${formatError(e, true)}`);
             return;
         }
         void this.checkJobs();
@@ -652,11 +657,11 @@ export class MemoryService {
         try {
             const stats = await this.store.reconcile();
             if (stats.indexed > 0 || stats.pruned > 0) {
-                this.logMemory('info', `记忆初始化对账: 索引=${stats.indexed}, 清理=${stats.pruned}`);
+                this.logMemory('info', `记忆初始化对账：索引=${stats.indexed}，清理=${stats.pruned}`);
                 this.recordHistory('Synchronize global memory files');
             }
         } catch (e: any) {
-            this.logMemory('warn', `记忆初始化对账失败: 错误=${formatError(e, true)}`);
+            this.logMemory('warn', `记忆初始化对账失败：错误=${formatError(e, true)}`);
         } finally {
             this.initReconciled = true;
         }
@@ -1062,7 +1067,7 @@ export class MemoryService {
         const filtered = result.ops.filter(op => op.action !== MemoryOpAction.Create);
         const capped = MemoryService.capConsolidateOps(filtered, rows.length);
         if (capped.length < filtered.length) {
-            this.logMemory('warn', `记忆整理操作截断：原始=${filtered.length}, 保留=${capped.length}, 条目=${rows.length}`);
+            this.logMemory('warn', `记忆整理操作截断：原始=${filtered.length}，保留=${capped.length}，条目=${rows.length}`);
         }
         // 整理路径：没有新对话作证，只是重写措辞/合并重复 → evidence 不动
         return this.applyOps(capped, {
@@ -1136,18 +1141,18 @@ export class MemoryService {
                             body: op.body,
                         }, now);
                         out.create++;
-                        this.logMemory('info', `添加记忆：scope=${target!.scope}, ${op.slug} - ${truncateForLog(op.title)}`);
+                        this.logMemory('info', `添加记忆：scope=${target!.scope}，slug=${op.slug}，标题=${truncateForLog(op.title)}`);
                         break;
                     }
                     case MemoryOpAction.Update:
                         await this.applyUpdate(op, context, now, target!.store);
                         out.update++;
-                        this.logMemory('info', `修改记忆：scope=${target!.scope}, ${op.slug} - ${truncateForLog(op.reason)}`);
+                        this.logMemory('info', `修改记忆：scope=${target!.scope}，slug=${op.slug}，原因=${truncateForLog(op.reason)}`);
                         break;
                     case MemoryOpAction.Delete:
                         await target!.store.delete(op.slug);
                         out.delete++;
-                        this.logMemory('info', `删除记忆：scope=${target!.scope}, ${op.slug} - ${truncateForLog(op.reason)}`);
+                        this.logMemory('info', `删除记忆：scope=${target!.scope}，slug=${op.slug}，原因=${truncateForLog(op.reason)}`);
                         break;
                     case MemoryOpAction.Noop:
                         out.noop++;
@@ -1283,7 +1288,7 @@ export class MemoryService {
     private recordHistory(message: string): void {
         try {
             const commit = this.history.record(message);
-            if (commit) this.logMemory('debug', `记忆历史已提交: ${commit.slice(0, 8)} ${message}`);
+            if (commit) this.logMemory('debug', `记忆历史已提交：${commit.slice(0, 8)}，${message}`);
         } catch (e: any) {
             // Git 历史是审计层；提交失败不能让已经完成的 Memory CRUD 重跑 LLM。
             // 工作树会保持 dirty，下一次成功提交会一并保存这些文件变化。

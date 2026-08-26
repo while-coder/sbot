@@ -6,6 +6,7 @@ import type {
 } from "agent.agenda";
 import type { ChannelSessionRow } from "../Core/Database";
 import { database } from "../Core/Database";
+import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { triggerSession } from "../Core/triggerSession";
 import { channelDataService } from "../Session/ChannelDataService";
@@ -35,7 +36,7 @@ export function createAgendaDeliveryHandler(
             targetId: delivery.id,
             message: request.trigger.message,
             mode: request.trigger.action,
-            tag: `Agenda trigger [${request.trigger.id}]`,
+            tag: `日程触发器 #${request.trigger.id}`,
         });
     };
 }
@@ -60,7 +61,11 @@ export async function resolveAgendaDelivery(
         }
     }
 
-    logger.warn(`Agenda trigger [${trigger.id}] no session uses agenda=${agendaId}`);
+    // 所有会话都不再使用该 agenda → 提醒无接收方，只能丢弃。属配置漂移类错误
+    // （用户感知是"提醒没响"），用 error 级别突出。
+    const name = config.getAgendaProfile(agendaId)?.name ?? agendaId;
+    const brief = trigger.message.replace(/\s+/g, " ").trim().slice(0, 80);
+    logger.error(`[日程:${name}] 提醒无接收会话，本次触发已丢弃：触发器=#${trigger.id}（${brief}）。请检查 agenda profile 的引用会话。`);
     return null;
 }
 

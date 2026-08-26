@@ -5,6 +5,7 @@ import {
     AgendaExtractor,
     IAgendaExtractor,
     T_AgendaExtractorSystemPrompt,
+    T_AgendaName,
     T_AgendaSelectorSystemPrompt,
     loadAgendaPrompt,
 } from "agent.agenda";
@@ -56,6 +57,7 @@ const resolveConfig: AgendaServiceConfigResolver = (agendaId) => {
         const sub = new ServiceContainer();
         sub.registerInstance(ILoggerService, { getLogger: (name: string) => LoggerService.getLogger(name) });
         sub.registerInstance(IModelService, extractorModel);
+        sub.registerInstance(T_AgendaName, profile.name);
         sub.registerInstance(T_AgendaExtractorSystemPrompt, loadPrompt(profile.syncPromptFile ?? DEFAULT_SYNC_PROMPT));
         sub.registerInstance(T_AgendaSelectorSystemPrompt, loadPrompt(DEFAULT_SELECTOR_PROMPT));
         sub.registerSingleton(IAgendaExtractor, AgendaExtractor);
@@ -63,6 +65,7 @@ const resolveConfig: AgendaServiceConfigResolver = (agendaId) => {
     }
 
     return {
+        agendaName: profile.name,
         agendaStore,
         triggerEngine,
         toolDescs: sharedToolDescs,
@@ -90,7 +93,7 @@ export function startupExtractAll(): void {
         scheduled++;
         agendaServicePool.forceExtract(id);
     }
-    if (scheduled > 0) logger.info(`Agenda startup extract scheduled for ${scheduled} profile(s)`);
+    if (scheduled > 0) logger.info(`启动日程抽取已排期：${scheduled} 个 profile`);
 }
 
 export { agendaServicePool };

@@ -17,4 +17,5 @@ export const agendaTriggerEnginePool = new AgendaTriggerEnginePool(
     agendaStorePool,
     delivery,
     LoggerService.getLogger("Agenda/TriggerEngine.ts"),
+    agendaId => config.getAgendaProfile(agendaId)?.name ?? agendaId,
 );

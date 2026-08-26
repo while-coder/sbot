@@ -156,7 +156,7 @@ export class MemoryServicePool {
         for (const [id, cached] of this.cache) {
             if (cached === service) {
                 this.cache.delete(id);
-                this.logger?.info(`MemoryService [${id}] disposed`);
+                this.logger?.info(`记忆服务已销毁：${service.name}（memoryId=${id}）`);
                 return;
             }
         }
@@ -210,14 +210,14 @@ export class MemoryServicePool {
         sub.resolve<IMemoryStore>(IMemoryStore);
         const service = sub.resolve(MemoryService);
         service.setMemoryName(cfg.memoryName ?? memoryId);
-        this.logger?.info(`MemoryService [${memoryId}] built`);
+        this.logger?.info(`记忆服务已构建：${cfg.memoryName ?? memoryId}（memoryId=${memoryId}）`);
         return service;
     }
 
     private releaseQuietly(service: MemoryService | undefined, action: string, memoryId: string): void {
         if (!service) return;
         try { service.release(); }
-        catch (e: any) { this.logActionFailed(`${action} release`, memoryId, e); }
+        catch (e: any) { this.logActionFailed(`${action}后释放引用`, memoryId, e); }
     }
 
     private logActionFailed(action: string, memoryId: string, e: any): void {

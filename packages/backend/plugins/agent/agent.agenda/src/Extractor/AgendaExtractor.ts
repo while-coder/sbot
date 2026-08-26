@@ -5,7 +5,9 @@ import {
     ILoggerService,
     type ILogger,
     MessageRole,
+    contentToString,
     estimateMessagesTokens,
+    truncateForLog,
     type ChatMessage,
     renderConversation,
     TimeUtils,
@@ -20,7 +22,7 @@ import {
     AgendaRenderMode,
     formatAgendaRecordsXml,
 } from "../format";
-import { T_AgendaExtractorSystemPrompt, T_AgendaSelectorSystemPrompt } from "../tokens";
+import { T_AgendaExtractorSystemPrompt, T_AgendaName, T_AgendaSelectorSystemPrompt } from "../tokens";
 import { createAgendaTriggerSchemas } from "../triggerSchemas";
 import { type AgendaAction, AgendaActionType, IAgendaExtractor } from "./IAgendaExtractor";
 import { AgendaOverflowSelector } from "./AgendaOverflowSelector";
@@ -61,15 +63,72 @@ const AgendaExtractSchema = z.object({
 export class AgendaExtractor implements IAgendaExtractor {
     private logger?: ILogger;
     private readonly overflowSelector: AgendaOverflowSelector;
+    private agendaName = '未知配置';
 
     constructor(
         @inject(IModelService) private modelService: IModelService,
         @inject(T_AgendaExtractorSystemPrompt) private systemPrompt: string,
         @inject(T_AgendaSelectorSystemPrompt) selectorPrompt: string,
         @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
+        @inject(T_AgendaName, { optional: true }) agendaName?: string,
     ) {
+        this.agendaName = agendaName?.trim() || '未知配置';
         this.logger = loggerService?.getLogger("AgendaExtractor");
-        this.overflowSelector = new AgendaOverflowSelector(modelService, selectorPrompt, this.logger);
+        this.overflowSelector = new AgendaOverflowSelector(modelService, selectorPrompt, this.prefixedLogger());
+    }
+
+    modelLabel(): string {
+        return AgendaExtractor.formatModelLabel(this.modelService);
+    }
+
+    private static formatModelLabel(model: IModelService): string {
+        const cfg = model.config as any;
+        const name = cfg.name || cfg.model || '?';
+        const detail = [
+            cfg.provider,
+            cfg.model && cfg.model !== name ? cfg.model : '',
+        ].filter(Boolean).join('/');
+        return detail ? `${name}(${detail})` : name;
+    }
+
+    private logAgenda(level: 'debug' | 'info' | 'warn' | 'error', message: string): void {
+        const line = `[日程:${this.agendaName}] ${message}`;
+        switch (level) {
+            case 'debug':
+                this.logger?.debug(line);
+                break;
+            case 'info':
+                this.logger?.info(line);
+                break;
+            case 'warn':
+                this.logger?.warn(line);
+                break;
+            case 'error':
+                this.logger?.error(line);
+                break;
+        }
+    }
+
+    /** 给子组件（OverflowSelector）用的日志实例：统一加 [日程:名] 前缀。 */
+    private prefixedLogger(): ILogger | undefined {
+        const logger = this.logger;
+        if (!logger) return undefined;
+        const prefix = `[日程:${this.agendaName}] `;
+        return {
+            debug: (message: string, ...args: any[]) => logger.debug(prefix + message, ...args),
+            info: (message: string, ...args: any[]) => logger.info(prefix + message, ...args),
+            warn: (message: string, ...args: any[]) => logger.warn(prefix + message, ...args),
+            error: (message: string, ...args: any[]) => logger.error(prefix + message, ...args),
+        };
+    }
+
+    /** 抽取输入的 query 预览：取最后一条用户消息（与 AgendaService.messagePreview 一致）。 */
+    private static messagePreview(messages: ChatMessage[]): string {
+        const message = [...messages].reverse().find(m => m.role === MessageRole.Human) ?? messages[messages.length - 1];
+        if (!message) return '空消息';
+        const text = contentToString(message.content).replace(/\s+/g, ' ').trim();
+        if (!text) return '空消息';
+        return truncateForLog(text);
     }
 
     async extract(messages: ChatMessage[], existingItems: AgendaRecord[]): Promise<AgendaAction[]> {
@@ -87,12 +146,12 @@ export class AgendaExtractor implements IAgendaExtractor {
 
             // 常规路径保持一次模型调用：完整对话 + 全部 Pending Agenda 完整结构。
             if (directTokens <= inputBudget) {
-                this.logger?.debug(`AgendaSync single pass: items=${existingItems.length}, estimatedInput=${directTokens}, budget=${inputBudget}`);
+                this.logAgenda('debug', `日程抽取单次直通：条目=${existingItems.length}，估算输入=${directTokens} tokens，预算=${inputBudget}`);
                 return this.invokeActions(directMessages, existingItems);
             }
 
             // 超预算规划只负责挑出有序候选；最终动作仍由本类统一生成和校验。
-            this.logger?.debug(`AgendaSync input over budget, switching to candidate batches: items=${existingItems.length}, estimatedInput=${directTokens}, budget=${inputBudget}`);
+            this.logAgenda('debug', `日程抽取输入超预算，切换候选分批：条目=${existingItems.length}，估算输入=${directTokens} tokens，预算=${inputBudget}`);
             let selected = await this.overflowSelector.select(conversation, existingItems, now, inputBudget);
 
             let renderMode = AgendaRenderMode.Sync;
@@ -106,7 +165,7 @@ export class AgendaExtractor implements IAgendaExtractor {
             if (estimateMessagesTokens(provisional) > inputBudget) {
                 // 极长 invoke message 可能让少量候选仍超预算。Compact 仍保留 item/trigger id、
                 // schedule、action 与 message preview，Edit 的未提供字段由 service 原样保留。
-                this.logger?.warn(`AgendaSync selected full records still exceed budget; using message previews for ${selected.length} candidate(s)`);
+                this.logAgenda('warn', `日程抽取候选全量仍超预算，改用消息预览：候选=${selected.length} 条`);
                 renderMode = AgendaRenderMode.Compact;
             }
 
@@ -120,7 +179,7 @@ export class AgendaExtractor implements IAgendaExtractor {
                 selected = selected.slice(0, -1);
             }
             if (selected.length < selectedBeforeBudgetFit) {
-                this.logger?.warn(`AgendaSync final candidate set reduced from ${selectedBeforeBudgetFit} to ${selected.length} to fit input budget`);
+                this.logAgenda('warn', `日程抽取候选集为适配输入预算缩减：${selectedBeforeBudgetFit} → ${selected.length} 条`);
             }
 
             // Compact 只缩 agenda 卡片；这里再对 conversation 做最后兜底，保证最终请求本身也在预算内。
@@ -133,7 +192,7 @@ export class AgendaExtractor implements IAgendaExtractor {
             const finalMessages = this.buildExtractionMessages(finalConversation, selected, renderMode, now, true);
             return this.invokeActions(finalMessages, selected);
         } catch (error: any) {
-            this.logger?.warn(`Agenda extraction failed: ${formatError(error, true)}`);
+            this.logAgenda('warn', `日程抽取失败：query=${AgendaExtractor.messagePreview(messages)}，模型=${this.modelLabel()}，错误=${formatError(error, true)}`);
             // 让 AgendaService 把 pending job 标为 failed，而不是把模型/Schema/上下文错误
             // 伪装成“成功但没有 action”后永久删除原始对话快照。
             throw error;
@@ -148,7 +207,7 @@ export class AgendaExtractor implements IAgendaExtractor {
         const visibleIds = new Set(visibleItems.map(record => record.item.id));
         return actions.filter(action => {
             if (action.type === AgendaActionType.Create || visibleIds.has(action.id)) return true;
-            this.logger?.warn(`AgendaSync ignored Edit for an item not shown to the final extractor: #${action.id}`);
+            this.logAgenda('warn', `日程抽取忽略未展示给最终模型的 Edit 动作：#${action.id}`);
             return false;
         });
     }

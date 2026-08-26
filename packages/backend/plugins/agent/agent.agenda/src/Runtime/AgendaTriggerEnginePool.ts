@@ -13,6 +13,8 @@ export class AgendaTriggerEnginePool {
         private readonly agendaStorePool: AgendaStorePool,
         private readonly delivery: AgendaDeliveryHandler,
         private readonly logger?: ILogger,
+        /** agendaId → 显示名称；仅用于日志标识，不设置时回退到 agendaId。 */
+        private readonly nameOf?: (agendaId: string) => string,
     ) {}
 
     get(agendaId: string): AgendaTriggerEngine {
@@ -23,6 +25,7 @@ export class AgendaTriggerEnginePool {
                 this.agendaStorePool.get(agendaId),
                 this.delivery,
                 this.logger,
+                this.nameOf?.(agendaId),
             );
             this.cache.set(agendaId, engine);
             // 运行期懒创建的引擎（进程启动后才新增/启用的 agenda profile）也必须 start，
@@ -30,7 +33,7 @@ export class AgendaTriggerEnginePool {
             // start() 幂等且同步置 started=true，随后的 create()→reload() 即可正常调度；
             // boot 时 startAll() 仍可 await 同一 startPromise，加载语义不变。
             void engine.start().catch(e =>
-                this.logger?.warn(`Agenda trigger engine [agenda=${agendaId}] lazy start failed: ${e?.message ?? String(e)}`),
+                this.logger?.warn(`[日程:${this.nameOf?.(agendaId) ?? agendaId}] 触发引擎懒启动失败：错误=${e?.message ?? String(e)}`),
             );
         }
         return engine;
@@ -51,7 +54,7 @@ export class AgendaTriggerEnginePool {
                 await this.get(agendaId).start();
             } catch (e: any) {
                 // 单个模板启动失败（如 sqlite 文件损坏）不应阻塞其他模板的调度。
-                this.logger?.warn(`Agenda trigger engine [agenda=${agendaId}] start failed: ${e?.message ?? String(e)}`);
+                this.logger?.warn(`[日程:${this.nameOf?.(agendaId) ?? agendaId}] 触发引擎启动失败：错误=${e?.message ?? String(e)}`);
             }
         }
     }
