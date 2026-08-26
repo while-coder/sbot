@@ -61,6 +61,8 @@ type SingleAgentState = {
     systemMessage?: ChatMessage;
     tools: StructuredToolInterface[];
     signal?: AbortSignal;
+    /** 本轮用户 query 的简略摘要，随 state 透传到工具节点，仅用于“开始执行工具”日志定位是哪条 query 触发的调用 */
+    queryBrief: string;
 };
 
 /**
@@ -446,7 +448,7 @@ export class SingleAgentService extends AgentServiceBase {
                 await sem.acquire();
                 try {
                     if (state.signal?.aborted) { toolMessages[idx] = cancelledMsg(toolCall); return; }
-                    toolMessages[idx] = await this.runSingleTool(toolCall, toolMap, idx, state.signal, callback);
+                    toolMessages[idx] = await this.runSingleTool(toolCall, toolMap, idx, state.signal, callback, state.queryBrief);
                 } catch (error: any) {
                     if (error instanceof AgentCancelledError) {
                         toolMessages[idx] = cancelledMsg(toolCall);
@@ -479,13 +481,14 @@ export class SingleAgentService extends AgentServiceBase {
         i: number,
         signal?: AbortSignal,
         callback?: IAgentCallback,
+        queryBrief?: string,
     ): Promise<ChatMessage> {
         const tool = toolMap.get(toolCall.name);
         if (!tool) throw new Error(`Tool not found`);
 
         // LLM 有时会将数组/对象参数 JSON 序列化成字符串，先做一次反解析
         const parsedArgs = SingleAgentService.parseStringArgs(toolCall.args);
-        this.logger?.info(`开始执行工具 ${tool.name} 参数: ${truncate(JSON.stringify(parsedArgs), 300)}`);
+        this.logger?.info(`开始执行工具 ${tool.name} query: ${queryBrief ?? '(无)'} 参数: ${truncate(JSON.stringify(parsedArgs), 300)}`);
 
         // think 预留：thinkId 在这里生成并随 config 透传给工具。会开启子思考流的工具
         // （如 _dispatch_task 派发子 agent）在流程真正启动时调 onCreateThink 声明一次，此处
@@ -632,10 +635,15 @@ export class SingleAgentService extends AgentServiceBase {
             const [staticText, dynamicText] = sysBlocks.map(b => b.text.trim());
             const fmt = (label: string, text: string | undefined) =>
                 text ? `${label}(${text.length} 字):\n${text}` : `${label}: (无)`;
-            this.logger?.info(`本轮输入: ${truncate(contentToString(query), 300)}\n`
+            const toolNames = tools.map(tool => tool.name);
+            // 本轮输入摘要只截一份：“本轮输入”日志与工具执行日志里的 queryBrief 共用，
+            // 两处看到的内容完全一致，方便按日志反查是哪条 query 触发的工具调用。
+            const queryBrief = truncate(contentToString(query), 100);
+            this.logger?.info(`本轮输入: ${queryBrief}\n`
                 + (sysBlocks.length
                     ? `${fmt('staticPrompt', staticText)}\n\n${fmt('dynamicPrompt', dynamicText)}`
-                    : 'systemPrompt: (无)'));
+                    : 'systemPrompt: (无)')
+                + `\n\ntools(${toolNames.length}): ${toolNames.length ? toolNames.join(', ') : '(无)'}`);
 
             const graph = new StateGraph<SingleAgentState>()
                 .addNode(GraphNodeType.AGENT, this.callModelNode.bind(this))
@@ -645,7 +653,7 @@ export class SingleAgentService extends AgentServiceBase {
                 .addEdge(GraphNodeType.TOOLS, GraphNodeType.AGENT);
             // this.logger?.info(`开始执行 Agent ${query}  system: ${systemMessage?.content}`);
             const graphStream = graph.stream(
-                { messages: [], callback, systemMessage, tools, signal },
+                { messages: [], callback, systemMessage, tools, signal, queryBrief },
             );
 
             // 处理流式输出，每条输出消息压入历史
