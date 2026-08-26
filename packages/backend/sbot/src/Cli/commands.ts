@@ -15,6 +15,17 @@ export function applyPort(portStr: string, onInvalid: (msg: string) => void): vo
     config.setHttpPort(port);
 }
 
+/** 以守护进程方式后台启动 sbot 服务（等价于 sbot -d） */
+function startServiceDaemon(): void {
+    const entry = require.resolve(NPM_PACKAGE);
+    const child = spawn(process.execPath, [entry, '-d'], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+    });
+    child.unref();
+}
+
 /** 注册所有 CLI 子命令（默认启动行为仍由入口 index.ts 处理） */
 export function registerCommands(program: Command): void {
     // 关闭服务命令
@@ -69,6 +80,7 @@ export function registerCommands(program: Command): void {
     // 更新到最新版本
     program
         .command('update')
+        .alias('upgrade')
         .description('更新 sbot 到最新版本')
         .option('-f, --force', '即使已是最新版本也强制重新安装')
         .action(async (options: { force?: boolean }) => {
@@ -89,21 +101,17 @@ export function registerCommands(program: Command): void {
             } else {
                 console.log(`强制重新安装 ${release.tag}...`);
             }
-            // 若服务正在运行，先关闭再升级，避免文件占用导致安装失败
+            // 若服务正在运行，先请求关闭再升级，避免文件占用导致安装失败；升级成功后再后台重启
             const port = config.getHttpPort();
-            if (await isServiceRunning(port)) {
+            const wasRunning = await isServiceRunning(port);
+            if (wasRunning) {
                 console.log('检测到 sbot 服务正在运行，正在关闭...');
                 const stopped = await shutdownService(port);
                 if (!stopped) {
                     console.error('关闭服务失败，请手动执行 sbot stop 后重试');
                     process.exit(1);
                 }
-                // 等待端口释放、进程退出
-                for (let i = 0; i < 10; i++) {
-                    await delay(500);
-                    if (!(await isServiceRunning(port))) break;
-                }
-                console.log('服务已关闭');
+                console.log('已发送关闭请求，服务将在后台排空退出');
             }
             const child = spawn('npm', ['install', '-g', `${NPM_PACKAGE}@latest`], {
                 stdio:       'inherit',
@@ -114,10 +122,24 @@ export function registerCommands(program: Command): void {
                 console.error(`更新失败: ${err.message}`);
                 process.exit(1);
             });
-            child.on('exit', (code) => {
+            child.on('exit', async (code) => {
                 if (code === 0) {
                     console.log(`更新完成，sbot 已升级到 ${release.tag}`);
-                    console.log('可执行 sbot（或 sbot -d 后台运行）启动新版本');
+                    if (wasRunning) {
+                        console.log('正在后台启动 sbot 服务...');
+                        startServiceDaemon();
+                        // 等待并确认服务启动
+                        for (let i = 0; i < 20; i++) {
+                            await delay(500);
+                            if (await isServiceRunning(port)) {
+                                console.log('sbot 服务已在后台启动');
+                                return;
+                            }
+                        }
+                        console.warn('服务启动较慢，可执行 sbot status 查看运行状态');
+                    } else {
+                        console.log('可执行 sbot（或 sbot -d 后台运行）启动新版本');
+                    }
                 } else {
                     console.error(`更新失败，npm 退出码: ${code}`);
                     process.exit(code ?? 1);

@@ -9,7 +9,7 @@ export function isServiceRunning(port: number): Promise<boolean> {
     });
 }
 
-/** 请求本地 sbot 服务关闭，返回是否成功 */
+/** 请求本地 sbot 服务关闭，返回是否成功（服务端收到请求即返回，实际排空退出在后台进行） */
 export function shutdownService(port: number): Promise<boolean> {
     return new Promise(resolve => {
         const req = http.request(`http://localhost:${port}/api/shutdown`, {
@@ -19,7 +19,6 @@ export function shutdownService(port: number): Promise<boolean> {
             resolve(res.statusCode === 200);
         });
         req.on('error', () => resolve(false));
-        req.setTimeout(5000, () => { req.destroy(); resolve(false); });
         req.end();
     });
 }
