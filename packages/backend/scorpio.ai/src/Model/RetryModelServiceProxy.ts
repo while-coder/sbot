@@ -1,4 +1,4 @@
-import { type ChatMessage, type IModelService, type ModelInvokeOptions, type StructuredInvokeOptions } from "scorpio.llm";
+import { type ChatMessage, type IModelService, type LLMInfo, type ModelInvokeOptions, type StructuredInvokeOptions } from "scorpio.llm";
 import { withRetry } from "../Utils/withRetry";
 import { runtimeActivity } from "../Core/RuntimeActivity";
 
@@ -7,7 +7,7 @@ export class RetryModelServiceProxy implements IModelService {
 
     get config() { return this.inner.config; }
 
-    supportsVision(): Promise<boolean> { return this.inner.supportsVision(); }
+    getLLMInfo(): LLMInfo { return this.inner.getLLMInfo(); }
 
     async invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage> {
         return runtimeActivity.track(

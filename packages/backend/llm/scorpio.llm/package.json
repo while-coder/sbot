@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rimraf dist && tsc -b --force"
+    "build": "rimraf dist && tsc -b --force && node -e \"require('fs').cpSync('src/assets','dist/assets',{recursive:true})\""
   },
   "dependencies": {
     "@langchain/core": "catalog:"

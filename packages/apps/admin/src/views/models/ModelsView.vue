@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from '@sbot/ui'
+import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFormDetails, SPageToolbar, SPageContent, STable } from '@sbot/ui'
 import type { STableColumn } from '@sbot/ui'
 import { ModelProvider } from '@/shared/types'
 import type { ModelConfig } from '@/shared/types'
@@ -68,12 +68,96 @@ const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
 const privateFieldVisible = ref<Record<string, boolean>>({})
 const form = ref<ModelConfig>({
-  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined, vision: undefined, config: {},
+  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined, llmInfo: undefined, config: {},
 })
-// vision 三态：'' = 自动（按 models.dev 目录判断）/ true / false
-const visionValue = computed({
-  get: () => form.value.vision === undefined ? '' : String(form.value.vision),
-  set: v => { form.value.vision = v === '' ? undefined : v === 'true' },
+type LLMCapabilityKey = 'vision' | 'toolCall'
+type LLMCapabilityValue = 'true' | 'false'
+
+interface CatalogLLMInfo {
+  vision: boolean
+  toolCall: boolean
+  contextWindow?: number
+  maxOutputTokens?: number
+  cost?: { input: number; output: number }
+  lastUpdated?: string
+  fromCatalog: boolean
+}
+
+// 能力下拉展示当前生效值；手动选择或自动填充后写入 llmInfo。
+function setOverride(key: LLMCapabilityKey, value: LLMCapabilityValue): void {
+  form.value.llmInfo = { ...form.value.llmInfo, [key]: value === 'true' }
+}
+function overrideValue(key: LLMCapabilityKey) {
+  return computed({
+    get: (): LLMCapabilityValue => String(form.value.llmInfo?.[key] ?? (autoLLMInfo.value ? Boolean(autoLLMInfo.value[key]) : false)) as LLMCapabilityValue,
+    set: value => setOverride(key, value),
+  })
+}
+const visionValue = overrideValue('vision')
+const toolCallValue = overrideValue('toolCall')
+
+// 查询结果用于展示并自动填充模型参数；请求版本避免旧模型结果覆盖新模型。
+const autoLLMInfo = ref<CatalogLLMInfo | null>(null)
+const llmInfoLoading = ref(false)
+let llmInfoTimer: ReturnType<typeof setTimeout> | undefined
+let llmInfoRequestId = 0
+watch([() => form.value.model, () => form.value.provider], () => {
+  clearTimeout(llmInfoTimer)
+  const requestId = ++llmInfoRequestId
+  autoLLMInfo.value = null
+  const model = form.value.model?.trim()
+  const provider = form.value.provider
+  if (!model) {
+    llmInfoLoading.value = false
+    return
+  }
+  llmInfoLoading.value = true
+  llmInfoTimer = setTimeout(async () => {
+    try {
+      const res = await apiFetch('/api/models/llm-info', 'POST', {
+        provider,
+        model,
+      })
+      if (requestId !== llmInfoRequestId) return
+      const info = res.data as CatalogLLMInfo
+      autoLLMInfo.value = info
+      if (info.fromCatalog) autofillParams(info)
+    } catch {
+      // 查询失败不影响编辑，能力选择仍可手动覆盖。
+    } finally {
+      if (requestId === llmInfoRequestId) llmInfoLoading.value = false
+    }
+  }, 300)
+})
+onUnmounted(() => clearTimeout(llmInfoTimer))
+
+/** 将目录提供的限制写入表单。 */
+function autofillParams(info: CatalogLLMInfo): void {
+  if (info.contextWindow != null) form.value.contextWindow = info.contextWindow
+  if (info.maxOutputTokens != null) form.value.maxTokens = info.maxOutputTokens
+}
+/** 将当前目录能力与限制固化为模型配置。 */
+function fillLLMInfoFromCatalog(): void {
+  const info = autoLLMInfo.value
+  if (!info?.fromCatalog) {
+    show(t('models.llm_fill_unlisted'), 'error')
+    return
+  }
+  setOverride('vision', String(Boolean(info.vision)) as LLMCapabilityValue)
+  setOverride('toolCall', String(Boolean(info.toolCall)) as LLMCapabilityValue)
+  autofillParams(info)
+}
+// 模型参数折叠区标题右侧的 badge：已配置的参数个数（含固化的能力覆盖）
+const paramCount = computed(() => {
+  const f = form.value
+  let n = 0
+  if (f.temperature != null) n++
+  if (f.contextWindow != null) n++
+  if (f.maxTokens != null) n++
+  if (f.maxTools != null) n++
+  if (f.llmInfo?.vision !== undefined) n++
+  if (f.llmInfo?.toolCall !== undefined) n++
+  return n
 })
 
 const currentProvider = computed(() => providers.value.find(provider => provider.type === form.value.provider))
@@ -178,7 +262,7 @@ function openAdd() {
     maxTokens: undefined,
     contextWindow: undefined,
     maxTools: undefined,
-    vision: undefined,
+    llmInfo: undefined,
     config: defaultPrivateConfig(provider),
   }
   showModal.value = true
@@ -199,7 +283,7 @@ function openEdit(id: string) {
     maxTokens: m.maxTokens,
     contextWindow: m.contextWindow,
     maxTools: m.maxTools,
-    vision: m.vision,
+    llmInfo: m.llmInfo ? { ...m.llmInfo } : undefined,
     config: { ...defaultPrivateConfig(provider), ...(m.config ?? {}) },
   }
   showModal.value = true
@@ -223,7 +307,7 @@ async function save() {
     if (body.maxTokens === undefined || body.maxTokens === null) delete body.maxTokens
     if (body.contextWindow === undefined || body.contextWindow === null) delete body.contextWindow
     if (body.maxTools === undefined || body.maxTools === null) delete body.maxTools
-    if (body.vision === undefined || body.vision === null) delete body.vision
+    if (body.llmInfo && Object.values(body.llmInfo).every(v => v === undefined || v === null)) delete body.llmInfo
     if (currentProvider.value) {
       const providerConfig: Record<string, any> = {}
       for (const [key, field] of Object.entries(currentSchema.value)) {
@@ -349,25 +433,104 @@ async function refresh() {
           <template v-if="field.type !== 'boolean' && field.description" #hint>{{ field.description }}</template>
         </SFormItem>
       </template>
-      <SFormItem :label="t('models.temperature')">
-        <SInput v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
-      </SFormItem>
-      <SFormItem :label="t('models.context_window')">
-        <SInput v-model.number="form.contextWindow" type="number" step="1" placeholder="128000" />
-      </SFormItem>
-      <SFormItem :label="t('models.max_tokens')">
-        <SInput v-model.number="form.maxTokens" type="number" step="1" :placeholder="t('models.no_limit')" />
-      </SFormItem>
-      <SFormItem :label="t('models.max_tools')">
-        <SInput v-model.number="form.maxTools" type="number" step="1" :placeholder="t('models.no_limit')" />
-      </SFormItem>
-      <SFormItem :label="t('models.vision')">
-        <SSelect v-model="visionValue">
-          <option value="">{{ t('models.vision_auto') }}</option>
-          <option value="true">{{ t('models.vision_supported') }}</option>
-          <option value="false">{{ t('models.vision_unsupported') }}</option>
-        </SSelect>
-      </SFormItem>
+      <SFormDetails :summary="t('models.section_params')" :badge="paramCount || ''" :open="true">
+        <section class="catalog-card" :class="{ 'catalog-card--loading': llmInfoLoading }">
+          <div class="catalog-card__head">
+            <div>
+              <div class="catalog-card__title">{{ t('models.catalog') }}</div>
+              <div class="catalog-card__meta">
+                <template v-if="llmInfoLoading">{{ t('models.llm_loading') }}</template>
+                <template v-else-if="autoLLMInfo?.fromCatalog">
+                  <span class="catalog-card__status">{{ t('models.catalog_recognized') }}</span>
+                  <span v-if="autoLLMInfo.lastUpdated">{{ t('models.catalog_updated') }} {{ String(autoLLMInfo.lastUpdated).slice(0, 10) }}</span>
+                </template>
+                <template v-else>{{ t('models.llm_auto_unlisted') }}</template>
+              </div>
+            </div>
+            <SButton
+              type="outline"
+              size="sm"
+              :disabled="!autoLLMInfo?.fromCatalog || llmInfoLoading"
+              @click="fillLLMInfoFromCatalog"
+            >{{ t('models.llm_fill') }}</SButton>
+          </div>
+          <div v-if="autoLLMInfo?.fromCatalog" class="catalog-card__body">
+            <div class="capability-list" :aria-label="t('models.catalog_capabilities')">
+              <div class="capability-item">
+                <span>{{ t('models.vision') }}</span>
+                <strong :class="autoLLMInfo.vision ? 'capability--yes' : 'capability--no'">
+                  {{ autoLLMInfo.vision ? t('models.capability_supported') : t('models.capability_unsupported') }}
+                </strong>
+              </div>
+              <div class="capability-item">
+                <span>{{ t('models.tool_call') }}</span>
+                <strong :class="autoLLMInfo.toolCall ? 'capability--yes' : 'capability--no'">
+                  {{ autoLLMInfo.toolCall ? t('models.capability_supported') : t('models.capability_unsupported') }}
+                </strong>
+              </div>
+            </div>
+            <div class="catalog-metrics">
+              <div v-if="autoLLMInfo.contextWindow" class="catalog-metric">
+                <span>{{ t('models.context_window') }}</span>
+                <strong>{{ autoLLMInfo.contextWindow.toLocaleString() }}</strong>
+                <small>Tokens</small>
+              </div>
+              <div v-if="autoLLMInfo.maxOutputTokens" class="catalog-metric">
+                <span>{{ t('models.max_tokens') }}</span>
+                <strong>{{ autoLLMInfo.maxOutputTokens.toLocaleString() }}</strong>
+                <small>Tokens</small>
+              </div>
+              <div v-if="autoLLMInfo.cost" class="catalog-metric">
+                <span>{{ t('models.cost_short') }}</span>
+                <strong>${{ autoLLMInfo.cost.input }} / ${{ autoLLMInfo.cost.output }}</strong>
+                <small>{{ t('models.per_million_tokens') }}</small>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="parameter-group">
+          <div class="parameter-group__head">
+            <div>{{ t('models.generation_limits') }}</div>
+            <span>{{ t('models.generation_limits_hint') }}</span>
+          </div>
+          <div class="parameter-grid">
+            <SFormItem :label="t('models.temperature')">
+              <SInput v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
+            </SFormItem>
+            <SFormItem :label="t('models.max_tools')">
+              <SInput v-model.number="form.maxTools" type="number" step="1" :placeholder="t('models.no_limit')" />
+            </SFormItem>
+            <SFormItem :label="t('models.context_window')">
+              <SInput v-model.number="form.contextWindow" type="number" step="1" placeholder="128000" />
+            </SFormItem>
+            <SFormItem :label="t('models.max_tokens')">
+              <SInput v-model.number="form.maxTokens" type="number" step="1" :placeholder="t('models.no_limit')" />
+            </SFormItem>
+          </div>
+        </div>
+
+        <div class="parameter-group parameter-group--capabilities">
+          <div class="parameter-group__head">
+            <div>{{ t('models.capability_override') }}</div>
+            <span>{{ t('models.capability_override_hint') }}</span>
+          </div>
+          <div class="parameter-grid">
+            <SFormItem :label="t('models.vision')">
+              <SSelect v-model="visionValue">
+                <option value="true">{{ t('models.capability_supported') }}</option>
+                <option value="false">{{ t('models.capability_unsupported') }}</option>
+              </SSelect>
+            </SFormItem>
+            <SFormItem :label="t('models.tool_call')">
+              <SSelect v-model="toolCallValue">
+                <option value="true">{{ t('models.capability_supported') }}</option>
+                <option value="false">{{ t('models.capability_unsupported') }}</option>
+              </SSelect>
+            </SFormItem>
+          </div>
+        </div>
+      </SFormDetails>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
         <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>
@@ -410,6 +573,127 @@ async function refresh() {
   align-items: center;
   gap: var(--sui-sp-2);
   cursor: pointer;
+}
+.catalog-card {
+  border: 1px solid var(--sui-border);
+  border-radius: var(--sui-radius-sm);
+  background: var(--sui-bg-subtle);
+  margin-bottom: var(--sui-sp-6);
+  overflow: hidden;
+}
+.catalog-card--loading { opacity: .72; }
+.catalog-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sui-sp-4);
+  padding: var(--sui-sp-3) var(--sui-sp-4);
+}
+.parameter-group__head span {
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-xs);
+}
+.catalog-card__title {
+  color: var(--sui-fg-secondary);
+  font-size: var(--sui-fs-sm);
+  font-weight: 600;
+  line-height: 1.45;
+}
+.catalog-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sui-sp-1) var(--sui-sp-2);
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-xs);
+  line-height: 1.4;
+}
+.catalog-card__status {
+  color: var(--sui-success-fg);
+  font-weight: 600;
+}
+.catalog-card__body {
+  border-top: 1px solid var(--sui-border);
+  padding: 0;
+}
+.capability-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.capability-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sui-sp-3);
+  padding: var(--sui-sp-3) var(--sui-sp-4);
+  color: var(--sui-fg-muted);
+  font-size: var(--sui-fs-sm);
+}
+.capability-item + .capability-item { border-left: 1px solid var(--sui-border); }
+.capability--yes { color: var(--sui-success-fg); }
+.capability--no { color: var(--sui-danger); }
+.catalog-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--sui-border);
+}
+.catalog-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: var(--sui-sp-3) var(--sui-sp-4);
+  font-variant-numeric: tabular-nums;
+}
+.catalog-metric + .catalog-metric { border-left: 1px solid var(--sui-border); }
+.catalog-metric span,
+.catalog-metric small {
+  color: var(--sui-fg-disabled);
+  font-size: var(--sui-fs-xs);
+  line-height: 1.35;
+}
+.catalog-metric strong {
+  color: var(--sui-fg-secondary);
+  font-size: var(--sui-fs-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.parameter-group + .parameter-group {
+  border-top: 1px solid var(--sui-border);
+  margin-top: var(--sui-sp-2);
+  padding-top: var(--sui-sp-5);
+}
+.parameter-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-3);
+  color: var(--sui-fg-secondary);
+  font-size: var(--sui-fs-sm);
+  font-weight: 600;
+}
+.parameter-group__head span { font-weight: 400; text-align: right; }
+.parameter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--sui-sp-4);
+}
+.parameter-grid :deep(.s-form-item) { margin-bottom: var(--sui-sp-4); }
+.parameter-grid :deep(.s-form-item:nth-last-child(-n + 2)) { margin-bottom: 0; }
+@media (max-width: 480px) {
+  .parameter-grid,
+  .capability-list { grid-template-columns: 1fr; }
+  .catalog-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .capability-item + .capability-item { border-left: 0; border-top: 1px solid var(--sui-border); }
+  .catalog-metric + .catalog-metric { border-left: 1px solid var(--sui-border); }
+  .catalog-metric:nth-child(3) { border-left: 0; border-top: 1px solid var(--sui-border); grid-column: 1 / -1; }
+  .parameter-grid :deep(.s-form-item) { margin-bottom: var(--sui-sp-4); }
+  .parameter-grid :deep(.s-form-item:last-child) { margin-bottom: 0; }
+  .catalog-card__head,
+  .parameter-group__head { align-items: flex-start; }
+  .parameter-group__head { flex-direction: column; gap: var(--sui-sp-1); }
+  .parameter-group__head span { text-align: left; }
 }
 .picker-filter-bar {
   display: flex;

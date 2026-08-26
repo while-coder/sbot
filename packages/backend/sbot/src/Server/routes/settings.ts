@@ -3,15 +3,26 @@ import { randomUUID } from 'crypto';
 import { setMaxImageSize } from 'scorpio.ai';
 import {
     llmProviderRegistry,
+    getLLMInfo,
+    type LLMInfo,
     type EmbeddingConfig as LlmEmbeddingConfig,
     type ModelConfig as LlmModelConfig,
 } from 'scorpio.llm';
+import type { ModelConfig as SharedModelConfig } from '@sbot/shared';
+
+/**
+ * 编译期锁定：@sbot/shared 的 ModelConfig.llmInfo（admin 表单保存的结构）与
+ * scorpio.llm 的 LLMInfo 必须保持字段兼容——shared 侧出现 LLMInfo 没有的字段、
+ * 或字段类型不兼容时，这里编译报错，防止前后端配置结构静默漂移。
+ */
+type SharedLLMInfo = NonNullable<SharedModelConfig['llmInfo']>;
+const _llmInfoCompat: { [K in keyof SharedLLMInfo]: K extends keyof LLMInfo ? LLMInfo[K] : never } =
+    {} as SharedLLMInfo;
 import { config } from '../../Core/Config';
 import { database, parseNotes, type ChannelSessionRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
 import { channelManager } from '../../Channel/ChannelManager';
 import { WEB_CHANNEL_ID } from '@sbot/shared';
-import { modelInfoHelper } from '../helpers/modelInfo';
 import { settingsCrudHelper } from '../helpers/settingsCrud';
 import { api, throwBad } from '../../utils';
 import { agentRoutes } from './agents';
@@ -65,6 +76,13 @@ export class SettingsRoutes {
 
         app.get('/api/embedding-providers', api(() => llmProviderRegistry.listEmbeddingProviders()));
 
+        // 查询模型能力的自动判断结果（不含用户覆盖），admin「自动」模式下展示实际生效值
+        app.post('/api/models/llm-info', api(req => {
+            const { provider, model } = req.body as { provider?: string; model?: string };
+            if (!model) throwBad('model is required');
+            return getLLMInfo(String(model), provider);
+        }));
+
         app.post('/api/embeddings/available', api(async req => {
             const body = req.body as Partial<LlmEmbeddingConfig>;
             if (!body.provider) throwBad('provider is required');
@@ -81,11 +99,7 @@ export class SettingsRoutes {
         }));
 
         const getSettings = () => ctx.settingsWithAgents();
-        settingsCrudHelper.register(app, 'models', {
-            label: 'Model',
-            afterSave: (id) => modelInfoHelper.fetchAndSaveContextWindow(id).catch(() => {}),
-            getSettings,
-        });
+        settingsCrudHelper.register(app, 'models', { label: 'Model', getSettings });
         settingsCrudHelper.register(app, 'embeddings', { label: 'Embedding', getSettings });
         settingsCrudHelper.register(app, 'savers', { label: 'Saver config', getSettings });
         settingsCrudHelper.register(app, 'notes', { label: 'Note config', getSettings });

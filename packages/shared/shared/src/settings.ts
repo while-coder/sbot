@@ -41,8 +41,16 @@ export interface ModelConfig {
   maxTokens?: number
   contextWindow?: number
   maxTools?: number
-  /** 显式声明模型是否支持图片输入；不配则按 models.dev 目录自动判断，未收录按不支持处理。 */
-  vision?: boolean
+  /**
+   * 显式能力声明，优先级高于 models.dev 目录自动判断，只配需要覆盖的字段。
+   * 例：{ vision: true, toolCall: false }。自定义网关配目录里没有的模型时用它声明。
+   */
+  llmInfo?: {
+    /** 是否支持图片输入；目录未收录的模型默认按不支持处理 */
+    vision?: boolean
+    /** 是否支持工具调用；未知模型默认按支持处理 */
+    toolCall?: boolean
+  }
   /** Provider 私有参数，由对应 provider 的 configSchema 定义。 */
   config?: Record<string, any>
 }

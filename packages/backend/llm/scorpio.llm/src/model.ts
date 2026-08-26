@@ -4,7 +4,7 @@ import { AIMessageChunk } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { ChatMessage } from "./messages";
 import { toBaseMessages, toChatMessage } from "./messageConverter";
-import { resolveVisionSupport } from "./capabilities";
+import { type LLMInfo, getLLMInfo } from "./capabilities";
 
 export enum ModelProvider {
   OpenAI = "openai",
@@ -25,10 +25,10 @@ export interface ModelConfig {
   contextWindow?: number;
   maxTools?: number;
   /**
-   * 显式声明模型是否支持图片输入，优先级高于 models.dev 目录与保守默认（false）。
-   * 自定义网关配目录里没有的模型时用它声明；不配则按模型名查目录，查不到按不支持处理。
+   * 显式能力声明，优先级高于 models.dev 目录自动判断（vision / toolCall 等，
+   * 只配需要覆盖的字段）。自定义网关配目录里没有的模型时用它声明。
    */
-  vision?: boolean;
+  llmInfo?: Partial<LLMInfo>;
   /** Provider 私有参数，由对应 provider 的 configSchema 定义。 */
   config?: Record<string, any>;
 }
@@ -47,8 +47,12 @@ export interface IModelService {
   bindTools(tools: any[]): void;
   invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T>;
   stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>>;
-  /** 模型是否支持图片输入（显式配置 > models.dev 目录 > 保守默认 false），结果进程内缓存。 */
-  supportsVision(): Promise<boolean>;
+  /**
+   * 模型能力与限制（vision / toolCall / contextWindow / maxOutputTokens /
+   * temperature / reasoning / structuredOutput / cost）。同步、无网络延迟，
+   * llmInfo 显式声明优先于 models.dev 目录，结果进程内缓存。
+   */
+  getLLMInfo(): LLMInfo;
   dispose(): Promise<void>;
 }
 
@@ -64,22 +68,40 @@ export abstract class ModelServiceBase<TModel extends BaseChatModel = BaseChatMo
 
   initialize(): void {
     this.model = this.createModel();
+    this.applyCatalogDefaults();
   }
 
   async dispose(): Promise<void> {
     this.model = undefined;
     this.boundModel = undefined;
+    this.llmInfoCache = undefined;
   }
 
   protected prepareInput(input: string | ChatMessage[]): string | BaseMessage[] {
     return typeof input === "string" ? input : toBaseMessages(input);
   }
 
-  private visionSupport?: Promise<boolean>;
+  private llmInfoCache?: LLMInfo;
 
-  async supportsVision(): Promise<boolean> {
-    this.visionSupport ??= resolveVisionSupport(this.config);
-    return this.visionSupport;
+  getLLMInfo(): LLMInfo {
+    return (this.llmInfoCache ??= getLLMInfo(this.config.model, this.config.provider, {
+      ...this.config.llmInfo,
+      contextWindow: this.config.contextWindow,
+      maxOutputTokens: this.config.maxTokens,
+    }));
+  }
+
+  /**
+   * 用 models.dev 目录补全构造参数级默认值（temperature / maxTokens）。
+   * temperature=false 的模型（部分推理模型）发送该参数会被拒，
+   * maxTokens 未配置时 LangChain 默认值普遍偏小易截断。
+   */
+  private applyCatalogDefaults(): void {
+    const info = getLLMInfo(this.config.model, this.config.provider);
+    if (!info.fromCatalog) return;
+    const model = this.model as any;
+    if (info.temperature === false) model.temperature = undefined;
+    if (this.config.maxTokens == null && info.maxOutputTokens != null) model.maxTokens = info.maxOutputTokens;
   }
 
   protected get activeModel(): any {

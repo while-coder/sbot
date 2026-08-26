@@ -75,6 +75,8 @@ export class SingleAgentService extends AgentServiceBase {
     protected modelCallTimeout?: number;
     protected compactor?: ConversationCompactor;
     protected toolOverflowDir: string;
+    /** 工具绑定跳过告警只发一次，避免每轮刷日志 */
+    private toolCallWarned = false;
     /** 当前请求归属的 channel session db id，供 Agent capability plugin 使用。
      *  必传——caller（AgentRunner / ReActAgentService 子任务路径）务必把 T_ChannelSessionId 注册进容器。 */
     protected channelSessionId: number;
@@ -227,12 +229,22 @@ export class SingleAgentService extends AgentServiceBase {
      */
     private async callModelNode(state: SingleAgentState) {
         const callback = state.callback;
+        const caps = this.modelService.getLLMInfo();
         if (state.tools.length > 0) {
-            this.modelService.bindTools(state.tools);
+            if (caps.toolCall === false) {
+                // 目录/配置声明不支持工具调用：不绑定（绑定会直接 400），agent 以纯对话运行
+                if (!this.toolCallWarned) {
+                    this.toolCallWarned = true;
+                    this.logger?.warn(`模型 ${this.modelService.config.model} 不支持工具调用，已跳过工具绑定，agent 将以纯对话运行；如为目录误判，可在模型配置中设置 llmInfo: { toolCall: true }`);
+                }
+            } else {
+                this.modelService.bindTools(state.tools);
+            }
         }
 
         // 自动 compact：input_tokens 超过阈值时压缩早期消息
-        const contextWindow = this.modelService.config.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS;
+        // contextWindow：显式配置 > models.dev 目录 > 默认值
+        const contextWindow = caps.contextWindow ?? DEFAULT_MAX_HISTORY_TOKENS;
         if (this.compactor) {
             const allMessages = await this.saverService.getAllMessages();
             const savedTokens = parseInt(await this.saverService.getMetadata(METADATA_KEY_INPUT_TOKENS) ?? '0', 10);
@@ -365,14 +377,14 @@ export class SingleAgentService extends AgentServiceBase {
      */
     private async degradeUnsupportedImages(content: MessageContent, source: "user" | "tool" = "user"): Promise<MessageContent> {
         if (!Array.isArray(content)) return content;
-        if (await this.modelService.supportsVision()) return content;
+        if (this.modelService.getLLMInfo().vision) return content;
         const imageCount = content.filter(SingleAgentService.isImagePart).length;
         if (imageCount === 0) return content;
         const note = source === "tool"
             ? `[工具返回的 ${imageCount} 张图片已忽略：当前模型不支持图片输入]`
             : `[已忽略 ${imageCount} 张图片：当前模型不支持图片输入]`;
         // 配置指引只进日志：note 会进模型上下文，对模型与用户都只陈述事实
-        this.logger?.info(`模型不支持图片输入，已降级 ${imageCount} 张图片为文本说明（source=${source}）；如模型实际支持图片，可在模型配置中设置 vision: true`);
+        this.logger?.info(`模型不支持图片输入，已降级 ${imageCount} 张图片为文本说明（source=${source}）；如模型实际支持图片，可在模型配置中设置 llmInfo: { vision: true }`);
         return [
             { type: ContentPartType.Text, text: note },
             ...content.filter(part => !SingleAgentService.isImagePart(part)),
