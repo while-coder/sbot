@@ -7,6 +7,8 @@ export class RetryModelServiceProxy implements IModelService {
 
     get config() { return this.inner.config; }
 
+    supportsVision(): Promise<boolean> { return this.inner.supportsVision(); }
+
     async invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage> {
         return runtimeActivity.track(
             withRetry(() => this.inner.invoke(prompt, options), options?.signal, this.maxRetries),

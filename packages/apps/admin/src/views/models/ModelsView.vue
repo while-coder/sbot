@@ -68,7 +68,12 @@ const editingName = ref<string | null>(null)
 const showApiKey  = ref(false)
 const privateFieldVisible = ref<Record<string, boolean>>({})
 const form = ref<ModelConfig>({
-  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined, config: {},
+  name: '', provider: ModelProvider.OpenAI, baseURL: '', apiKey: '', model: '', temperature: undefined, maxTokens: undefined, contextWindow: undefined, maxTools: undefined, vision: undefined, config: {},
+})
+// vision 三态：'' = 自动（按 models.dev 目录判断）/ true / false
+const visionValue = computed({
+  get: () => form.value.vision === undefined ? '' : String(form.value.vision),
+  set: v => { form.value.vision = v === '' ? undefined : v === 'true' },
 })
 
 const currentProvider = computed(() => providers.value.find(provider => provider.type === form.value.provider))
@@ -173,6 +178,7 @@ function openAdd() {
     maxTokens: undefined,
     contextWindow: undefined,
     maxTools: undefined,
+    vision: undefined,
     config: defaultPrivateConfig(provider),
   }
   showModal.value = true
@@ -193,6 +199,7 @@ function openEdit(id: string) {
     maxTokens: m.maxTokens,
     contextWindow: m.contextWindow,
     maxTools: m.maxTools,
+    vision: m.vision,
     config: { ...defaultPrivateConfig(provider), ...(m.config ?? {}) },
   }
   showModal.value = true
@@ -216,6 +223,7 @@ async function save() {
     if (body.maxTokens === undefined || body.maxTokens === null) delete body.maxTokens
     if (body.contextWindow === undefined || body.contextWindow === null) delete body.contextWindow
     if (body.maxTools === undefined || body.maxTools === null) delete body.maxTools
+    if (body.vision === undefined || body.vision === null) delete body.vision
     if (currentProvider.value) {
       const providerConfig: Record<string, any> = {}
       for (const [key, field] of Object.entries(currentSchema.value)) {
@@ -352,6 +360,13 @@ async function refresh() {
       </SFormItem>
       <SFormItem :label="t('models.max_tools')">
         <SInput v-model.number="form.maxTools" type="number" step="1" :placeholder="t('models.no_limit')" />
+      </SFormItem>
+      <SFormItem :label="t('models.vision')">
+        <SSelect v-model="visionValue">
+          <option value="">{{ t('models.vision_auto') }}</option>
+          <option value="true">{{ t('models.vision_supported') }}</option>
+          <option value="false">{{ t('models.vision_unsupported') }}</option>
+        </SSelect>
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>

@@ -41,6 +41,8 @@ export interface ModelConfig {
   maxTokens?: number
   contextWindow?: number
   maxTools?: number
+  /** 显式声明模型是否支持图片输入；不配则按 models.dev 目录自动判断，未收录按不支持处理。 */
+  vision?: boolean
   /** Provider 私有参数，由对应 provider 的 configSchema 定义。 */
   config?: Record<string, any>
 }

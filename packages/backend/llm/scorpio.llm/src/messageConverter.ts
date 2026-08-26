@@ -1,4 +1,5 @@
 import { AIMessage, HumanMessage, ToolMessage, SystemMessage, BaseMessage } from "@langchain/core/messages";
+
 import { type ChatMessage, MessageRole } from "./messages";
 
 /** langchain `_getType()` 返回的消息类型（含流式 chunk 变体）。 */
@@ -108,5 +109,36 @@ export function toBaseMessage(message: ChatMessage): BaseMessage {
 }
 
 export function toBaseMessages(messages: ChatMessage[]): BaseMessage[] {
-  return messages.map(toBaseMessage);
+  return sanitizeBaseMessages(messages.map(toBaseMessage));
+}
+
+/**
+ * 清理发往模型的消息中的空内容（工具空结果、历史残留的空文本 part、整条空消息）。
+ * 空内容对任何 provider 都是垃圾数据，且部分 API 直接 400：
+ * Anthropic 报 "text content blocks must be non-empty"，Gemini 报
+ * "Part.text must not be empty"，部分 OpenAI 兼容网关同样严格。
+ * - ToolMessage：空内容替换为占位文本（tool_result 必须与 tool_use 配对，不能丢）
+ * - 其余消息：剔除空文本 part；剔除后无内容且无 tool_calls 的消息直接丢弃
+ */
+function sanitizeBaseMessages(messages: BaseMessage[]): BaseMessage[] {
+  const result: BaseMessage[] = [];
+  for (const message of messages) {
+    const hasToolCalls = message instanceof AIMessage && !!message.tool_calls?.length;
+    if (Array.isArray(message.content)) {
+      const filtered = message.content.filter((part: any) => part?.type !== "text" || (typeof part.text === "string" && part.text.trim().length > 0));
+      if (filtered.length === 0) {
+        // ToolMessage 不能丢（tool_result 必须与 tool_use 配对），换成占位文本；
+        // 其余消息无内容且无 tool_calls 时直接丢弃
+        if (message instanceof ToolMessage) message.content = "(empty tool output)";
+        else if (!hasToolCalls) continue;
+      } else {
+        message.content = filtered;
+      }
+    } else if (message.content == null || message.content === "") {
+      if (message instanceof ToolMessage) message.content = "(empty tool output)";
+      else if (!hasToolCalls) continue;
+    }
+    result.push(message);
+  }
+  return result;
 }

@@ -353,6 +353,32 @@ export class SingleAgentService extends AgentServiceBase {
         });
     }
 
+    private static isImagePart(part: any): boolean {
+        return part?.type === ContentPartType.Image || part?.type === ContentPartType.ImageUrl;
+    }
+
+    /**
+     * 模型不支持图片输入时（models.dev 目录未收录或声明不支持），把 content 中的
+     * 图片 part 替换为一条文本说明，避免发给文本模型触发 400。
+     * 采用“转换注入”而非静默丢弃：模型明确知道有图片但看不到，回答时能如实告知
+     * 用户（与 opencode 的 SYNTHETIC_ATTACHMENT_PROMPT 同思路）。支持图片时原样返回。
+     */
+    private async degradeUnsupportedImages(content: MessageContent, source: "user" | "tool" = "user"): Promise<MessageContent> {
+        if (!Array.isArray(content)) return content;
+        if (await this.modelService.supportsVision()) return content;
+        const imageCount = content.filter(SingleAgentService.isImagePart).length;
+        if (imageCount === 0) return content;
+        const note = source === "tool"
+            ? `[工具返回的 ${imageCount} 张图片已忽略：当前模型不支持图片输入]`
+            : `[已忽略 ${imageCount} 张图片：当前模型不支持图片输入]`;
+        // 配置指引只进日志：note 会进模型上下文，对模型与用户都只陈述事实
+        this.logger?.info(`模型不支持图片输入，已降级 ${imageCount} 张图片为文本说明（source=${source}）；如模型实际支持图片，可在模型配置中设置 vision: true`);
+        return [
+            { type: ContentPartType.Text, text: note },
+            ...content.filter(part => !SingleAgentService.isImagePart(part)),
+        ];
+    }
+
     /**
      * 工具执行节点 - 替代 ToolNode
      *
@@ -519,7 +545,8 @@ export class SingleAgentService extends AgentServiceBase {
         const rawContent: MessageContent = !mcpResult.isError && mcpResult.content.length === 1 && mcpResult.content[0].type === MCPContentType.Text
             ? mcpResult.content[0].text
             : mcpResult.content as unknown as ContentPart[];
-        const content = await this.resizeImagesInContent(rawContent);
+        // 模型不支持图片时先降级为文本说明，再对剩余图片统一缩放
+        const content = await this.resizeImagesInContent(await this.degradeUnsupportedImages(rawContent, "tool"));
 
         const extra: Record<string, unknown> = {};
         if (resultThinkId) extra.thinkId = resultThinkId;
@@ -571,7 +598,8 @@ export class SingleAgentService extends AgentServiceBase {
      * 流式处理用户查询
      */
     override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
-        // 将本次用户消息压入历史（图片 part 在入口统一缩放）
+        // 将本次用户消息压入历史（模型不支持图片时先降级为文本说明，图片 part 再统一缩放）
+        query = await this.degradeUnsupportedImages(query);
         query = await this.resizeImagesInContent(query);
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 

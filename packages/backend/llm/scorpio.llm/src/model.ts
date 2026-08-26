@@ -4,6 +4,7 @@ import { AIMessageChunk } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { ChatMessage } from "./messages";
 import { toBaseMessages, toChatMessage } from "./messageConverter";
+import { resolveVisionSupport } from "./capabilities";
 
 export enum ModelProvider {
   OpenAI = "openai",
@@ -23,6 +24,11 @@ export interface ModelConfig {
   maxTokens?: number;
   contextWindow?: number;
   maxTools?: number;
+  /**
+   * 显式声明模型是否支持图片输入，优先级高于 models.dev 目录与保守默认（false）。
+   * 自定义网关配目录里没有的模型时用它声明；不配则按模型名查目录，查不到按不支持处理。
+   */
+  vision?: boolean;
   /** Provider 私有参数，由对应 provider 的 configSchema 定义。 */
   config?: Record<string, any>;
 }
@@ -41,6 +47,8 @@ export interface IModelService {
   bindTools(tools: any[]): void;
   invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T>;
   stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>>;
+  /** 模型是否支持图片输入（显式配置 > models.dev 目录 > 保守默认 false），结果进程内缓存。 */
+  supportsVision(): Promise<boolean>;
   dispose(): Promise<void>;
 }
 
@@ -65,6 +73,13 @@ export abstract class ModelServiceBase<TModel extends BaseChatModel = BaseChatMo
 
   protected prepareInput(input: string | ChatMessage[]): string | BaseMessage[] {
     return typeof input === "string" ? input : toBaseMessages(input);
+  }
+
+  private visionSupport?: Promise<boolean>;
+
+  async supportsVision(): Promise<boolean> {
+    this.visionSupport ??= resolveVisionSupport(this.config);
+    return this.visionSupport;
   }
 
   protected get activeModel(): any {
