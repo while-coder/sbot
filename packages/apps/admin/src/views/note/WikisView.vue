@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import type { WikiConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
@@ -135,7 +136,7 @@ async function save() {
     const res = id
       ? await apiFetch(`/api/settings/wikis/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/wikis', 'POST', body)
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
@@ -149,7 +150,7 @@ async function remove(id: string) {
   if (!await confirm(t('wikis.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/wikis/${encodeURIComponent(id)}`, 'DELETE')
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     delete wikiCounts.value[id]
     show(t('common.deleted'))
   } catch (e: any) {
@@ -159,8 +160,7 @@ async function remove(id: string) {
 
 async function refresh() {
   try {
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
+    await settingsManager.refresh()
     await loadPlugins()
     wikiCounts.value = {}
     await Promise.all([loadCounts(), loadProfiles()])

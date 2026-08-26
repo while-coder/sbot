@@ -5,6 +5,8 @@ import { apiFetch } from '@/shared/api'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable } from '@sbot/ui'
 import type { STableColumn } from '@sbot/ui'
 import { store } from '@/shared/store'
+import { channelManager } from '@/managers/channelManager'
+import { promptFileManager } from '@/managers/promptFileManager'
 import CreatePromptModal from '@/components/modals/CreatePromptModal.vue'
 import SessionSelect from '@/components/SessionSelect.vue'
 
@@ -36,15 +38,6 @@ interface HeartbeatItem {
   minGapMinutes: number
   dailyLimit: number
   lastSentAt: number | null
-}
-
-interface ChannelSessionOption {
-  id: number
-  channelId: string
-  sessionId: string
-  sessionName: string
-  autoSessionName: string
-  agentId?: string | null
 }
 
 const TIMEZONE_OPTIONS = [
@@ -95,7 +88,6 @@ function intervalLabel(minutes: number): string {
 }
 
 const heartbeats = ref<HeartbeatItem[]>([])
-const channelSessions = ref<ChannelSessionOption[]>([])
 
 const agendaOptions = computed(() =>
   Object.entries(store.settings.agendaProfiles || {}).map(([id, p]: [string, any]) => ({ id, label: p?.name || id }))
@@ -132,11 +124,10 @@ function defaultForm() {
 const form = ref(defaultForm())
 
 function sessionLabel(id: number): string {
-  const s = channelSessions.value.find(s => s.id === id)
+  const s = channelManager.session(id)
   if (!s) return `#${id}`
   const name = s.sessionName || s.autoSessionName || s.sessionId
-  const channelName = store.settings.channels?.[s.channelId]?.name || s.channelId
-  return `[${channelName}] ${name}`
+  return `[${channelManager.channelName(s.channelId)}] ${name}`
 }
 
 function statusVariant(hb: HeartbeatItem): 'neutral' | 'warning' | 'success' {
@@ -264,17 +255,16 @@ async function loadHeartbeats() {
 
 async function loadSessions() {
   try {
-    const res = await apiFetch('/api/channel-sessions')
-    channelSessions.value = res.data || []
+    await channelManager.ensure()
   } catch {}
 }
 
-const heartbeatPrompts = ref<{ path: string; isUserOnly?: boolean }[]>([])
+const heartbeatPrompts = promptFileManager.list('heartbeat')
 
-async function loadHeartbeatPrompts() {
+/** 加载 heartbeat prompts（新建 prompt 后 force=true 强制刷新）。 */
+async function loadHeartbeatPrompts(force = false) {
   try {
-    const res = await apiFetch('/api/prompts/files?prefix=heartbeat')
-    heartbeatPrompts.value = res.data || []
+    await promptFileManager.ensure('heartbeat', force)
   } catch {}
 }
 
@@ -288,7 +278,7 @@ function openCreatePrompt(target: 'fixed' | 'smart' = 'fixed') {
 
 async function onPromptCreated(filePath: string) {
   showCreatePrompt.value = false
-  await loadHeartbeatPrompts()
+  await loadHeartbeatPrompts(true)
   if (creatingPromptFor.value === 'smart') {
     form.value.decisionPromptFile = filePath
   } else {

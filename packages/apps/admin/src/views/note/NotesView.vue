@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import type { NoteConfig } from '@/shared/types'
 import NoteViewModal from './NoteViewModal.vue'
@@ -90,7 +91,7 @@ async function save() {
     const res = id
       ? await apiFetch(`/api/settings/notes/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/notes', 'POST', body)
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
@@ -104,7 +105,7 @@ async function remove(id: string) {
   if (!await confirm(t('notes.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/notes/${encodeURIComponent(id)}`, 'DELETE')
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     delete noteCounts.value[id]
     show(t('common.deleted'))
   } catch (e: any) {
@@ -114,8 +115,7 @@ async function remove(id: string) {
 
 async function refresh() {
   try {
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
+    await settingsManager.refresh()
     noteCounts.value = {}
     await Promise.all([loadCounts(), loadProfiles()])
   } catch (e: any) {

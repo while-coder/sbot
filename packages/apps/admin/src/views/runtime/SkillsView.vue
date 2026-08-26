@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { store } from '@/shared/store'
+import { skillsManager } from '@/managers/skillsManager'
 import { useToast, useConfirm, SButton, SInput, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
@@ -13,7 +13,7 @@ const { t } = useI18n()
 const { show } = useToast()
 const { confirm } = useConfirm()
 
-const allSkills = ref<SkillItem[]>([])
+const allSkills = skillsManager.list
 
 const searchQuery = ref('')
 const activeTab = ref('all')
@@ -43,9 +43,7 @@ const filteredSkills = computed(() => {
 
 async function load() {
   try {
-    const res = await apiFetch('/api/skills')
-    allSkills.value = res.data || []
-    store.allSkills = allSkills.value
+    await skillsManager.ensure(true)
   } catch (e: any) {
     show(e.message, 'error')
   }

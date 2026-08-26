@@ -3,7 +3,10 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { store, applyMcpList } from '@/shared/store'
+import { store } from '@/shared/store'
+import { mcpManager } from '@/managers/mcpManager'
+import { skillsManager } from '@/managers/skillsManager'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast } from '@sbot/ui'
 import { fetchLatestRelease, compareSemver, GITHUB_REPO_URL, GITHUB_RELEASES_URL, DOCS_URL, DOCS_ZH_URL } from '@sbot/shared'
 import { useResponsive } from '../composables/useResponsive'
@@ -186,10 +189,7 @@ watch(activeKey, key => {
 async function reloadConfig() {
   try {
     await apiFetch('/api/reload', 'POST')
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
-    const mcpRes = await apiFetch('/api/mcp')
-    applyMcpList(mcpRes.data || [])
+    await Promise.all([settingsManager.refresh(), mcpManager.ensure(true)])
     show(t('nav.reload_success'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -247,14 +247,13 @@ async function checkUpdate(currentVersion: string) {
 // Initial load
 async function init() {
   try {
-    const [settingsRes, mcpRes, skillRes, aboutRes, sessionsRes] = await Promise.all([
-      apiFetch('/api/settings'),
-      apiFetch('/api/mcp'),
-      apiFetch('/api/skills'),
+    const [, , , aboutRes, sessionsRes] = await Promise.all([
+      settingsManager.refresh(),
+      mcpManager.ensure(),
+      skillsManager.ensure(),
       apiFetch('/api/about'),
       apiFetch('/api/profiles'),
     ])
-    Object.assign(store.settings, settingsRes.data)
     // Convert sessions array to Record<id, SessionConfig>
     const sessionsArr: any[] = sessionsRes.data || []
     const sessionsMap: Record<string, any> = {}
@@ -263,9 +262,6 @@ async function init() {
       sessionsMap[id] = rest
     }
     store.sessions = sessionsMap
-    applyMcpList(mcpRes.data || [])
-    const allSkillsData = skillRes.data || []
-    store.allSkills = allSkillsData
     if (aboutRes.data?.version) checkUpdate(aboutRes.data.version)
   } catch (_) {}
 }

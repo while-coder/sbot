@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { profileManager } from '@/managers/profileManager'
 import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable, SModal } from '@sbot/ui'
 import type { STableColumn } from '@sbot/ui'
 import { ApprovalTimeoutValue, IntentFilterMode } from '@sbot/shared'
@@ -60,7 +61,7 @@ const pickerLabels = computed(() => ({
 }))
 const pathPicker = ref<InstanceType<typeof PathPickerModal>>()
 
-const profiles = ref<ProfileRow[]>([])
+const profiles = computed(() => profileManager.list.value as unknown as ProfileRow[])
 
 interface SessionLite {
   id: number
@@ -105,8 +106,7 @@ const agendaProfileOptions  = computed(() => Object.entries(store.settings.agend
 
 async function loadAll() {
   try {
-    const res = await apiFetch('/api/session-profiles')
-    profiles.value = (res.data || []) as ProfileRow[]
+    await profileManager.ensure(true)
   } catch (e: any) {
     show(e.message, 'error')
   }

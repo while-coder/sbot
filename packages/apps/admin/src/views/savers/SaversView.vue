@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { channelManager } from '@/managers/channelManager'
+import { saverManager } from '@/managers/saverManager'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from '@sbot/ui'
 import type { STableColumn } from '@sbot/ui'
 import { SaverType } from '@/shared/types'
@@ -44,7 +47,7 @@ const refs = makeResourceRefs({
 })
 onMounted(() => {
   loadProfiles()
-  loadSessions()
+  channelManager.ensure().catch(() => { /* 加载失败时 thread 列表回退为只显示裸 id */ })
 })
 
 const showModal   = ref(false)
@@ -53,37 +56,15 @@ const form = ref<{ name: string } & SaverConfig>({ name: '', type: SaverType.Fil
 
 const saverViewModal = ref<InstanceType<typeof SaverViewModal>>()
 
-const expandedKeys    = ref<(string | number)[]>([])
-const saverThreadsMap = ref<Record<string, string[]>>({})
-const saverLoading    = ref<Record<string, boolean>>({})
-const threadClearing  = ref<Record<string, boolean>>({})
+const expandedKeys   = ref<(string | number)[]>([])
+const threadClearing = ref<Record<string, boolean>>({})
 
-// ── thread ↔ 会话关联：threadId 即 profileId，用 /api/channel-sessions 建立映射 ──
-interface SessionRowLite {
-  profileId: number | string
-  sessionId: string
-  sessionName?: string | null
-  autoSessionName?: string | null
-  channelId: string
-}
-const profileSessions = ref<Record<string, SessionRowLite>>({})
-
-async function loadSessions() {
-  try {
-    const res = await apiFetch('/api/channel-sessions')
-    const map: Record<string, SessionRowLite> = {}
-    for (const s of (res.data || []) as SessionRowLite[]) {
-      if (s.profileId != null) map[String(s.profileId)] = s
-    }
-    profileSessions.value = map
-  } catch {
-    // 会话信息加载失败时，thread 列表回退为只显示裸 id
-  }
-}
+// ── thread ↔ 会话关联：threadId 即 profileId，用 channelManager 的会话映射 ──
+const profileSessions = channelManager.sessionByProfileId
 
 /** thread 对应的会话（可见 profile 可能被多个会话共享，取第一个） */
-function sessionOf(thread: string): SessionRowLite | undefined {
-  return profileSessions.value[thread]
+function sessionOf(thread: string) {
+  return profileSessions.value.get(thread)
 }
 
 function sessionLabelOf(thread: string): string {
@@ -93,13 +74,12 @@ function sessionLabelOf(thread: string): string {
 
 function channelLabelOf(thread: string): string {
   const s = sessionOf(thread)
-  if (!s) return ''
-  return store.settings.channels?.[s.channelId]?.name || s.channelId
+  return s ? channelManager.channelName(s.channelId) : ''
 }
 
 /** thread 列表排序：按频道分组，同频道内按会话名称；未绑定会话的排在最后 */
 function sortedThreads(saverId: string): string[] {
-  const threads = saverThreadsMap.value[saverId] || []
+  const threads = saverManager.threadsMap[saverId] || []
   return [...threads].sort((a, b) => {
     const sa = sessionOf(a)
     const sb = sessionOf(b)
@@ -116,16 +96,10 @@ function sortedThreads(saverId: string): string[] {
 }
 
 async function loadThreads(id: string) {
-  if (id in saverThreadsMap.value || saverLoading.value[id]) return
-  saverLoading.value[id] = true
   try {
-    const res = await apiFetch(`/api/savers/${encodeURIComponent(id)}/threads`)
-    saverThreadsMap.value[id] = res.data || []
+    await saverManager.loadThreads(id)
   } catch (e: any) {
     show(e.message, 'error')
-    saverThreadsMap.value[id] = []
-  } finally {
-    saverLoading.value[id] = false
   }
 }
 
@@ -154,7 +128,7 @@ async function save() {
     const res = id
       ? await apiFetch(`/api/settings/savers/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/savers', 'POST', body)
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
@@ -168,7 +142,7 @@ async function remove(id: string) {
   if (!await confirm(t('savers.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(id)}`, 'DELETE')
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -180,10 +154,8 @@ async function clearThread(saverId: string, thread: string) {
   const key = `${saverId}::${thread}`
   threadClearing.value[key] = true
   try {
-    await apiFetch(`/api/savers/${encodeURIComponent(saverId)}/threads/${encodeURIComponent(thread)}/history`, 'DELETE')
+    await saverManager.clearHistory(saverId, thread)
     show(t('savers.cleanup_success'))
-    const list = saverThreadsMap.value[saverId]
-    if (list) saverThreadsMap.value[saverId] = list.filter(t => t !== thread)
   } catch (e: any) {
     show(e.message, 'error')
   } finally {
@@ -193,13 +165,12 @@ async function clearThread(saverId: string, thread: string) {
 
 async function refresh() {
   try {
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
+    await settingsManager.refresh()
     await loadProfiles()
-    await loadSessions()
+    await channelManager.ensure(true).catch(() => {})
     const expandedIds = expandedKeys.value.map(String)
     if (expandedIds.length > 0) {
-      for (const id of expandedIds) delete saverThreadsMap.value[id]
+      for (const id of expandedIds) saverManager.reset(id)
       await Promise.all(expandedIds.map(loadThreads))
     }
   } catch (e: any) {
@@ -234,8 +205,8 @@ async function refresh() {
         </template>
         <template #_expanded="{ row }">
           <ResourceRefs mode="card" :refs="refs(row.id)" class="saver-refs" />
-          <div v-if="saverLoading[row.id]" class="thread-status">{{ t('common.loading') }}</div>
-          <div v-else-if="(saverThreadsMap[row.id] || []).length === 0" class="thread-status thread-status--empty">
+          <div v-if="saverManager.loadingMap[row.id]" class="thread-status">{{ t('common.loading') }}</div>
+          <div v-else-if="(saverManager.threadsMap[row.id] || []).length === 0" class="thread-status thread-status--empty">
             {{ t('savers.no_sessions') }}
           </div>
           <div v-else class="thread-list">

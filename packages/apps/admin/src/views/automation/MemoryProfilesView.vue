@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
+import { promptFileManager } from '@/managers/promptFileManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import MemoryListModal from '@/components/modals/MemoryListModal.vue'
 import ResourceRefs from '@/components/ResourceRefs.vue'
@@ -64,15 +66,14 @@ function emptyForm(): MemoryProfileForm {
 
 const form = ref<MemoryProfileForm>(emptyForm())
 
-const promptFiles = ref<{ path: string }[]>([])
+const promptFiles = promptFileManager.list('memory')
 const writerPromptFiles = computed(() => filterPromptFiles('write', form.value.writerPromptFile))
 const readPromptFiles = computed(() => filterPromptFiles('read', form.value.readPromptFile))
 
 async function loadPrompts() {
   try {
-    const res = await apiFetch('/api/prompts/files?prefix=memory')
-    promptFiles.value = res.data || []
-  } catch { promptFiles.value = [] }
+    await promptFileManager.ensure('memory')
+  } catch {}
 }
 
 function filterPromptFiles(kind: 'write' | 'read', selectedPath: string): { path: string }[] {
@@ -122,7 +123,7 @@ async function save() {
     const res = id
       ? await apiFetch(`/api/settings/memoryProfiles/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/memoryProfiles', 'POST', body)
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
@@ -136,7 +137,7 @@ async function remove(id: string) {
   if (!await confirm(t('memory_profiles.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/memoryProfiles/${encodeURIComponent(id)}`, 'DELETE')
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -145,8 +146,7 @@ async function remove(id: string) {
 
 async function refresh() {
   try {
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
+    await settingsManager.refresh()
     await loadProfiles()
   } catch (e: any) {
     show(e.message, 'error')

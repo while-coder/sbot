@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
+import { promptFileManager } from '@/managers/promptFileManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import ResourceRefs from '@/components/ResourceRefs.vue'
@@ -54,12 +56,11 @@ function viewAgendas(row: { id: string; name?: string }) {
   agendaListModal.value?.openByAgendaId(row.id, row.name || row.id)
 }
 
-const promptFiles = ref<{ path: string }[]>([])
+const promptFiles = promptFileManager.list('agenda/sync')
 async function loadPrompts() {
   try {
-    const res = await apiFetch('/api/prompts/files?prefix=agenda/sync')
-    promptFiles.value = res.data || []
-  } catch { promptFiles.value = [] }
+    await promptFileManager.ensure('agenda/sync')
+  } catch {}
 }
 
 function openAdd() {
@@ -95,7 +96,7 @@ async function save() {
     const res = id
       ? await apiFetch(`/api/settings/agendaProfiles/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/agendaProfiles', 'POST', body)
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
@@ -109,7 +110,7 @@ async function remove(id: string) {
   if (!await confirm(t('agenda_profiles.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/agendaProfiles/${encodeURIComponent(id)}`, 'DELETE')
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -118,8 +119,7 @@ async function remove(id: string) {
 
 async function refresh() {
   try {
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
+    await settingsManager.refresh()
     await loadProfiles()
   } catch (e: any) {
     show(e.message, 'error')

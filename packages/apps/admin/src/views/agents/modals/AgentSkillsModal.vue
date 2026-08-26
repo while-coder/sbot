@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { skillsManager } from '@/managers/skillsManager'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm } from '@sbot/ui'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
@@ -62,7 +64,7 @@ function toggleEnabled(name: string, enabled: boolean) {
     }
   }
 }
-const allGlobalSkills = computed(() => store.allSkills)
+const allGlobalSkills = skillsManager.list
 const sources = computed(() => {
   const seen = new Set<string>()
   for (const s of allGlobalSkills.value) if (s.source) seen.add(s.source)
@@ -109,9 +111,9 @@ async function load() {
     const isAll = agent?.skills === '*'
     useAllSkills.value = isAll
     origUseAll.value   = isAll
-    const [agentRes, skillsRes] = await Promise.all([
+    const [agentRes] = await Promise.all([
       apiFetch(apiBase()),
-      apiFetch('/api/skills'),
+      skillsManager.ensure(true),
     ])
     skills.value = agentRes.data?.skills || []
     const selectedFromApi: string[] = (agentRes.data?.globals || []).map((g: any) => g.name)
@@ -120,8 +122,6 @@ async function load() {
     const rawExclude: string[] = Array.isArray((agent as any)?.skillsExclude) ? [...(agent as any).skillsExclude] : []
     skillsExclude.value = rawExclude
     origExclude.value   = [...rawExclude]
-    const allSkills = skillsRes.data || []
-    store.allSkills = allSkills
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -139,8 +139,7 @@ async function saveGlobalSkills() {
       'PUT',
       payload,
     )
-    const settingsRes = await apiFetch('/api/settings')
-    Object.assign(store.settings, settingsRes.data)
+    await settingsManager.refresh()
     origUseAll.value = useAllSkills.value
     agentSkillNames.value = useAllSkills.value ? [] : [...selectedSkills.value]
     origExclude.value = useAllSkills.value ? [...skillsExclude.value] : []

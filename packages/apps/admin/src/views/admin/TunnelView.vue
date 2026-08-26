@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
 import {
   useToast, useConfirm,
   SButton, SInput, SCard, SFormItem, SCheckCard, SBadge,
@@ -180,8 +181,7 @@ async function copyAllUrls(): Promise<void> {
 // ── Lifecycle ────────────────────────────────────────────────────
 onMounted(async () => {
   try {
-    const res = await apiFetch('/api/settings')
-    store.settings.tunnel = res.data.tunnel
+    await settingsManager.refresh()
   } catch { /* 失败时退回 store 已有值 */ }
   pull(store.settings.tunnel)
   await refreshStatus()

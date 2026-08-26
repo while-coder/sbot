@@ -2,7 +2,9 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { store, applyMcpList } from '@/shared/store'
+import { store } from '@/shared/store'
+import { mcpManager } from '@/managers/mcpManager'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm } from '@sbot/ui'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
@@ -83,16 +85,18 @@ function toggleEnabled(id: string, enabled: boolean) {
 }
 
 // ── Source tabs (mirrors AgentSkillsModal pattern) ────────────────
+const allGlobalMcps = mcpManager.list
+
 const sources = computed(() => {
   const seen = new Set<string>()
-  for (const m of store.allMcps) if (m.source) seen.add(m.source)
+  for (const m of allGlobalMcps.value) if (m.source) seen.add(m.source)
   return Array.from(seen)
 })
 
 const filteredGlobalMcps = computed(() => {
   const list = activeTab.value === 'all'
-    ? store.allMcps
-    : store.allMcps.filter(m => m.source === activeTab.value)
+    ? allGlobalMcps.value
+    : allGlobalMcps.value.filter(m => m.source === activeTab.value)
   const q = mcpSearch.value.trim().toLowerCase()
   if (!q) return list
   return list.filter(m =>
@@ -119,7 +123,7 @@ const globalColumns = computed<STableColumn[]>(() => [
 ])
 
 const globalEmptyText = computed(() =>
-  store.allMcps.length === 0 ? t('mcp.no_global') : t('mcp.no_match'),
+  allGlobalMcps.value.length === 0 ? t('mcp.no_global') : t('mcp.no_match'),
 )
 
 function globalRowClass(row: { id: string }): string {
@@ -136,9 +140,9 @@ async function load() {
     const isAll = agent?.mcp === '*'
     useAllMcp.value  = isAll
     origUseAll.value = isAll
-    const [res, globalRes] = await Promise.all([
+    const [res] = await Promise.all([
       apiFetch(apiBase()),
-      apiFetch('/api/mcp'),
+      mcpManager.ensure(true),
     ])
     const rawServers: any[] = res.data?.servers || []
     servers.value = Object.fromEntries(rawServers.map(({ id, source: _s, ...rest }: any) => [id, rest]))
@@ -157,7 +161,6 @@ async function load() {
     }
     globalParams.value = initParams
     origParams.value = JSON.parse(JSON.stringify(initParams))
-    applyMcpList(globalRes.data || [])
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -169,7 +172,7 @@ async function saveGlobals() {
     const mcpValue: any = useAllMcp.value ? '*' : [...selectedGlobals.value]
     const excludeSet = useAllMcp.value ? new Set(mcpExclude.value) : new Set<string>()
     const validIds = useAllMcp.value
-      ? new Set(store.allMcps.map(m => m.id).filter(id => !excludeSet.has(id)))
+      ? new Set(allGlobalMcps.value.map(m => m.id).filter(id => !excludeSet.has(id)))
       : new Set(selectedGlobals.value)
     const mcpParamsValue: Record<string, Record<string, string>> = {}
     for (const [id, p] of Object.entries(globalParams.value)) {
@@ -187,8 +190,7 @@ async function saveGlobals() {
       'PUT',
       payload,
     )
-    const settingsRes = await apiFetch('/api/settings')
-    Object.assign(store.settings, settingsRes.data)
+    await settingsManager.refresh()
     origUseAll.value = useAllMcp.value
     agentGlobals.value = useAllMcp.value ? [] : [...selectedGlobals.value]
     origExclude.value = useAllMcp.value ? [...mcpExclude.value] : []
@@ -224,7 +226,7 @@ function saveParams() {
 }
 
 async function viewGlobalTools(id: string) {
-  toolsTitle.value = store.allMcps.find(m => m.id === id)?.name || id
+  toolsTitle.value = mcpManager.nameOf(id)
   toolsList.value = []
   promptsList.value = []
   resourcesList.value = []
@@ -353,8 +355,7 @@ async function saveAutoApprove(next: string[]) {
       'PUT',
       { ...existing, autoApproveTools: next },
     )
-    const settingsRes = await apiFetch('/api/settings')
-    Object.assign(store.settings, settingsRes.data)
+    await settingsManager.refresh()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -444,12 +445,12 @@ defineExpose({ open })
       <!-- Tab bar -->
       <template #toolbar>
         <STabBar v-model="activeTab" style="padding:0;border:none;background:transparent">
-          <STab name="all" :count="store.allMcps.length">{{ t('common.all') }}</STab>
+          <STab name="all" :count="allGlobalMcps.length">{{ t('common.all') }}</STab>
           <STab
             v-for="src in sources"
             :key="src"
             :name="src"
-            :count="store.allMcps.filter((m: { source?: string }) => m.source === src).length"
+            :count="allGlobalMcps.filter((m: { source?: string }) => m.source === src).length"
           >{{ src }}</STab>
           <STab :name="t('agents.mcp_exclusive_tab')" :count="Object.keys(servers).length">{{ t('agents.mcp_exclusive_tab') }}</STab>
         </STabBar>

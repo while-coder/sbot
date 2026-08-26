@@ -1,8 +1,9 @@
 // 计算配置资源被频道、会话档案、会话及其他配置资源引用的情况，
 // 供各资源页复刻 AgentsView 的「被引用情况」展示（见 ResourceRefs.vue）。
-import { ref } from 'vue'
-import { apiFetch } from '@/shared/api'
+import { computed } from 'vue'
 import { store } from '@/shared/store'
+import { channelManager } from '@/managers/channelManager'
+import { profileManager } from '@/managers/profileManager'
 
 /** 会话档案列表行（GET /api/session-profiles，仅 visible profile），仅取引用计算需要的字段。 */
 interface ProfileLite {
@@ -77,20 +78,15 @@ export function parseList(raw: string | null | undefined): string[] {
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
 }
 
-// 模块级共享：多个页面实例共用同一份会话档案 / 会话列表。
-const profilesList = ref<ProfileLite[]>([])
-const sessionsList = ref<SessionLite[]>([])
+// 模块级共享：多个页面实例共用同一份会话档案 / 会话列表（来自全局 Manager，此处只收窄类型）。
+const profilesList = computed(() => profileManager.list.value as unknown as ProfileLite[])
+const sessionsList = computed(() => channelManager.list.value as unknown as SessionLite[])
 
 export function useResourceRefs() {
   async function loadProfiles() {
     // visible profile 与会话各取所需字段：会话用于补全 auto profile 上的私有覆盖引用。
-    const [profilesRes, sessionsRes] = await Promise.allSettled([
-      apiFetch('/api/session-profiles'),
-      apiFetch('/api/channel-sessions'),
-    ])
-    // 引用信息为辅助展示，任一接口失败时静默降级为空。
-    profilesList.value = profilesRes.status === 'fulfilled' ? (profilesRes.value.data || []) as ProfileLite[] : []
-    sessionsList.value = sessionsRes.status === 'fulfilled' ? (sessionsRes.value.data || []) as SessionLite[] : []
+    // 引用信息为辅助展示，任一接口失败时静默降级为空（manager 数据保持旧值/空数组）。
+    await Promise.allSettled([profileManager.ensure(true), channelManager.ensure(true)])
   }
 
   /** 用匹配器生成本页的 refs(id) 计算函数。 */

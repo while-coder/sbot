@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm } from '@sbot/ui'
 import { AgentMode, ACPSessionMode } from '@/shared/types'
 import type { AgentConfig, SubAgentRef } from '@/shared/types'
@@ -164,8 +165,7 @@ async function save() {
       if (form.value.id.trim()) (config as any).id = form.value.id.trim()
       await apiFetch('/api/agents', 'POST', config)
     }
-    const settingsRes = await apiFetch('/api/settings')
-    Object.assign(store.settings, settingsRes.data)
+    await settingsManager.refresh()
     show(t('common.saved'))
     showModal.value = false
     emit('saved')

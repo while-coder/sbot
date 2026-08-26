@@ -3,6 +3,9 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { profileManager } from '@/managers/profileManager'
+import { settingsManager } from '@/managers/settingsManager'
+import { saverManager } from '@/managers/saverManager'
 import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from '@sbot/ui'
 import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, IntentFilterMode, type ChannelConfig } from '@/shared/types'
@@ -191,7 +194,7 @@ interface ProfileFull extends ProfileOption {
 
 const editingProfile = ref<ProfileFull | null>(null)
 const originalOverrides = ref<SessionOverrides | null>(null)
-const visibleProfiles = ref<ProfileOption[]>([])
+const visibleProfiles = computed(() => profileManager.list.value as unknown as ProfileOption[])
 const effectiveSources = ref<Partial<Record<keyof SessionOverrides, ConfigSource>>>({})
 const effectiveResolved = ref<Partial<Record<keyof SessionOverrides, any>>>({})
 
@@ -256,9 +259,8 @@ const isCurrentProfileAuto = computed(() => !!editingProfile.value?.autoForSessi
 
 async function loadVisibleProfiles() {
   try {
-    const res = await apiFetch('/api/session-profiles')
-    visibleProfiles.value = (res.data || []) as ProfileOption[]
-  } catch { visibleProfiles.value = [] }
+    await profileManager.ensure(true)
+  } catch { /* 失败时保留下拉旧值 */ }
 }
 void loadVisibleProfiles()
 
@@ -767,7 +769,8 @@ async function remove(id: string) {
   try {
     await apiFetch(`/api/settings/channels/${id}`, 'DELETE')
     if (c?.saver) {
-      await apiFetch(`/api/savers/${encodeURIComponent(c.saver)}/threads/${c.type}_${encodeURIComponent(id)}/history`, 'DELETE').catch(() => {})
+      // 顺带清理该频道的 saver thread 历史（失败不阻塞删除）
+      await saverManager.clearHistory(c.saver, `${c.type}_${id}`).catch(() => {})
     }
     if (store.settings.channels) delete store.settings.channels[id]
     show(t('common.deleted'))
@@ -778,8 +781,7 @@ async function remove(id: string) {
 
 async function refresh() {
   try {
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
+    await settingsManager.refresh()
     await loadPlugins()
     if (expandedChannels.value.length > 0) await refreshSessions(expandedChannels.value)
   } catch (e: any) {

@@ -2,7 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { store, applyMcpList } from '@/shared/store'
+import { store } from '@/shared/store'
+import { mcpManager } from '@/managers/mcpManager'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
@@ -26,14 +28,14 @@ const columns = computed<STableColumn[]>(() => [
 
 const sources = computed(() => {
   const seen = new Set<string>()
-  for (const m of store.allMcps) if (m.source) seen.add(m.source)
+  for (const m of mcpManager.list.value) if (m.source) seen.add(m.source)
   return Array.from(seen)
 })
 
 const filteredMcps = computed(() => {
   const list = activeTab.value === 'all'
-    ? store.allMcps
-    : store.allMcps.filter(m => m.source === activeTab.value)
+    ? mcpManager.list.value
+    : mcpManager.list.value.filter(m => m.source === activeTab.value)
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return list
   return list.filter(m =>
@@ -43,8 +45,7 @@ const filteredMcps = computed(() => {
 
 async function load() {
   try {
-    const res = await apiFetch('/api/mcp')
-    applyMcpList(res.data || [])
+    await mcpManager.ensure()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -59,7 +60,7 @@ const resourceTemplatesList = ref<McpResourceTemplate[]>([])
 const toolsLoading = ref(false)
 
 async function viewTools(id: string) {
-  toolsTitle.value = store.allMcps.find(m => m.id === id)?.name || id
+  toolsTitle.value = mcpManager.nameOf(id)
   toolsList.value = []
   promptsList.value = []
   resourcesList.value = []
@@ -91,7 +92,7 @@ const allToolsApproved = computed(() =>
 async function saveAutoApprove(next: string[]) {
   try {
     const res = await apiFetch('/api/settings/general', 'PUT', { autoApproveTools: next })
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -151,7 +152,7 @@ function openAdd() {
 }
 
 function openEdit(id: string) {
-  const m: any = store.allMcps.find(m => m.id === id)
+  const m: any = mcpManager.get(id)
   editingId.value = id
   form.value = {
     name: m?.name || id, type: m?.type || 'http', url: m?.url || '',
@@ -191,19 +192,19 @@ async function save() {
     }
     show(t('common.saved'))
     showModal.value = false
-    await load()
+    await mcpManager.ensure(true)
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
 async function remove(id: string) {
-  const displayName = store.allMcps.find(m => m.id === id)?.name || id
+  const displayName = mcpManager.nameOf(id)
   if (!await confirm(t('mcp.confirm_delete', { name: displayName }), { danger: true })) return
   try {
     await apiFetch(`/api/mcp/${encodeURIComponent(id)}`, 'DELETE')
     show(t('common.deleted'))
-    await load()
+    await mcpManager.ensure(true)
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -220,12 +221,12 @@ onMounted(load)
     </SPageToolbar>
 
     <STabBar v-model="activeTab">
-      <STab name="all" :count="store.allMcps.length">{{ t('common.all') }}</STab>
+      <STab name="all" :count="mcpManager.list.value.length">{{ t('common.all') }}</STab>
       <STab
         v-for="src in sources"
         :key="src"
         :name="src"
-        :count="store.allMcps.filter(m => m.source === src).length"
+        :count="mcpManager.list.value.filter(m => m.source === src).length"
       >{{ src }}</STab>
       <div class="tab-bar-spacer" />
       <SInput v-model="searchQuery" size="sm" :placeholder="t('mcp.search_placeholder')" class="mcp-search" />

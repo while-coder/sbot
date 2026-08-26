@@ -2,7 +2,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { store, applyMcpList } from '@/shared/store'
+import { store } from '@/shared/store'
+import { profileManager } from '@/managers/profileManager'
+import { mcpManager } from '@/managers/mcpManager'
+import { skillsManager } from '@/managers/skillsManager'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, SSelect, STagFilter, type STableColumn } from '@sbot/ui'
 import AgentModal from './modals/AgentModal.vue'
 import AgentMcpModal from './modals/AgentMcpModal.vue'
@@ -71,18 +75,21 @@ const modelName = (id: string) => (store.settings.models?.[id] as any)?.name || 
 
 // ── Agent 引用情况（频道 / 会话档案 / 父智能体），方便清理无用资源 ──
 interface ProfileLite { id: number; name: string; agentId: string | null; sessionCount?: number }
-const profilesList = ref<ProfileLite[]>([])
+const profilesList = computed(() => profileManager.list.value as unknown as ProfileLite[])
 
 async function loadProfiles() {
   try {
-    const res = await apiFetch('/api/session-profiles')
-    profilesList.value = (res.data || []) as ProfileLite[]
+    await profileManager.ensure(true)
   } catch (e: any) {
     show(e.message, 'error')
   }
 }
 
-onMounted(loadProfiles)
+onMounted(() => {
+  loadProfiles()
+  skillsManager.ensure().catch(() => {})
+  mcpManager.ensure().catch(() => {})
+})
 
 interface AgentRefs {
   channels: { id: string; name: string }[]
@@ -123,13 +130,14 @@ function getTab(id: string): 'config' | 'skills' | 'mcp' { return activeTabs.val
 function getSkills(id: string)  { return skillsMap.value[id]     ?? [] }
 function getGlobals(id: string) {
   const agent = (store.settings.agents || {})[id]
-  const skills = agent?.skills
-  if (skills === '*') {
+  const skillList = skillsManager.list.value
+  const agentSkills = agent?.skills
+  if (agentSkills === '*') {
     const exclude = new Set<string>((agent as any)?.skillsExclude ?? [])
-    return store.allSkills.filter((s: SkillItem) => !exclude.has(s.name))
+    return skillList.filter((s: SkillItem) => !exclude.has(s.name))
   }
-  const ids = new Set<string>(skills ?? [])
-  return store.allSkills.filter((s: SkillItem) => ids.has(s.name))
+  const ids = new Set<string>(agentSkills ?? [])
+  return skillList.filter((s: SkillItem) => ids.has(s.name))
 }
 function getMcpServers(id: string) { return mcpServersMap.value[id] ?? [] }
 
@@ -138,10 +146,10 @@ function getMcpGlobals(id: string) {
   const mcp = agent?.mcp
   if (mcp === '*') {
     const exclude = new Set<string>((agent as any)?.mcpExclude ?? [])
-    return store.allMcps.filter((m: McpItem) => !exclude.has(m.id))
+    return mcpManager.list.value.filter((m: McpItem) => !exclude.has(m.id))
   }
   const ids = new Set<string>(mcp ?? [])
-  return store.allMcps.filter((m: McpItem) => ids.has(m.id))
+  return mcpManager.list.value.filter((m: McpItem) => ids.has(m.id))
 }
 
 async function loadSkills(id: string) {
@@ -196,8 +204,7 @@ async function removeAgent(id: string) {
   if (!await confirm(t('agents.confirm_delete', { name: label }), { danger: true })) return
   try {
     await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'DELETE')
-    const settingsRes = await apiFetch('/api/settings')
-    Object.assign(store.settings, settingsRes.data)
+    await settingsManager.refresh()
     expandedIds.value = expandedIds.value.filter(x => x !== id)
     show(t('common.deleted'))
   } catch (e: any) {
@@ -224,7 +231,7 @@ const toolsAgentId   = ref('')
 async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
   toolsTitle.value   = isPrivate
     ? (getMcpServers(agentId).find(s => s.id === id)?.name || id)
-    : (store.allMcps.find((m: McpItem) => m.id === id)?.name || id)
+    : mcpManager.nameOf(id)
   toolsList.value    = []
   promptsList.value  = []
   resourcesList.value = []
@@ -265,8 +272,7 @@ async function saveAutoApprove(next: string[]) {
       'PUT',
       { ...existing, autoApproveTools: next },
     )
-    const settingsRes = await apiFetch('/api/settings')
-    Object.assign(store.settings, settingsRes.data)
+    await settingsManager.refresh()
   } catch (e: any) {
     show(e.message, 'error')
   }
@@ -295,12 +301,7 @@ async function revokeAll() {
 
 async function refresh() {
   try {
-    const res    = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
-    const mcpRes = await apiFetch('/api/mcp')
-    applyMcpList(mcpRes.data || [])
-    const skillRes = await apiFetch('/api/skills')
-    store.allSkills = skillRes.data || []
+    await Promise.all([settingsManager.refresh(), mcpManager.ensure(true), skillsManager.ensure(true)])
     await Promise.all([
       loadProfiles(),
       ...expandedIds.value.flatMap(id => [loadSkills(id), loadMcp(id)]),
@@ -391,8 +392,7 @@ async function saveMcpParams() {
       'PUT',
       payload,
     )
-    const settingsRes = await apiFetch('/api/settings')
-    Object.assign(store.settings, settingsRes.data)
+    await settingsManager.refresh()
     show(t('common.saved'))
     showParamsModal.value = false
   } catch (e: any) {

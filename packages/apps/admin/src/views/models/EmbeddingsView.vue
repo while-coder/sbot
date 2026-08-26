@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from '@sbot/ui'
 import type { STableColumn } from '@sbot/ui'
 import { EmbeddingProvider } from '@/shared/types'
@@ -220,7 +221,7 @@ async function save() {
     const res = id
       ? await apiFetch(`/api/settings/embeddings/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/embeddings', 'POST', body)
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.saved'))
     showModal.value = false
   } catch (e: any) {
@@ -234,7 +235,7 @@ async function remove(id: string) {
   if (!await confirm(t('embeddings.confirm_delete', { name: label }), { danger: true })) return
   try {
     const res = await apiFetch(`/api/settings/embeddings/${encodeURIComponent(id)}`, 'DELETE')
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.deleted'))
   } catch (e: any) {
     show(e.message, 'error')
@@ -243,8 +244,7 @@ async function remove(id: string) {
 
 async function refresh() {
   try {
-    const res = await apiFetch('/api/settings')
-    Object.assign(store.settings, res.data)
+    await settingsManager.refresh()
   } catch (e: any) {
     show(e.message, 'error')
   }

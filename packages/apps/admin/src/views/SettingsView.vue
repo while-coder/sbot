@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm, SButton, SInput, STextarea, SCard, SFormItem, SCheckCard, SPageToolbar, SPageContent } from '@sbot/ui'
 const { t } = useI18n()
 
@@ -100,7 +101,7 @@ async function save() {
       autoCheckUpdate: autoCheckUpdate.value,
       contextFileNames: ctxNames,
     })
-    Object.assign(store.settings, res.data)
+    settingsManager.apply(res.data)
     show(t('common.saved'))
   } catch (e: any) {
     show(e.message, 'error')

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { SSelect } from '@sbot/ui'
-import { store } from '@/shared/store'
-import { cachedChannelSessions, loadChannelSessions, type ChannelSession } from '@/composables/useChannelSessions'
+import { channelManager, type ChannelSession } from '@/managers/channelManager'
 
 const props = withDefaults(defineProps<{
   /** 选中的频道会话 db id；null = 未选 / 自动。 */
@@ -24,22 +23,13 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: number | null] }>()
 
-const sessions = ref<ChannelSession[]>(cachedChannelSessions())
+const sessions = channelManager.list
 
-onMounted(async () => {
-  try {
-    sessions.value = await loadChannelSessions()
-  } catch {
-    sessions.value = []
-  }
+onMounted(() => {
+  channelManager.ensure().catch(() => {})
 })
 
 interface Group { channelName: string; sessions: ChannelSession[] }
-
-function channelName(channelId: string): string {
-  const channels = store.settings.channels as Record<string, { name?: string }> | undefined
-  return channels?.[channelId]?.name || channelId
-}
 
 function sessionText(s: ChannelSession): string {
   return s.sessionName || s.autoSessionName || s.sessionId || `#${s.id}`
@@ -58,7 +48,7 @@ const groups = computed<Group[]>(() => {
     arr.push(s)
     map.set(s.channelId, arr)
   }
-  return [...map.entries()].map(([channelId, arr]) => ({ channelName: channelName(channelId), sessions: arr }))
+  return [...map.entries()].map(([channelId, arr]) => ({ channelName: channelManager.channelName(channelId), sessions: arr }))
 })
 
 // 选中值不在可见分组里（会话被删/未绑定该 agenda）时补一条占位，避免值显示丢失。

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
+import { settingsManager } from '@/managers/settingsManager'
 import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from '@sbot/ui'
 
 const { t } = useI18n()
@@ -181,7 +182,7 @@ function openInstall(agent: BrowsedAgent) {
 
 async function installOne(pkg: AgentPackage, version: string, overwrite: boolean) {
   const res = await apiFetch('/api/agent-store/install', 'POST', { pkg, version, overwrite })
-  if (res.data?.settings) Object.assign(store.settings, res.data.settings)
+  settingsManager.apply(res.data?.settings)
   return res
 }
 
