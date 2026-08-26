@@ -76,6 +76,7 @@
     "scorpio.llm.gemini": "workspace:*",
     "scorpio.llm.ollama": "workspace:*",
     "scorpio.llm.openai": "workspace:*",
+    "scorpio.llm.orcarouter": "workspace:*",
     "scorpio.llm.voyage": "workspace:*",
     "scorpio.saver": "workspace:*",
     "scorpio.saver.file": "workspace:*",
