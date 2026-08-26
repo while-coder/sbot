@@ -14,6 +14,7 @@ Fill in provider, API key, base URL, and model name. The same connection can be 
 | Google Gemini | Gemini 2.0 / 2.5 Pro, Flash |
 | Gemini Image | Gemini image-generation models |
 | Ollama | Local models via Ollama runtime |
+| OrcaRouter | OpenAI-compatible gateway for models and agents (adaptive routing, failover, zero-markup inference) |
 | OpenAI-compatible | Azure OpenAI, Groq, Mistral, DeepSeek, Qwen, Together, etc. |
 
 Any endpoint that implements the OpenAI chat completions API can be used as a provider — pick **OpenAI-compatible** and override the base URL.

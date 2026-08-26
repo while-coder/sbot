@@ -3,6 +3,7 @@ import { registerCohereProvider } from "scorpio.llm.cohere";
 import { registerGeminiProvider } from "scorpio.llm.gemini";
 import { registerOllamaProvider } from "scorpio.llm.ollama";
 import { registerOpenAIProvider } from "scorpio.llm.openai";
+import { registerOrcaRouterProvider } from "scorpio.llm.orcarouter";
 import { registerVoyageProvider } from "scorpio.llm.voyage";
 
 let registered = false;
@@ -16,5 +17,6 @@ export function registerBuiltInLlmProviders(): void {
   registerOllamaProvider();
   registerCohereProvider();
   registerVoyageProvider();
+  registerOrcaRouterProvider();
   registered = true;
 }

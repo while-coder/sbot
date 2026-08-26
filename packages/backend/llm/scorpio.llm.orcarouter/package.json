@@ -1,0 +1,20 @@
+{
+  "name": "scorpio.llm.orcarouter",
+  "version": "0.0.1",
+  "description": "OrcaRouter model provider for scorpio.llm",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "rimraf dist && tsc -b --force" },
+  "dependencies": {
+    "@langchain/core": "catalog:",
+    "@langchain/openai": "^1.4.7",
+    "scorpio.llm": "workspace:*",
+    "scorpio.llm.openai": "workspace:*"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:"
+  }
+}

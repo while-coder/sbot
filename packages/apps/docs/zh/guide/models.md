@@ -14,6 +14,7 @@
 | Google Gemini | Gemini 2.0 / 2.5 Pro、Flash |
 | Gemini Image | Gemini 图像生成模型 |
 | Ollama | 通过 Ollama 运行时使用本地模型 |
+| OrcaRouter | 面向模型与 Agent 的 OpenAI 兼容网关（自适应路由、故障转移、零加成推理） |
 | OpenAI 兼容 | Azure OpenAI、Groq、Mistral、DeepSeek、Qwen、Together 等 |
 
 任何实现了 OpenAI Chat Completions 接口的服务都可以作为供应商使用 —— 选择 **OpenAI 兼容** 并覆盖 Base URL 即可。
