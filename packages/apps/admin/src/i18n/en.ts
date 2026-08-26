@@ -355,6 +355,7 @@ export default {
     clear_history: 'Clear History',
     no_history: 'No history',
     no_sessions: 'No session records',
+    no_session_bound: 'Thread not bound to any session (session may have been deleted)',
     clear_confirm: 'Clear all history for this thread?',
     history_cleared: 'History cleared',
     show_archived: 'Show archived',

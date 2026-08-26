@@ -355,6 +355,7 @@ export default {
     clear_history: '清除历史',
     no_history: '暂无历史记录',
     no_sessions: '暂无会话记录',
+    no_session_bound: '未绑定会话的线程（会话可能已删除）',
     clear_confirm: '确定要清除该 Thread 的所有历史记录吗?',
     history_cleared: '历史已清除',
     show_archived: '显示已归档消息',

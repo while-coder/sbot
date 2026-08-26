@@ -36,11 +36,6 @@ export class HeartbeatRoutes {
             await heartbeatService.triggerOnce(id);
             return { triggered: true };
         }));
-
-        app.post('/api/heartbeats/reload', api(async () => {
-            await heartbeatService.reloadAll();
-            return { reloaded: true };
-        }));
     }
 }
 

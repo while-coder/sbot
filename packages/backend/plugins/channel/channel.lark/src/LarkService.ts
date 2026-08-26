@@ -9,6 +9,11 @@ import util from 'util';
 function renderMentions(content: MessageContent, mentions: Array<{ key: string; name?: string }>): MessageContent {
   if (!mentions?.length) return content;
   const replace = (text: string): string => {
+    let command = text;
+    for (const mention of mentions) command = command.replaceAll(mention.key, '');
+    command = command.trim();
+    if (command.startsWith('/')) return command;
+
     let result = text;
     for (const mention of mentions) {
       const label = mention.name

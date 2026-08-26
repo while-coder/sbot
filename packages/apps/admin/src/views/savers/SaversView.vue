@@ -42,7 +42,10 @@ const refs = makeResourceRefs({
   session: (s, id) => s.saver === id,   // 会话私有覆盖（存在各自 auto profile 上，否则被漏扫）
   agent: (a, id) => a.saver === id,
 })
-onMounted(loadProfiles)
+onMounted(() => {
+  loadProfiles()
+  loadSessions()
+})
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
@@ -54,6 +57,63 @@ const expandedKeys    = ref<(string | number)[]>([])
 const saverThreadsMap = ref<Record<string, string[]>>({})
 const saverLoading    = ref<Record<string, boolean>>({})
 const threadClearing  = ref<Record<string, boolean>>({})
+
+// ── thread ↔ 会话关联：threadId 即 profileId，用 /api/channel-sessions 建立映射 ──
+interface SessionRowLite {
+  profileId: number | string
+  sessionId: string
+  sessionName?: string | null
+  autoSessionName?: string | null
+  channelId: string
+}
+const profileSessions = ref<Record<string, SessionRowLite>>({})
+
+async function loadSessions() {
+  try {
+    const res = await apiFetch('/api/channel-sessions')
+    const map: Record<string, SessionRowLite> = {}
+    for (const s of (res.data || []) as SessionRowLite[]) {
+      if (s.profileId != null) map[String(s.profileId)] = s
+    }
+    profileSessions.value = map
+  } catch {
+    // 会话信息加载失败时，thread 列表回退为只显示裸 id
+  }
+}
+
+/** thread 对应的会话（可见 profile 可能被多个会话共享，取第一个） */
+function sessionOf(thread: string): SessionRowLite | undefined {
+  return profileSessions.value[thread]
+}
+
+function sessionLabelOf(thread: string): string {
+  const s = sessionOf(thread)
+  return s ? (s.sessionName || s.autoSessionName || s.sessionId) : thread
+}
+
+function channelLabelOf(thread: string): string {
+  const s = sessionOf(thread)
+  if (!s) return ''
+  return store.settings.channels?.[s.channelId]?.name || s.channelId
+}
+
+/** thread 列表排序：按频道分组，同频道内按会话名称；未绑定会话的排在最后 */
+function sortedThreads(saverId: string): string[] {
+  const threads = saverThreadsMap.value[saverId] || []
+  return [...threads].sort((a, b) => {
+    const sa = sessionOf(a)
+    const sb = sessionOf(b)
+    if (!sa && !sb) return a.localeCompare(b)
+    if (!sa) return 1
+    if (!sb) return -1
+    const ca = channelLabelOf(a)
+    const cb = channelLabelOf(b)
+    if (ca !== cb) return ca.localeCompare(cb)
+    const na = sessionLabelOf(a)
+    const nb = sessionLabelOf(b)
+    return na !== nb ? na.localeCompare(nb) : a.localeCompare(b)
+  })
+}
 
 async function loadThreads(id: string) {
   if (id in saverThreadsMap.value || saverLoading.value[id]) return
@@ -136,6 +196,7 @@ async function refresh() {
     const res = await apiFetch('/api/settings')
     Object.assign(store.settings, res.data)
     await loadProfiles()
+    await loadSessions()
     const expandedIds = expandedKeys.value.map(String)
     if (expandedIds.length > 0) {
       for (const id of expandedIds) delete saverThreadsMap.value[id]
@@ -178,8 +239,17 @@ async function refresh() {
             {{ t('savers.no_sessions') }}
           </div>
           <div v-else class="thread-list">
-            <div v-for="thread in saverThreadsMap[row.id]" :key="thread" class="thread-row">
-              <span class="thread-id">{{ thread }}</span>
+            <div v-for="thread in sortedThreads(row.id)" :key="thread" class="thread-row">
+              <div class="thread-info">
+                <template v-if="sessionOf(thread)">
+                  <span class="thread-name">{{ sessionLabelOf(thread) }}</span>
+                  <span class="thread-meta">
+                    <span v-if="channelLabelOf(thread)" class="thread-channel">{{ channelLabelOf(thread) }}</span>
+                    <span class="thread-id">{{ thread }}</span>
+                  </span>
+                </template>
+                <span v-else class="thread-id" :title="t('savers.no_session_bound')">{{ thread }}</span>
+              </div>
               <div class="thread-ops">
                 <SButton type="outline" size="sm" @click="saverViewModal?.open(row.id, row.name, thread)">{{ t('common.view') }}</SButton>
                 <SButton type="danger" size="sm" :disabled="threadClearing[`${row.id}::${thread}`]" @click="clearThread(row.id, thread)">{{ t('savers.cleanup') }}</SButton>
@@ -222,20 +292,52 @@ async function refresh() {
 .thread-list {
   display: flex;
   flex-direction: column;
-  gap: var(--sui-sp-2);
 }
 .thread-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sui-sp-3);
-  padding: var(--sui-sp-1) 0;
+  padding: var(--sui-sp-2) 0;
+  border-bottom: 1px solid var(--sui-border);
+}
+.thread-row:last-child {
+  border-bottom: none;
+}
+.thread-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.thread-name {
+  font-size: var(--sui-fs-sm);
+  color: var(--sui-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-2);
+  min-width: 0;
+}
+.thread-channel {
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-info-link);
+  background: var(--sui-info-soft);
+  padding: 0 var(--sui-sp-2);
+  border-radius: var(--sui-radius-sm);
+  flex-shrink: 0;
 }
 .thread-id {
   font-family: var(--sui-font-mono);
-  font-size: var(--sui-fs-sm);
-  color: var(--sui-fg-secondary);
-  word-break: break-all;
+  font-size: var(--sui-fs-xs);
+  color: var(--sui-fg-disabled);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .thread-ops {
   display: flex;
