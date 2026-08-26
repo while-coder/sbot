@@ -349,6 +349,7 @@ export default {
     cleanup_success: 'Cleanup successful',
     confirm_delete: 'Delete storage configuration "{name}"?',
     history_title: 'Session History',
+    storage_path: 'Storage file path',
     count: '{count} items',
     count_with_archived: '{count} items · {archived} archived',
     clear_history: 'Clear History',

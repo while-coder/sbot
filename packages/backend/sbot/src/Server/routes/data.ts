@@ -1,5 +1,6 @@
 import express, { Request } from 'express';
 import { listThreadIds, IAgentSaverService, type StoredMessage } from 'scorpio.ai';
+import { saverProviderRegistry } from 'scorpio.saver';
 import { config } from '../../Core/Config';
 import { AgentRunner } from '../../Agent/AgentRunner';
 import { SaverPool } from '../../Agent/SaverPool';
@@ -56,6 +57,16 @@ export class DataRoutes {
         return row;
     }
 
+    /** 返回 saver 线程的定位信息（saverId/threadId/存储文件路径），供前端查找原始文件 */
+    private async getSaverInfo(saverId: string, threadId: string) {
+        const saverConfig = config.getSaver(saverId);
+        const provider = saverProviderRegistry.get(saverConfig?.type ?? '');
+        const storagePath = provider?.fileExtension
+            ? config.getSaverDBPath(saverId, threadId, provider.fileExtension)
+            : undefined;
+        return { saverId, saverType: saverConfig?.type, threadId, storagePath };
+    }
+
     /** 注册 history+thinks+tasks 三件套到给定 basePath 下 */
     private registerSaverThreadRoutes(app: express.Application, basePath: string, resolve: SaverResolver) {
         app.get(`${basePath}/history`, api(async req => {
@@ -88,9 +99,14 @@ export class DataRoutes {
             saverId: req.params.saverId as string,
             threadId: req.params.threadId as string,
         }));
-        this.registerSaverThreadRoutes(app, '/api/channel-sessions/:id', async req =>
-            await this.resolveSessionSaver(await this.getSessionRowByPk(req.params.id as string))
-        );
+        app.get('/api/savers/:saverId/threads/:threadId/info', api(async req =>
+            this.getSaverInfo(req.params.saverId as string, req.params.threadId as string)
+        ));
+        // channel_session 的 dbId → saverId/threadId 解析入口；解析后前端统一走上面的 saver 线程接口
+        app.get('/api/channel-sessions/:id/saver-info', api(async req => {
+            const { saverId, threadId } = await this.resolveSessionSaver(await this.getSessionRowByPk(req.params.id as string));
+            return this.getSaverInfo(saverId, threadId);
+        }));
         this.registerSaverThreadRoutes(app, '/api/profiles/:profileId', async req =>
             await this.resolveSessionSaver(await this.getWebSessionRowByProfileId(req.params.profileId as string))
         );

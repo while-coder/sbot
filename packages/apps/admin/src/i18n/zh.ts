@@ -349,6 +349,7 @@ export default {
     cleanup_success: '清理成功',
     confirm_delete: '确定要删除存储配置 "{name}" 吗?',
     history_title: '会话历史',
+    storage_path: '存储文件路径',
     count: '{count} 条',
     count_with_archived: '{count} 条 · 含 {archived} 已归档',
     clear_history: '清除历史',
