@@ -1,4 +1,4 @@
-import { AgentToolService, GlobalLoggerService } from "scorpio.ai";
+import { AgentToolService, GlobalLoggerService, MCPTransport } from "scorpio.ai";
 import { config } from "../Core/Config.js";
 import { loadPrompt } from "../Core/PromptLoader.js";
 
@@ -77,9 +77,9 @@ export function initGlobalAgentToolService() {
     }, '查询/发消息/发文件 跨 channel 会话');
     globalAgentToolService.registerMcpServers({
         [BuiltinProvider.Exa]: {
-            "type": "http",
-            "url": "https://mcp.exa.ai/mcp",
-            "description": "Exa 网络搜索",
+            type: MCPTransport.Http,
+            url: "https://mcp.exa.ai/mcp",
+            description: "Exa 网络搜索",
         },
     })
     globalAgentToolService.registerMcpServers(config.getGlobalMcpServers());

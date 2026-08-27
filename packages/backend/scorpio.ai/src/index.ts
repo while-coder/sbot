@@ -173,12 +173,24 @@ export {
   AgentToolService,
 
   // 类型定义
+  MCPTransport,
   MCPServerConfig,
   MCPServers,
   createMCPUtilityTools,
   type MCPServerCaps,
   type MCPUtilityToolDescs,
 } from "./AgentTool";
+
+// ========================================
+// Tools - 轻量结构化工具（全项目工具边界，替代 @langchain/core 的工具抽象）
+// ========================================
+export {
+  createAgentTool,
+  toOpenAIToolFormat,
+  type AgentTool,
+  type ToolInvokeConfig,
+  type ToolDefinition,
+} from "scorpio.llm";
 
 // ========================================
 // Agent - Agent 服务

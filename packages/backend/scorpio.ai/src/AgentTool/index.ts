@@ -12,7 +12,7 @@ export { AgentToolService } from "./AgentToolService";
 export { RecoverableMcpClient, isStaleMcpConnectionError } from "./RecoverableMcpClient";
 
 // ===== 类型定义 =====
-export { MCPServerConfig, MCPServers } from "./MCPServerConfig";
+export { MCPTransport, MCPServerConfig, MCPServers } from "./MCPServerConfig";
 export type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceTemplate, MCPResourceContent, ProviderResult } from "./MCPTypes";
 
 // ===== Utility 工具 =====

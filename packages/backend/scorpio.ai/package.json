@@ -10,7 +10,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.26.0",
     "@langchain/core": "catalog:",
-    "@langchain/mcp-adapters": "^1.1.3",
+    "@modelcontextprotocol/sdk": "catalog:",
     "better-sqlite3": "catalog:",
     "commander": "catalog:",
     "cron": "catalog:",

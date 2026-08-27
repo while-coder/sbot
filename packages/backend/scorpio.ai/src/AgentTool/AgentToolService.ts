@@ -1,4 +1,4 @@
-import { StructuredToolInterface } from "@langchain/core/tools";
+import { type AgentTool } from "scorpio.llm";
 import { IAgentToolService, type ProviderResolveEntry } from "./IAgentToolService";
 import { MCPServers } from "./MCPServerConfig";
 import { ILoggerService } from "../Logger";
@@ -29,7 +29,7 @@ export class AgentToolService implements IAgentToolService {
         this.logger = loggerService?.getLogger("AgentToolService");
     }
 
-    registerToolFactory(name: string, factory: (params?: Record<string, any>) => Promise<StructuredToolInterface[]>, description?: string): void {
+    registerToolFactory(name: string, factory: (params?: Record<string, any>) => Promise<AgentTool[]>, description?: string): void {
         this.providers.set(name, {
             factory: async (params) => ({ tools: await factory(params) }),
             description,
@@ -50,31 +50,25 @@ export class AgentToolService implements IAgentToolService {
                     let resourceTemplates: MCPResourceTemplate[] | undefined;
 
                     try {
-                        prompts = await client.runOperation(async (c) => {
-                            const rc = await c.getClient(name);
-                            if (!rc) return undefined as MCPPrompt[] | undefined;
-                            return (await rc.listPrompts()).prompts as MCPPrompt[];
-                        });
+                        prompts = await client.runOperation(async (c) => (await c.listPrompts()).prompts as MCPPrompt[]);
                     } catch {}
                     try {
-                        resources = await client.runOperation(async (c) => (await c.listResources(name))[name]);
+                        resources = await client.runOperation(async (c) => (await c.listResources()).resources as MCPResource[]);
                     } catch {}
                     try {
-                        resourceTemplates = await client.runOperation(async (c) => (await c.listResourceTemplates(name))[name]);
+                        resourceTemplates = await client.runOperation(async (c) => (await c.listResourceTemplates()).resourceTemplates as MCPResourceTemplate[]);
                     } catch {}
 
                     return {
                         tools, prompts, resources, resourceTemplates,
                         getPrompt: async (promptName: string, args?: Record<string, string>) => {
                             return client.runOperation(async (c) => {
-                                const rc = await c.getClient(name);
-                                if (!rc) throw new Error(`MCP client for "${name}" not available`);
-                                const result = await rc.getPrompt({ name: promptName, arguments: args });
+                                const result = await c.getPrompt({ name: promptName, arguments: args });
                                 return result.messages as MCPPromptMessage[];
                             });
                         },
                         readResource: async (uri: string) => {
-                            return client.runOperation(async (c) => c.readResource(name, uri));
+                            return client.runOperation(async (c) => (await c.readResource({ uri })).contents);
                         },
                         close: async () => { await client.close(); },
                     };
@@ -85,9 +79,9 @@ export class AgentToolService implements IAgentToolService {
         }
     }
 
-    async getAllTools(): Promise<StructuredToolInterface[]> {
+    async getAllTools(): Promise<AgentTool[]> {
         await this.loadAll();
-        const result: StructuredToolInterface[] = [];
+        const result: AgentTool[] = [];
         for (const caps of this.providerResults.values()) result.push(...caps.tools);
         return result;
     }
