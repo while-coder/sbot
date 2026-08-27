@@ -109,7 +109,7 @@ export class AgendaServicePool {
         for (const [id, cached] of this.cache) {
             if (cached === service) {
                 this.cache.delete(id);
-                this.logger?.info(`日程服务已驱逐：${service.name}（agendaId=${id}）`);
+                this.logger?.info(`日程服务已从缓存移除：${service.name}（agendaId=${id}）`);
                 return;
             }
         }
@@ -154,7 +154,7 @@ export class AgendaServicePool {
 
         const service = sub.resolve<AgendaService>(IAgendaService) as AgendaService;
         service.setAgendaName(cfg.agendaName ?? agendaId);
-        this.logger?.info(`日程服务已构建：${cfg.agendaName ?? agendaId}（agendaId=${agendaId}）`);
+        this.logger?.info(`日程服务已创建：${cfg.agendaName ?? agendaId}（agendaId=${agendaId}）`);
         return service;
     }
 

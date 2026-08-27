@@ -92,7 +92,7 @@ export class AgendaExtractor implements IAgendaExtractor {
     }
 
     private logAgenda(level: 'debug' | 'info' | 'warn' | 'error', message: string): void {
-        const line = `[日程:${this.agendaName}] ${message}`;
+        const line = `[日程:${truncateForLog(this.agendaName, 80)}] ${message}`;
         switch (level) {
             case 'debug':
                 this.logger?.debug(line);
@@ -113,7 +113,7 @@ export class AgendaExtractor implements IAgendaExtractor {
     private prefixedLogger(): ILogger | undefined {
         const logger = this.logger;
         if (!logger) return undefined;
-        const prefix = `[日程:${this.agendaName}] `;
+        const prefix = `[日程:${truncateForLog(this.agendaName, 80)}] `;
         return {
             debug: (message: string, ...args: any[]) => logger.debug(prefix + message, ...args),
             info: (message: string, ...args: any[]) => logger.info(prefix + message, ...args),

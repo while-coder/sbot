@@ -566,7 +566,7 @@ export class MemoryService {
         try {
             this.store.pushPendingMessages(messages, Date.now(), target);
         } catch (e: any) {
-            this.logMemory('warn', `记忆抽取入队失败: query=${MemoryService.messagePreview(messages)}，错误=${formatError(e, true)}`);
+            this.logMemory('warn', `记忆抽取入队失败：query=${MemoryService.messagePreview(messages)}，错误=${formatError(e, true)}`);
             return;
         }
         void this.checkJobs();
@@ -634,15 +634,15 @@ export class MemoryService {
                 if (!next) break;
                 const log = this.jobLog(next);
                 try {
-                    this.logMemory('info', `${log.start}：${log.subject}`);
+                    this.logMemory('info', `${log.start}：#${next.id}，${log.subject}`);
                     const stats = await this.runPendingJob(next);
                     this.recordHistory(this.jobHistoryMessage(next, stats));
                     this.store.deletePendingJob(next.id);
-                    this.logMemory('info', `${log.done}：${log.subject}${this.jobDoneSuffix(stats)}`);
+                    this.logMemory('info', `${log.done}：#${next.id}，${log.subject}${this.jobDoneSuffix(stats)}`);
                 } catch (e: any) {
                     const errMsg = truncateForLog(formatError(e));
                     try { this.store.markPendingJobFailed(next.id, errMsg, Date.now()); } catch { /* store closed; swallow */ }
-                    this.logMemory('warn',`${log.failed}：${log.subject}，尝试=${next.attemptCount + 1}，` +`模型=${this.modelLabel()}，错误=${formatError(e, true)}`);
+                    this.logMemory('warn', `${log.failed}：#${next.id}，尝试=${next.attemptCount + 1}，${log.subject}，模型=${this.modelLabel()}，错误=${formatError(e, true)}`);
                 }
             }
         } finally {
@@ -796,7 +796,7 @@ export class MemoryService {
 
         // 常见的小库只调用一次 Selector：完整对话 + 全部自包含 title。
         if (completeCatalogTokens <= inputBudget) {
-            this.logMemory('debug', `Selector 单次标题筛选：entries=${rows.length}，估算输入=${completeCatalogTokens} tokens，预算=${inputBudget}`);
+            this.logMemory('debug', `Selector 单次标题筛选：条目=${rows.length}，估算输入=${completeCatalogTokens} tokens，预算=${inputBudget}`);
             const result = await this.selectorModel.invokeStructured<MemorySelectionOutput>(
                 MemorySelectionOutputSchema,
                 completeCatalogMessages,
@@ -809,7 +809,7 @@ export class MemoryService {
         }
 
         // 大库才拆两步：完整对话只压缩一次，之后每批只重复少量 durableFacts + title。
-        this.logMemory('debug', `Selector 标题目录超预算，切换分批：entries=${rows.length}，估算输入=${completeCatalogTokens} tokens，预算=${inputBudget}`);
+        this.logMemory('debug', `Selector 标题目录超预算，切换分批：条目=${rows.length}，估算输入=${completeCatalogTokens} tokens，预算=${inputBudget}`);
         const analysis = await this.analyzeConversationForMemory(conversation, target);
         if (!analysis.shouldWrite) return { shouldWrite: false, rows: [] };
         if (rows.length === 0 || analysis.durableFacts.length === 0) {
@@ -884,7 +884,7 @@ export class MemoryService {
     ): Promise<MemoryRow[]> {
         const selected = new Map<string, MemoryRow>();
         const chunks = this.chunkCatalogForSelector(durableFacts, rows, target, inputBudget, maxCandidates);
-        this.logMemory('debug', `Selector 分批标题筛选：entries=${rows.length}，batches=${chunks.length}，每批候选上限=${maxCandidates}`);
+        this.logMemory('debug', `Selector 分批标题筛选：条目=${rows.length}，批次=${chunks.length}，每批候选上限=${maxCandidates}`);
         for (const chunk of chunks) {
             const messages = this.buildFactCatalogSelectorMessages(durableFacts, chunk, target, maxCandidates);
             const result = await this.selectorModel.invokeStructured<MemoryCandidateOutput>(
@@ -1162,8 +1162,8 @@ export class MemoryService {
                 out.failed++;
                 this.logMemory(
                     'warn',
-                    `记忆操作失败：${MemoryService.opActionName(op.action)} ` +
-                    `${('slug' in op) ? op.slug : ''}，错误=${formatError(e, true)}`
+                    `记忆操作失败：动作=${MemoryService.opActionName(op.action)}` +
+                    `${('slug' in op && op.slug) ? `，slug=${op.slug}` : ''}，错误=${formatError(e, true)}`
                 );
             }
         }
@@ -1292,7 +1292,7 @@ export class MemoryService {
         } catch (e: any) {
             // Git 历史是审计层；提交失败不能让已经完成的 Memory CRUD 重跑 LLM。
             // 工作树会保持 dirty，下一次成功提交会一并保存这些文件变化。
-            this.logMemory('warn', `记忆历史提交失败: ${formatError(e, true)}`);
+            this.logMemory('warn', `记忆历史提交失败：${formatError(e, true)}`);
         }
     }
 

@@ -54,8 +54,6 @@ const resolveConfig: MemoryServiceConfigResolver = (memoryId) => {
 memoryServicePool.setResolver(resolveConfig);
 memoryServicePool.setLoggerService({ getLogger: (name: string) => LoggerService.getLogger(name) });
 
-const logger = LoggerService.getLogger("Memory/MemoryServicePool.ts");
-
 /**
  * 启动时对所有已启用的 memoryProfile 触发一次 forceExtract，把上次进程残留的
  * pending 抽取队列消化掉，避免依赖第一次对话或 admin 手动按钮。
@@ -66,13 +64,10 @@ const logger = LoggerService.getLogger("Memory/MemoryServicePool.ts");
  */
 export function startupExtractAll(): void {
     const profiles = config.settings.memoryProfiles ?? {};
-    let scheduled = 0;
     for (const [id, profile] of Object.entries(profiles)) {
         if (!profile?.enabled) continue;
-        scheduled++;
         memoryServicePool.forceExtract(id);
     }
-    if (scheduled > 0) logger.info(`启动记忆抽取已排期：${scheduled} 个 profile`);
 }
 
 export { memoryServicePool };

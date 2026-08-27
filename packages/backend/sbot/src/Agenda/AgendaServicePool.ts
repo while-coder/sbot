@@ -76,8 +76,6 @@ const resolveConfig: AgendaServiceConfigResolver = (agendaId) => {
 agendaServicePool.setResolver(resolveConfig);
 agendaServicePool.setLoggerService({ getLogger: (name: string) => LoggerService.getLogger(name) });
 
-const logger = LoggerService.getLogger("Agenda/AgendaServicePool.ts");
-
 /**
  * 启动时对所有已启用的 agendaProfile 触发一次 forceExtract，消化上次进程残留的
  * pending 抽取队列。无 syncModel 的 profile 在 service 内会直接 noop，安全幂等。
@@ -87,13 +85,10 @@ const logger = LoggerService.getLogger("Agenda/AgendaServicePool.ts");
  */
 export function startupExtractAll(): void {
     const profiles = config.settings.agendaProfiles ?? {};
-    let scheduled = 0;
     for (const [id, profile] of Object.entries(profiles)) {
         if (!profile?.enabled) continue;
-        scheduled++;
         agendaServicePool.forceExtract(id);
     }
-    if (scheduled > 0) logger.info(`启动日程抽取已排期：${scheduled} 个 profile`);
 }
 
 export { agendaServicePool };

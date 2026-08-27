@@ -210,7 +210,7 @@ export class MemoryServicePool {
         sub.resolve<IMemoryStore>(IMemoryStore);
         const service = sub.resolve(MemoryService);
         service.setMemoryName(cfg.memoryName ?? memoryId);
-        this.logger?.info(`记忆服务已构建：${cfg.memoryName ?? memoryId}（memoryId=${memoryId}）`);
+        this.logger?.info(`记忆服务已创建：${cfg.memoryName ?? memoryId}（memoryId=${memoryId}）`);
         return service;
     }
 
