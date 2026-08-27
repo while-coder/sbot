@@ -85,7 +85,7 @@
     },
     {
       "label": "launch:sbot",
-      "dependsOn": ["admin:kill", "debug:sbot", "admin:dev"],
+      "dependsOn": ["debug:sbot"],
       "dependsOrder": "sequence"
     },
     {
