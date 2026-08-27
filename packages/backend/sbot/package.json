@@ -72,7 +72,6 @@
     "scorpio.di": "workspace:*",
     "scorpio.llm": "workspace:*",
     "scorpio.llm.anthropic": "workspace:*",
-    "scorpio.llm.cohere": "workspace:*",
     "scorpio.llm.gemini": "workspace:*",
     "scorpio.llm.ollama": "workspace:*",
     "scorpio.llm.openai": "workspace:*",

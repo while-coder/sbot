@@ -2,7 +2,6 @@ export enum EmbeddingProvider {
   OpenAI = "openai",
   Ollama = "ollama",
   Gemini = "gemini",
-  Cohere = "cohere",
 }
 
 export interface EmbeddingConfig {
