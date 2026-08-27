@@ -35,7 +35,7 @@ export enum ToolApproval {
 /**
  * 工具声明「本次调用开启了 think 流」的回调。
  *
- * 框架在执行工具前生成 `thinkId` 并与本回调一起注入 `RunnableConfig.configurable`。
+ * 框架在执行工具前生成 `thinkId` 并与本回调一起注入工具的 `ToolInvokeConfig`。
  * 会把子流程消息写入 `thinks[thinkId]` 的工具（如 `_dispatch_task`）在流程真正启动时调一次，
  * 框架据此把 `thinkId` 与本次 tool_call 的关联下发出去，使思考过程在执行中即可查看。
  * 不调用的工具，预留的 `thinkId` 直接丢弃。幂等：重复调用只生效一次。

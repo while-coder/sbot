@@ -1,13 +1,13 @@
 import fs from 'fs';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
 import type { FileSystemToolRuntime } from '../runtime';
 
 /** Remove files and directories, like bash rm */
-export function createRmTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createRmTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'rm',
         description: runtime.description,
         schema: z.object({

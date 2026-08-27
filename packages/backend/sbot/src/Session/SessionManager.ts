@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { ICommand, MessageType, MessageRole, MessageKind, type MessageContent, trimContent, isEmptyContent, runtimeActivity } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
-import { type StructuredToolInterface } from "@langchain/core/tools";
+import { type AgentTool } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { channelDataService, type EffectiveSession } from "./ChannelDataService";
 import { getSessionName } from "../utils";
@@ -20,7 +20,7 @@ export interface ChannelRouteArgs extends ChannelMessageArgs {
     dbSessionId: number;
     mentionBot?: boolean;
     headless?: boolean;
-    agentTools?: StructuredToolInterface[];
+    agentTools?: AgentTool[];
     toolWhitelist?: string[];
     onComplete?: (error?: any) => void;
 }

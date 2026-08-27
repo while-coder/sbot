@@ -9,7 +9,6 @@
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@langchain/core": "catalog:",
     "plugin.schema": "workspace:*",
     "scorpio.ai": "workspace:*",
     "zod": "catalog:"

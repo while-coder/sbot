@@ -1,6 +1,6 @@
 import fsAsync from 'fs/promises';
 import { createTwoFilesPatch } from 'diff';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkFile, normalizeLineEndings, writeAtomic } from '../utils';
@@ -295,8 +295,8 @@ export async function applyFileEdits(filePath: string, edits: FileEdit[]): Promi
  * - 单文件多编辑：只设顶层 filePath，各 edit 无需重复。
  * - 多文件编辑：各 edit 设各自 filePath，顶层 filePath 可省略。
  */
-export function createEditFileTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createEditFileTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'edit',
         description: runtime.description,
         schema: z.object({

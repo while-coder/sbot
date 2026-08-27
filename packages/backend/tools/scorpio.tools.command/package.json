@@ -8,8 +8,8 @@
     "build": "rimraf dist && tsc -b --force"
   },
   "dependencies": {
-    "@langchain/core": "catalog:",
-    "scorpio.command": "workspace:*"
+    "scorpio.command": "workspace:*",
+    "scorpio.llm": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

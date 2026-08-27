@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
@@ -21,8 +21,8 @@ function moveOne(src: string, dst: string): void {
 }
 
 /** Move/rename or copy files and directories, like bash mv / cp. Supports multiple sources. */
-export function createMoveTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createMoveTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'move',
         description: runtime.description,
         schema: z.object({

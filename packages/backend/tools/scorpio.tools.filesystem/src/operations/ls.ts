@@ -1,4 +1,4 @@
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult, formatWalkTree, DEFAULT_WALK_MAX_DEPTH, DEFAULT_WALK_LIMIT } from 'scorpio.ai';
 import { checkDir } from '../utils';
@@ -13,8 +13,8 @@ const IGNORE_PATTERNS = new Set([
 ]);
 
 /** 列出目录内容（扁平相对路径；目录加 `/` 后缀；自动忽略常见构建/依赖目录） */
-export function createLsTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createLsTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'ls',
         description: runtime.description,
         schema: z.object({

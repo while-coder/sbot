@@ -1,4 +1,4 @@
-import { type StructuredToolInterface } from "@langchain/core/tools";
+import { type AgentTool } from "scorpio.llm";
 import type { ILogger } from "../../Logger";
 import type { ChatMessage, IAgentSaverService } from "scorpio.saver";
 
@@ -83,7 +83,7 @@ export interface IAgentPlugin {
      * 本轮暴露给模型的工具。插件工具排在框架自有工具之后：同名时框架工具胜出，
      * 模型 maxTools 截断也优先砍插件工具。
      */
-    getTools?(ctx: AgentPluginContext): Promise<StructuredToolInterface[]> | StructuredToolInterface[];
+    getTools?(ctx: AgentPluginContext): Promise<AgentTool[]> | AgentTool[];
 
     /**
      * 一轮对话结束后触发的副作用钩子（后台抽取、统计、清理等）。

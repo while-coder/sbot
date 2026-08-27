@@ -1,6 +1,6 @@
 import {
   ChannelSessionHandler, SessionService, createSendFileTool,
-  type StructuredToolInterface,
+  type AgentTool,
   type ChannelMessageArgs,
   type MessageContent, type MessageType,
   formatError,
@@ -34,7 +34,7 @@ export class WecomSessionHandler extends ChannelSessionHandler<WecomChatProvider
 
   static readonly SEND_FILE_PROMPT = 'Send a local file to the current WeCom conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, etc.) directly to the user via WeCom.';
 
-  async buildAgentTools(args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
+  async buildAgentTools(args: ChannelMessageArgs): Promise<AgentTool[]> {
     const { sessionId } = args;
     return [
       createSendFileTool(WecomSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {

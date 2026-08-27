@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool } from "scorpio.llm";
 import { createTextContent, type MCPToolResult } from "../Core";
 
 // -- Types -------------------------------------------------------------------
@@ -33,8 +33,8 @@ const DEFAULT_DESC =
   "status (running/done/error) and a short summary. Use it to recall what you delegated and to pick " +
   "a `taskId` to resume via `_dispatch_task`. Takes no arguments.";
 
-export function createListTasksTool(getTasks: GetTasksFn, description: string = DEFAULT_DESC): DynamicStructuredTool {
-  return new DynamicStructuredTool({
+export function createListTasksTool(getTasks: GetTasksFn, description: string = DEFAULT_DESC): AgentTool {
+  return createAgentTool({
     name: LIST_TASKS_TOOL_NAME,
     description,
     schema: z.object({}) as any,

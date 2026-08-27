@@ -2,7 +2,7 @@ import fs from 'fs';
 import fsAsync, { type FileHandle } from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkDir, globToRegex, EXCLUDE_DIRS, checkRg } from '../utils';
@@ -215,8 +215,8 @@ function formatResults(results: FileMatches[], reachedLimit: boolean, maxMatches
 // ─── Tool 定义 ────────────────────────────────────────────────────────────────
 
 /** 跨文件内容搜索（ripgrep 优先 + Node.js fallback；跳过构建目录；按修改时间排序）*/
-export function createGrepFilesTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createGrepFilesTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'grep',
         description: runtime.description,
         schema: z.object({

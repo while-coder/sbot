@@ -2,15 +2,15 @@ import fs from 'fs';
 import fsAsync from 'fs/promises';
 import path from 'path';
 import { createTwoFilesPatch } from 'diff';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath, writeAtomic, normalizeLineEndings } from '../utils';
 import type { FileSystemToolRuntime } from '../runtime';
 
 /** 写入文件，返回 diff（原子替换，防止竞态条件）*/
-export function createWriteTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createWriteTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'write',
         description: runtime.description,
         schema: z.object({

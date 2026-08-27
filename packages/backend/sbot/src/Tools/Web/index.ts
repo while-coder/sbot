@@ -1,4 +1,4 @@
-import { type StructuredToolInterface } from '@langchain/core/tools'
+import { type AgentTool } from "scorpio.ai";
 
 export { createWebFetchTool } from './fetch'
 export { createWebDownloadTool } from './download'
@@ -6,6 +6,6 @@ export { createWebDownloadTool } from './download'
 import { createWebFetchTool } from './fetch'
 import { createWebDownloadTool } from './download'
 
-export function createWebFetchTools(): StructuredToolInterface[] {
+export function createWebFetchTools(): AgentTool[] {
     return [createWebFetchTool(), createWebDownloadTool()]
 }

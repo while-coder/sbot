@@ -1,4 +1,4 @@
-import { type StructuredToolInterface } from '@langchain/core/tools';
+import { type AgentTool } from "scorpio.ai";
 
 export const CHANNEL_LIST_TOOL_NAME = 'channel_list_data' as const;
 export const CHANNEL_SEND_TOOL_NAME = 'channel_send' as const;
@@ -21,7 +21,7 @@ export { createChannelSendTool } from './send';
 import { createChannelListTool } from './list';
 import { createChannelSendTool } from './send';
 
-export function createChannelTools(currentChannelId?: string): StructuredToolInterface[] {
+export function createChannelTools(currentChannelId?: string): AgentTool[] {
     return [
         createChannelListTool(currentChannelId),
         createChannelSendTool(),

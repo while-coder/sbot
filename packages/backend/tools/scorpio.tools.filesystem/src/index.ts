@@ -4,7 +4,7 @@
  * 注意：所有路径参数必须使用绝对路径
  */
 
-import { type StructuredToolInterface } from '@langchain/core/tools';
+import { type AgentTool } from "scorpio.ai";
 import type { ILogger } from 'scorpio.ai';
 
 export { formatSize, resolvePath } from './utils';
@@ -55,7 +55,7 @@ function parseBool(v: unknown): boolean {
 }
 
 /** 创建所有文件系统工具 */
-export function createFileSystemTools(options: CreateFileSystemToolsOptions): StructuredToolInterface[] {
+export function createFileSystemTools(options: CreateFileSystemToolsOptions): AgentTool[] {
     const runtime = (name: FileSystemToolName) => ({
         description: options.descriptions[name],
         logger: options.logger,

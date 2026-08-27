@@ -1,5 +1,5 @@
 import { StateGraph, START, END } from '../../Graph';
-import { type StructuredToolInterface } from "@langchain/core/tools";
+import { type AgentTool } from "scorpio.llm";
 import { inject, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { IModelService } from "../../Model";
 import { IAgentSaverService, ContentPartType, MessageKind, type MessageContent, type ContentPart } from "scorpio.saver";
@@ -59,7 +59,7 @@ type SingleAgentState = {
     messages: ChatMessage[];
     callback?: IAgentCallback;
     systemMessage?: ChatMessage;
-    tools: StructuredToolInterface[];
+    tools: AgentTool[];
     signal?: AbortSignal;
     /** 本轮用户 query 的简略摘要，随 state 透传到工具节点，仅用于“开始执行工具”日志定位是哪条 query 触发的调用 */
     queryBrief: string;
@@ -152,7 +152,7 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /** 收集插件工具。单个插件抛错降级为日志告警并跳过，其余插件照常生效。 */
-    protected async collectPluginTools(ctx: AgentPluginContext): Promise<StructuredToolInterface[]> {
+    protected async collectPluginTools(ctx: AgentPluginContext): Promise<AgentTool[]> {
         if (this.plugins.length === 0) return [];
         const results = await Promise.all(this.plugins.map(async plugin => {
             if (!plugin.getTools) return [];
@@ -195,14 +195,14 @@ export class SingleAgentService extends AgentServiceBase {
      * 插件工具追加在最末：同名去重时框架自有工具胜出，maxTools 截断也优先砍插件工具。
      * ctx 统一排在首位（也是必需参数唯一能放的位置——不能跟在可选的 callback / signal 之后）。
      */
-    protected async buildTools(ctx: AgentPluginContext, _callback?: IAgentCallback, _signal?: AbortSignal): Promise<StructuredToolInterface[]> {
-        const tools: StructuredToolInterface[] = await this.toolService?.getAllTools() ?? [];
+    protected async buildTools(ctx: AgentPluginContext, _callback?: IAgentCallback, _signal?: AbortSignal): Promise<AgentTool[]> {
+        const tools: AgentTool[] = await this.toolService?.getAllTools() ?? [];
         if (this.plugins.length > 0) {
             tools.push(...await this.collectPluginTools(ctx));
         }
 
         // 同名工具会被 OpenAI 兼容端点判为非法请求（400），按首次出现去重
-        const unique = new Map<string, StructuredToolInterface>();
+        const unique = new Map<string, AgentTool>();
         const duplicates = new Set<string>();
         for (const tool of tools) {
             if (unique.has(tool.name)) {
@@ -477,7 +477,7 @@ export class SingleAgentService extends AgentServiceBase {
      *  取消（AgentCancelledError）与工具自身错误均向上抛，由调用方归一处理。 */
     private async runSingleTool(
         toolCall: ChatToolCall,
-        toolMap: Map<string, StructuredToolInterface>,
+        toolMap: Map<string, AgentTool>,
         i: number,
         signal?: AbortSignal,
         callback?: IAgentCallback,
@@ -531,7 +531,7 @@ export class SingleAgentService extends AgentServiceBase {
         };
 
         const result = await raceCancel(
-            tool.invoke(parsedArgs, { configurable: { thinkId, onCreateThink } }),
+            tool.invoke(parsedArgs, { thinkId, onCreateThink }),
             signal,
         );
 
@@ -576,7 +576,7 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /** 模型调用 400/500 时把消息序列与工具列表摘要打到日志，便于定位（如同名工具 / 空 content / tool_calls 与 ToolMessage 不配对等） */
-    private static dumpRequest(messages: ChatMessage[], tools: StructuredToolInterface[]): string {
+    private static dumpRequest(messages: ChatMessage[], tools: AgentTool[]): string {
         const msgLines = messages.map((m, i) => {
             const role = m.role;
             const contentInfo = typeof m.content === 'string'

@@ -8,7 +8,6 @@
     "build": "rimraf dist && tsc -b --force && node scripts/copy-assets.cjs"
   },
   "dependencies": {
-    "@langchain/core": "catalog:",
     "js-yaml": "^4.2.0",
     "scorpio.ai": "workspace:*",
     "scorpio.command": "workspace:*",

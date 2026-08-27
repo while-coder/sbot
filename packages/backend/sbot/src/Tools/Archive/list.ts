@@ -1,6 +1,6 @@
 import fs from 'fs';
 import AdmZip from 'adm-zip';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
@@ -9,8 +9,8 @@ import { loadPrompt } from '../../Core/PromptLoader';
 
 const logger = LoggerService.getLogger('Tools/Archive/list.ts');
 
-export function createZipListTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createZipListTool(): AgentTool {
+    return createAgentTool({
         name: 'zip_list',
         description: loadPrompt('tools/archive/list.txt'),
         schema: z.object({

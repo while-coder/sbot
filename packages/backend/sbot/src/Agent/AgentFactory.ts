@@ -25,7 +25,7 @@ import {
     loadSkillPrompt,
 } from "agent.skill";
 import path from "path";
-import { type StructuredToolInterface } from "@langchain/core/tools";
+import { type AgentTool } from "scorpio.ai";
 import { createSessionSearchTool, type SearchableSaver } from "../Tools/SessionSearch/index";
 import { createChannelTools } from "../Tools/Channel/index";
 import { channelDataService } from "../Session/ChannelDataService";
@@ -48,7 +48,7 @@ export interface AgentCreateOptions {
     /** 归属会话 DB 主键（channel_session.id），用于绑定 agenda 等会话工具 */
     dbSessionId: string;
     /** 动态注册到 Agent 的工具列表 */
-    agentTools?: StructuredToolInterface[];
+    agentTools?: AgentTool[];
     /** Agent 文件操作根目录（ACP 模式作为 cwd 传给外部 agent） */
     workPath?: string;
     /** 关闭工作目录 .skills/ 子目录下 skill 的自动导入 */
@@ -166,7 +166,7 @@ export class AgentFactory {
         ]);
     }
 
-    private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<StructuredToolInterface[]>> = {
+    private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<AgentTool[]>> = {
         [BuiltinProvider.Command]: async ({ dbSessionId }) => {
             return createBuiltinCommandTools(`session:${dbSessionId}`);
         },
@@ -190,7 +190,7 @@ export class AgentFactory {
         dbSessionId: string,
         mcp?: string[] | '*',
         mcpParams?: Record<string, Record<string, any>>,
-        agentTools?: StructuredToolInterface[],
+        agentTools?: AgentTool[],
         mcpExclude?: string[],
         workspaceMcpPath?: string,
     ): Promise<void> {

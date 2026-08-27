@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool, type ToolInvokeConfig } from "scorpio.llm";
 import type { MCPToolResult } from "../Core";
 // 仅类型导入（编译期擦除），不构成 Tools ↔ Agents 的运行时循环依赖
 import type { OnCreateThinkFn } from "../../Agents/AgentServiceBase";
@@ -41,7 +41,7 @@ const DEFAULT_DESC =
   "sub-agent session; pass the returned `task_id` back as `taskId` to resume the same session. Fresh " +
   "tasks must be self-contained unless `contextMode` is `state`; resumed tasks can be short follow-ups.";
 
-export function createDispatchTaskTool(agentIds: string[], runFn: RunDispatchTaskFn, description: string = DEFAULT_DESC): DynamicStructuredTool {
+export function createDispatchTaskTool(agentIds: string[], runFn: RunDispatchTaskFn, description: string = DEFAULT_DESC): AgentTool {
   const schema = z.object({
     // WHO：派给哪个子 agent（zod v4 的 z.enum 直接接受 string[]，无需 as/解构）
     agentId: z.enum(agentIds)
@@ -59,17 +59,17 @@ export function createDispatchTaskTool(agentIds: string[], runFn: RunDispatchTas
       .describe("Resume a prior session by passing the `task_id: <uuid>` from an earlier result; omit to start fresh."),
   });
 
-  return new DynamicStructuredTool({
+  return createAgentTool({
     name: DISPATCH_TASK_TOOL_NAME,
     description: description,
     schema: schema as any,
-    // 第三参是 invoke 时传入的 RunnableConfig，SingleAgentService 在其 configurable 里
+    // 第二参是 invoke 时传入的 ToolInvokeConfig，SingleAgentService 在其中
     // 预置 thinkId 与 onCreateThink（见 runSingleTool），这里透传给实现方。
-    func: async (params: any, _runManager?: any, config?: any): Promise<MCPToolResult> =>
+    func: async (params: any, config?: ToolInvokeConfig): Promise<MCPToolResult> =>
       runFn({
         ...params,
-        thinkId: config?.configurable?.thinkId,
-        onCreateThink: config?.configurable?.onCreateThink,
+        thinkId: config?.thinkId,
+        onCreateThink: config?.onCreateThink,
       }),
   });
 }

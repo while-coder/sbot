@@ -6,7 +6,7 @@ import {
   type MessageContent,
 } from "scorpio.ai";
 import { type AskResponse, type AskToolParams } from "./AskTool";
-import { type StructuredToolInterface } from "@langchain/core/tools";
+import { type AgentTool } from "scorpio.ai";
 import { SessionService } from "./SessionService";
 import { ChannelMessageArgs, ProcessAIHandler } from "./ChannelPlugin";
 import { AbstractChatProvider } from "./AbstractChatProvider";
@@ -49,7 +49,7 @@ export abstract class ChannelSessionHandler<TProvider extends AbstractChatProvid
   }
 
   // Optional channel extensions
-  async buildAgentTools(_args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
+  async buildAgentTools(_args: ChannelMessageArgs): Promise<AgentTool[]> {
     return [];
   }
 

@@ -1,7 +1,7 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { BaseMessage } from "@langchain/core/messages";
 import { AIMessageChunk } from "@langchain/core/messages";
-import type { StructuredToolInterface } from "@langchain/core/tools";
+import { toOpenAIToolFormat, type AgentTool } from "./tools";
 import type { ChatMessage } from "./messages";
 import { toBaseMessages, toChatMessage } from "./messageConverter";
 import { type LLMInfo, getLLMInfo } from "./capabilities";
@@ -44,7 +44,7 @@ export interface StructuredInvokeOptions extends ModelInvokeOptions {
 export interface IModelService {
   readonly config: ModelConfig;
   invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage>;
-  bindTools(tools: any[]): void;
+  bindTools(tools: AgentTool[]): void;
   invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T>;
   stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>>;
   /**
@@ -116,10 +116,11 @@ export abstract class ModelServiceBase<TModel extends BaseChatModel = BaseChatMo
     return toChatMessage(result);
   }
 
-  bindTools(tools: StructuredToolInterface[]): void {
+  bindTools(tools: AgentTool[]): void {
     if (!this.model) throw new Error(`${this.constructor.name} is not initialized`);
     if (!this.model.bindTools) throw new Error(`${this.constructor.name} does not support tools`);
-    this.boundModel = this.model.bindTools(tools);
+    // LangChain 模型只认识自家工具或 OpenAI 格式，轻量工具先转换再绑定
+    this.boundModel = this.model.bindTools(tools.map(toOpenAIToolFormat));
   }
 
   abstract invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T>;

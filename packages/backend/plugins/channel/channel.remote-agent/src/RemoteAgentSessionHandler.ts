@@ -1,4 +1,4 @@
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool } from "channel.base";
 import {
   ChannelSessionHandler,
   ToolApproval,
@@ -9,7 +9,7 @@ import {
   type MessageContent,
   type MessageType,
   type SessionService,
-  type StructuredToolInterface,
+  type AgentTool,
 } from "channel.base";
 import { AgentServerMessageType } from "./protocol";
 import type { RemoteAgentConnection } from "./RemoteAgentConnection";
@@ -52,11 +52,11 @@ export class RemoteAgentSessionHandler extends ChannelSessionHandler {
     return ToolApproval.Allow;
   }
 
-  async buildAgentTools(args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
+  async buildAgentTools(args: ChannelMessageArgs): Promise<AgentTool[]> {
     const connection = (args as RemoteAgentMessageArgs).connection ?? this.connection;
     if (!connection) return [];
 
-    return connection.getTools().map(definition => new DynamicStructuredTool({
+    return connection.getTools().map(definition => createAgentTool({
       name: definition.name,
       description: definition.description?.trim() || definition.name,
       schema: definition.inputSchema as any,

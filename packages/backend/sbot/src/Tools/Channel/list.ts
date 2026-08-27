@@ -1,4 +1,4 @@
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
 import { WEB_CHANNEL_TYPE } from '@sbot/shared';
@@ -26,8 +26,8 @@ function groupByChannel<T extends { channelId: string }>(items: T[]): Map<string
     return map;
 }
 
-export function createChannelListTool(currentChannelId?: string): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createChannelListTool(currentChannelId?: string): AgentTool {
+    return createAgentTool({
         name: CHANNEL_LIST_TOOL_NAME,
         description: loadPrompt('tools/channel/list.txt'),
         schema: z.object({

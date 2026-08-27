@@ -1,6 +1,6 @@
 import {
   ChannelSessionHandler, SessionService, createSendFileTool,
-  type StructuredToolInterface,
+  type AgentTool,
   type ChannelMessageArgs,
   type MessageContent, type MessageType,
   formatError,
@@ -30,7 +30,7 @@ export class OnebotSessionHandler extends ChannelSessionHandler<OnebotChatProvid
 
   static readonly SEND_FILE_PROMPT = 'Send a local file to the current OneBot conversation. Use this tool to deliver any generated or exported file directly to the user.';
 
-  async buildAgentTools(args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
+  async buildAgentTools(args: ChannelMessageArgs): Promise<AgentTool[]> {
     const { userId, groupId } = args as OnebotMessageArgs;
     return [
       createSendFileTool(OnebotSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {

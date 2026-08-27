@@ -1,4 +1,4 @@
-import { type StructuredToolInterface } from '@langchain/core/tools';
+import { type AgentTool } from "scorpio.llm";
 import { CodeRuntime, createScriptCodeTool, isCommandAvailable, type ProcessManager } from './utils';
 
 // 现代 Linux/macOS 默认只有 python3，Windows 通常是 python；都试一遍。
@@ -11,7 +11,7 @@ function resolvePython(): string | null {
     return _pythonInterpreter;
 }
 
-export function createPythonCodeTool(description: string, processManager: ProcessManager): StructuredToolInterface | null {
+export function createPythonCodeTool(description: string, processManager: ProcessManager): AgentTool | null {
     const interpreter = resolvePython();
     if (!interpreter) return null;
     return createScriptCodeTool({

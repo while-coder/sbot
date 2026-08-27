@@ -3,7 +3,7 @@ import { ChatMessage, MessageType, type MessageContent, formatError } from "scor
 import {
     ChannelSessionHandler, ToolCallStatus, SessionService, AskQuestionType, createAskTool,
     ToolApproval,
-    type StructuredToolInterface, type AskToolParams,
+    type AgentTool, type AskToolParams,
     type ChannelMessageArgs, type ChatToolCall,
 } from "channel.base";
 import { WebChatEventType, WsCommandType, ApprovalTimeoutValue } from '@sbot/shared';
@@ -84,7 +84,7 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     // ── Agent tools ──
 
-    async buildAgentTools(_args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
+    async buildAgentTools(_args: ChannelMessageArgs): Promise<AgentTool[]> {
         return [
             createAskTool((params: AskToolParams) => this.executeAsk(params), WEB_ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
         ];

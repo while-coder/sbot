@@ -1,7 +1,7 @@
 import fsAsync from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { checkDir, EXCLUDE_DIRS, checkRg } from '../utils';
@@ -155,8 +155,8 @@ async function searchWithNodeJs(dir: string, pattern: string, includeHidden: boo
 // ─── Tool 定义 ────────────────────────────────────────────────────────────────
 
 /** 按 glob 模式查找文件（ripgrep 优先 + Node.js fallback；按修改时间排序） */
-export function createGlobTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createGlobTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'glob',
         description: runtime.description,
         schema: z.object({

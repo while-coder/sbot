@@ -13,7 +13,7 @@ export {
   type AskToolParams, type AskQuestion, type AskResponse, type AskUserFn,
   type RadioQuestion, type CheckboxQuestion, type InputQuestion,
 } from './AskTool';
-export { type StructuredToolInterface } from '@langchain/core/tools';
+export { createAgentTool, type AgentTool, type ToolInvokeConfig } from 'scorpio.ai';
 export { parseMessages2Text } from './ProviderMessage';
 export { SessionManager } from './SessionManager';
 export { SessionService, SessionSettings, SessionStatus, SessionInfo, AskInfo, ApprovalInfo } from './SessionService';

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { createSuccessResult, createTextContent, type MCPToolResult } from "scorpio.ai";
 
 // ── Question Types ──────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ const typeSchemas: Record<AskQuestionType, z.ZodObject<any>> = {
   [AskQuestionType.Input]:    InputSchema,
 };
 
-export function createAskTool(askFn: AskUserFn, description: string, supportedTypes?: AskQuestionType[]): DynamicStructuredTool {
+export function createAskTool(askFn: AskUserFn, description: string, supportedTypes?: AskQuestionType[]): AgentTool {
   let schema: z.ZodObject<any>;
   if (supportedTypes) {
     const schemas = supportedTypes.map(t => typeSchemas[t]);
@@ -92,7 +92,7 @@ export function createAskTool(askFn: AskUserFn, description: string, supportedTy
     schema = AskSchema;
   }
 
-  return new DynamicStructuredTool({
+  return createAgentTool({
     name: ASK_TOOL_NAME,
     description,
     schema: schema as any,

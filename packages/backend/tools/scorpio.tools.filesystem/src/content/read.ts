@@ -1,7 +1,7 @@
 import fs from 'fs';
 import fsAsync from 'fs/promises';
 import path from 'path';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
@@ -123,8 +123,8 @@ function readChars(text: string, from: number, end: number, prefixNote?: string)
 }
 
 /** 读取文件，支持 line/char 模式以及从末尾计数（endLine/endChar） */
-export function createReadTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createReadTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'read',
         description: runtime.description,
         schema: z.object({

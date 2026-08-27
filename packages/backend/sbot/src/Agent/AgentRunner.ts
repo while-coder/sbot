@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { type StructuredToolInterface } from '@langchain/core/tools';
+import { type AgentTool } from "scorpio.ai";
 import {
     ServiceContainer,
     IAgentCallback,
@@ -77,7 +77,7 @@ export interface AgentRunOptions {
     /** 关闭工作目录 .mcp.json 中 MCP server 的自动导入 */
     disableWorkspaceMcp?: boolean;
     /** 动态注册到 Agent 的工具列表 */
-    agentTools?: StructuredToolInterface[];
+    agentTools?: AgentTool[];
     /** 归属会话 DB 主键（channel_session.id） */
     dbSessionId: string;
     /** memoryProfiles 中的 UUID；空表示不启用 memory */
@@ -171,7 +171,7 @@ export class AgentRunner {
             container.registerInstance(IAgentSaverService, saverHandle.saver);
 
             // Memory 系统由后台 MemoryWriter LLM 自主 CRUD，不需要显式记忆工具。
-            const finalAgentTools: StructuredToolInterface[] = [...(agentTools ?? [])];
+            const finalAgentTools: AgentTool[] = [...(agentTools ?? [])];
 
             agent = await AgentFactory.create({
                 agentId,

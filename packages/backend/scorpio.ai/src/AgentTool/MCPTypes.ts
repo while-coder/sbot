@@ -1,4 +1,4 @@
-import type { StructuredToolInterface } from "@langchain/core/tools";
+import type { AgentTool } from "scorpio.llm";
 
 export interface MCPPrompt {
     name: string;
@@ -33,7 +33,7 @@ export interface MCPResourceContent {
 }
 
 export interface ProviderResult {
-    tools: StructuredToolInterface[];
+    tools: AgentTool[];
     prompts?: MCPPrompt[];
     resources?: MCPResource[];
     resourceTemplates?: MCPResourceTemplate[];

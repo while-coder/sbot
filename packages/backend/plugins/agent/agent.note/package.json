@@ -8,7 +8,6 @@
     "build": "rimraf dist && tsc -b --force && node scripts/copy-assets.cjs"
   },
   "dependencies": {
-    "@langchain/core": "catalog:",
     "@langchain/textsplitters": "^1.0.1",
     "better-sqlite3": "catalog:",
     "scorpio.ai": "workspace:*",

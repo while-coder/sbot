@@ -1,13 +1,13 @@
 import fs from 'fs';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, MCPToolResult } from 'scorpio.ai';
 import { resolvePath } from '../utils';
 import type { FileSystemToolRuntime } from '../runtime';
 
 /** Create directories, like bash mkdir */
-export function createMkdirTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createMkdirTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'mkdir',
         description: runtime.description,
         schema: z.object({

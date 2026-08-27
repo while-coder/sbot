@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { TimeUtils } from "scorpio.ai";
 import { INoteService } from "../Service/INoteService";
 
@@ -15,7 +15,7 @@ export class NoteToolProvider {
      * 创建 Note 工具列表，描述从各 service 的 getToolDescs() 获取。
      * 多个 service 共用同一个搜索工具，描述取自第一个 service。
      */
-    static getTools(noteServices: INoteService[]): DynamicStructuredTool[] {
+    static getTools(noteServices: INoteService[]): AgentTool[] {
         if (noteServices.length === 0) return [];
         const descs = noteServices[0].getToolDescs();
         return [
@@ -23,8 +23,8 @@ export class NoteToolProvider {
         ];
     }
 
-    private static createSearchTool(noteServices: INoteService[], description: string): DynamicStructuredTool {
-        return new DynamicStructuredTool({
+    private static createSearchTool(noteServices: INoteService[], description: string): AgentTool {
+        return createAgentTool({
             name: NOTE_SEARCH_TOOL_NAME,
             description,
             schema: z.object({

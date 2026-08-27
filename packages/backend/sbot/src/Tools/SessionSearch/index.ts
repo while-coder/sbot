@@ -1,4 +1,4 @@
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult, type IAgentSaverService } from 'scorpio.ai';
 import { loadPrompt } from '../../Core/PromptLoader';
@@ -37,8 +37,8 @@ function extractContent(raw: unknown): string {
     return lines.join('\n');
 }
 
-export function createSessionSearchTool(saver: SearchableSaver | null): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createSessionSearchTool(saver: SearchableSaver | null): AgentTool {
+    return createAgentTool({
         name: SESSION_SEARCH_TOOL_NAME,
         description: loadPrompt('tools/session_search/search.txt'),
         schema: z.object({

@@ -8,7 +8,6 @@
     "build": "rimraf dist && tsc -b --force"
   },
   "dependencies": {
-    "@langchain/core": "catalog:",
     "channel.base": "workspace:*",
     "ws": "catalog:"
   },

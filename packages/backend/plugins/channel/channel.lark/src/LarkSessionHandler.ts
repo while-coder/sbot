@@ -1,11 +1,11 @@
 import { LarkChatProvider } from "./LarkChatProvider";
 import { LarkChatType, LarkReceiveIdType, LarkService } from "./LarkService";
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool } from "channel.base";
 import { z } from "zod";
 import {
   ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool,
   GlobalLoggerService, AskQuestionType, summarizeMultimodal, AgentCancelledError, ToolApproval,
-  type StructuredToolInterface,
+  type AgentTool,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
   formatError,
 } from "channel.base";
@@ -243,11 +243,11 @@ Question types:
 
 Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
 
-  async buildAgentTools(args: ChannelMessageArgs): Promise<StructuredToolInterface[]> {
+  async buildAgentTools(args: ChannelMessageArgs): Promise<AgentTool[]> {
     const { sessionId, userOpenId } = args as LarkMessageArgs;
     return [
         createAskTool((params: AskToolParams) => this.executeAsk(params), LarkSessionHandler.ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
-        new DynamicStructuredTool({
+        createAgentTool({
             name: '_get_message_history',
             description: 'Retrieve message history from the current Lark chat in reverse chronological order (newest first). To paginate older messages, pass the last (oldest) message\'s "time" as the next call\'s "end_time".',
             schema: z.object({

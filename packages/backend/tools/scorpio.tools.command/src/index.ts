@@ -1,4 +1,4 @@
-import { type StructuredToolInterface } from '@langchain/core/tools';
+import { type AgentTool } from "scorpio.llm";
 import { ProcessManager, setCommandLogger, type CommandLogger } from 'scorpio.command';
 
 export { createShellTool, createReadProcessTool, createWriteProcessTool } from './shell';
@@ -37,7 +37,7 @@ function getProcessManager(processOwner: string | undefined): ProcessManager {
     return manager;
 }
 
-export function createCommandTools(options: CreateCommandToolsOptions): StructuredToolInterface[] {
+export function createCommandTools(options: CreateCommandToolsOptions): AgentTool[] {
     const { descriptions } = options;
     setCommandLogger(options.logger);
     const processManager = getProcessManager(options.processOwner);
@@ -47,5 +47,5 @@ export function createCommandTools(options: CreateCommandToolsOptions): Structur
         createWriteProcessTool(descriptions.writeProcess, processManager),
         createPythonCodeTool(descriptions.pythonCode, processManager),
         createPsCodeTool(descriptions.powerShellCode, processManager),
-    ].filter((t): t is StructuredToolInterface => t !== null);
+    ].filter((t): t is AgentTool => t !== null);
 }

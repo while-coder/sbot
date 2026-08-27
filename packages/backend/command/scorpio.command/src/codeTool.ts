@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.llm";
 import { formatCommandError } from './errors';
 import { createErrorResult, type CommandToolResult } from './result';
 import { runProgram, runShellCommand } from './runtime/foreground';
@@ -157,8 +157,8 @@ async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Prom
     }
 }
 
-export function createShellTool({ name = 'shell', description, processManager = defaultProcessManager }: ShellToolOptions): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createShellTool({ name = 'shell', description, processManager = defaultProcessManager }: ShellToolOptions): AgentTool {
+    return createAgentTool({
         name,
         description,
         schema: shellToolSchema as any,
@@ -170,9 +170,9 @@ export function createShellTool({ name = 'shell', description, processManager = 
     });
 }
 
-export function createScriptCodeTool({ name, description, runtime, interpreter, preArgs = [], ext, processManager = defaultProcessManager }: ScriptCodeToolOptions): StructuredToolInterface | null {
+export function createScriptCodeTool({ name, description, runtime, interpreter, preArgs = [], ext, processManager = defaultProcessManager }: ScriptCodeToolOptions): AgentTool | null {
     if (!isCommandAvailable(interpreter)) return null;
-    return new DynamicStructuredTool({
+    return createAgentTool({
         name,
         description,
         schema: scriptCodeSchema as any,
@@ -187,8 +187,8 @@ export function createScriptCodeTool({ name, description, runtime, interpreter, 
     });
 }
 
-export function createReadProcessTool({ name = 'read_process', description, processManager = defaultProcessManager }: ReadProcessToolOptions): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createReadProcessTool({ name = 'read_process', description, processManager = defaultProcessManager }: ReadProcessToolOptions): AgentTool {
+    return createAgentTool({
         name,
         description,
         schema: readProcessToolSchema as any,
@@ -199,8 +199,8 @@ export function createReadProcessTool({ name = 'read_process', description, proc
     });
 }
 
-export function createWriteProcessTool({ name = 'write_process', description, processManager = defaultProcessManager }: WriteProcessToolOptions): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createWriteProcessTool({ name = 'write_process', description, processManager = defaultProcessManager }: WriteProcessToolOptions): AgentTool {
+    return createAgentTool({
         name,
         description,
         schema: writeProcessToolSchema as any,

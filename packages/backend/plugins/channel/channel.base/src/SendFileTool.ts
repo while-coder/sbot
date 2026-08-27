@@ -1,13 +1,13 @@
 import path from 'path';
 import { z } from 'zod';
-import { DynamicStructuredTool } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 
 export type SendFileFn = (filePath: string, fileName: string) => Promise<void>;
 
 export const SEND_FILE_TOOL_NAME = '_send_file';
 
-export function createSendFileTool(prompt: string, sendFileFn: SendFileFn): DynamicStructuredTool {
-    return new DynamicStructuredTool({
+export function createSendFileTool(prompt: string, sendFileFn: SendFileFn): AgentTool {
+    return createAgentTool({
         name: SEND_FILE_TOOL_NAME,
         description: prompt,
         schema: z.object({

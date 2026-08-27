@@ -4,23 +4,23 @@ import {
     createWriteProcessTool as createCoreWriteProcessTool,
     type ProcessManager,
 } from 'scorpio.command';
-import { type StructuredToolInterface } from '@langchain/core/tools';
+import { type AgentTool } from "scorpio.llm";
 
-export function createShellTool(description: string, processManager: ProcessManager): StructuredToolInterface {
+export function createShellTool(description: string, processManager: ProcessManager): AgentTool {
     return createCoreShellTool({
         description,
         processManager,
     });
 }
 
-export function createReadProcessTool(description: string, processManager: ProcessManager): StructuredToolInterface {
+export function createReadProcessTool(description: string, processManager: ProcessManager): AgentTool {
     return createCoreReadProcessTool({
         description,
         processManager,
     });
 }
 
-export function createWriteProcessTool(description: string, processManager: ProcessManager): StructuredToolInterface {
+export function createWriteProcessTool(description: string, processManager: ProcessManager): AgentTool {
     return createCoreWriteProcessTool({
         description,
         processManager,

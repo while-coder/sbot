@@ -1,4 +1,4 @@
-import { type StructuredToolInterface } from '@langchain/core/tools';
+import { type AgentTool } from "scorpio.llm";
 import { CodeRuntime, createScriptCodeTool, isCommandAvailable, type ProcessManager } from './utils';
 
 type PsInterpreterName = 'pwsh' | 'powershell';
@@ -19,7 +19,7 @@ function resolvePsInterpreter(): PsInterpreter | null {
     return _psInterpreter;
 }
 
-export function createPsCodeTool(descriptions: Record<PsInterpreterName, string>, processManager: ProcessManager): StructuredToolInterface | null {
+export function createPsCodeTool(descriptions: Record<PsInterpreterName, string>, processManager: ProcessManager): AgentTool | null {
     const ps = resolvePsInterpreter();
     if (!ps) return null;
     return createScriptCodeTool({

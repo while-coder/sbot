@@ -6,7 +6,7 @@ import {
     T_SkillToolExecDesc,
 } from "./shared";
 import { parseSkill, isValidSkillDirectory } from "./loader";
-import { DynamicStructuredTool, type StructuredToolInterface } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from "zod";
 import fs from "fs";
 import path from "path";
@@ -121,7 +121,7 @@ export class SkillService implements IAgentPlugin {
     return this.systemPromptTemplate.replace('{skills}', formatSkillItems(skills));
   }
 
-  getTools(): StructuredToolInterface[] {
+  getTools(): AgentTool[] {
     if (this.getAllSkills().length === 0) return [];
     if (!this.toolReadDesc) return [];
     return [this.buildReadTool(), this.buildExecTool(), this.buildListTool()];
@@ -129,8 +129,8 @@ export class SkillService implements IAgentPlugin {
 
   // ── 基础工具（读/执行/列表） ──
 
-  private buildReadTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
+  private buildReadTool(): AgentTool {
+    return createAgentTool({
       name: READ_SKILL_FILE_TOOL_NAME,
       description: this.toolReadDesc,
       schema: z.object({
@@ -158,8 +158,8 @@ export class SkillService implements IAgentPlugin {
     });
   }
 
-  private buildExecTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
+  private buildExecTool(): AgentTool {
+    return createAgentTool({
       name: EXECUTE_SKILL_SCRIPT_TOOL_NAME,
       description: this.toolExecDesc!,
       schema: z.object({
@@ -204,8 +204,8 @@ export class SkillService implements IAgentPlugin {
     });
   }
 
-  private buildListTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
+  private buildListTool(): AgentTool {
+    return createAgentTool({
       name: LIST_SKILL_FILES_TOOL_NAME,
       description: this.toolListDesc!,
       schema: z.object({

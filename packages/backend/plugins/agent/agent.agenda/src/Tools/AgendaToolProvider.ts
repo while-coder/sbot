@@ -1,4 +1,4 @@
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from "zod";
 import {
     AgendaAssignee,
@@ -70,10 +70,10 @@ export class AgendaToolProvider {
      * channelSessionId 由调用方注入，会写到新建 trigger 的 channelSessionId。
      * admin 路径调用（背景任务、route handler）传 0。
      */
-    static getTools(agendaService: IAgendaService, channelSessionId: number): DynamicStructuredTool[] {
+    static getTools(agendaService: IAgendaService, channelSessionId: number): AgentTool[] {
         const descs = agendaService.getToolDescs();
         return [
-            new DynamicStructuredTool({
+            createAgentTool({
                 name: AGENDA_CREATE_TOOL_NAME,
                 description: descs.create,
                 schema: z.object({
@@ -111,7 +111,7 @@ export class AgendaToolProvider {
                     }
                 },
             }),
-            new DynamicStructuredTool({
+            createAgentTool({
                 name: AGENDA_LIST_TOOL_NAME,
                 description: descs.list,
                 schema: z.object({
@@ -131,7 +131,7 @@ export class AgendaToolProvider {
                     }
                 },
             }),
-            new DynamicStructuredTool({
+            createAgentTool({
                 name: AGENDA_GET_TOOL_NAME,
                 description: descs.get,
                 schema: z.object({
@@ -149,7 +149,7 @@ export class AgendaToolProvider {
                     }
                 },
             }),
-            new DynamicStructuredTool({
+            createAgentTool({
                 name: AGENDA_EDIT_TOOL_NAME,
                 description: descs.edit,
                 schema: z.object({
@@ -181,7 +181,7 @@ export class AgendaToolProvider {
                     }
                 },
             }),
-            new DynamicStructuredTool({
+            createAgentTool({
                 name: AGENDA_CLOSE_TOOL_NAME,
                 description: descs.close,
                 schema: z.object({
@@ -204,7 +204,7 @@ export class AgendaToolProvider {
                     }
                 },
             }),
-            new DynamicStructuredTool({
+            createAgentTool({
                 name: AGENDA_WIKI_TOOL_NAME,
                 description: AGENDA_WIKI_TOOL_DESCRIPTION,
                 schema: z.object({}),

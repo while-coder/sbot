@@ -1,4 +1,4 @@
-import { type StructuredToolInterface } from "@langchain/core/tools";
+import { type AgentTool } from "scorpio.llm";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { contentToString } from "../../Utils/contentUtils";
 import { IAgentSaverService, TaskBackedSaver, ContentPartType, type MessageContent } from "scorpio.saver";
@@ -102,7 +102,7 @@ export class ReActAgentService extends SingleAgentService {
     };
   }
 
-  protected override async buildTools(ctx: AgentPluginContext, callback?: IAgentCallback, signal?: AbortSignal): Promise<StructuredToolInterface[]> {
+  protected override async buildTools(ctx: AgentPluginContext, callback?: IAgentCallback, signal?: AbortSignal): Promise<AgentTool[]> {
     if (!callback) return [];
     const { onMessage: _, ...subCallback } = callback;
 

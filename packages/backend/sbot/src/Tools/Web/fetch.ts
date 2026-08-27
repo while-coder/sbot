@@ -1,4 +1,4 @@
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools'
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod'
 import TurndownService from 'turndown'
 import {
@@ -51,8 +51,8 @@ function convertHTMLToMarkdown(html: string): string {
     return turndownService.turndown(html)
 }
 
-export function createWebFetchTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createWebFetchTool(): AgentTool {
+    return createAgentTool({
         name: 'web_fetch',
         description: loadPrompt('tools/web/fetch.txt'),
         schema: z.object({

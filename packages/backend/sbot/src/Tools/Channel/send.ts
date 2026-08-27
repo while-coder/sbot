@@ -1,5 +1,5 @@
 import path from 'path';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
 import { channelManager } from '../../Channel/ChannelManager';
@@ -9,8 +9,8 @@ import { CHANNEL_SEND_TOOL_NAME, ChannelTargetType } from './index';
 
 const logger = LoggerService.getLogger('Tools/Channel/send.ts');
 
-export function createChannelSendTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createChannelSendTool(): AgentTool {
+    return createAgentTool({
         name: CHANNEL_SEND_TOOL_NAME,
         description: loadPrompt('tools/channel/send.txt'),
         schema: z.object({

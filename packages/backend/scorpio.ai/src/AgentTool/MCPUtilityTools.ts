@@ -1,4 +1,4 @@
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool } from "scorpio.llm";
 import { z } from "zod";
 import type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceContent, MCPResourceTemplate } from "./MCPTypes";
 
@@ -18,14 +18,14 @@ export interface MCPUtilityToolDescs {
 export function createMCPUtilityTools(
     servers: Map<string, MCPServerCaps>,
     descs: MCPUtilityToolDescs,
-): DynamicStructuredTool[] {
-    const tools: DynamicStructuredTool[] = [];
+): AgentTool[] {
+    const tools: AgentTool[] = [];
 
     const hasPrompts = [...servers.values()].some(s => s.prompts?.length);
     const hasResources = [...servers.values()].some(s => s.resources?.length || s.resourceTemplates?.length);
 
     if (hasPrompts) {
-        tools.push(new DynamicStructuredTool({
+        tools.push(createAgentTool({
             name: "mcp_prompts",
             description: descs.prompts,
             schema: z.object({
@@ -54,7 +54,7 @@ export function createMCPUtilityTools(
     }
 
     if (hasResources) {
-        tools.push(new DynamicStructuredTool({
+        tools.push(createAgentTool({
             name: "mcp_resources",
             description: descs.resources,
             schema: z.object({

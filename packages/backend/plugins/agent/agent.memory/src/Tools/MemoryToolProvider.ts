@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import type { IMemoryService } from "../Service/IMemoryService";
 import { MemoryScope } from "../Storage/IMemoryStore";
 
@@ -20,7 +20,7 @@ const REMEMBER_MEMORY_TOOL_DESCRIPTION = 'Queue a memory only when the user expl
  * - search_memory 0 命中时返回明确文本（避免 agent 误以为没记忆系统）
  */
 export class MemoryToolProvider {
-    static getTools(service: IMemoryService): DynamicStructuredTool[] {
+    static getTools(service: IMemoryService): AgentTool[] {
         const descs = service.getToolDescs();
         return [
             MemoryToolProvider.createRememberTool(service, REMEMBER_MEMORY_TOOL_DESCRIPTION),
@@ -32,8 +32,8 @@ export class MemoryToolProvider {
     private static createRememberTool(
         service: IMemoryService,
         description: string,
-    ): DynamicStructuredTool {
-        return new DynamicStructuredTool({
+    ): AgentTool {
+        return createAgentTool({
             name: REMEMBER_MEMORY_TOOL_NAME,
             description,
             schema: z.object({
@@ -49,8 +49,8 @@ export class MemoryToolProvider {
         });
     }
 
-    private static createReadTool(service: IMemoryService, description: string): DynamicStructuredTool {
-        return new DynamicStructuredTool({
+    private static createReadTool(service: IMemoryService, description: string): AgentTool {
+        return createAgentTool({
             name: READ_MEMORY_TOOL_NAME,
             description,
             schema: z.object({
@@ -73,8 +73,8 @@ export class MemoryToolProvider {
         });
     }
 
-    private static createSearchTool(service: IMemoryService, description: string): DynamicStructuredTool {
-        return new DynamicStructuredTool({
+    private static createSearchTool(service: IMemoryService, description: string): AgentTool {
+        return createAgentTool({
             name: SEARCH_MEMORY_TOOL_NAME,
             description,
             schema: z.object({

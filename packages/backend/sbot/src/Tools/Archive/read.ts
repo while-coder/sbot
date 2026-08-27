@@ -1,6 +1,6 @@
 import fs from 'fs';
 import AdmZip from 'adm-zip';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import { LoggerService } from '../../Core/LoggerService';
 import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai';
@@ -20,8 +20,8 @@ function isBinaryBuffer(buf: Buffer): boolean {
     return nonPrintable / sample > 0.3;
 }
 
-export function createZipReadFileTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createZipReadFileTool(): AgentTool {
+    return createAgentTool({
         name: 'zip_read_file',
         description: loadPrompt('tools/archive/read.txt'),
         schema: z.object({

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import http from 'http'
 import https from 'https'
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools'
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod'
 import axios from 'axios'
 import { createTextContent, createErrorResult, createSuccessResult, formatError, type MCPToolResult } from 'scorpio.ai'
@@ -18,8 +18,8 @@ function formatBytes(bytes: number): string {
     return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
-export function createWebDownloadTool(): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createWebDownloadTool(): AgentTool {
+    return createAgentTool({
         name: 'web_download',
         description: loadPrompt('tools/web/download.txt'),
         schema: z.object({

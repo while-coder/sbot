@@ -1,6 +1,6 @@
 import fsAsync from 'fs/promises';
 import path from 'path';
-import { DynamicStructuredTool, type StructuredToolInterface } from '@langchain/core/tools';
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { z } from 'zod';
 import {
     createTextContent, createImageContent, createAudioContent, createDocumentContent,
@@ -47,8 +47,8 @@ function detectMedia(filePath: string): { mimeType: string; category: MediaCateg
     return { mimeType, category };
 }
 
-export function createReadMediaFileTool(runtime: FileSystemToolRuntime): StructuredToolInterface {
-    return new DynamicStructuredTool({
+export function createReadMediaFileTool(runtime: FileSystemToolRuntime): AgentTool {
+    return createAgentTool({
         name: 'read_media_file',
         description: runtime.description,
         schema: z.object({

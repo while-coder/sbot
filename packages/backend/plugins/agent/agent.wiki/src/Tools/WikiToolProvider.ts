@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DynamicStructuredTool } from "@langchain/core/tools";
+import { createAgentTool, type AgentTool } from "scorpio.ai";
 import { IWikiService } from "../Service/IWikiService";
 
 export const WIKI_SEARCH_TOOL_NAME = 'wiki_search' as const;
@@ -16,7 +16,7 @@ export class WikiToolProvider {
      * 创建 Wiki 工具列表，描述从各 service 的 getToolDescs() 获取。
      * 多个 service 共用同一组工具，描述取自第一个 service。
      */
-    static getTools(wikiServices: IWikiService[]): DynamicStructuredTool[] {
+    static getTools(wikiServices: IWikiService[]): AgentTool[] {
         if (wikiServices.length === 0) return [];
         const descs = wikiServices[0].getToolDescs();
         return [
@@ -25,8 +25,8 @@ export class WikiToolProvider {
         ];
     }
 
-    private static createSearchTool(wikiServices: IWikiService[], description: string): DynamicStructuredTool {
-        return new DynamicStructuredTool({
+    private static createSearchTool(wikiServices: IWikiService[], description: string): AgentTool {
+        return createAgentTool({
             name: WIKI_SEARCH_TOOL_NAME,
             description,
             schema: z.object({
@@ -54,8 +54,8 @@ export class WikiToolProvider {
         });
     }
 
-    private static createReadTool(wikiServices: IWikiService[], description: string): DynamicStructuredTool {
-        return new DynamicStructuredTool({
+    private static createReadTool(wikiServices: IWikiService[], description: string): AgentTool {
+        return createAgentTool({
             name: WIKI_READ_TOOL_NAME,
             description,
             schema: z.object({

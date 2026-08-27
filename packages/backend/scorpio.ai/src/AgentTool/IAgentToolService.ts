@@ -1,4 +1,4 @@
-import { StructuredToolInterface } from "@langchain/core/tools";
+import { type AgentTool } from "scorpio.llm";
 import type { ProviderResult } from "./MCPTypes";
 
 export interface ProviderResolveEntry {
@@ -7,7 +7,7 @@ export interface ProviderResolveEntry {
 }
 
 export interface IAgentToolService {
-    getAllTools(): Promise<StructuredToolInterface[]>;
+    getAllTools(): Promise<AgentTool[]>;
     getAllProviderResults(): Promise<Map<string, ProviderResult>>;
     getProviderResultsByName(providerNames: string[]): Promise<Map<string, ProviderResult>>;
     resolveProviders(entries: ProviderResolveEntry[]): Promise<Map<string, ProviderResult>>;
