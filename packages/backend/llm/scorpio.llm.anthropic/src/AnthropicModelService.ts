@@ -242,7 +242,7 @@ export class AnthropicModelService extends ModelServiceBase {
     for (const message of prompt) {
       if (message.role === MessageRole.System) {
         const text = this.contentToText(message.content);
-        if (text) systemText.push(text);
+        if (text.trim()) systemText.push(text);
       } else if (message.role === MessageRole.Tool) {
         toolResults.push(this.toToolResult(message));
       } else {
@@ -273,7 +273,7 @@ export class AnthropicModelService extends ModelServiceBase {
     const content = message.content;
     let result: ToolResultBlockParam["content"];
     if (typeof content === "string") {
-      result = content || EMPTY_TOOL_OUTPUT;
+      result = content.trim() ? content : EMPTY_TOOL_OUTPUT;
     } else if (Array.isArray(content)) {
       const parts = content
         .map(part => this.toResultPart(part))
@@ -302,7 +302,9 @@ export class AnthropicModelService extends ModelServiceBase {
     if (Array.isArray(replay)) {
       const blocks = replay.filter((block): block is Record<string, any> =>
         !!block && typeof block === "object"
-        && ["thinking", "redacted_thinking", "text", "tool_use"].includes(block.type));
+        && ["thinking", "redacted_thinking", "text", "tool_use"].includes(block.type)
+        // 兼容网关可能返回空 text 块，回放时剔除避免 400
+        && (block.type !== "text" || (typeof block.text === "string" && block.text.trim() !== "")));
       if (blocks.some(block => block.type === "thinking" || block.type === "redacted_thinking")) {
         return blocks as unknown as MessageParam["content"];
       }
@@ -310,7 +312,7 @@ export class AnthropicModelService extends ModelServiceBase {
 
     const blocks: Array<TextBlockParam | { type: "tool_use"; id: string; name: string; input: unknown }> = [];
     const text = this.contentToText(message.content);
-    if (text) blocks.push({ type: "text", text });
+    if (text.trim()) blocks.push({ type: "text", text });
     for (const call of message.tool_calls ?? []) {
       if (!call.id) throw new Error(`Anthropic tool call '${call.name}' missing id`);
       blocks.push({ type: "tool_use", id: call.id, name: call.name, input: call.args ?? {} });
@@ -319,7 +321,7 @@ export class AnthropicModelService extends ModelServiceBase {
   }
 
   private toUserBlocks(content: ChatMessage["content"]): MessageParam["content"] {
-    if (typeof content === "string") return content ? [{ type: "text", text: content }] : [];
+    if (typeof content === "string") return content.trim() ? [{ type: "text", text: content }] : [];
     if (!Array.isArray(content)) return [];
 
     const blocks: MessageParam["content"] = [];
@@ -385,9 +387,10 @@ export class AnthropicModelService extends ModelServiceBase {
     };
   }
 
-  /** 仅当含非 text 块（thinking / tool_use）时携带原始块供回放。 */
+  /** 仅当含非 text 块（thinking / tool_use）时携带原始块供回放，空 text 块剔除。 */
   private contentKwargs(blocks: Message["content"]): Record<string, any> {
-    return blocks.some(block => block.type !== "text") ? { [ANTHROPIC_CONTENT_KEY]: blocks } : {};
+    const kept = blocks.filter(block => block.type !== "text" || (block.text ?? "").trim() !== "");
+    return kept.some(block => block.type !== "text") ? { [ANTHROPIC_CONTENT_KEY]: kept } : {};
   }
 
   private async *accumulateStream(stream: AsyncIterable<RawMessageStreamEvent>): AsyncIterable<ChatMessage> {
