@@ -59,12 +59,12 @@ async function main() {
   );
   if (providerCount === 0 || modelCount === 0) throw new Error('返回目录为空');
 
-  // 与现有文件比对，内容未变化时不写入，避免无意义的 git 变更记录
+  // 与现有文件比对（旧文件解析为对象后走同一套序列化，兼容键序/换行符差异），
+  // 内容未变化时不写入，避免无意义的 git 变更记录
   const snapshot = serialize(catalog);
-  const current = fs.existsSync(SNAPSHOT_PATH)
-    ? fs.readFileSync(SNAPSHOT_PATH, 'utf-8').replace(/\r\n/g, '\n')
-    : null;
-  if (current === snapshot) {
+  const current = fs.existsSync(SNAPSHOT_PATH) ? fs.readFileSync(SNAPSHOT_PATH, 'utf-8') : null;
+  const hasChange = !current || serialize(JSON.parse(current)) !== snapshot;
+  if (!hasChange) {
     console.log(
       `✓ 模型目录快照无变化：${providerCount} 家 provider / ${modelCount} 个模型`
     );
@@ -73,7 +73,33 @@ async function main() {
 
   fs.mkdirSync(path.dirname(SNAPSHOT_PATH), { recursive: true });
   fs.writeFileSync(SNAPSHOT_PATH, snapshot, 'utf-8');
-  console.log(`✓ 已更新模型目录快照：${providerCount} 家 provider / ${modelCount} 个模型`);
+
+  // 变更摘要：帮助区分真实数据变更与噪声
+  let note = '';
+  try {
+    const before = JSON.parse(current ?? '{}');
+    const added = Object.keys(catalog).filter(key => !(key in before));
+    const removed = Object.keys(before).filter(key => !(key in catalog));
+    const changed = Object.keys(catalog).filter(
+      key =>
+        key in before && key in catalog && serialize(before[key]) !== serialize(catalog[key])
+    );
+    const parts = [];
+    if (added.length) parts.push(`新增 ${list(added)}${more(added)}`);
+    if (removed.length) parts.push(`移除 ${list(removed)}${more(removed)}`);
+    if (changed.length) parts.push(`变更 ${list(changed)}${more(changed)}`);
+    note = parts.length ? `（${parts.join('；')}）` : '（内部字段或顺序调整）';
+  } catch {
+    // 现有快照无法解析时跳过摘要
+  }
+  console.log(`✓ 已更新模型目录快照：${providerCount} 家 provider / ${modelCount} 个模型${note}`);
+}
+
+function list(names) {
+  return names.slice(0, 5).join(', ');
+}
+function more(names) {
+  return names.length > 5 ? ` 等 ${names.length} 家` : '';
 }
 
 main().catch(error => {

@@ -32,6 +32,8 @@ const ANTHROPIC_CONTENT_KEY = "anthropic_content";
 const EMPTY_TOOL_OUTPUT = "(empty tool output)";
 const STRUCTURED_OUTPUT_TOOL = "structuredOutput";
 const DEFAULT_MAX_TOKENS = 8192;
+// 与 SDK 默认一致（10 分钟）
+const ANTHROPIC_REQUEST_TIMEOUT_MS = 600_000;
 
 /** 流式 content block 累加器。 */
 interface BlockAccumulator {
@@ -90,6 +92,9 @@ export class AnthropicModelService extends ModelServiceBase {
     this.client = new Anthropic({
       apiKey: this.config.apiKey,
       baseURL: this.config.baseURL || undefined,
+      // 与默认一致；显式指定可跳过 SDK 对非流式 + 大 max_tokens 请求的
+      // 「Streaming is required」强制校验（按官方吞吐估算，对第三方模型不适用）
+      timeout: ANTHROPIC_REQUEST_TIMEOUT_MS,
       // 兼容仅认 Authorization 的自建网关；原生 API 只看 x-api-key，会忽略此头
       defaultHeaders: { Authorization: `Bearer ${this.config.apiKey}` },
     });
@@ -500,10 +505,7 @@ export class AnthropicModelService extends ModelServiceBase {
   // 「Streaming is required」强制校验（按官方吞吐估算，对第三方模型不适用）
   private static readonly REQUEST_TIMEOUT_MS = 600_000;
 
-  private requestOptions(options?: ModelInvokeOptions): { timeout: number; signal?: AbortSignal } {
-    return {
-      timeout: AnthropicModelService.REQUEST_TIMEOUT_MS,
-      ...(options?.signal && { signal: options.signal }),
-    };
+  private requestOptions(options?: ModelInvokeOptions): { signal: AbortSignal } | undefined {
+    return options?.signal ? { signal: options.signal } : undefined;
   }
 }
