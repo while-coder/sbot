@@ -108,7 +108,7 @@ const temperatureReadOnly = computed(() => {
   return form.value.llmInfo?.temperature ?? !info.temperature
 })
 
-// 查询结果用于展示并自动填充模型参数；请求版本避免旧模型结果覆盖新模型。
+// 查询结果用于展示模型档案；参数不自动写入表单，点击「自动填充」时才固化。
 const autoLLMInfo = ref<CatalogLLMInfo | null>(null)
 const llmInfoLoading = ref(false)
 let llmInfoTimer: ReturnType<typeof setTimeout> | undefined
@@ -133,7 +133,6 @@ watch([() => form.value.model, () => form.value.provider], () => {
       if (requestId !== llmInfoRequestId) return
       const info = res.data as CatalogLLMInfo
       autoLLMInfo.value = info
-      if (info.fromCatalog) autofillParams(info)
     } catch {
       // 查询失败不影响编辑，能力选择仍可手动覆盖。
     } finally {
@@ -143,12 +142,12 @@ watch([() => form.value.model, () => form.value.provider], () => {
 })
 onUnmounted(() => clearTimeout(llmInfoTimer))
 
-/** 将目录提供的限制写入表单。 */
+/** 将档案提供的限制写入表单（仅在用户点击「自动填充」时调用）。 */
 function autofillParams(info: CatalogLLMInfo): void {
   if (info.contextWindow != null) form.value.contextWindow = info.contextWindow
   if (info.maxOutputTokens != null) form.value.maxTokens = info.maxOutputTokens
 }
-/** 将当前目录能力与限制固化为模型配置。 */
+/** 将当前档案能力与限制固化为模型配置。 */
 function fillLLMInfoFromCatalog(): void {
   const info = autoLLMInfo.value
   if (!info?.fromCatalog) {
@@ -177,6 +176,10 @@ const paramCount = computed(() => {
   if (f.llmInfo?.structuredOutput !== undefined) n++
   return n
 })
+// 命中模型档案且无任何已配置参数时隐藏参数区（留空即运行时自动采用档案值）；
+// 有配置（已保存的或点「自动填充」固化的）则展示，便于修改。
+const paramsVisible = computed(() =>
+  (!llmInfoLoading.value && !autoLLMInfo.value?.fromCatalog) || paramCount.value > 0)
 
 const currentProvider = computed(() => providers.value.find(provider => provider.type === form.value.provider))
 const providerOptions = computed<ModelProviderDefinition[]>(() => {
@@ -517,6 +520,7 @@ async function refresh() {
           </div>
         </section>
 
+        <template v-if="paramsVisible">
         <div class="parameter-group">
           <div class="parameter-group__head">
             <div>{{ t('models.generation_limits') }}</div>
@@ -577,6 +581,7 @@ async function refresh() {
             </SFormItem>
           </div>
         </div>
+        </template>
       </SFormDetails>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
