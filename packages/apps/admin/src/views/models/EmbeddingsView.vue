@@ -122,9 +122,12 @@ const showPicker    = ref(false)
 const pickerLoading = ref(false)
 const pickerModels  = ref<string[]>([])
 const pickerFilter  = ref('')
-const filteredModels = computed(() =>
-  pickerFilter.value ? pickerModels.value.filter(m => m.toLowerCase().includes(pickerFilter.value.toLowerCase())) : pickerModels.value
-)
+/** 全目录候选有数千条，只渲染前若干条；配合过滤框输入后可精确命中。 */
+const MAX_PICKER_ITEMS = 100
+const filteredModels = computed(() => {
+  const list = pickerFilter.value ? pickerModels.value.filter(m => m.toLowerCase().includes(pickerFilter.value.toLowerCase())) : pickerModels.value
+  return list.slice(0, MAX_PICKER_ITEMS)
+})
 
 async function openPicker() {
   pickerLoading.value = true
@@ -132,9 +135,7 @@ async function openPicker() {
   pickerFilter.value  = ''
   showPicker.value    = true
   try {
-    const res = await apiFetch('/api/embeddings/available', 'POST', {
-      provider: form.value.provider,
-    })
+    const res = await apiFetch('/api/embeddings/available', 'POST', {})
     pickerModels.value = res.data as string[]
   } catch (e: any) {
     show(e.message, 'error')

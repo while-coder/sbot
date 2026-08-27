@@ -58,11 +58,7 @@ export class SettingsRoutes {
         app.get('/api/llm-providers', api(() => llmProviderRegistry.listModelProviders()));
 
         // 模型候选列表：查 models.dev 目录快照（同步、无需 apiKey / baseURL）
-        app.post('/api/models/available', api(req => {
-            const { provider } = req.body as { provider?: string };
-            if (!provider) throwBad('provider is required');
-            return listCatalogModels(String(provider));
-        }));
+        app.post('/api/models/available', api(() => listCatalogModels()));
 
         app.get('/api/embedding-providers', api(() => llmProviderRegistry.listEmbeddingProviders()));
 
@@ -73,11 +69,7 @@ export class SettingsRoutes {
             return getLLMInfo(String(model), provider);
         }));
 
-        app.post('/api/embeddings/available', api(req => {
-            const { provider } = req.body as { provider?: string };
-            if (!provider) throwBad('provider is required');
-            return listCatalogModels(String(provider));
-        }));
+        app.post('/api/embeddings/available', api(() => listCatalogModels()));
 
         const getSettings = () => ctx.settingsWithAgents();
         settingsCrudHelper.register(app, 'models', { label: 'Model', getSettings });

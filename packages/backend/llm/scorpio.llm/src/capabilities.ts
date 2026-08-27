@@ -32,7 +32,7 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const RETRY_BACKOFF_MS = 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 5000;
 
-interface ModelsDevModel {
+export interface ModelsDevModel {
   attachment?: boolean;
   tool_call?: boolean;
   reasoning?: boolean;
@@ -45,7 +45,7 @@ interface ModelsDevModel {
   [key: string]: any;
 }
 
-type ModelsDevCatalog = Record<string, { models?: Record<string, ModelsDevModel> }>;
+export type ModelsDevCatalog = Record<string, { models?: Record<string, ModelsDevModel> }>;
 
 /**
  * 模型能力与限制。完整值由 getLLMInfo 解析返回；Partial<LLMInfo> 用作
@@ -206,27 +206,29 @@ function lookupCatalogInfo(catalog: ModelsDevCatalog, modelId: string, providerI
   };
 }
 
-/** 项目 ModelProvider / EmbeddingProvider 枚举值 → models.dev 目录的 provider key；未列出的原样透传。 */
-const CATALOG_PROVIDER_KEYS: Record<string, string> = {
-  "openai": "openai",
-  "openai-response": "openai",
-  "anthropic": "anthropic",
-  "gemini": "google",
-  "gemini-image": "google",
-  "ollama": "ollama",
-};
+/**
+ * 读取目录（同步，无网络延迟）：内存 → 磁盘缓存 → 内置快照，数据过期时后台拉取最新。
+ * 目录完全不可用（缓存与快照均缺失）时返回空对象；真实目录恒非空，可据此判空。
+ */
+export function getCatalog(): ModelsDevCatalog {
+  const available = loadLocalCatalog();
+  refreshInBackground();
+  return available ? memoryCatalog! : {};
+}
 
 /**
- * 列出目录中某 provider 的全部模型 ID（同步，无网络延迟），作为配置界面的候选列表。
- * 直接传项目内的 provider 枚举值（如 ModelProvider.Gemini），目录 key 差异（Gemini 在
- * models.dev 中叫 "google"）由内部映射处理。
- * 数据源与 getLLMInfo 相同：磁盘缓存/内置快照，过期时后台刷新。
+ * 列出目录中全部可配置的模型 ID（同步，无网络延迟），作为配置界面的候选列表。
+ * 跨 provider 去重（同名模型只出现一次），排除带 "/" 的 ID（各网关目录里
+ * 带 provider 前缀的变体，如 "openrouter/anthropic/..."）。
  */
-export function listCatalogModels(providerId: string): string[] {
-  if (!loadLocalCatalog()) return [];
-  refreshInBackground();
-  const catalogKey = CATALOG_PROVIDER_KEYS[providerId] ?? providerId;
-  return Object.keys(memoryCatalog?.[catalogKey]?.models ?? {});
+export function listCatalogModels(): string[] {
+  const models = new Set<string>();
+  for (const provider of Object.values(getCatalog())) {
+    for (const id of Object.keys(provider.models ?? {})) {
+      if (!id.includes("/")) models.add(id);
+    }
+  }
+  return [...models].sort();
 }
 
 /**
@@ -234,9 +236,9 @@ export function listCatalogModels(providerId: string): string[] {
  * 显式声明（override，即 ModelConfig.llmInfo）优先于目录，目录数据由内部按 TTL 后台刷新。
  */
 export function getLLMInfo(model: string, provider?: string, override?: Partial<LLMInfo>): LLMInfo {
-  const hasLocal = loadLocalCatalog();
-  refreshInBackground();
-  const info = memoryCatalog ? lookupCatalogInfo(memoryCatalog, model, provider) : undefined;
+  const catalog = getCatalog();
+  const hasLocal = Object.keys(catalog).length > 0;
+  const info = lookupCatalogInfo(catalog, model, provider);
   return {
     vision: override?.vision ?? info?.vision ?? (hasLocal ? false : true),
     toolCall: override?.toolCall ?? info?.toolCall ?? true,
