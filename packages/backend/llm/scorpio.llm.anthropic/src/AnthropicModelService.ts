@@ -496,7 +496,14 @@ export class AnthropicModelService extends ModelServiceBase {
     if (!this.client) throw new Error(`${this.constructor.name} is not initialized`);
   }
 
-  private requestOptions(options?: ModelInvokeOptions): { signal: AbortSignal } | undefined {
-    return options?.signal ? { signal: options.signal } : undefined;
+  // 与 SDK 默认一致；显式指定可跳过其对非流式 + 大 max_tokens 请求的
+  // 「Streaming is required」强制校验（按官方吞吐估算，对第三方模型不适用）
+  private static readonly REQUEST_TIMEOUT_MS = 600_000;
+
+  private requestOptions(options?: ModelInvokeOptions): { timeout: number; signal?: AbortSignal } {
+    return {
+      timeout: AnthropicModelService.REQUEST_TIMEOUT_MS,
+      ...(options?.signal && { signal: options.signal }),
+    };
   }
 }

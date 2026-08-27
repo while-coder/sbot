@@ -25,6 +25,24 @@ const SNAPSHOT_PATH = path.join(
   'packages/backend/llm/scorpio.llm/src/assets/models-dev.snapshot.json'
 );
 
+// 递归排序所有对象的键后紧凑序列化。models.dev 返回的键顺序不稳定，
+// 内容不变时仅顺序漂移也会产生 git diff，这里归一化以保证输出确定。
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map(key => [key, canonicalize(value[key])])
+    );
+  }
+  return value;
+}
+
+function serialize(value) {
+  return JSON.stringify(canonicalize(value));
+}
+
 async function main() {
   const response = await fetch(MODELS_DEV_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!response.ok) throw new Error(`models.dev responded ${response.status}`);
@@ -41,9 +59,8 @@ async function main() {
   );
   if (providerCount === 0 || modelCount === 0) throw new Error('返回目录为空');
 
-  // 紧凑序列化（单行 JSON），与现有文件比对，内容未变化时不写入，
-  // 避免无意义的 git 变更记录
-  const snapshot = JSON.stringify(catalog);
+  // 与现有文件比对，内容未变化时不写入，避免无意义的 git 变更记录
+  const snapshot = serialize(catalog);
   const current = fs.existsSync(SNAPSHOT_PATH)
     ? fs.readFileSync(SNAPSHOT_PATH, 'utf-8').replace(/\r\n/g, '\n')
     : null;
