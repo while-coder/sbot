@@ -4,9 +4,8 @@ import { setMaxImageSize } from 'scorpio.ai';
 import {
     llmProviderRegistry,
     getLLMInfo,
+    listCatalogModels,
     type LLMInfo,
-    type EmbeddingConfig as LlmEmbeddingConfig,
-    type ModelConfig as LlmModelConfig,
 } from 'scorpio.llm';
 import type { ModelConfig as SharedModelConfig } from '@sbot/shared';
 
@@ -58,20 +57,11 @@ export class SettingsRoutes {
 
         app.get('/api/llm-providers', api(() => llmProviderRegistry.listModelProviders()));
 
-        // Fetch available models through the provider that owns the model config.
-        app.post('/api/models/available', api(async req => {
-            const body = req.body as Partial<LlmModelConfig>;
-            if (!body.provider) throwBad('provider is required');
-            const definition = llmProviderRegistry.getModelProvider(body.provider);
-            if (!definition) throwBad(`Unknown model provider: ${body.provider}`);
-            if (definition.apiKeyRequired && !body.apiKey) throwBad('apiKey is required');
-
-            const modelConfig = {
-                ...definition.defaults,
-                ...body,
-                config: { ...definition.defaults?.config, ...body.config },
-            } as LlmModelConfig;
-            return llmProviderRegistry.listModels(modelConfig);
+        // 模型候选列表：查 models.dev 目录快照（同步、无需 apiKey / baseURL）
+        app.post('/api/models/available', api(req => {
+            const { provider } = req.body as { provider?: string };
+            if (!provider) throwBad('provider is required');
+            return listCatalogModels(String(provider));
         }));
 
         app.get('/api/embedding-providers', api(() => llmProviderRegistry.listEmbeddingProviders()));
@@ -83,19 +73,10 @@ export class SettingsRoutes {
             return getLLMInfo(String(model), provider);
         }));
 
-        app.post('/api/embeddings/available', api(async req => {
-            const body = req.body as Partial<LlmEmbeddingConfig>;
-            if (!body.provider) throwBad('provider is required');
-            const definition = llmProviderRegistry.getEmbeddingProvider(body.provider);
-            if (!definition) throwBad(`Unknown embedding provider: ${body.provider}`);
-            if (definition.apiKeyRequired && !body.apiKey) throwBad('apiKey is required');
-
-            const embeddingConfig = {
-                ...definition.defaults,
-                ...body,
-                config: { ...definition.defaults?.config, ...body.config },
-            } as LlmEmbeddingConfig;
-            return llmProviderRegistry.listEmbeddings(embeddingConfig);
+        app.post('/api/embeddings/available', api(req => {
+            const { provider } = req.body as { provider?: string };
+            if (!provider) throwBad('provider is required');
+            return listCatalogModels(String(provider));
         }));
 
         const getSettings = () => ctx.settingsWithAgents();

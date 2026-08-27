@@ -1,4 +1,5 @@
 import {
+  ApiKeyMode,
   EmbeddingProvider,
   type LlmProviderRegistry,
   ModelProvider,
@@ -7,9 +8,8 @@ import {
 import { GeminiImageModelService } from "./GeminiImageModelService";
 import { GeminiModelService } from "./GeminiModelService";
 import { GoogleEmbeddingService } from "./GoogleEmbeddingService";
-import { GEMINI_IMAGE_MODEL_CATALOG, GEMINI_MODEL_CATALOG } from "./modelCatalog";
 
-export { GeminiModelService, GeminiImageModelService, GoogleEmbeddingService, GEMINI_MODEL_CATALOG, GEMINI_IMAGE_MODEL_CATALOG };
+export { GeminiModelService, GeminiImageModelService, GoogleEmbeddingService };
 
 const geminiConfigSchema = {
   apiVersion: {
@@ -20,37 +20,6 @@ const geminiConfigSchema = {
   },
 };
 
-async function listGeminiModels(config: any, imageFirst: boolean): Promise<string[]> {
-  if (!config.apiKey) throw new Error("apiKey is required for Gemini");
-  const textModels = Object.keys(GEMINI_MODEL_CATALOG);
-  const imageModels = Object.keys(GEMINI_IMAGE_MODEL_CATALOG);
-  const base = (config.baseURL || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
-  const apiVersion = config.config?.apiVersion ?? "v1";
-  try {
-    const res = await fetch(`${base}/${apiVersion}/models`, { headers: { "x-goog-api-key": config.apiKey } });
-    if (!res.ok) throw new Error(`${res.status}`);
-    const data: any = await res.json();
-    return (data.models || []).map((model: any) => (model.name as string).replace(/^models\//, ""));
-  } catch {
-    return imageFirst ? [...imageModels, ...textModels] : [...textModels, ...imageModels];
-  }
-}
-
-async function listGeminiEmbeddings(config: any): Promise<string[]> {
-  if (!config.apiKey) throw new Error("apiKey is required for Gemini");
-  const base = (config.baseURL || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
-  try {
-    const res = await fetch(`${base}/v1/models`, { headers: { "x-goog-api-key": config.apiKey } });
-    if (!res.ok) throw new Error(`${res.status}`);
-    const data: any = await res.json();
-    return (data.models || [])
-      .filter((model: any) => model.supportedGenerationMethods?.includes("embedContent"))
-      .map((model: any) => (model.name as string).replace(/^models\//, ""));
-  } catch {
-    return ["text-embedding-004", "embedding-001"];
-  }
-}
-
 export function registerGeminiProvider(registry: LlmProviderRegistry = llmProviderRegistry): void {
   registry.registerModel({
     type: ModelProvider.Gemini,
@@ -60,13 +29,12 @@ export function registerGeminiProvider(registry: LlmProviderRegistry = llmProvid
       baseURL: "https://generativelanguage.googleapis.com",
       config: { apiVersion: "v1" },
     },
-    apiKeyRequired: true,
+    apiKeyMode: ApiKeyMode.Required,
     createModel: config => {
       const service = new GeminiModelService(config);
       service.initialize();
       return service;
     },
-    listModels: config => listGeminiModels(config, false),
   });
   registry.registerModel({
     type: ModelProvider.GeminiImage,
@@ -76,13 +44,12 @@ export function registerGeminiProvider(registry: LlmProviderRegistry = llmProvid
       baseURL: "https://generativelanguage.googleapis.com",
       config: { apiVersion: "v1" },
     },
-    apiKeyRequired: true,
+    apiKeyMode: ApiKeyMode.Required,
     createModel: config => {
       const service = new GeminiImageModelService(config);
       service.initialize();
       return service;
     },
-    listModels: config => listGeminiModels(config, true),
   });
   registry.registerEmbedding({
     type: EmbeddingProvider.Gemini,
@@ -112,12 +79,11 @@ export function registerGeminiProvider(registry: LlmProviderRegistry = llmProvid
       baseURL: "https://generativelanguage.googleapis.com",
       model: "text-embedding-004",
     },
-    apiKeyRequired: true,
+    apiKeyMode: ApiKeyMode.Required,
     createEmbedding: config => {
       const service = new GoogleEmbeddingService(config);
       service.initialize();
       return service;
     },
-    listEmbeddings: listGeminiEmbeddings,
   });
 }

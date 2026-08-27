@@ -1,8 +1,7 @@
-import { type LlmProviderRegistry, ModelProvider, llmProviderRegistry } from "scorpio.llm";
+import { ApiKeyMode, type LlmProviderRegistry, ModelProvider, llmProviderRegistry } from "scorpio.llm";
 import { AnthropicModelService } from "./AnthropicModelService";
-import { ANTHROPIC_MODEL_CATALOG } from "./modelCatalog";
 
-export { AnthropicModelService, ANTHROPIC_MODEL_CATALOG };
+export { AnthropicModelService };
 
 export function registerAnthropicProvider(registry: LlmProviderRegistry = llmProviderRegistry): void {
   registry.registerModel({
@@ -34,25 +33,11 @@ export function registerAnthropicProvider(registry: LlmProviderRegistry = llmPro
       },
     },
     defaults: { baseURL: "https://api.anthropic.com" },
-    apiKeyRequired: true,
+    apiKeyMode: ApiKeyMode.Required,
     createModel: config => {
       const service = new AnthropicModelService(config);
       service.initialize();
       return service;
-    },
-    listModels: async config => {
-      if (!config.apiKey) throw new Error("apiKey is required for Anthropic");
-      const base = (config.baseURL || "https://api.anthropic.com").replace(/\/$/, "");
-      try {
-        const res = await fetch(`${base}/v1/models`, {
-          headers: { "x-api-key": config.apiKey, "anthropic-version": "2023-06-01" },
-        });
-        if (!res.ok) throw new Error(`${res.status}`);
-        const data: any = await res.json();
-        return (data.data || []).map((model: any) => model.id as string);
-      } catch {
-        return Object.keys(ANTHROPIC_MODEL_CATALOG);
-      }
     },
   });
 }

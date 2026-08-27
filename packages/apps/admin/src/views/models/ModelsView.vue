@@ -44,9 +44,7 @@ interface ModelProviderDefinition {
   label: string
   configSchema: Record<string, ProviderField>
   defaults?: { baseURL?: string; model?: string; config?: Record<string, any> }
-  apiKeyEnabled?: boolean
-  apiKeyRequired?: boolean
-  supportsModelListing: boolean
+  apiKeyMode?: 'disabled' | 'enabled' | 'required'
 }
 
 const providers = ref<ModelProviderDefinition[]>([])
@@ -184,9 +182,9 @@ const currentProvider = computed(() => providers.value.find(provider => provider
 const providerOptions = computed<ModelProviderDefinition[]>(() => {
   const options = providers.value.length > 0
     ? [...providers.value]
-    : Object.values(ModelProvider).map(type => ({ type, label: type, configSchema: {}, supportsModelListing: false }))
+    : Object.values(ModelProvider).map(type => ({ type, label: type, configSchema: {} }))
   if (form.value.provider && !options.some(provider => provider.type === form.value.provider)) {
-    options.push({ type: form.value.provider, label: form.value.provider, configSchema: {}, supportsModelListing: false })
+    options.push({ type: form.value.provider, label: form.value.provider, configSchema: {} })
   }
   return options
 })
@@ -198,14 +196,9 @@ const providerConfig = computed<Record<string, any>>({
 const visibleSchemaEntries = computed(() =>
   Object.entries(currentSchema.value).filter(([, field]) => isConfigFieldVisible(field, form.value.config)),
 )
-const apiKeyEnabled = computed(() => currentProvider.value?.apiKeyEnabled !== false)
-const apiKeyRequired = computed(() => currentProvider.value?.apiKeyRequired ?? form.value.provider !== ModelProvider.Ollama)
+const apiKeyEnabled = computed(() => (currentProvider.value?.apiKeyMode ?? 'required') !== 'disabled')
+const apiKeyRequired = computed(() => (currentProvider.value?.apiKeyMode ?? 'required') === 'required')
 const providerBaseURL = computed(() => currentProvider.value?.defaults?.baseURL ?? '')
-const canPickModels = computed(() => {
-  if (!currentProvider.value?.supportsModelListing) return false
-  if (!form.value.baseURL) return false
-  return !apiKeyRequired.value || !!form.value.apiKey
-})
 
 async function loadProviders() {
   try {
@@ -249,10 +242,7 @@ async function openPicker() {
   showPicker.value    = true
   try {
     const res = await apiFetch('/api/models/available', 'POST', {
-      baseURL:  form.value.baseURL,
-      apiKey:   form.value.apiKey,
       provider: form.value.provider,
-      config:   form.value.config,
     })
     pickerModels.value = res.data as string[]
   } catch (e: any) {
@@ -428,7 +418,7 @@ async function refresh() {
       <SFormItem :label="t('models.model') + ' *'">
         <div class="model-field">
           <SInput v-model="form.model" placeholder="Model ID" class="model-input" />
-          <SButton type="outline" size="sm" :disabled="!canPickModels" @click="openPicker">{{ t('models.pick') }}</SButton>
+          <SButton type="outline" size="sm" @click="openPicker">{{ t('models.pick') }}</SButton>
         </div>
       </SFormItem>
       <template v-for="[key, field] in visibleSchemaEntries" :key="key">

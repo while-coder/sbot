@@ -36,15 +36,20 @@ export interface ModelProviderDefaults {
   config?: Record<string, any>;
 }
 
+/** Provider 对 API key 的要求：不可配 / 可选 / 必填。 */
+export enum ApiKeyMode {
+  Disabled = "disabled",
+  Enabled = "enabled",
+  Required = "required",
+}
+
 export interface ModelProviderDefinition {
   type: string;
   label: string;
   configSchema: Record<string, LlmConfigField>;
   defaults?: ModelProviderDefaults;
-  apiKeyEnabled?: boolean;
-  apiKeyRequired?: boolean;
+  apiKeyMode: ApiKeyMode;
   createModel: ModelServiceFactory;
-  listModels?: (config: ModelConfig) => Promise<string[]>;
 }
 
 export interface ModelProviderMetadata {
@@ -52,9 +57,7 @@ export interface ModelProviderMetadata {
   label: string;
   configSchema: Record<string, LlmConfigField>;
   defaults?: ModelProviderDefaults;
-  apiKeyEnabled?: boolean;
-  apiKeyRequired?: boolean;
-  supportsModelListing: boolean;
+  apiKeyMode: ApiKeyMode;
 }
 
 export type EmbeddingProviderDefaults = ModelProviderDefaults;
@@ -65,10 +68,8 @@ export interface EmbeddingProviderDefinition {
   configSchema: Record<string, LlmConfigField>;
   defaults?: EmbeddingProviderDefaults;
   baseURLEnabled?: boolean;
-  apiKeyEnabled?: boolean;
-  apiKeyRequired?: boolean;
+  apiKeyMode: ApiKeyMode;
   createEmbedding: EmbeddingServiceFactory;
-  listEmbeddings?: (config: EmbeddingConfig) => Promise<string[]>;
 }
 
 export interface EmbeddingProviderMetadata {
@@ -77,9 +78,7 @@ export interface EmbeddingProviderMetadata {
   configSchema: Record<string, LlmConfigField>;
   defaults?: EmbeddingProviderDefaults;
   baseURLEnabled?: boolean;
-  apiKeyEnabled?: boolean;
-  apiKeyRequired?: boolean;
-  supportsModelListing: boolean;
+  apiKeyMode: ApiKeyMode;
 }
 
 export class LlmProviderRegistry {
@@ -112,17 +111,8 @@ export class LlmProviderRegistry {
       label: definition.label,
       configSchema: definition.configSchema,
       defaults: definition.defaults,
-      apiKeyEnabled: definition.apiKeyEnabled,
-      apiKeyRequired: definition.apiKeyRequired,
-      supportsModelListing: definition.listModels != null,
+      apiKeyMode: definition.apiKeyMode,
     }));
-  }
-
-  async listModels(config: ModelConfig): Promise<string[]> {
-    const definition = this.modelProviders.get(config.provider);
-    if (!definition) throw new Error(`Model provider is not registered: ${config.provider}`);
-    if (!definition.listModels) return [];
-    return definition.listModels(config);
   }
 
   createEmbedding(config: EmbeddingConfig): IEmbeddingService {
@@ -142,17 +132,8 @@ export class LlmProviderRegistry {
       configSchema: definition.configSchema,
       defaults: definition.defaults,
       baseURLEnabled: definition.baseURLEnabled,
-      apiKeyEnabled: definition.apiKeyEnabled,
-      apiKeyRequired: definition.apiKeyRequired,
-      supportsModelListing: definition.listEmbeddings != null,
+      apiKeyMode: definition.apiKeyMode,
     }));
-  }
-
-  async listEmbeddings(config: EmbeddingConfig): Promise<string[]> {
-    const definition = this.embeddingProviders.get(config.provider);
-    if (!definition) throw new Error(`Embedding provider is not registered: ${config.provider}`);
-    if (!definition.listEmbeddings) return [];
-    return definition.listEmbeddings(config);
   }
 }
 

@@ -1,24 +1,14 @@
-import { Ollama } from "ollama";
 import {
+  ApiKeyMode,
   EmbeddingProvider,
   type LlmProviderRegistry,
   ModelProvider,
   llmProviderRegistry,
 } from "scorpio.llm";
-import { DEFAULT_OLLAMA_BASE_URL } from "./OllamaServiceBase";
 import { OllamaEmbeddingService } from "./OllamaEmbeddingService";
 import { OllamaModelService } from "./OllamaModelService";
 
 export { OllamaModelService, OllamaEmbeddingService };
-
-async function listOllamaModels(config: { baseURL?: string; apiKey?: string }): Promise<string[]> {
-  const ollama = new Ollama({
-    host: config.baseURL || DEFAULT_OLLAMA_BASE_URL,
-    ...(config.apiKey && { headers: { Authorization: `Bearer ${config.apiKey}` } }),
-  });
-  const response = await ollama.list();
-  return response.models.map(model => model.name).filter(Boolean);
-}
 
 export function registerOllamaProvider(registry: LlmProviderRegistry = llmProviderRegistry): void {
   registry.registerModel({
@@ -26,14 +16,12 @@ export function registerOllamaProvider(registry: LlmProviderRegistry = llmProvid
     label: "Ollama",
     configSchema: {},
     defaults: { baseURL: "http://localhost:11434" },
-    apiKeyEnabled: false,
-    apiKeyRequired: false,
+    apiKeyMode: ApiKeyMode.Disabled,
     createModel: config => {
       const service = new OllamaModelService(config);
       service.initialize();
       return service;
     },
-    listModels: listOllamaModels,
   });
   registry.registerEmbedding({
     type: EmbeddingProvider.Ollama,
@@ -61,13 +49,11 @@ export function registerOllamaProvider(registry: LlmProviderRegistry = llmProvid
       model: "nomic-embed-text",
       config: { truncate: false },
     },
-    apiKeyEnabled: false,
-    apiKeyRequired: false,
+    apiKeyMode: ApiKeyMode.Disabled,
     createEmbedding: config => {
       const service = new OllamaEmbeddingService(config);
       service.initialize();
       return service;
     },
-    listEmbeddings: listOllamaModels,
   });
 }

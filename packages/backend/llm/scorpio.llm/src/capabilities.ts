@@ -206,6 +206,29 @@ function lookupCatalogInfo(catalog: ModelsDevCatalog, modelId: string, providerI
   };
 }
 
+/** 项目 ModelProvider / EmbeddingProvider 枚举值 → models.dev 目录的 provider key；未列出的原样透传。 */
+const CATALOG_PROVIDER_KEYS: Record<string, string> = {
+  "openai": "openai",
+  "openai-response": "openai",
+  "anthropic": "anthropic",
+  "gemini": "google",
+  "gemini-image": "google",
+  "ollama": "ollama",
+};
+
+/**
+ * 列出目录中某 provider 的全部模型 ID（同步，无网络延迟），作为配置界面的候选列表。
+ * 直接传项目内的 provider 枚举值（如 ModelProvider.Gemini），目录 key 差异（Gemini 在
+ * models.dev 中叫 "google"）由内部映射处理。
+ * 数据源与 getLLMInfo 相同：磁盘缓存/内置快照，过期时后台刷新。
+ */
+export function listCatalogModels(providerId: string): string[] {
+  if (!loadLocalCatalog()) return [];
+  refreshInBackground();
+  const catalogKey = CATALOG_PROVIDER_KEYS[providerId] ?? providerId;
+  return Object.keys(memoryCatalog?.[catalogKey]?.models ?? {});
+}
+
 /**
  * 解析模型能力与限制（同步，无网络延迟）。
  * 显式声明（override，即 ModelConfig.llmInfo）优先于目录，目录数据由内部按 TTL 后台刷新。
