@@ -1,8 +1,5 @@
-import type { BaseMessage } from "@langchain/core/messages";
 import { type ChatMessage, MessageRole } from "./messages";
-import { toBaseMessages } from "./messageConverter";
 import { toJsonSchema } from "./tools";
-import type { StructuredInvokeOptions } from "./model";
 
 export enum StructuredOutputMethod {
   FunctionCalling = "functionCalling",
@@ -15,22 +12,9 @@ const JSON_MODE_INSTRUCTION = [
   "Do not include markdown, code fences, or any extra text.",
 ].join(" ");
 
-export function getInvokeConfig(options: StructuredInvokeOptions | undefined): { signal: AbortSignal } | undefined {
-  return options?.signal ? { signal: options.signal } : undefined;
-}
-
-export function toStructuredInput(
-  prompt: string | ChatMessage[],
-  method: StructuredOutputMethod,
-  schema?: any,
-): string | BaseMessage[] {
-  const input = method === StructuredOutputMethod.JsonMode ? withJsonModeInstruction(prompt, schema) : prompt;
-  return typeof input === "string" ? input : toBaseMessages(input);
-}
-
 /**
  * 在 prompt 中注入 JSON mode 指令（含 schema 序列化）。
- * 供 LangChain 与原生 SDK 两类实现共用：无 system 消息时前置，有则追加到其后。
+ * 无 system 消息时前置，有则追加到其后。
  */
 export function withJsonModeInstruction(prompt: string | ChatMessage[], schema?: any): string | ChatMessage[] {
   const instruction = jsonModeInstruction(schema);

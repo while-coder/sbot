@@ -6,9 +6,6 @@ settings:
 
 catalogs:
   default:
-    '@langchain/core':
-      specifier: ^1.1.49
-      version: 1.1.49
     '@modelcontextprotocol/sdk':
       specifier: ^1.27.1
       version: 1.27.1
@@ -324,9 +321,6 @@ importers:
 
   packages/backend/llm/scorpio.llm:
     dependencies:
-      '@langchain/core':
-        specifier: 'catalog:'
-        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -343,12 +337,9 @@ importers:
 
   packages/backend/llm/scorpio.llm.anthropic:
     dependencies:
-      '@langchain/anthropic':
-        specifier: ^1.4.1
-        version: 1.4.1(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
-      '@langchain/core':
-        specifier: 'catalog:'
-        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
+      '@anthropic-ai/sdk':
+        specifier: ^0.103.0
+        version: 0.103.0(zod@4.4.3)
       scorpio.llm:
         specifier: workspace:*
         version: link:../scorpio.llm
@@ -365,12 +356,9 @@ importers:
 
   packages/backend/llm/scorpio.llm.gemini:
     dependencies:
-      '@langchain/core':
-        specifier: 'catalog:'
-        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
-      '@langchain/google-genai':
-        specifier: ^2.1.31
-        version: 2.1.31(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
+      '@google/genai':
+        specifier: ^2.19.0
+        version: 2.19.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.3))
       scorpio.llm:
         specifier: workspace:*
         version: link:../scorpio.llm
@@ -387,9 +375,9 @@ importers:
 
   packages/backend/llm/scorpio.llm.ollama:
     dependencies:
-      '@langchain/ollama':
-        specifier: ^1.2.7
-        version: 1.2.7(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))
+      ollama:
+        specifier: ^0.6.3
+        version: 0.6.3
       scorpio.llm:
         specifier: workspace:*
         version: link:../scorpio.llm
@@ -949,9 +937,6 @@ importers:
 
   packages/backend/sbot:
     dependencies:
-      '@langchain/core':
-        specifier: 'catalog:'
-        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
       '@lydell/node-pty':
         specifier: ^1.1.0
         version: 1.1.0
@@ -1137,9 +1122,6 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ^0.26.0
         version: 0.26.0(zod@4.4.3)
-      '@langchain/core':
-        specifier: 'catalog:'
-        version: 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.3)
@@ -2088,9 +2070,14 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@google/generative-ai@0.24.1':
-    resolution: {integrity: sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==}
-    engines: {node: '>=18.0.0'}
+  '@google/genai@2.19.0':
+    resolution: {integrity: sha512-IM3u1FjpOLyOPsPh0smGA6Ntj2olUWCPbTs/WQj7cA/2AKCGw/652W7IaySx0XtwuscFnMYBoraebQusSZ0zSQ==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@modelcontextprotocol/sdk': ^1.25.2
+    peerDependenciesMeta:
+      '@modelcontextprotocol/sdk':
+        optional: true
 
   '@googleapis/drive@20.2.0':
     resolution: {integrity: sha512-6xPjqqLl34jBXWYMO34ywLVQsT8FgH948x8YI9o6Tdqs7+n4QRyvkC+BcvVQaAPNc+pyqsvZAXcbdMEcGgDUGw==}
@@ -2316,27 +2303,9 @@ packages:
   '@kurkle/color@0.3.4':
     resolution: {integrity: sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w==}
 
-  '@langchain/anthropic@1.4.1':
-    resolution: {integrity: sha512-h3b6hxThcfh0WdmpuWr+qBi74MN+0BpNI/4H681vwXxbD3hLr2qMYN6ghqcPQhCxGJjg8ufs85qu2/ldSWonYQ==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@langchain/core': ^1.1.49
-
   '@langchain/core@1.1.49':
     resolution: {integrity: sha512-7wkN3Qv/qZqsY0p3h48CNu6E6y5GMYatYxj+JrX4uVNBiqIVQm1Z528QrmayJWVW9SQTQicqRNoyTCzl+K9F8Q==}
     engines: {node: '>=20'}
-
-  '@langchain/google-genai@2.1.31':
-    resolution: {integrity: sha512-lHIJGtZab0jqoufKRPXyHHg1nLXrE74LXd0ftgibWEACc1SpSLu6XwtA23+dX4l7Q/YeSgb9n40YJx5k00/fqw==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@langchain/core': ^1.1.47
-
-  '@langchain/ollama@1.2.7':
-    resolution: {integrity: sha512-7Gu17q1dn4nKGB3ZYJyaaL8H/2k7LHvcL6V25S8cVDniTTSvd0fWzI5MzPJvbf9WPxBhvmf+rDDLAhOWljHEtQ==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@langchain/core': ^1.0.0
 
   '@langchain/textsplitters@1.0.1':
     resolution: {integrity: sha512-rheJlB01iVtrOUzttscutRgLybPH9qR79EyzBEbf1u97ljWyuxQfCwIWK+SjoQTM9O8M7GGLLRBSYE26Jmcoww==}
@@ -7013,7 +6982,18 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@google/generative-ai@0.24.1': {}
+  '@google/genai@2.19.0(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.3))':
+    dependencies:
+      google-auth-library: 10.5.0
+      p-retry: 4.6.2
+      protobufjs: 7.5.4
+      ws: 8.21.0
+    optionalDependencies:
+      '@modelcontextprotocol/sdk': 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.4.3)
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
 
   '@googleapis/drive@20.2.0':
     dependencies:
@@ -7195,12 +7175,6 @@ snapshots:
 
   '@kurkle/color@0.3.4': {}
 
-  '@langchain/anthropic@1.4.1(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))':
-    dependencies:
-      '@anthropic-ai/sdk': 0.103.0(zod@4.4.3)
-      '@langchain/core': 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
-      zod: 4.4.3
-
   '@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))':
     dependencies:
       '@cfworker/json-schema': 4.1.1
@@ -7215,16 +7189,6 @@ snapshots:
       - '@opentelemetry/exporter-trace-otlp-proto'
       - '@opentelemetry/sdk-trace-base'
       - openai
-
-  '@langchain/google-genai@2.1.31(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))':
-    dependencies:
-      '@google/generative-ai': 0.24.1
-      '@langchain/core': 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
-
-  '@langchain/ollama@1.2.7(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))':
-    dependencies:
-      '@langchain/core': 1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3))
-      ollama: 0.6.3
 
   '@langchain/textsplitters@1.0.1(@langchain/core@1.1.49(openai@6.43.0(ws@8.21.0)(zod@4.4.3)))':
     dependencies:

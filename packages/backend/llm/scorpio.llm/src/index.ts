@@ -4,5 +4,4 @@ export * from "./tools";
 export * from "./capabilities";
 export * from "./embedding";
 export * from "./registry";
-export * from "./messageConverter";
 export * from "./structuredOutput";

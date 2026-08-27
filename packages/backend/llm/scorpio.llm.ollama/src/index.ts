@@ -1,13 +1,24 @@
+import { Ollama } from "ollama";
 import {
   EmbeddingProvider,
   type LlmProviderRegistry,
   ModelProvider,
   llmProviderRegistry,
 } from "scorpio.llm";
+import { DEFAULT_OLLAMA_BASE_URL } from "./OllamaServiceBase";
 import { OllamaEmbeddingService } from "./OllamaEmbeddingService";
 import { OllamaModelService } from "./OllamaModelService";
 
 export { OllamaModelService, OllamaEmbeddingService };
+
+async function listOllamaModels(config: { baseURL?: string; apiKey?: string }): Promise<string[]> {
+  const ollama = new Ollama({
+    host: config.baseURL || DEFAULT_OLLAMA_BASE_URL,
+    ...(config.apiKey && { headers: { Authorization: `Bearer ${config.apiKey}` } }),
+  });
+  const response = await ollama.list();
+  return response.models.map(model => model.name).filter(Boolean);
+}
 
 export function registerOllamaProvider(registry: LlmProviderRegistry = llmProviderRegistry): void {
   registry.registerModel({
@@ -22,13 +33,7 @@ export function registerOllamaProvider(registry: LlmProviderRegistry = llmProvid
       service.initialize();
       return service;
     },
-    listModels: async config => {
-      if (!config.baseURL) throw new Error("baseURL is required");
-      const res = await fetch(`${config.baseURL.replace(/\/$/, "")}/api/tags`);
-      if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`);
-      const data: any = await res.json();
-      return (data.models || []).map((model: any) => model.name as string);
-    },
+    listModels: listOllamaModels,
   });
   registry.registerEmbedding({
     type: EmbeddingProvider.Ollama,
@@ -63,12 +68,6 @@ export function registerOllamaProvider(registry: LlmProviderRegistry = llmProvid
       service.initialize();
       return service;
     },
-    listEmbeddings: async config => {
-      const base = (config.baseURL || "http://localhost:11434").replace(/\/$/, "");
-      const res = await fetch(`${base}/api/tags`);
-      if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`);
-      const data: any = await res.json();
-      return (data.models || []).map((model: any) => model.name as string);
-    },
+    listEmbeddings: listOllamaModels,
   });
 }

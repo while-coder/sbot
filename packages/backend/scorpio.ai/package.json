@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.26.0",
-    "@langchain/core": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "better-sqlite3": "catalog:",
     "commander": "catalog:",

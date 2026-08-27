@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": { "build": "rimraf dist && tsc -b --force" },
   "dependencies": {
-    "@langchain/ollama": "^1.2.7",
+    "ollama": "^0.6.3",
     "scorpio.llm": "workspace:*"
   },
   "private": true,

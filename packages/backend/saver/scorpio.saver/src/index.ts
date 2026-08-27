@@ -14,7 +14,6 @@ export {
     type TokenUsage,
 } from "./IAgentSaverService";
 
-export { toChatMessage, toBaseMessage, toBaseMessages } from "scorpio.llm";
 export { estimateTextTokens, estimateMessageTokens, estimateMessagesTokens } from "./messageSerializer";
 export { AgentMemorySaver } from "./AgentMemorySaver";
 export { TaskBackedSaver } from "./TaskBackedSaver";

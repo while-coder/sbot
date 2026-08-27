@@ -182,11 +182,10 @@ export {
 } from "./AgentTool";
 
 // ========================================
-// Tools - 轻量结构化工具（全项目工具边界，替代 @langchain/core 的工具抽象）
+// Tools - 轻量结构化工具（全项目工具边界）
 // ========================================
 export {
   createAgentTool,
-  toOpenAIToolFormat,
   type AgentTool,
   type ToolInvokeConfig,
   type ToolDefinition,

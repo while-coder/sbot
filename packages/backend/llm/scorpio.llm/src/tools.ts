@@ -74,22 +74,3 @@ export function toJsonSchema(schema: any): any {
     }
     return schema;
 }
-
-/**
- * 转换为 OpenAI 工具调用格式。
- * LangChain 各 chat 模型（ChatOllama / ChatGoogleGenerativeAI 等）的 bindTools 对
- * 非 LangChain 工具会按格式识别透传：OpenAI 格式（isOpenAITool）可被正确转换。
- */
-export function toOpenAIToolFormat(tool: AgentTool): {
-    type: "function";
-    function: { name: string; description?: string; parameters: Record<string, any> };
-} {
-    return {
-        type: "function",
-        function: {
-            name: tool.name,
-            description: tool.description,
-            parameters: tool.schema,
-        },
-    };
-}

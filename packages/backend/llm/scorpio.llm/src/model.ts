@@ -1,9 +1,5 @@
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { BaseMessage } from "@langchain/core/messages";
-import { AIMessageChunk } from "@langchain/core/messages";
-import { toOpenAIToolFormat, type AgentTool } from "./tools";
+import type { AgentTool } from "./tools";
 import type { ChatMessage } from "./messages";
-import { toBaseMessages, toChatMessage } from "./messageConverter";
 import { type LLMInfo, getLLMInfo } from "./capabilities";
 
 export enum ModelProvider {
@@ -58,30 +54,25 @@ export interface IModelService {
 
 export const IModelService = Symbol("IModelService");
 
-export abstract class ModelServiceBase<TModel extends BaseChatModel = BaseChatModel> implements IModelService {
-  protected model?: TModel;
-  protected boundModel?: any;
+/**
+ * 模型服务抽象基座：持有 config 与 LLM 能力目录缓存，
+ * 具体的调用 / 工具绑定 / 流式 / 结构化输出由各 provider 用原生 SDK 实现。
+ */
+export abstract class ModelServiceBase implements IModelService {
+  private llmInfoCache?: LLMInfo;
 
   constructor(public readonly config: ModelConfig) {}
 
-  protected abstract createModel(): TModel;
+  abstract initialize(): void;
+  abstract invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage>;
+  abstract bindTools(tools: AgentTool[]): void;
+  abstract invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T>;
+  abstract stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>>;
 
-  initialize(): void {
-    this.model = this.createModel();
-    this.applyCatalogDefaults();
-  }
-
+  /** 子类 override 时调用 super.dispose() 以清掉目录信息缓存。 */
   async dispose(): Promise<void> {
-    this.model = undefined;
-    this.boundModel = undefined;
     this.llmInfoCache = undefined;
   }
-
-  protected prepareInput(input: string | ChatMessage[]): string | BaseMessage[] {
-    return typeof input === "string" ? input : toBaseMessages(input);
-  }
-
-  private llmInfoCache?: LLMInfo;
 
   getLLMInfo(): LLMInfo {
     const override = { ...this.config.llmInfo };
@@ -90,52 +81,43 @@ export abstract class ModelServiceBase<TModel extends BaseChatModel = BaseChatMo
     return (this.llmInfoCache ??= getLLMInfo(this.config.model, this.config.provider, override));
   }
 
-  /**
-   * 用 models.dev 目录补全构造参数级默认值（temperature / maxTokens）。
-   * temperature=false 的模型（部分推理模型）发送该参数会被拒，
-   * maxTokens 未配置时 LangChain 默认值普遍偏小易截断。
-   */
-  private applyCatalogDefaults(): void {
-    const info = this.getLLMInfo();
-    if (!info.fromCatalog) return;
-    const model = this.model as any;
-    if (info.temperature === false) model.temperature = undefined;
-    if (this.config.maxTokens == null && info.maxOutputTokens != null) model.maxTokens = info.maxOutputTokens;
+  /** 解析结构化输出文本；错误信息含 "JSON" 以命中 shouldFallbackStructured，触发另一条结构化路径重试。 */
+  protected parseStructuredOutput<T>(text: string): T {
+    if (!text?.trim()) throw new Error("structured output was empty");
+    try {
+      return JSON.parse(text) as T;
+    } catch (error) {
+      throw new Error(`Failed to parse structured output as JSON: ${(error as Error).message}`);
+    }
   }
 
-  protected get activeModel(): any {
-    if (!this.model) throw new Error(`${this.constructor.name} is not initialized`);
-    return this.boundModel ?? this.model;
+  /** 400/422 或报错内容命中结构化输出关键词时，切换另一条结构化路径重试。 */
+  protected shouldFallbackStructured(options: StructuredInvokeOptions | undefined, error: unknown): boolean {
+    if (options?.signal?.aborted) return false;
+    const err = error as any;
+    const status = err?.status ?? err?.response?.status ?? err?.cause?.status;
+    if (status === 400 || status === 422) return true;
+    // 各 SDK 的错误字段形状不同（err.error.message / err.response.data），全部提取后再匹配
+    const message = [
+      err?.message,
+      err?.code,
+      err?.type,
+      err?.error?.message,
+      err?.response?.data && JSON.stringify(err.response.data),
+    ].filter(Boolean).join("\n");
+    return /400|422|tool|function|structured|schema|response_format|tool_choice|parse|json/i.test(message);
   }
 
-  async invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage> {
-    const result = await this.activeModel.invoke(
-      this.prepareInput(prompt),
-      options?.signal ? { signal: options.signal } : undefined,
-    );
-    return toChatMessage(result);
-  }
-
-  bindTools(tools: AgentTool[]): void {
-    if (!this.model) throw new Error(`${this.constructor.name} is not initialized`);
-    if (!this.model.bindTools) throw new Error(`${this.constructor.name} does not support tools`);
-    // LangChain 模型只认识自家工具或 OpenAI 格式，轻量工具先转换再绑定
-    this.boundModel = this.model.bindTools(tools.map(toOpenAIToolFormat));
-  }
-
-  abstract invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T>;
-
-  async stream(messages: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {
-    const lcStream = await this.activeModel.stream(
-      this.prepareInput(messages),
-      options?.signal ? { signal: options.signal } : undefined,
-    );
-    return (async function* () {
-      let accumulated: AIMessageChunk | undefined;
-      for await (const chunk of lcStream) {
-        accumulated = accumulated ? accumulated.concat(chunk) : (chunk as AIMessageChunk);
-        yield toChatMessage(accumulated);
+  /** 解析模型输出的工具入参：JSON 字符串（openai / anthropic）或 SDK 已解析对象（gemini），非对象一律收敛为 {}。 */
+  protected tryParseToolArguments(args: unknown): Record<string, any> {
+    let parsed: unknown = args;
+    if (typeof args === "string") {
+      try {
+        parsed = JSON.parse(args || "{}");
+      } catch {
+        return {};
       }
-    })();
+    }
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, any>) : {};
   }
 }

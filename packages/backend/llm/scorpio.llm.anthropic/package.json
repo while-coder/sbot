@@ -6,8 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": { "build": "rimraf dist && tsc -b --force" },
   "dependencies": {
-    "@langchain/anthropic": "^1.4.1",
-    "@langchain/core": "catalog:",
+    "@anthropic-ai/sdk": "^0.103.0",
     "scorpio.llm": "workspace:*"
   },
   "private": true,
