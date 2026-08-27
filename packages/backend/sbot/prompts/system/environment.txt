@@ -1,6 +1,5 @@
 ---
 vars:
-  timezone: 时区 (如 Asia/Shanghai)
   os: 操作系统 (如 Linux 5.15.0 linux)
   assetsDir: 资源文件目录绝对路径
   assetsUrl: 资源文件目录对外访问 URL 前缀
@@ -8,7 +7,6 @@ vars:
 
 ---
 <environment>
-  <timezone>{timezone}</timezone>
   <os>{os}</os>
   <paths>
     <working-directory dir="{workPath}">Your primary workspace. Scope file operations — read and write — here by default; go outside only when the user explicitly asks or the task cannot be done otherwise.</working-directory>

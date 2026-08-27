@@ -70,7 +70,9 @@ export class OpenAIResponseModelService extends OpenAIServiceBase implements IMo
       let responseId: string | undefined;
       let outputText = "";
       const calls = new Map<number, ResponseFunctionToolCall>();
+      const doneItems = new Map<number, ResponseOutputItem>();
       let yieldedFinal = false;
+      let pendingText = "";
 
       for await (const event of stream as AsyncIterable<ResponseStreamEvent>) {
         switch (event.type) {
@@ -80,15 +82,32 @@ export class OpenAIResponseModelService extends OpenAIServiceBase implements IMo
             break;
           case "response.output_text.delta":
             outputText += event.delta;
+            pendingText += event.delta;
             yield service.toStreamingMessage(responseId, outputText, calls);
             break;
           case "response.output_item.added":
-          case "response.output_item.done":
             if (event.item.type === "function_call") {
               calls.set(event.output_index, { ...event.item });
               yield service.toStreamingMessage(responseId, outputText, calls);
             }
             break;
+          case "response.output_item.done": {
+            doneItems.set(event.output_index, event.item);
+            if (event.item.type === "message") {
+              // 该 item 已完整落到 doneItems，从待累计文本中剔除，避免兜底 content 重复
+              const itemText = event.item.content
+                .map(part => (part.type === "output_text" ? part.text : part.type === "refusal" ? part.refusal : ""))
+                .join("");
+              if (itemText && pendingText.endsWith(itemText)) {
+                pendingText = pendingText.slice(0, -itemText.length);
+              }
+            }
+            if (event.item.type === "function_call") {
+              calls.set(event.output_index, { ...event.item });
+              yield service.toStreamingMessage(responseId, outputText, calls);
+            }
+            break;
+          }
           case "response.function_call_arguments.delta": {
             const current = calls.get(event.output_index);
             if (current) {
@@ -109,8 +128,16 @@ export class OpenAIResponseModelService extends OpenAIServiceBase implements IMo
         }
       }
 
-      if (!yieldedFinal && (outputText || calls.size > 0)) {
-        yield service.toStreamingMessage(responseId, outputText, calls);
+      if (!yieldedFinal && (outputText || doneItems.size > 0 || calls.size > 0)) {
+        // 流被中断（未收到 response.completed）时的兜底：尽量还原 output items 存入
+        // additional_kwargs，否则下一轮回放会出现无 reasoning 配对的 function_call。
+        const items = [...doneItems.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, item]) => item);
+        for (const [index, call] of calls) {
+          if (!doneItems.has(index)) items.push(call as unknown as ResponseOutputItem);
+        }
+        yield service.toFinalMessage(responseId, pendingText, items);
       }
     })();
   }
@@ -258,9 +285,32 @@ export class OpenAIResponseModelService extends OpenAIServiceBase implements IMo
   }
 
   private toChatMessage(response: Response): ChatMessage {
+    const final = this.toFinalMessage(response.id, "", response.output);
+    return {
+      ...final,
+      ...(final.additional_kwargs || {}),
+      additional_kwargs: {
+        ...(final.additional_kwargs ?? {}),
+        ...(response.incomplete_details?.reason && { stop_reason: response.incomplete_details.reason }),
+      },
+      ...(response.usage && {
+        usage: {
+          input_tokens: response.usage.input_tokens,
+          output_tokens: response.usage.output_tokens,
+          total_tokens: response.usage.total_tokens,
+        },
+      }),
+    };
+  }
+
+  private toFinalMessage(
+    responseId: string | undefined,
+    pendingText: string,
+    outputItems: ResponseOutputItem[],
+  ): ChatMessage {
     const toolCalls: ChatToolCall[] = [];
     const text: string[] = [];
-    for (const item of response.output) {
+    for (const item of outputItems) {
       if (item.type === "function_call") {
         toolCalls.push({
           id: item.call_id,
@@ -276,22 +326,17 @@ export class OpenAIResponseModelService extends OpenAIServiceBase implements IMo
       }
     }
 
+    // 完整响应时 pendingText 为空（文本都在 items 里）；流中断兜底时为尚未落为
+    // 完整 item 的增量文本，追加在末尾以尽量保持原始顺序。
+    const content = [...text, pendingText].join("");
     return {
       role: MessageRole.AI,
-      content: text.join(""),
+      content,
       ...(toolCalls.length > 0 && { tool_calls: toolCalls }),
-      id: response.id,
+      ...(responseId && { id: responseId }),
       additional_kwargs: {
-        [RESPONSE_OUTPUT_KEY]: response.output,
-        ...(response.incomplete_details?.reason && { stop_reason: response.incomplete_details.reason }),
+        [RESPONSE_OUTPUT_KEY]: outputItems,
       },
-      ...(response.usage && {
-        usage: {
-          input_tokens: response.usage.input_tokens,
-          output_tokens: response.usage.output_tokens,
-          total_tokens: response.usage.total_tokens,
-        },
-      }),
     };
   }
 

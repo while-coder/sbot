@@ -58,7 +58,21 @@ export class TimeUtils {
         // sv-SE 本身就是 "YYYY-MM-DD HH:mm:ss" 格式
         const localTime = date.toLocaleString('sv-SE', { timeZone: timezone, hourCycle: 'h23' });
         const weekday = date.toLocaleString('en-US', { timeZone: timezone, weekday: 'short' });
-        return `${localTime} (${weekday}, ${timezone})`;
+        const utcOffset = TimeUtils.formatUtcOffset(timezone, timestamp);
+        return `${localTime} (${weekday}, ${timezone}${utcOffset ? `, ${utcOffset}` : ''})`;
+    }
+
+    /** 目标时区相对 UTC 的偏移名（GMT 与 UTC 在此等价），如 "GMT+8"、"GMT-3:30"；不支持时返回空串。 */
+    static formatUtcOffset(timezone: string, timestamp = Date.now()): string {
+        try {
+            const value = new Intl.DateTimeFormat('en-US', {
+                timeZone: timezone,
+                timeZoneName: 'shortOffset',
+            }).formatToParts(new Date(timestamp)).find(p => p.type === 'timeZoneName')?.value;
+            return value ?? '';
+        } catch {
+            return '';
+        }
     }
 
     static formatDateKey(timestamp: number, timezone?: string | null): string {
