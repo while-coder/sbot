@@ -41,8 +41,21 @@ async function main() {
   );
   if (providerCount === 0 || modelCount === 0) throw new Error('返回目录为空');
 
+  // 紧凑序列化（单行 JSON），与现有文件比对，内容未变化时不写入，
+  // 避免无意义的 git 变更记录
+  const snapshot = JSON.stringify(catalog);
+  const current = fs.existsSync(SNAPSHOT_PATH)
+    ? fs.readFileSync(SNAPSHOT_PATH, 'utf-8').replace(/\r\n/g, '\n')
+    : null;
+  if (current === snapshot) {
+    console.log(
+      `✓ 模型目录快照无变化：${providerCount} 家 provider / ${modelCount} 个模型`
+    );
+    return;
+  }
+
   fs.mkdirSync(path.dirname(SNAPSHOT_PATH), { recursive: true });
-  fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(catalog), 'utf-8');
+  fs.writeFileSync(SNAPSHOT_PATH, snapshot, 'utf-8');
   console.log(`✓ 已更新模型目录快照：${providerCount} 家 provider / ${modelCount} 个模型`);
 }
 
