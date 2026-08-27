@@ -4,7 +4,7 @@ import { TimeUtils, formatError } from "scorpio.ai";
 import { Op } from "sequelize";
 import { sessionManager } from "../Session/SessionManager";
 import { channelDataService } from "../Session/ChannelDataService";
-import { LoggerService } from "../Core/LoggerService";
+import { LoggerService, PrefixedLogger } from "../Core/LoggerService";
 import { config } from "../Core/Config";
 import { compareSemver, fetchLatestRelease, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from "@sbot/shared";
 import { PluginLoader } from "./PluginLoader";
@@ -137,10 +137,12 @@ export class ChannelManager {
         }
         const name = channel.name ? `${channel.name} (${channelId})` : channelId;
         const label = `[${name}] (${plugin.type})`;
+        // 为每个 channel 实例提供独立前缀的 logger，避免多实例日志混淆（含注入 larkClient 等渠道 SDK 的日志）
+        const pluginLogger = new PrefixedLogger(logger, name);
         try {
             const ctx: ChannelPluginContext = {
                 config: channel.config ?? {},
-                logger,
+                logger: pluginLogger,
                 filterEvent,
                 initSession: async (initCtx) => {
                     const { dbUserId, dbSessionId } = await doInitSession(channelId, initCtx);

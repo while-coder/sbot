@@ -62,6 +62,30 @@ class Log4jsLoggerAdapter implements ILogger {
 }
 
 /**
+ * 带前缀的 Logger 包装器，实现 ILogger 接口
+ * 用于多实例场景（如每个 channel 插件）区分日志来源
+ */
+export class PrefixedLogger implements ILogger {
+    constructor(private logger: ILogger, private prefix: string) {}
+
+    debug(message: string, ...args: any[]): void {
+        this.logger.debug(`[${this.prefix}] ${message}`, ...args);
+    }
+
+    info(message: string, ...args: any[]): void {
+        this.logger.info(`[${this.prefix}] ${message}`, ...args);
+    }
+
+    warn(message: string, ...args: any[]): void {
+        this.logger.warn(`[${this.prefix}] ${message}`, ...args);
+    }
+
+    error(message: string, ...args: any[]): void {
+        this.logger.error(`[${this.prefix}] ${message}`, ...args);
+    }
+}
+
+/**
  * Log4js LoggerService 实现
  */
 class Log4jsLoggerService implements ILoggerService {
