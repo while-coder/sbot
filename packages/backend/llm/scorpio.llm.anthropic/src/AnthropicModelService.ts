@@ -90,6 +90,8 @@ export class AnthropicModelService extends ModelServiceBase {
     this.client = new Anthropic({
       apiKey: this.config.apiKey,
       baseURL: this.config.baseURL || undefined,
+      // 兼容仅认 Authorization 的自建网关；原生 API 只看 x-api-key，会忽略此头
+      defaultHeaders: { Authorization: `Bearer ${this.config.apiKey}` },
     });
     this.getLLMInfo();
   }
