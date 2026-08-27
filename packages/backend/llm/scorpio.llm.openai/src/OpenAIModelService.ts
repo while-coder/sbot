@@ -4,6 +4,7 @@ import type {
   ChatCompletionChunk,
   ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
@@ -40,10 +41,13 @@ interface ToolCallDelta {
  */
 export class OpenAIModelService extends OpenAIServiceBase implements IModelService {
   private tools: ChatCompletionTool[] = [];
+  /** max_tokens 参数名探测结果；undefined 表示未探测，按目录静态选择。 */
+  private preferMaxCompletionTokens?: boolean;
 
   override async dispose(): Promise<void> {
     await super.dispose();
     this.tools = [];
+    this.preferMaxCompletionTokens = undefined;
   }
 
   bindTools(tools: any[]): void {
@@ -59,12 +63,12 @@ export class OpenAIModelService extends OpenAIServiceBase implements IModelServi
   }
 
   async invoke(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<ChatMessage> {
-    const response = await this.completions.create(this.createParams(prompt), this.requestOptions(options));
+    const response = await this.createCompletion(this.createParams(prompt), this.requestOptions(options));
     return this.toChatMessage(response);
   }
 
   async stream(prompt: string | ChatMessage[], options?: ModelInvokeOptions): Promise<AsyncIterable<ChatMessage>> {
-    const stream = await this.completions.create(
+    const stream = await this.createCompletion<AsyncIterable<ChatCompletionChunk>>(
       { ...this.createParams(prompt), stream: true, stream_options: { include_usage: true } },
       this.requestOptions(options),
     );
@@ -100,16 +104,81 @@ export class OpenAIModelService extends OpenAIServiceBase implements IModelServi
    * 参数级默认值（temperature / maxTokens）由 models.dev 目录补全：
    * temperature=false 的模型（部分推理模型）发送该参数会被拒；
    * maxTokens 未配置时取目录 maxOutputTokens，避免默认值偏小易截断。
+   *
+   * max_tokens 参数名选择（探测结果 > 静态判断）：
+   *   官方 API 全系列模型都接受 max_completion_tokens，直连时无条件使用，
+   *   目录未收录的新模型也不用先吃一次 400；兼容网关则按目录 reasoning 判断，
+   *   默认留在兼容面最广的 max_tokens——发错会响亮 400（可自适应换名），
+   *   反向发错可能被老网关静默忽略，token 上限无声失效。
    */
   private modelDefaults(messages: ChatCompletionMessageParam[]): ChatCompletionCreateParamsNonStreaming {
     const info = this.getLLMInfo();
     const maxOutputTokens = this.config.maxTokens ?? (info.fromCatalog ? info.maxOutputTokens : undefined);
+    const baseURL = (this.config.baseURL ?? "").toLowerCase();
+    const officialAPI = !baseURL || baseURL.includes("api.openai.com");
+    const useCompletion = this.preferMaxCompletionTokens ?? (officialAPI || info.reasoning);
     return {
       model: this.config.model,
       messages,
       ...(info.temperature !== false && this.config.temperature != null && { temperature: this.config.temperature }),
-      ...(maxOutputTokens != null && { max_tokens: maxOutputTokens }),
+      ...(maxOutputTokens != null && (useCompletion
+        ? { max_completion_tokens: maxOutputTokens }
+        : { max_tokens: maxOutputTokens })),
     };
+  }
+
+  /**
+   * Chat Completions 请求统一入口：max_tokens 参数名自适应。
+   * 官方新模型只接受 max_completion_tokens，部分兼容网关又只认 max_tokens；
+   * 命中 400 unsupported_parameter 时换名重试一次并记住选择，后续调用直接走对的分支。
+   */
+  private async createCompletion<T = ChatCompletion>(
+    params: ChatCompletionCreateParamsNonStreaming | ChatCompletionCreateParamsStreaming,
+    options?: { signal?: AbortSignal },
+  ): Promise<T> {
+    try {
+      return await (this.completions.create as any)(params, options) as T;
+    } catch (error) {
+      const swapped = this.swapMaxTokensParam(params, error);
+      if (!swapped) throw error;
+      return await (this.completions.create as any)(swapped, options) as T;
+    }
+  }
+
+  /**
+   * 400 且报错确属参数名不支持（max_tokens ↔ max_completion_tokens）时返回换名后的参数，
+   * 并记录探测结果；否则 undefined。须同时命中"参数名被拒"特征（unsupported/unknown parameter）
+   * 与 max_tokens 字样，避免把"值超上限"等同名 param 的 400 误判成换名可解，
+   * 导致换名重试失败后 flag 来回翻转、每次调用双倍请求。
+   */
+  private swapMaxTokensParam(
+    params: ChatCompletionCreateParamsNonStreaming | ChatCompletionCreateParamsStreaming,
+    error: unknown,
+  ): ChatCompletionCreateParamsNonStreaming | ChatCompletionCreateParamsStreaming | undefined {
+    const err = error as any;
+    if (err?.status !== 400) return undefined;
+    const message = [err?.message, err?.error?.message].filter(Boolean).join("\n");
+    const code = err?.code ?? err?.error?.code;
+    const param = err?.param ?? err?.error?.param;
+    const nameRejected = code === "unsupported_parameter" || code === "unknown_parameter"
+      || /unsupported parameter|unknown parameter|not supported/i.test(message);
+    const targetsMaxTokens = param === "max_tokens" || param === "max_completion_tokens"
+      || /max_(completion_)?tokens/i.test(message);
+    if (!nameRejected || !targetsMaxTokens) return undefined;
+
+    const swapped: any = { ...params };
+    if (params.max_tokens != null) {
+      this.preferMaxCompletionTokens = true;
+      delete swapped.max_tokens;
+      swapped.max_completion_tokens = params.max_tokens;
+    } else if (params.max_completion_tokens != null) {
+      this.preferMaxCompletionTokens = false;
+      delete swapped.max_completion_tokens;
+      swapped.max_tokens = params.max_completion_tokens;
+    } else {
+      return undefined;
+    }
+    return swapped;
   }
 
   private toRequestMessages(prompt: string | ChatMessage[]): ChatCompletionMessageParam[] {
@@ -261,7 +330,7 @@ export class OpenAIModelService extends OpenAIServiceBase implements IModelServi
     prompt: string | ChatMessage[],
     options?: StructuredInvokeOptions,
   ): Promise<T> {
-    const response = await this.completions.create({
+    const response = await this.createCompletion({
       ...this.modelDefaults(this.toRequestMessages(prompt)),
       tools: [{
         type: "function" as const,
@@ -286,7 +355,7 @@ export class OpenAIModelService extends OpenAIServiceBase implements IModelServi
     prompt: string | ChatMessage[],
     options?: StructuredInvokeOptions,
   ): Promise<T> {
-    const response = await this.completions.create({
+    const response = await this.createCompletion({
       ...this.modelDefaults(this.toRequestMessages(withJsonModeInstruction(prompt, toJsonSchema(schema)))),
       response_format: { type: "json_object" as const },
     }, this.requestOptions(options));
