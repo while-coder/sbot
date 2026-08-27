@@ -7,7 +7,7 @@
 - **多 Agent 编排** —— Single、ReAct（递归任务分解）、Generative（多模态）三种模式，Agent 可嵌套组合
 - **ACP Agent 支持** —— Agent Client Protocol 集成，支持持久化与临时两种 Agent 模式
 - **知识库** —— 可插拔 Wiki 数据源（本地文件、Google Drive 与第三方来源），支持关键词与可选语义检索
-- **长期记忆** —— 基于向量 Embedding 的语义检索，持久化上下文召回（OpenAI、Gemini、Ollama、Cohere、VoyageAI）
+- **长期记忆** —— 基于向量 Embedding 的语义检索，持久化上下文召回（OpenAI、Gemini、Ollama、Cohere）
 - **对话压缩** —— Token 用量超阈值时自动摘要早期消息，保持上下文连续性同时降低消耗
 - **记忆（Memory）** —— Agent 级自动长期记忆：会话空闲后由后台 MemoryLLM 提炼持久知识，主 Agent 通过 `search_memory` / `read_memory` 召回，并有 consolidate / reconcile 维护任务
 - **日程（Agenda）** —— 由对话驱动的提醒、日程与周期任务，支持 absolute / interval / cron 触发器；可每轮对话后从对话自动同步，并投递到任意会话或渠道

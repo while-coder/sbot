@@ -1,7 +1,7 @@
 import type { BaseMessage } from "@langchain/core/messages";
-import { toJsonSchema } from "@langchain/core/utils/json_schema";
 import { type ChatMessage, MessageRole } from "./messages";
 import { toBaseMessages } from "./messageConverter";
+import { toJsonSchema } from "./tools";
 import type { StructuredInvokeOptions } from "./model";
 
 export enum StructuredOutputMethod {
@@ -28,7 +28,11 @@ export function toStructuredInput(
   return typeof input === "string" ? input : toBaseMessages(input);
 }
 
-function withJsonModeInstruction(prompt: string | ChatMessage[], schema?: any): string | ChatMessage[] {
+/**
+ * 在 prompt 中注入 JSON mode 指令（含 schema 序列化）。
+ * 供 LangChain 与原生 SDK 两类实现共用：无 system 消息时前置，有则追加到其后。
+ */
+export function withJsonModeInstruction(prompt: string | ChatMessage[], schema?: any): string | ChatMessage[] {
   const instruction = jsonModeInstruction(schema);
   if (typeof prompt === "string") return `${instruction}\n\n${prompt}`;
 

@@ -66,7 +66,6 @@ export enum EmbeddingProvider {
   OpenAI   = "openai",
   Ollama   = "ollama",
   Gemini   = "gemini",
-  VoyageAI = "voyageai",
   Cohere   = "cohere",
 }
 

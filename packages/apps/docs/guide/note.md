@@ -13,7 +13,7 @@ An embedding model is required first: sidebar → **Embedding Models** → New. 
 | Field | Description |
 |-------|-------------|
 | Name  | Display name for this notebook |
-| Embedding | Embedding model used for semantic search (OpenAI, Google, Ollama, Cohere, VoyageAI) |
+| Embedding | Embedding model used for semantic search (OpenAI, Google, Ollama, Cohere) |
 
 ## How It Works
 

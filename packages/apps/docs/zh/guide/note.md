@@ -13,7 +13,7 @@ Note 仓库是供 Agent 召回的人工维护知识库。你可以在 Web UI 中
 | 字段 | 说明 |
 |-------|-------------|
 | 名称 | 该笔记本的显示名称 |
-| 向量模型 | 用于语义检索的模型（OpenAI、Google、Ollama、Cohere、VoyageAI） |
+| 向量模型 | 用于语义检索的模型（OpenAI、Google、Ollama、Cohere） |
 
 ## 工作原理
 

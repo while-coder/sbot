@@ -1,6 +1,7 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 import { createFunctionCallingParser } from "@langchain/core/language_models/structured_output";
 import { AIMessageChunk, BaseMessage, SystemMessage } from "@langchain/core/messages";
+import type { AgentTool } from "scorpio.llm";
 import { toJsonSchema } from "@langchain/core/utils/json_schema";
 import {
   type ChatMessage,
@@ -53,14 +54,19 @@ export class AnthropicModelService extends ModelServiceBase<ChatAnthropic> {
     return typeof input === "string" ? input : this.applyCache(toBaseMessages(input));
   }
 
-  bindTools(tools: any[]): void {
-    if (this.cacheControl && tools.length > 0) {
-      const formatted = (this.model! as any).formatStructuredToolToAnthropic(tools);
+  bindTools(tools: AgentTool[]): void {
+    // AgentTool 的 schema 已是 JSON Schema，直接构造 Anthropic 原生工具格式
+    // （等价于 ChatAnthropic.formatStructuredToolToAnthropic 的输出形态）
+    const formatted: Array<{ name: string; description?: string; input_schema: Record<string, any>; cache_control?: any }> =
+      tools.map(tool => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.schema,
+      }));
+    if (this.cacheControl && formatted.length > 0) {
       formatted[formatted.length - 1].cache_control = this.cacheControl;
-      this.boundModel = (this.model! as any).withConfig({ tools: formatted });
-    } else {
-      this.boundModel = this.model!.bindTools(tools);
     }
+    this.boundModel = (this.model! as any).withConfig({ tools: formatted });
   }
 
   async invokeStructured<T = any>(schema: any, prompt: string | ChatMessage[], options?: StructuredInvokeOptions): Promise<T> {

@@ -334,7 +334,7 @@ export default {
     empty: 'No embedding configurations',
     add_title: 'Add Embedding',
     edit_title: 'Edit Embedding',
-    name_placeholder: 'e.g. openai-ada, gemini-004, voyage-3',
+    name_placeholder: 'e.g. openai-ada, gemini-004',
     confirm_delete: 'Delete embedding "{name}"?',
   },
   savers: {

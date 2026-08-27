@@ -7,7 +7,7 @@
 - **Multi-agent orchestration** — Single, ReAct (recursive task decomposition), and Generative (multimodal) modes; agents can be nested and composed
 - **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
 - **Knowledge base** — Pluggable wiki data sources (local files, Google Drive, and third-party providers) with keyword + optional semantic search
-- **Long-term memory** — Vector-embedding semantic search for persistent context recall (OpenAI, Google, Ollama, Cohere, VoyageAI)
+- **Long-term memory** — Vector-embedding semantic search for persistent context recall (OpenAI, Google, Ollama, Cohere)
 - **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
 - **Memory** — Per-agent automatic long-term memory: a background MemoryLLM extracts durable knowledge after each conversation idles; the agent reads it back via `search_memory` / `read_memory`, with consolidate/reconcile maintenance
 - **Agenda** — Conversation-driven reminders, schedules, and routines with absolute / interval / cron triggers; optionally synced from the conversation after every turn and delivered to any session or channel

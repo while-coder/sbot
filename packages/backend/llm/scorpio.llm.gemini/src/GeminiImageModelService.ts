@@ -1,3 +1,4 @@
+import type { AgentTool } from "scorpio.llm";
 import {
   type ChatMessage,
   type ModelConfig,
@@ -22,7 +23,7 @@ export class GeminiImageModelService extends GeminiModelService {
     return super.stream(this.filterMessages(messages), options);
   }
 
-  override bindTools(_tools: any[]): void {}
+  override bindTools(_tools: AgentTool[]): void {}
 
   override async invokeStructured<T = any>(
     _schema: any,
