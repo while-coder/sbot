@@ -7,7 +7,7 @@
   "scripts": {
     "test": "pnpm -r --if-present run test",
 
-    "build:base": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.command run build && pnpm --filter scorpio.ai run build && pnpm --filter scorpio.tools.filesystem run build && pnpm --filter scorpio.tools.command run build",
+    "build:base": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.llm run build && pnpm --filter scorpio.command run build && pnpm --filter scorpio.ai run build && pnpm --filter scorpio.tools.filesystem run build && pnpm --filter scorpio.tools.command run build",
     "build:llm": "node scripts/fetch-models-dev.js && pnpm --filter scorpio.llm run build && pnpm --filter scorpio.llm.openai run build && pnpm --filter scorpio.llm.anthropic run build && pnpm --filter scorpio.llm.gemini run build && pnpm --filter scorpio.llm.ollama run build",
     "build:saver": "pnpm --filter scorpio.saver run build && pnpm --filter scorpio.saver.file run build && pnpm --filter scorpio.saver.sqlite run build && pnpm --filter scorpio.saver.postgres run build",
     "build:schema": "pnpm --filter plugin.schema run build && pnpm --filter @sbot/shared run build",
