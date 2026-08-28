@@ -288,7 +288,6 @@ export class OpenAIResponseModelService extends OpenAIServiceBase implements IMo
     const final = this.toFinalMessage(response.id, "", response.output);
     return {
       ...final,
-      ...(final.additional_kwargs || {}),
       additional_kwargs: {
         ...(final.additional_kwargs ?? {}),
         ...(response.incomplete_details?.reason && { stop_reason: response.incomplete_details.reason }),
