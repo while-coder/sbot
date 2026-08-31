@@ -9,11 +9,14 @@ import { IEmbeddingService } from "../Embedding";
  * 三个独立评分原语 + 一个加权融合 + 一个批量检索：
  *   matchEmbedding(q, t) → max(cos, 0) ∈ [0,1]（需 embeddingModel）
  *   matchBM25(q, t)      → BM25 归一化 ∈ [0,1]（基于持久 corpus）
- *   match(q, t)          → 上面两路加权融合
+ *   matchSubstring(q, t) → 子串精确匹配 ∈ {0,1}（query ≥ 2 字符才启用）
+ *   match(q, t)          → 三路加权融合（默认 0.5 / 0.3 / 0.2）
  *   search(q, items, toText) → 批量 top-k
  *
  * cachePath 必传：searcher.sqlite 落到此目录下。
- * embeddingModel 不传 → matchEmbedding 永远 0，融合时权重让给 BM25。
+ * embeddingModel 不传 → matchEmbedding 永远 0，融合时权重让给另外两路。
+ * 长自然句查询 → matchSubstring 几乎恒 0（整句 includes 不命中），分数整体
+ * 偏低属预期，排序不受影响；被 minScore 误杀时优先调阈值而非权重。
  *
  * 文件布局：`<cachePath>/searcher.sqlite`
  *   embeddings(key TEXT PK = 原文, embedding BLOB, created_at)
@@ -34,12 +37,14 @@ export interface HybridSearcherOptions {
     embeddingModel?: IEmbeddingService;
     embeddingWeight?: number;
     bm25Weight?: number;
+    substringWeight?: number;
     /** search() 命中分数阈值，默认 0.15（≈ embedding cos ≥ 0.25 或有效 BM25 命中）。 */
     minScore?: number;
 }
 
-const DEFAULT_EMB_W = 0.6;
-const DEFAULT_BM25_W = 0.4;
+const DEFAULT_EMB_W = 0.5;
+const DEFAULT_BM25_W = 0.3;
+const DEFAULT_SUB_W = 0.2;
 const DEFAULT_MIN_SCORE = 0.15;
 
 /** BM25 raw → [0,1] 归一化。raw bm25 ∈ ~[-3(小 corpus) ~ -20(大 corpus), 0]，越负越好。 */
@@ -50,15 +55,16 @@ export class HybridSearcher {
     private readonly db: Database.Database;
     /** 内存层 embedding 缓存，key = 原文。SQLite 命中后回填这里。 */
     private readonly memCache = new Map<string, number[]>();
-    private readonly w: { emb: number; bm25: number };
+    private readonly w: { emb: number; bm25: number; sub: number };
     private readonly minScore: number;
     private disposed = false;
 
     constructor(options: HybridSearcherOptions) {
         this.embeddingModel = options.embeddingModel;
         this.w = {
-            emb:  options.embeddingWeight ?? DEFAULT_EMB_W,
+            emb: options.embeddingWeight ?? DEFAULT_EMB_W,
             bm25: options.bm25Weight     ?? DEFAULT_BM25_W,
+            sub:  options.substringWeight ?? DEFAULT_SUB_W,
         };
         this.minScore = options.minScore ?? DEFAULT_MIN_SCORE;
 
@@ -115,20 +121,48 @@ export class HybridSearcher {
     }
 
     /**
-     * 综合评分：matchEmbedding + matchBM25 加权融合。
-     * 没 embeddingModel 时 emb 永远 0，权重自动归 BM25 全占。
+     * 综合评分：三路原语加权融合。
+     * 未启用的路（无 embeddingModel / query < 2 字符时子串路）权重让位给其余路。
      */
     async match(query: string, text: string): Promise<number> {
         const [emb, bm25] = await Promise.all([
             this.matchEmbedding(query, text),
             this.matchBM25(query, text),
         ]);
+        return this.fuse(query, emb, bm25, this.matchSubstring(query, text));
+    }
+
+    /**
+     * 子串精确匹配，∈ {0, 1}。
+     *
+     * - 纯拉丁词 → 词边界匹配：`othello` 不会命中 `hello`；
+     * - 其他（含 CJK / 混合）→ 大小写折叠后 `includes`；
+     * - query 不足 2 字符 → 0（单字命中太宽），融合时该路权重让位给其余路。
+     *
+     * 无 IO 无模型调用，O(len(text))。
+     */
+    matchSubstring(query: string, text: string): number {
+        if (!query || !text) return 0;
+        const q = query.trim();
+        if (q.length < 2) return 0;
+        if (/^[A-Za-z0-9_]+$/.test(q)) {
+            // 纯 ASCII 词不含正则元字符，可安全内插；注意不能用 \p{L}——
+            // 它包含汉字，会把中文 query 误判成「纯词」走 \b 词边界，
+            // 而 JS 的 \b 是 ASCII 词边界，中文两侧永远匹配不上
+            return new RegExp(`\\b${q}\\b`, "i").test(text) ? 1 : 0;
+        }
+        return text.toLowerCase().includes(q.toLowerCase()) ? 1 : 0;
+    }
+
+    /** 三路加权融合：未启用的路权重让位（权重和归一），子串路按 query 长度启用。 */
+    private fuse(query: string, emb: number, bm25: number, sub: number): number {
         const useEmb = !!this.embeddingModel;
-        const tw = (useEmb ? this.w.emb : 0) + this.w.bm25;
+        const useSub = query.trim().length >= 2;
+        const wEmb = useEmb ? this.w.emb : 0;
+        const wSub = useSub ? this.w.sub : 0;
+        const tw = wEmb + this.w.bm25 + wSub;
         if (tw === 0) return 0;
-        const ew = useEmb ? this.w.emb / tw : 0;
-        const bw = this.w.bm25 / tw;
-        return ew * emb + bw * bm25;
+        return (wEmb * emb + this.w.bm25 * bm25 + wSub * sub) / tw;
     }
 
     // ── 批量检索 ────────────────────────────────────────────────────────
@@ -144,6 +178,7 @@ export class HybridSearcher {
      * 2. 一次 FTS5 query 拿 bm25 + snippet
      * 3. 所有 item 都算 embedding 分（不做 BM25 候选门控 —— 门控会把
      *    换说法/同义的纯语义命中挡在门外；调用方规模小，全量算可承受）
+     *    + 子串精确分（matchSubstring）
      * 4. 加权融合 → 过滤 minScore → 排序 → 截断
      */
     async search<T>(
@@ -163,18 +198,16 @@ export class HybridSearcher {
         const { bm25ByText, snippetByText } = this.ftsBatch(query, limit);
 
         const useEmb = !!this.embeddingModel;
-        const tw = (useEmb ? this.w.emb : 0) + this.w.bm25;
-        const ew = tw > 0 && useEmb ? this.w.emb / tw : 0;
-        const bw = tw > 0 ? this.w.bm25 / tw : 0;
 
         const tasks = items.map(async (item, i) => {
             const text = texts[i];
             if (!text) return null;
             const bm25 = bm25ByText.get(text) ?? 0;
             const emb = useEmb ? await this.matchEmbedding(query, text) : 0;
+            const sub = this.matchSubstring(query, text);
             return {
                 item,
-                score: ew * emb + bw * bm25,
+                score: this.fuse(query, emb, bm25, sub),
                 snippet: snippetByText.get(text),
             };
         });
