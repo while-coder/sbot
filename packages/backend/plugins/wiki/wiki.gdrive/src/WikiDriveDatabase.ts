@@ -35,8 +35,9 @@ function isTextMime(mime: string | undefined): boolean {
 
 /**
  * Google Drive 数据源：把一个 Drive 文件夹当作只读 wiki 目录。
- * - getAll() 只列文件 metadata（懒加载，content 留空），用于目录/搜索（搜索仅用 title）。
- * - getById() 才真正下载/导出全文，原生 Docs/Sheets/Slides 导出为 Markdown/CSV/文本。
+ * - getAll() 只列文件 metadata（懒加载，content 留空），用于目录/搜索。
+ * - readContent() 才真正下载/导出全文，原生 Docs/Sheets/Slides 导出为 Markdown/CSV/文本；
+ *   读过的文件由 WikiService 以 标题+正文 参与后续检索。
  * - 文件清单与单文件内容各自 TTL 缓存，避免打爆 Drive API 配额。
  */
 export class WikiDriveDatabase implements IWikiDatabase {
@@ -59,35 +60,28 @@ export class WikiDriveDatabase implements IWikiDatabase {
 
   // --- 查询 ---
 
-  async getById(id: string): Promise<WikiPage | null> {
+  async readContent(id: string): Promise<string | null> {
     const drive = this.getDrive();
-    let meta: any;
+    let mime: string | undefined;
     try {
       const res = await drive.files.get({
         fileId: id,
-        fields: "id, name, mimeType, createdTime, modifiedTime",
+        fields: "id, mimeType",
         supportsAllDrives: true,
       });
-      meta = res.data;
+      mime = res.data.mimeType;
     } catch (e: any) {
       if (e?.code === 404 || e?.response?.status === 404) return null;
       throw e;
     }
 
     const cached = this.contentCache.get(id);
-    let content: string;
     if (cached && Date.now() - cached.at < CONTENT_TTL_MS) {
-      content = cached.content;
-    } else {
-      content = await this.fetchContent(drive, id, meta.mimeType);
-      this.contentCache.set(id, { at: Date.now(), content });
+      return cached.content;
     }
-    return this.toPage(meta, content);
-  }
-
-  async getByTags(_tags: string[]): Promise<WikiPage[]> {
-    // Drive 无标签概念
-    return [];
+    const content = await this.fetchContent(drive, id, mime);
+    this.contentCache.set(id, { at: Date.now(), content });
+    return content;
   }
 
   async getAll(): Promise<WikiPage[]> {
@@ -115,18 +109,6 @@ export class WikiDriveDatabase implements IWikiDatabase {
 
     this.listCache = { at: Date.now(), pages };
     return pages;
-  }
-
-  // --- 写入（只读源，一律拒绝） ---
-
-  async insert(): Promise<void> {
-    throw new Error("wiki.gdrive is a read-only source");
-  }
-  async update(): Promise<void> {
-    throw new Error("wiki.gdrive is a read-only source");
-  }
-  async delete(): Promise<void> {
-    throw new Error("wiki.gdrive is a read-only source");
   }
 
   // --- 生命周期 ---

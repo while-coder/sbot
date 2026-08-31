@@ -8,6 +8,14 @@ export interface SettingsCrudOptions {
     checkOnUpdate?: boolean;
     checkOnDelete?: boolean;
     /**
+     * 允许创建时由前端指定 id（slug）。不传则维持 randomUUID。
+     * validate 做字符集等安全校验（id 会拼进文件路径/URL，必须收紧）；
+     * 重名/非法在 POST 直接报错。key 创建后不可变（PUT 的 :id 即 key）。
+     */
+    clientId?: {
+        validate(id: string): void;
+    };
+    /**
      * 删除流程在 config 落库 *之前* 调用——此时 profile 仍在 settings 里，可以走 resolver
      * 拉服务、做带 lifecycle 的清理（如 service.markForDeletion 触发 store.deleteAll）。
      */
@@ -16,6 +24,11 @@ export interface SettingsCrudOptions {
     afterSave?: (id: string) => Promise<void> | void;
     createReturn?: (id: string, body: any) => any;
     getSettings?: () => any;
+}
+
+/** 剥离 body 中混入的 id 字段：id 是 map 的键（URL 路径参数），不属于配置体。 */
+function stripBodyId(req: express.Request): void {
+    delete (req.body as any)?.id;
 }
 
 export class SettingsCrudHelper {
@@ -33,8 +46,16 @@ export class SettingsCrudHelper {
 
         app.post(`/api/settings/${section}`, api(async req => {
             const map = getSection();
-            let id = randomUUID();
-            while (map[id]) id = randomUUID();
+            let id: string;
+            if (opts?.clientId) {
+                id = String(req.body?.id ?? '').trim();
+                stripBodyId(req);
+                opts.clientId.validate(id);
+                if (map[id]) throwBad(`${label} "${id}" already exists`);
+            } else {
+                id = randomUUID();
+                while (map[id]) id = randomUUID();
+            }
             map[id] = req.body;
             config.saveSettings();
             await opts?.afterSave?.(id);
@@ -45,6 +66,7 @@ export class SettingsCrudHelper {
             const id = req.params.id as string;
             const map = getSection();
             if (checkOnUpdate && !map[id]) throwBad(`${label} "${id}" not found`);
+            stripBodyId(req);
             map[id] = req.body;
             config.saveSettings();
             await opts?.afterSave?.(id);

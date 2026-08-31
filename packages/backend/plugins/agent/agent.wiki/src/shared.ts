@@ -7,6 +7,8 @@ export const T_WikiSystemPromptTemplate = Symbol("agent.wiki:T_WikiSystemPromptT
 /** Wiki HybridSearcher 的 cachePath（每个 Wiki 一份 searcher.sqlite）。 */
 export const T_WikiCachePath = Symbol("agent.wiki:T_WikiCachePath");
 export const T_WikiToolDescs = Symbol("agent.wiki:T_WikiToolDescs");
+/** 本 Wiki 的唯一标识（settings.wikis 的 key），供工具层跨库路由与歧义检测。 */
+export const T_WikiId = Symbol("agent.wiki:T_WikiId");
 
 /**
  * Wiki 页面

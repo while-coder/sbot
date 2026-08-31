@@ -73,8 +73,8 @@ https://drive.google.com/drive/folders/1A2b3C4d5E6f7G8h9I0jKlMnOpQr
 
 ## 行为说明
 
-- **懒加载**：列目录只取文件名等元数据，不下载内容；`wiki_read` 命中某个文件时才真正拉全文，
-  搜索仅按标题（文件名）匹配。
+- **懒加载**：列目录只取文件名等元数据，不下载内容；`wiki_read` 命中某个文件时才真正拉全文。
+  检索先按标题匹配；读过的文件正文落盘缓存 24 小时，期间以"标题+正文"参与后续检索。
 - **缓存**：文件清单缓存 60s、单文件内容缓存 5min，按 Folder ID 隔离，降低 Drive API 调用与配额压力。
 - **作用域**：授权 scope 为 `https://www.googleapis.com/auth/drive`，但插件本身只做读取，
   不会修改你的任何文件。

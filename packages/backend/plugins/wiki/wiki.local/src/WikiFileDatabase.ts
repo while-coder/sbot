@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
-import type { IWikiDatabase, WikiPage } from "wiki.base";
+import type { IWritableWikiDatabase, WikiPage } from "wiki.base";
 
 /**
  * 本地 Markdown 文件存储：每个 wiki 页面是一个带 YAML frontmatter 的 .md 文件，
  * 存放在插件分配的缓存目录（config/wiki/{wikiId}）下。
  */
-export class WikiFileDatabase implements IWikiDatabase {
+export class WikiFileDatabase implements IWritableWikiDatabase {
     private readonly dir: string;
 
     constructor(dir: string) {
@@ -16,21 +16,15 @@ export class WikiFileDatabase implements IWikiDatabase {
 
     // --- 查询 ---
 
-    async getById(id: string): Promise<WikiPage | null> {
+    async readContent(id: string): Promise<string | null> {
         const filePath = this.pageFilePath(id);
         if (!existsSync(filePath)) return null;
         try {
-            const content = readFileSync(filePath, "utf-8");
-            return this.parsePage(content);
+            return this.parsePage(readFileSync(filePath, "utf-8"))?.content ?? null;
         } catch {
             return null;
         }
     }
-
-    async getByTags(tags: string[]): Promise<WikiPage[]> {
-        return this.readAllPages().filter(p => tags.some(t => p.tags.includes(t)));
-    }
-
 
     async getAll(): Promise<WikiPage[]> {
         return this.readAllPages();
@@ -44,7 +38,7 @@ export class WikiFileDatabase implements IWikiDatabase {
     }
 
     async update(id: string, updates: Partial<WikiPage>): Promise<void> {
-        const existing = await this.getById(id);
+        const existing = (await this.getAll()).find(p => p.id === id);
         if (!existing) return;
 
         const merged: WikiPage = {

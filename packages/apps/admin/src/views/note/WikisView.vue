@@ -57,11 +57,27 @@ function isReadOnly(w: { type?: string }): boolean {
 
 const showModal   = ref(false)
 const editingName = ref<string | null>(null)
+/** 创建时由用户指定的 wikiId（slug，创建后不可变）；编辑时锁定。 */
+const formId = ref('')
 const form = ref<WikiConfig>({
   name: '',
   type: 'local',
   config: {},
 })
+
+/** name → id 自动建议：取 ASCII 字母数字转小写连字符；中文等无法转换时留空由用户手填。 */
+function suggestId(name: string): string {
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  return /^[a-z0-9]/.test(slug) ? slug.slice(0, 32) : ''
+}
+
+function onNameInput() {
+  // 仅创建且用户未手改过 id 时跟随建议
+  if (editingName.value === null && !formIdTouched.value) {
+    formId.value = suggestId(form.value.name)
+  }
+}
+const formIdTouched = ref(false)
 
 const wikiViewModal = ref<InstanceType<typeof WikiViewModal>>()
 
@@ -94,6 +110,8 @@ watch(wikis, () => loadCounts(), { deep: true })
 
 function openAdd() {
   editingName.value = null
+  formId.value = ''
+  formIdTouched.value = false
   form.value = { name: '', embedding: '', type: 'local', config: {} }
   showModal.value = true
 }
@@ -101,6 +119,7 @@ function openAdd() {
 function openEdit(id: string) {
   const w = wikis.value[id]
   editingName.value = id
+  formId.value = id
   form.value = {
     name: w.name,
     embedding: w.embedding,
@@ -112,8 +131,10 @@ function openEdit(id: string) {
 
 async function save() {
   if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (editingName.value === null && !/^[a-z0-9][a-z0-9_-]{0,31}$/.test(formId.value)) {
+    show(t('wikis.id_invalid'), 'error'); return
+  }
   try {
-    const schema = currentSchema.value
     const processedConfig: Record<string, any> = {}
     for (const [key, val] of Object.entries(form.value.config || {})) {
       if (val !== '' && val !== undefined && val !== null) {
@@ -130,7 +151,7 @@ async function save() {
     const id = editingName.value
     const res = id
       ? await apiFetch(`/api/settings/wikis/${encodeURIComponent(id)}`, 'PUT', body)
-      : await apiFetch('/api/settings/wikis', 'POST', body)
+      : await apiFetch('/api/settings/wikis', 'POST', { ...body, id: formId.value })
     settingsManager.apply(res.data)
     show(t('common.saved'))
     showModal.value = false
@@ -221,7 +242,15 @@ async function refresh() {
     <!-- Edit/Add modal -->
     <SModal v-model:visible="showModal" :title="editingName !== null ? t('wikis.edit_title') : t('wikis.add_title')" width="md">
       <SFormItem :label="t('common.name') + ' *'">
-        <SInput v-model="form.name" :placeholder="t('wikis.name_placeholder')" />
+        <SInput v-model="form.name" :placeholder="t('wikis.name_placeholder')" @input="onNameInput" />
+      </SFormItem>
+      <SFormItem :label="'ID' + (editingName === null ? ' *' : '')" :hint="t('wikis.id_hint')">
+        <SInput
+          v-model="formId"
+          :disabled="editingName !== null"
+          :placeholder="t('wikis.id_placeholder')"
+          @input="formIdTouched = true"
+        />
       </SFormItem>
       <SFormItem :label="t('wikis.source_type')">
         <SSelect v-model="form.type" @change="form.config = {}" :disabled="editingName !== null">

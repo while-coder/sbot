@@ -174,9 +174,11 @@ export class DataRoutes {
 
         app.get('/api/wikis/:wikiName/pages/:pageId', api(async req => {
             const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            const page = await svc.getPage(req.params.pageId as string);
-            if (!page) { const e: any = new Error('Page not found'); e.status = 404; throw e; }
-            return page;
+            const pageId = req.params.pageId as string;
+            const meta = (await svc.getAllPages()).find(p => p.id === pageId);
+            if (!meta) { const e: any = new Error('Page not found'); e.status = 404; throw e; }
+            const content = await svc.readContent(pageId);
+            return { ...meta, content: content ?? meta.content ?? "" };
         }));
 
         app.post('/api/wikis/:wikiName/pages', api(async req => {
@@ -185,12 +187,13 @@ export class DataRoutes {
                 const e: any = new Error('title and content are required'); e.status = 400; throw e;
             }
             const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            return svc.createPage(title, content, tags);
+            return svc.savePage({ title, content, tags });
         }));
 
         app.put('/api/wikis/:wikiName/pages/:pageId', api(async req => {
+            const { title, content, tags } = req.body as { title?: string; content?: string; tags?: string[] };
             const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            return svc.updatePage(req.params.pageId as string, req.body);
+            return svc.savePage({ id: req.params.pageId as string, title, content, tags });
         }));
 
         app.delete('/api/wikis/:wikiName/pages/:pageId', api(async req => {

@@ -34,6 +34,7 @@ import {
     T_WikiSystemPromptTemplate,
     T_WikiToolDescs,
     T_WikiCachePath,
+    T_WikiId,
     loadWikiPrompt,
 } from "agent.wiki";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -276,7 +277,7 @@ export class AgentRunner {
         }
         const db = await plugin.init({
             config: wikiConfig.config ?? {},
-            logger: LoggerService.getLogger(`wiki:${plugin.type}`),
+            logger: LoggerService.getLogger(`wiki:${wikiId}`),
             cachePath: wikiDir,
             embedding,
         });
@@ -287,6 +288,7 @@ export class AgentRunner {
 
         const args: Record<string | symbol, any> = {
             [T_WikiCachePath]: wikiDir,
+            [T_WikiId]: wikiId,
             [T_WikiSystemPromptTemplate]: loadWikiPrompt('wiki/system.txt', promptOverrides),
             [T_WikiToolDescs]: {
                 search: loadWikiPrompt('tools/wiki/search.txt', promptOverrides),
@@ -308,7 +310,8 @@ export class AgentRunner {
         wikis: string[],
     ): Promise<WikiPluginLease | null> {
         if (wikis.length === 0) return null;
-        const results = await Promise.all(wikis.map(wikiId => AgentRunner.buildWikiService(wikiId)));
+        // 去重：同一 wiki 被重复挂载时，搜索结果与工具扇出会成倍重复
+        const results = await Promise.all([...new Set(wikis)].map(wikiId => AgentRunner.buildWikiService(wikiId)));
         const services = results.filter((s): s is IWikiService => s !== null);
         if (services.length === 0) return null;
         const lease = new WikiPluginLease(services);
