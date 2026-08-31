@@ -1,22 +1,16 @@
 import type { IWikiDatabase, WikiPage } from "wiki.base";
 
 export interface DriveConfig {
-  /** 'service_account' | 'oauth'，缺省 service_account */
-  authMethod?: string;
   /** 作为 wiki 目录的 Drive 文件夹 ID */
   folderId?: string;
-  /** Service Account 模式：服务账号凭据 JSON 字符串 */
-  credentials?: string;
-  /** OAuth 模式 */
-  clientId?: string;
-  clientSecret?: string;
-  refreshToken?: string;
+  /** 服务账号凭据：JSON 内容，或凭据文件的路径 */
+  auth?: string;
 }
 
 const LIST_TTL_MS = 60_000;       // 文件清单缓存 60s
 const CONTENT_TTL_MS = 300_000;   // 单文件内容缓存 5min
 const FOLDER_MIME = "application/vnd.google-apps.folder";
-const READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 
 /** Google 原生文档类型 → 导出 MIME（取文本/Markdown 表示） */
 const EXPORT_MIME: Record<string, string> = {
@@ -57,6 +51,9 @@ export class WikiDriveDatabase implements IWikiDatabase {
   ) {
     if (!cfg.folderId?.trim()) {
       throw new Error("wiki.gdrive: folderId is required");
+    }
+    if (!cfg.auth?.trim()) {
+      throw new Error("wiki.gdrive: auth is required (service account JSON)");
     }
   }
 
@@ -180,36 +177,17 @@ export class WikiDriveDatabase implements IWikiDatabase {
   private getDrive(): any {
     if (this.drive) return this.drive;
 
-    let gapi: any;
+    const gapi = require("@googleapis/drive");
+    let creds: any;
     try {
-      gapi = require("@googleapis/drive");
-    } catch (e: any) {
-      throw new Error(
-        `wiki.gdrive: failed to load '@googleapis/drive' module (${e?.message ?? e}). Run 'pnpm add @googleapis/drive' in the plugin package.`,
-      );
+      creds = JSON.parse(this.cfg.auth ?? "");
+    } catch {
+      throw new Error("wiki.gdrive: auth must be a valid service account JSON string");
     }
-
-    const method = this.cfg.authMethod ?? "service_account";
-    let auth: any;
-    if (method === "oauth") {
-      if (!this.cfg.clientId || !this.cfg.clientSecret || !this.cfg.refreshToken) {
-        throw new Error("wiki.gdrive: oauth mode requires clientId, clientSecret and refreshToken");
-      }
-      const oauth = new gapi.auth.OAuth2(this.cfg.clientId, this.cfg.clientSecret);
-      oauth.setCredentials({ refresh_token: this.cfg.refreshToken });
-      auth = oauth;
-    } else {
-      if (!this.cfg.credentials) {
-        throw new Error("wiki.gdrive: service_account mode requires credentials JSON");
-      }
-      let creds: any;
-      try {
-        creds = JSON.parse(this.cfg.credentials);
-      } catch {
-        throw new Error("wiki.gdrive: credentials must be a valid service account JSON string");
-      }
-      auth = new gapi.auth.GoogleAuth({ credentials: creds, scopes: [READONLY_SCOPE] });
+    if (!creds || typeof creds !== "object" || Array.isArray(creds)) {
+      throw new Error("wiki.gdrive: auth must be a service account JSON object");
     }
+    const auth = new gapi.auth.GoogleAuth({ credentials: creds, scopes: [DRIVE_SCOPE] });
 
     this.drive = gapi.drive({ version: "v3", auth });
     return this.drive;
