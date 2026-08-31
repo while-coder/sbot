@@ -147,11 +147,11 @@ export class NoteService implements INoteService {
   // ── Private ────────────────────────────────────────────────────────────────
 
   private async addOne(content: string): Promise<string> {
-    // 有 embedding → 跑一次去重检测（同 content + cosine ≥ 0.85）；无 model 时直接写入
+    // 有 embedding → 语义去重（cosine ≥ 0.85，matchEmbedding 返回 raw cosine）；
+    // 无 model 时直接写入不去重
     if (this.embeddings) {
       const all = await this.db.getAllNotes();
       for (const existing of all) {
-        if (existing.content !== content) continue;
         const sim = await this.searcher.matchEmbedding(content, existing.content);
         if (sim >= DUPLICATE_THRESHOLD) {
           await this.db.updateAccess(existing.id);

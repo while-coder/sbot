@@ -1,4 +1,22 @@
 #!/usr/bin/env node
+/**
+ * 一键发版（多目标）：打印摘要 → 二次确认 → 写版本 → commit → (tag 已存在时确认清理) → 打 tag → 推送。
+ *
+ * 目标：
+ *   app   打 app-vX.Y.Z tag，触发 "Release App" workflow
+ *   sbot  打 sbot-vX.Y.Z tag，触发 "Release sbot" workflow，并把 ReleaseNote 同步进 pkg.json
+ *   cli   打 cli-vX.Y.Z tag，触发 "Release CLI" workflow
+ *
+ * 版本以根 package.json 的 appVersion / sbotVersion（或目标自身 package.json）为准；
+ * tauri.conf.json 的 version 指向 "../package.json" 时自动跟随，无需单独写。
+ *
+ * 确认规则（参考 wmdebugger/scripts/release.js）：
+ *   - tag 已存在（本地或远程）：y/N 确认后删除旧 tag 再重打并推送
+ *   - tag 不存在：回车确认发版，Ctrl+C 取消
+ *
+ * 用法：
+ *   node scripts/release.js <app|sbot|cli> [<version>|patch|minor|major]
+ */
 const { execSync } = require('child_process');
 const readline = require('readline');
 const path = require('path');
@@ -30,6 +48,8 @@ const TARGETS = {
   },
 };
 
+const WORKFLOW_NAMES = { app: 'Release App', sbot: 'Release sbot', cli: 'Release CLI' };
+
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 const BUMP_TYPES = ['patch', 'minor', 'major'];
 
@@ -47,7 +67,11 @@ function run(cmd, opts = {}) {
   return execSync(cmd, { stdio: 'inherit', ...opts });
 }
 
-function commandSucceeds(cmd) {
+function sh(cmd) {
+  return execSync(cmd, { encoding: 'utf8' }).trim();
+}
+
+function ok(cmd) {
   try {
     execSync(cmd, { stdio: 'ignore' });
     return true;
@@ -72,37 +96,22 @@ function bumpVersion(version, type) {
 }
 
 function isWorkingTreeClean() {
-  const out = execSync('git status --porcelain', { encoding: 'utf8' });
-  return out.trim().length === 0;
+  return sh('git status --porcelain').length === 0;
 }
 
 function tagExists(tag) {
-  return commandSucceeds(`git rev-parse -q --verify "refs/tags/${tag}"`);
+  return ok(`git rev-parse -q --verify "refs/tags/${tag}"`);
 }
 
 function remoteTagExists(tag) {
-  return commandSucceeds(`git ls-remote --exit-code origin "refs/tags/${tag}"`);
-}
-
-function confirmTagOverwrite(tag, existing) {
-  const locations = [
-    existing.local ? '本地' : '',
-    existing.remote ? 'origin 远程' : '',
-  ].filter(Boolean).join('、');
-  const prompt = `⚠ tag ${tag} 已存在（${locations}）。删除后重新打 tag 并推送？[y/N] `;
-  const input = readline.createInterface({ input: process.stdin, output: process.stdout });
-
-  return new Promise((resolve) => {
-    let resolved = false;
-    const finish = (answer) => {
-      if (resolved) return;
-      resolved = true;
-      input.close();
-      resolve(answer);
-    };
-    input.once('close', () => finish(false));
-    input.question(prompt, (answer) => finish(answer.trim().toLowerCase() === 'y'));
-  });
+  try {
+    execSync(`git ls-remote --exit-code origin "refs/tags/${tag}"`, { stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    // git ls-remote 在远程可达但 ref 不存在时返回 2；其他错误（网络/权限）必须中断发版
+    if (error && typeof error === 'object' && error.status === 2) return false;
+    throw new Error(`无法检查 origin 上的 tag ${tag}，请确认网络和 Git 权限`);
+  }
 }
 
 function deleteExistingTag(tag, existing) {
@@ -190,100 +199,150 @@ async function main() {
   const mutate = versionChanged || notesChanged || companionsChanged || rootOutOfSync;
   const tag = `${cfg.tagPrefix}${nextVersion}`;
 
-  console.log(`target  : ${target}`);
-  console.log(`current : ${currentVersion}`);
-  console.log(`next    : ${nextVersion}`);
-  console.log(`tag     : ${tag}`);
-  if (notesChanged) console.log('notes   : updated from ReleaseNote files');
-  console.log('');
+  // ---------- 前置检查（任何破坏性操作之前） ----------
+  let status;
+  try {
+    status = sh('git status --porcelain');
+  } catch {
+    console.error('✗ 不在 git 仓库中');
+    process.exit(1);
+  }
+  if (mutate && status) {
+    console.error('✗ 工作区有未提交改动，请先 commit 或 stash：');
+    console.error(status);
+    process.exit(1);
+  }
 
+  const branch = sh('git rev-parse --abbrev-ref HEAD');
+  if (branch === 'HEAD') {
+    console.error('✗ 当前处于 detached HEAD，请先 checkout 到发布分支');
+    process.exit(1);
+  }
+
+  const originUrl = sh('git remote get-url origin');
+
+  // ---------- 打印发版摘要 ----------
+  console.log('────────────────────────────────────────');
+  console.log(`  目标:      ${target}`);
+  console.log(`  当前版本:  ${currentVersion}`);
+  console.log(`  发布版本:  ${tag}`);
+  console.log(`  分支:      ${branch}`);
+  console.log(`  远程:      ${originUrl}`);
+  console.log('────────────────────────────────────────');
+  if (notesChanged) console.log('  notes:     将从 ReleaseNote 文件同步进 pkg.json');
+
+  // ---------- tag 状态检测：确认前说明将删除已有还是新建 ----------
   const existingTag = {
     local: tagExists(tag),
     remote: remoteTagExists(tag),
   };
+  const tagWhere = [
+    existingTag.local ? '本地' : null,
+    existingTag.remote ? 'origin 远程' : null,
+  ].filter(Boolean).join('、');
+
+  if ((existingTag.local || existingTag.remote) && !cfg.overwriteExistingRelease) {
+    console.error(`error: tag "${tag}" already exists`);
+    process.exit(1);
+  }
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
+
+  let needClean = false;
   if (existingTag.local || existingTag.remote) {
-    if (!cfg.overwriteExistingRelease) {
-      console.error(`error: tag "${tag}" already exists`);
-      process.exit(1);
-    }
-    if (!(await confirmTagOverwrite(tag, existingTag))) {
+    console.log(`  tag 状态:  已存在（${tagWhere}）→ 将删除后重打`);
+    const ans = await ask(`⚠ tag ${tag} 已存在（${tagWhere}）。删除后重新打 tag 并推送？[y/N] `);
+    if (ans.trim().toLowerCase() !== 'y') {
       console.log('✗ 已取消，未删除任何 tag，发版中止');
-      process.exitCode = 1;
-      return;
-    }
-  }
-
-  if (mutate) {
-    if (!isWorkingTreeClean()) {
-      console.error('error: working tree not clean — commit or stash before releasing');
+      rl.close();
       process.exit(1);
     }
-
-    const filesToAdd = [];
-
-    // root package.json is the version source of truth for app/sbot —
-    // targeted replace keeps its formatting (blank-line grouping in scripts) intact
-    if (cfg.rootField && rootOutOfSync) {
-      const content = fs.readFileSync(rootPkgPath, 'utf8');
-      const re = new RegExp(`("${cfg.rootField}"\\s*:\\s*")[^"]*(")`);
-      if (re.test(content)) {
-        fs.writeFileSync(rootPkgPath, content.replace(re, `$1${nextVersion}$2`));
-      } else {
-        rootPkg[cfg.rootField] = nextVersion;
-        writeJson(rootPkgPath, rootPkg);
-      }
-      filesToAdd.push('package.json');
-      console.log(`root     : package.json ${cfg.rootField} → ${nextVersion}`);
-    }
-
-    if (pkg && pkg.version !== undefined) {
-      pkg.version = nextVersion;
-      if (releaseNotes.en !== undefined) pkg.releasenoteEn = releaseNotes.en;
-      if (releaseNotes.zh !== undefined) pkg.releasenoteZh = releaseNotes.zh;
-      writeJson(pkgPath, pkg);
-      filesToAdd.push(cfg.pkgJson);
-    }
-
-    // only write tauri.conf.json if it carries a literal version (not "../package.json")
-    if (conf && !confUsesPkgJson && versionChanged) {
-      conf.version = nextVersion;
-      writeJson(confPath, conf);
-      filesToAdd.push(cfg.tauriConf);
-    }
-
-    for (const c of companions) {
-      if (c.outOfSync) {
-        c.json.version = nextVersion;
-        writeJson(c.path, c.json);
-        filesToAdd.push(c.rel);
-        console.log(`companion: bumped ${c.rel} → ${nextVersion}`);
-      }
-    }
-
-    const commitMsg = versionChanged
-      ? `chore(${target}): release v${nextVersion}`
-      : notesChanged
-        ? `chore(${target}): sync release notes for v${nextVersion}`
-        : `chore(${target}): sync companion versions for v${nextVersion}`;
-
-    run(`git add ${filesToAdd.map((f) => `"${f}"`).join(' ')}`);
-    run(`git commit -m "${commitMsg}"`);
+    needClean = true;
+  } else {
+    console.log('  tag 状态:  新建');
+    await ask('回车确认发版，Ctrl+C 取消...');
   }
 
-  if (existingTag.local || existingTag.remote) {
-    deleteExistingTag(tag, existingTag);
+  // ---------- 确认通过后才执行写操作 ----------
+  try {
+    if (mutate) {
+      if (!isWorkingTreeClean()) {
+        console.error('✗ 工作区有未提交改动，请先 commit 或 stash 后再发版');
+        process.exit(1);
+      }
+
+      const filesToAdd = [];
+
+      // root package.json is the version source of truth for app/sbot —
+      // targeted replace keeps its formatting (blank-line grouping in scripts) intact
+      if (cfg.rootField && rootOutOfSync) {
+        const content = fs.readFileSync(rootPkgPath, 'utf8');
+        const re = new RegExp(`("${cfg.rootField}"\\s*:\\s*")[^"]*(")`);
+        if (re.test(content)) {
+          fs.writeFileSync(rootPkgPath, content.replace(re, `$1${nextVersion}$2`));
+        } else {
+          rootPkg[cfg.rootField] = nextVersion;
+          writeJson(rootPkgPath, rootPkg);
+        }
+        filesToAdd.push('package.json');
+        console.log(`✓ 根 package.json ${cfg.rootField} → ${nextVersion}`);
+      }
+
+      if (pkg && pkg.version !== undefined) {
+        pkg.version = nextVersion;
+        if (releaseNotes.en !== undefined) pkg.releasenoteEn = releaseNotes.en;
+        if (releaseNotes.zh !== undefined) pkg.releasenoteZh = releaseNotes.zh;
+        writeJson(pkgPath, pkg);
+        filesToAdd.push(cfg.pkgJson);
+      }
+
+      // only write tauri.conf.json if it carries a literal version (not "../package.json")
+      if (conf && !confUsesPkgJson && versionChanged) {
+        conf.version = nextVersion;
+        writeJson(confPath, conf);
+        filesToAdd.push(cfg.tauriConf);
+      }
+
+      for (const c of companions) {
+        if (c.outOfSync) {
+          c.json.version = nextVersion;
+          writeJson(c.path, c.json);
+          filesToAdd.push(c.rel);
+          console.log(`✓ companion ${c.rel} → ${nextVersion}`);
+        }
+      }
+
+      const commitMsg = versionChanged
+        ? `chore(${target}): release v${nextVersion}`
+        : notesChanged
+          ? `chore(${target}): sync release notes for v${nextVersion}`
+          : `chore(${target}): sync companion versions for v${nextVersion}`;
+
+      run(`git add ${filesToAdd.map((f) => `"${f}"`).join(' ')}`);
+      run(`git commit -m "${commitMsg}"`);
+    }
+
+    if (needClean) {
+      deleteExistingTag(tag, existingTag);
+      console.log(`✓ 已清理旧 tag ${tag}`);
+    }
+
+    run(`git tag -a "${tag}" -m "${target} v${nextVersion}"`);
+    run('git push');
+    run(`git push origin "${tag}"`);
+
+    console.log('');
+    console.log(`✓ 发版完成！tag ${tag} 已推送 — workflow "${WORKFLOW_NAMES[target]}" 已触发`);
+    rl.close();
+    process.exit(0);
+  } catch (error) {
+    console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
   }
-
-  run(`git tag -a "${tag}" -m "${target} v${nextVersion}"`);
-  run('git push');
-  run(`git push origin "${tag}"`);
-
-  const workflowName = { app: 'Release App', sbot: 'Release sbot', cli: 'Release CLI' }[target] || `Release ${target}`;
-  console.log('');
-  console.log(`✓ pushed tag ${tag} — workflow "${workflowName}" triggered`);
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });

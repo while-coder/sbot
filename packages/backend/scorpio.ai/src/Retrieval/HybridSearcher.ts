@@ -7,8 +7,8 @@ import { IEmbeddingService } from "../Embedding";
  * 自管 SQLite 的混合检索器。
  *
  * 三个独立评分原语 + 一个加权融合 + 一个批量检索：
- *   matchEmbedding(q, t) → embedding cosine（需 embeddingModel）
- *   matchBM25(q, t)      → BM25（基于持久 corpus）
+ *   matchEmbedding(q, t) → max(cos, 0) ∈ [0,1]（需 embeddingModel）
+ *   matchBM25(q, t)      → BM25 归一化 ∈ [0,1]（基于持久 corpus）
  *   match(q, t)          → 上面两路加权融合
  *   search(q, items, toText) → 批量 top-k
  *
@@ -17,10 +17,16 @@ import { IEmbeddingService } from "../Embedding";
  *
  * 文件布局：`<cachePath>/searcher.sqlite`
  *   embeddings(key TEXT PK = 原文, embedding BLOB, created_at)
- *   docs(rowid, key UNIQUE = 原文, text) + docs_fts(text)
+ *   docs(rowid, key UNIQUE = 原文, text = 索引文本) + docs_fts(text)
  *
- * docs / embeddings 都用文本本身当 key —— 同一段 text 在不同语境共享一行，
- * embedding 只算一次，FTS5 行只插一次。
+ * docs / embeddings 都用原文本身当 key —— 同一段 text 在不同语境共享一行，
+ * embedding 只算一次，FTS5 行只插一次。docs.text 是索引文本（CJK 逐字拆开，
+ * 见 indexText），与 key（原文）不同；映射回 item 一律走 key。
+ *
+ * CJK 检索：unicode61 会把连续汉字粘成一个 token，中文查询基本无法命中。
+ * 因此入库时把 CJK 逐字拆开（空格分隔），查询时把 CJK 串转成相邻二字
+ * bigram phrase（OR 连接）—— 相当于对 CJK 做子串召回，且按"命中几个
+ * bigram / 多稀有"排序。
  */
 export interface HybridSearcherOptions {
     /** 持久化目录。searcher.sqlite 落到此目录下。 */
@@ -28,16 +34,16 @@ export interface HybridSearcherOptions {
     embeddingModel?: IEmbeddingService;
     embeddingWeight?: number;
     bm25Weight?: number;
-    /** search() 命中分数阈值，默认 0.05。 */
+    /** search() 命中分数阈值，默认 0.15（≈ embedding cos ≥ 0.25 或有效 BM25 命中）。 */
     minScore?: number;
 }
 
 const DEFAULT_EMB_W = 0.6;
 const DEFAULT_BM25_W = 0.4;
-const DEFAULT_MIN_SCORE = 0.05;
+const DEFAULT_MIN_SCORE = 0.15;
 
-/** BM25 raw → [0,1] 归一化。raw bm25 ∈ ~[-20, 0]，越负越好。 */
-const BM25_NORM_SCALE = 8;
+/** BM25 raw → [0,1] 归一化。raw bm25 ∈ ~[-3(小 corpus) ~ -20(大 corpus), 0]，越负越好。 */
+const BM25_NORM_SCALE = 3;
 
 export class HybridSearcher {
     private readonly embeddingModel?: IEmbeddingService;
@@ -65,7 +71,9 @@ export class HybridSearcher {
     // ── 评分原语 ────────────────────────────────────────────────────────
 
     /**
-     * Embedding cosine 相似度，映射到 [0,1]。
+     * Embedding cosine 相似度，映射到 [0,1]：max(cos, 0)。
+     * 不用 (cos+1)/2 —— 文本 embedding 的 cosine 实际落在 [0,1]，(cos+1)/2
+     * 会把不相关内容也抬到 ~0.5，让 minScore 失去过滤意义。
      * 没 embeddingModel 或调用失败 → 0。
      */
     async matchEmbedding(query: string, text: string): Promise<number> {
@@ -76,7 +84,7 @@ export class HybridSearcher {
                 this.getOrCreateEmbedding(text),
             ]);
             if (!qVec || !tVec) return 0;
-            return (cosineSimilarity(qVec, tVec, vectorNorm(qVec)) + 1) / 2;
+            return Math.max(cosineSimilarity(qVec, tVec, vectorNorm(qVec)), 0);
         } catch {
             return 0;
         }
@@ -133,9 +141,10 @@ export class HybridSearcher {
      *
      * 实现：
      * 1. 把所有 text 同步到 docs/docs_fts（去重；删除已不在的 key）
-     * 2. 一次 FTS5 query 拿候选 + bm25 + snippet
-     * 3. 候选集逐条调 matchEmbedding 补向量分
-     * 4. 加权融合 → 排序 → 截断
+     * 2. 一次 FTS5 query 拿 bm25 + snippet
+     * 3. 所有 item 都算 embedding 分（不做 BM25 候选门控 —— 门控会把
+     *    换说法/同义的纯语义命中挡在门外；调用方规模小，全量算可承受）
+     * 4. 加权融合 → 过滤 minScore → 排序 → 截断
      */
     async search<T>(
         query: string,
@@ -153,11 +162,6 @@ export class HybridSearcher {
 
         const { bm25ByText, snippetByText } = this.ftsBatch(query, limit);
 
-        // BM25 0 命中 → 仍允许所有 item 走 embedding
-        const candidates = bm25ByText.size > 0
-            ? new Set(bm25ByText.keys())
-            : new Set(uniqueTexts);
-
         const useEmb = !!this.embeddingModel;
         const tw = (useEmb ? this.w.emb : 0) + this.w.bm25;
         const ew = tw > 0 && useEmb ? this.w.emb / tw : 0;
@@ -165,7 +169,7 @@ export class HybridSearcher {
 
         const tasks = items.map(async (item, i) => {
             const text = texts[i];
-            if (!text || !candidates.has(text)) return null;
+            if (!text) return null;
             const bm25 = bm25ByText.get(text) ?? 0;
             const emb = useEmb ? await this.matchEmbedding(query, text) : 0;
             return {
@@ -178,9 +182,9 @@ export class HybridSearcher {
             .filter((r): r is NonNullable<typeof r> => r !== null);
 
         return results
+            .filter(r => r.score > this.minScore)
             .sort((a, b) => b.score - a.score)
-            .slice(0, limit)
-            .filter(r => r.score > this.minScore);
+            .slice(0, limit);
     }
 
     dispose(): void {
@@ -201,7 +205,6 @@ export class HybridSearcher {
         const fts = buildFtsQuery(query);
         if (!fts) return { bm25ByText, snippetByText };
 
-        const limitN = Math.max(limit * 3, limit);
         const rows = this.db.prepare(`
             SELECT d.key                                       AS key,
                    bm25(docs_fts)                              AS score,
@@ -210,10 +213,11 @@ export class HybridSearcher {
             WHERE docs_fts MATCH @fts
             ORDER BY score
             LIMIT @limit
-        `).all({ fts, limit: limitN }) as Array<{ key: string; score: number; snippet: string }>;
+        `).all({ fts, limit: limit * 3 }) as Array<{ key: string; score: number; snippet: string }>;
         for (const r of rows) {
             bm25ByText.set(r.key, normalizeBm25(r.score));
-            snippetByText.set(r.key, r.snippet);
+            // 索引文本里 CJK 被空格拆开，snippet 展示前拼回去
+            snippetByText.set(r.key, despaceCjk(r.snippet));
         }
         return { bm25ByText, snippetByText };
     }
@@ -222,7 +226,7 @@ export class HybridSearcher {
         this.db.prepare(`
             INSERT INTO docs (key, text) VALUES (?, ?)
             ON CONFLICT(key) DO NOTHING
-        `).run(text, text);
+        `).run(text, indexText(text));
     }
 
     /** docs / docs_fts 与给定 texts 对账：插入新增 + 删除已不在的 key。 */
@@ -234,7 +238,7 @@ export class HybridSearcher {
         `);
         const delByKey = this.db.prepare(`DELETE FROM docs WHERE key = ?`);
         const tx = this.db.transaction(() => {
-            for (const t of seen) upsert.run(t, t);
+            for (const t of seen) upsert.run(t, indexText(t));
             const all = this.db.prepare(`SELECT key FROM docs`).all() as Array<{ key: string }>;
             for (const r of all) {
                 if (!seen.has(r.key)) delByKey.run(r.key);
@@ -273,6 +277,19 @@ export class HybridSearcher {
     }
 
     private initSchema(): void {
+        // v1：docs.text 从「原文」改为「CJK 逐字拆开的索引文本」。
+        // 旧行的 FTS 内容是未拆分形式，ON CONFLICT DO NOTHING 不会重写，
+        // 直接重建 docs/docs_fts（embedding 缓存按原文 key，无需动）。
+        const version = this.db.pragma("user_version", { simple: true }) as number;
+        if (version < 1) {
+            this.db.exec(`
+                DROP TRIGGER IF EXISTS docs_ai;
+                DROP TRIGGER IF EXISTS docs_ad;
+                DROP TRIGGER IF EXISTS docs_au;
+                DROP TABLE IF EXISTS docs_fts;
+                DROP TABLE IF EXISTS docs;
+            `);
+        }
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS embeddings (
                 key        TEXT    PRIMARY KEY,
@@ -304,6 +321,7 @@ export class HybridSearcher {
                 INSERT INTO docs_fts(rowid, text) VALUES (NEW.rowid, NEW.text);
             END;
         `);
+        this.db.pragma(`user_version = 1`);
     }
 }
 
@@ -315,20 +333,56 @@ export class HybridSearcher {
  * - FTS5 MATCH 语法对 `"`、`(`、`*`、`:` 等特殊字符敏感，原始用户字符串直接喂会崩 parser。
  *   每个 token phrase-quote 后再 OR-join，绕过所有特殊字符问题。
  * - 用 OR 而非 AND：长查询里只要一个词没存就归零；OR 让 BM25 按"命中几个 / 多稀有"排序。
- * - `\p{L}` 包含 CJK 字符，中文也能 tokenize。
+ * - 拉丁/数字 token 原样 phrase；CJK 串转成相邻二字 bigram phrase —— unicode61 会把
+ *   连续汉字粘成一个 token，bigram 是内建 tokenizer 下唯一能做 CJK 子串召回的办法
+ *   （trigram 对 1-2 字查询无效，中文查询恰恰多是 2 字）。
  *
  * 返回 null 表示提不出有效 token，调用方应直接当"空查询，0 结果"，不要喂给 SQL。
  */
 function buildFtsQuery(raw: string): string | null {
-    const tokens =
-        raw
-            .match(/[\p{L}\p{N}_]+/gu)
-            ?.map(t => t.trim())
-            .filter(Boolean) ?? [];
-    if (tokens.length === 0) return null;
-    const quoted = tokens.map(t => `"${t.replaceAll('"', "")}"`);
-    return quoted.join(" OR ");
+    // 拉丁/数字 token：把 CJK 段挖掉后按 \p{L}\p{N}_ 提取
+    const latin =
+        raw.replace(CJK_RUN_RE, " ").match(/[\p{L}\p{N}_]+/gu) ?? [];
+
+    // CJK 串 → 相邻二字 bigram phrase："混合检索" → "混 合" OR "合 检" OR "检 索"
+    const phrases: string[] = latin.map(t => `"${t.replaceAll('"', "")}"`);
+    for (const run of raw.match(CJK_RUN_RE) ?? []) {
+        const chars = [...run];
+        for (let i = 0; i < chars.length - 1; i++) {
+            phrases.push(`"${chars[i]} ${chars[i + 1]}"`);
+        }
+    }
+    if (phrases.length === 0) return null;
+    return phrases.join(" OR ");
 }
+
+/**
+ * CJK 范围：汉字（含扩展 A / 兼容区）+ 假名。这些文字在 unicode61 下
+ * 连续出现会粘成一个 token，需要逐字拆开索引。
+ */
+const CJK_RUN_RE = /[぀-ヿ㐀-䶿一-鿿豈-﫿]+/gu;
+
+/** 原文 → 索引文本：CJK 逐字拆开（空格分隔），其余原样。 */
+function indexText(text: string): string {
+    return text.replace(CJK_RUN_RE, run => [...run].join(" "));
+}
+
+/** 索引文本（或其 snippet）→ 可读文本：去掉相邻 CJK 字间的空格。 */
+function despaceCjk(s: string): string {
+    if (!s.includes("<<")) {
+        return s.replace(CJK_GAP_RE, "$1");
+    }
+    // snippet 高亮标记 << >> 视为透明：混 <<合>> 检 索 → 混<<合>>检 索
+    const L = "\u0001", R = "\u0002";
+    return s.replaceAll("<<", L).replaceAll(">>", R)
+        .replace(/([\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff])\s+(?=\u0001[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff])/gu, "$1") // 汉 <<汉
+        .replace(/([\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff])\u0002\s+(?=[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff])/gu, "$1\u0002") // 汉>> 汉
+        .replace(CJK_GAP_RE, "$1") // 汉 汉
+        .replaceAll(L, "<<").replaceAll(R, ">>");
+}
+
+/** 「CJK 字 + 空白 + CJK 字」的空隙（despace 用）。 */
+const CJK_GAP_RE = /([\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff])\s+(?=[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff])/gu;
 
 function vectorNorm(v: number[]): number {
     let s = 0;
