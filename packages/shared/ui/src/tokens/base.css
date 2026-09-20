@@ -7,6 +7,7 @@
  */
 
 :root {
+  color-scheme: light;
   /* ── 中性背景 ─────────────────────────────────────────── */
   --sui-bg:            #fff;       /* 主背景（modal-box, .card, .form-group input） */
   --sui-bg-subtle:     #fafaf9;    /* 次背景（.sidebar 选中、.card-list、table th 等） */

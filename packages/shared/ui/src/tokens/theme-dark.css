@@ -5,6 +5,7 @@
  */
 
 html[data-theme="dark"] {
+  color-scheme: dark;   /* isDark 判定依据 + 原生控件跟随主题 */
   /* ── 中性背景 ─────────────────────────────────────────── */
   --sui-bg:            #222;       /* card / modal-box */
   --sui-bg-subtle:     #252525;    /* sidebar active / table th / dropdown / form-details summary / msg-tool-calls */
