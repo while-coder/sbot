@@ -184,6 +184,12 @@ importers:
         specifier: 'catalog:'
         version: 3.5.38(typescript@6.0.3)
 
+  packages/apps/desktop:
+    devDependencies:
+      '@tauri-apps/cli':
+        specifier: 'catalog:'
+        version: 2.11.2
+
   packages/apps/docs:
     devDependencies:
       vitepress:

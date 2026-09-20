@@ -1,7 +1,7 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
-import { config, isDev } from '../Core/Config';
+import { config, isDev, envHttpPort } from '../Core/Config';
 import { ACPAgentPool } from '../Agent/ACPAgentPool';
 import { SkillHubService } from '../SkillHub';
 import { AgentStoreService } from '../AgentStore';
@@ -83,7 +83,8 @@ class HttpServer {
     }
 
     async start() {
-        const port = isDev ? 5510 : config.getHttpPort();
+        // 环境变量端口覆盖（桌面启动器注入）优先；其次 dev 固定 5510 避开生产端口
+        const port = envHttpPort() ?? (isDev ? 5510 : config.getHttpPort());
         const app = express();
         app.use(express.json());
 
@@ -142,7 +143,9 @@ class HttpServer {
         ptyService.attach(server);
         channelManager.registerService(WEB_CHANNEL_ID, webService);
 
-        server.listen(port, () => {
+        // 桌面启动器等场景可通过 SBOT_HTTP_HOST 限定绑定地址；默认不传，保持绑全部网卡
+        const host = process.env.SBOT_HTTP_HOST || undefined;
+        server.listen(port, host, () => {
             logger.info(`HTTP server started, admin UI available at: http://127.0.0.1:${port}`);
         });
 

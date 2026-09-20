@@ -28,7 +28,7 @@ const TARGETS = {
     rootField: 'appVersion',
     tauriConf: 'packages/apps/client/src-tauri/tauri.conf.json',
     pkgJson: 'packages/apps/client/package.json',
-    companionPkgJsons: ['packages/apps/sbot-vscode/package.json'],
+    companionPkgJsons: ['packages/apps/sbot-vscode/package.json', 'packages/apps/desktop/package.json'],
     overwriteExistingRelease: true,
   },
   sbot: {

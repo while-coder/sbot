@@ -53,6 +53,69 @@ jobs:
       release-body: ${{ needs.check.outputs.notes }}
     secrets: inherit
 
+  # 桌面启动器（捆绑 Node + sbot 后端）：不能复用外部 reusable workflow——
+  # 它没有 build-command 钩子且 macOS 固定 universal target，与单架构 node sidecar 冲突
+  release-desktop-launcher:
+    needs: [check, prepare-release]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: macos-13, target: x86_64-apple-darwin }
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: while-coder/workflows/.github/actions/setup-pnpm@main
+
+      # 主版本必须与 packages/apps/desktop/scripts/versions.json 一致（原生模块 ABI 匹配）
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/apps/desktop/src-tauri
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf libssl-dev
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build sbot backend bundle
+        run: pnpm run build:sbot
+
+      - name: Build desktop launcher
+        run: pnpm --filter @sbot/desktop run build
+
+      # MVP 用 ad-hoc 签名保证嵌套 Mach-O 有效；Developer ID 签名 + 公证待后续接入
+      - name: Sign bundled node (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          for f in packages/apps/desktop/src-tauri/binaries/node-*; do
+            codesign --force --options runtime --sign - "$f"
+          done
+
+      - name: Upload bundles to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+        shell: bash
+        run: |
+          DIR="packages/apps/desktop/src-tauri/target/release/bundle"
+          FILES=$(find "$DIR" -type f \( -name "*-setup.exe" -o -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" \))
+          echo "Uploading:"; echo "$FILES"
+          [ -n "$FILES" ] && gh release upload "$TAG" $FILES -R "$REPO" --clobber
+
   release-android:
     needs: [check, release-desktop]
     if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}

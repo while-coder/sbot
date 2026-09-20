@@ -42,6 +42,12 @@
     "build:app:windows": "pnpm run build:deps && pnpm --filter @sbot/client run windows:build",
     "build:app:linux": "pnpm run build:deps && pnpm --filter @sbot/client run linux:build",
 
+    "debug:desktop": "pnpm run build:deps && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run debug && pnpm --filter @sbot/desktop run dev",
+    "build:desktop": "pnpm run build:sbot && pnpm --filter @sbot/desktop run build",
+    "build:desktop:windows": "pnpm run build:desktop",
+    "build:desktop:macos": "pnpm run build:desktop",
+    "build:desktop:linux": "pnpm run build:desktop",
+
     "init:app:android": "pnpm --filter @sbot/client run android:init",
     "debug:app:android": "pnpm --filter @sbot/client run android:dev",
     "build:app:android": "pnpm run build:deps && pnpm --filter @sbot/client run android:build",

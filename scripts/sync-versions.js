@@ -17,7 +17,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
 const TARGETS = [
-  { field: 'appVersion', files: ['packages/apps/client/package.json', 'packages/apps/sbot-vscode/package.json'] },
+  { field: 'appVersion', files: ['packages/apps/client/package.json', 'packages/apps/sbot-vscode/package.json', 'packages/apps/desktop/package.json'] },
   { field: 'sbotVersion', files: ['packages/backend/sbot/package.json'] },
 ];
 

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "启动器 splash 页所需的最小权限：监听后端状态事件",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

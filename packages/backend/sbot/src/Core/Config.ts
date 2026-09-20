@@ -11,6 +11,14 @@ export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, S
 export type { TunnelConfig } from "@sbot/shared";
 
 export const isDev = process.env.NODE_ENV === 'development';
+
+/**
+ * session-only 端口覆盖（桌面启动器注入），优先级最高，绝不写入 settings.json
+ */
+export function envHttpPort(): number | undefined {
+  const p = Number.parseInt(process.env.SBOT_HTTP_PORT ?? '', 10);
+  return Number.isInteger(p) && p > 0 && p < 65536 ? p : undefined;
+}
 export type { AgentSourceEntry } from "@sbot/shared";
 
 /**
@@ -505,7 +513,7 @@ class Config {
   }
 
   getHttpPort(): number {
-    return this._settings.httpPort ?? DEFAULT_PORT;
+    return envHttpPort() ?? this._settings.httpPort ?? DEFAULT_PORT;
   }
 
   setHttpPort(port: number): void {

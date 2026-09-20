@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SBot</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="logo">SBot</div>
+    <div id="state">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="message">正在启动…</p>
+    </div>
+    <pre id="log" hidden></pre>
+  </div>
+
+  <script>
+    const messageEl = document.getElementById('message');
+    const stateEl = document.getElementById('state');
+    const logEl = document.getElementById('log');
+
+    function onStatus(payload) {
+      if (!payload || !payload.state) return;
+      if (payload.message) messageEl.textContent = payload.message;
+      if (payload.state === 'failed') {
+        stateEl.classList.add('failed');
+        if (payload.log) {
+          logEl.hidden = false;
+          logEl.textContent = payload.log;
+        }
+      }
+    }
+
+    if (window.__TAURI__) {
+      window.__TAURI__.event.listen('sbot://status', (event) => onStatus(event.payload));
+    }
+  </script>
+</body>
+</html>

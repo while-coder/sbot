@@ -1,0 +1,15 @@
+{
+  "name": "@sbot/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "description": "SBot desktop launcher: starts the bundled sbot backend and loads its built-in web UI",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "assemble": "node scripts/assemble.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "catalog:"
+  }
+}
