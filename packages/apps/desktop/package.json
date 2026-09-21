@@ -2,14 +2,24 @@
   "name": "@sbot/desktop",
   "version": "0.0.1",
   "private": true,
-  "description": "SBot desktop launcher: starts the bundled sbot backend and loads its built-in web UI",
+  "description": "SBot desktop: bundled sbot backend with a native Codex-style UI",
+  "type": "module",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
     "build": "tauri build",
     "assemble": "node scripts/assemble.mjs"
   },
+  "dependencies": {
+    "@sbot/chat-ui": "workspace:*",
+    "@sbot/ui": "workspace:*",
+    "@tauri-apps/api": "^2.11.0"
+  },
   "devDependencies": {
-    "@tauri-apps/cli": "catalog:"
+    "@tauri-apps/cli": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vue": "catalog:"
   }
 }

@@ -2,3 +2,4 @@ src-tauri/target
 src-tauri/resources
 src-tauri/binaries
 src-tauri/gen
+node_modules

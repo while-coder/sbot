@@ -4,9 +4,10 @@
   "version": "../package.json",
   "identifier": "com.while.sbot.desktop",
   "build": {
-    "frontendDist": "../ui",
-    "beforeDevCommand": "node scripts/dev-prep.mjs",
-    "beforeBuildCommand": "node scripts/assemble.mjs"
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1520",
+    "beforeDevCommand": "node scripts/dev-prep.mjs && pnpm vite dev --port 1520 --strictPort",
+    "beforeBuildCommand": "pnpm vite build && node scripts/assemble.mjs"
   },
   "app": {
     "withGlobalTauri": true,

@@ -1,6 +1,6 @@
 import express from 'express';
 import { randomUUID } from 'crypto';
-import { setMaxImageSize } from 'scorpio.ai';
+import { setMaxImageSize, ModelServiceFactory, type ModelConfig } from 'scorpio.ai';
 import {
     llmProviderRegistry,
     getLLMInfo,
@@ -67,6 +67,26 @@ export class SettingsRoutes {
             const { provider, model } = req.body as { provider?: string; model?: string };
             if (!model) throwBad('model is required');
             return getLLMInfo(String(model), provider);
+        }));
+
+        // 模型连通性测试：用当前提交的配置（可未保存）发一次最小请求，纯探测、不缓存不落盘
+        app.post('/api/models/test', api(async req => {
+            const cfg = req.body as ModelConfig;
+            if (!cfg?.model) throwBad('model is required');
+            const service = ModelServiceFactory.getModelService(cfg);
+            try {
+                const t0 = Date.now();
+                const reply = await service.invoke('ping', {
+                    signal: AbortSignal.timeout(30_000),
+                });
+                return {
+                    ok: true,
+                    latencyMs: Date.now() - t0,
+                    preview: (typeof reply.content === 'string' ? reply.content : '').slice(0, 120),
+                };
+            } finally {
+                await service.dispose();
+            }
         }));
 
         app.post('/api/embeddings/available', api(() => listCatalogModels()));

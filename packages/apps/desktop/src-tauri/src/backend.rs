@@ -1,5 +1,5 @@
-//! sbot 后端生命周期管理（启动器唯一的功能模块）：
-//! 启动时探测/拉起本地 sbot 服务，就绪后把窗口导航到内置 webui，退出时优雅回收。
+//! sbot 后端生命周期管理：
+//! 启动时探测/拉起本地 sbot 服务，状态通过事件 + 快照双通道提供给前端，退出时优雅回收。
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use serde_json::json;
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// 与 packages/shared/shared/src/settings.ts 的 DEFAULT_PORT 保持一致
@@ -26,19 +26,77 @@ pub struct Backend {
     child: Mutex<Option<Child>>,
 }
 
-/// setup 阶段调用：起线程完成后端探测/拉起，不阻塞事件循环（splash 窗口保持可绘制）
+/// 后端状态快照：事件推送（sbot://status）与查询（get_backend_info）双保险的数据源
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendState {
+    pub phase: String,
+    pub port: Option<u16>,
+    pub owned: bool,
+    pub base_url: String,
+    pub message: String,
+    pub log: Option<String>,
+}
+
+impl BackendState {
+    pub fn starting() -> Self {
+        Self {
+            phase: "starting".into(),
+            port: None,
+            owned: false,
+            base_url: String::new(),
+            message: "正在启动…".into(),
+            log: None,
+        }
+    }
+}
+
+/// 更新状态快照并广播事件（前端先订阅再查询，无论谁先到达都不丢状态）
+fn update_state(
+    app: &AppHandle,
+    phase: &str,
+    port: Option<u16>,
+    owned: bool,
+    message: &str,
+    log: Option<String>,
+) {
+    let state = BackendState {
+        phase: phase.into(),
+        port,
+        owned,
+        base_url: port.map(|p| format!("http://127.0.0.1:{p}")).unwrap_or_default(),
+        message: message.into(),
+        log,
+    };
+    if let Some(mutex) = app.try_state::<Mutex<BackendState>>() {
+        *mutex.lock().unwrap() = state.clone();
+    }
+    let _ = app.emit("sbot://status", &state);
+}
+
+/// get_backend_info 命令：返回当前状态快照
+pub fn get_backend_info(app: &AppHandle) -> BackendState {
+    app.try_state::<Mutex<BackendState>>()
+        .map(|m| m.lock().unwrap().clone())
+        .unwrap_or_else(BackendState::starting)
+}
+
+/// setup 阶段调用：起线程完成后端探测/拉起，不阻塞事件循环（前端显示 SplashGate）
 pub fn start_async(app: AppHandle) {
     std::thread::spawn(move || match start_backend(&app) {
         Ok(backend) => {
             INSTANCES.lock().unwrap().push(backend.clone());
             let port = backend.port;
-            if let Err(err) = navigate_to_webui(&app, port) {
-                emit_status(&app, "failed", &format!("无法打开管理界面：{err}"), None);
-            }
+            let message = if backend.owned {
+                format!("已启动 sbot 服务（端口 {port}）")
+            } else {
+                format!("已连接本机 sbot 服务（端口 {port}）")
+            };
+            update_state(&app, "ready", Some(port), backend.owned, &message, None);
         }
         Err(message) => {
             eprintln!("[sbot-desktop] backend start failed: {message}");
-            emit_status(&app, "failed", &message, None);
+            update_state(&app, "failed", None, false, &message, None);
         }
     });
 }
@@ -53,9 +111,16 @@ pub fn shutdown_all() {
 fn start_backend(app: &AppHandle) -> Result<Arc<Backend>, String> {
     let no_reuse = std::env::var("SBOT_DESKTOP_NO_REUSE").ok().is_some_and(|v| v != "0");
     if !no_reuse {
-        emit_status(app, "starting", "正在探测本机 sbot 服务…", None);
+        update_state(app, "starting", None, false, "正在探测本机 sbot 服务…", None);
         if let Some(port) = detect_existing() {
-            emit_status(app, "reusing", &format!("已连接本机 sbot 服务（端口 {port}）"), None);
+            update_state(
+                app,
+                "reusing",
+                Some(port),
+                false,
+                &format!("已连接本机 sbot 服务（端口 {port}）"),
+                None,
+            );
             return Ok(Arc::new(Backend {
                 port,
                 owned: false,
@@ -65,7 +130,14 @@ fn start_backend(app: &AppHandle) -> Result<Arc<Backend>, String> {
     }
 
     let port = free_port().map_err(|e| format!("分配空闲端口失败：{e}"))?;
-    emit_status(app, "starting", &format!("正在启动 sbot 服务（端口 {port}）…"), None);
+    update_state(
+        app,
+        "starting",
+        None,
+        false,
+        &format!("正在启动 sbot 服务（端口 {port}）…"),
+        None,
+    );
 
     let (child, stderr_tail) = spawn_backend(app, port)?;
     let backend = Arc::new(Backend {
@@ -326,19 +398,6 @@ fn is_sbot_response(resp: &str) -> bool {
     status_ok && resp.contains("sbot")
 }
 
-fn navigate_to_webui(app: &AppHandle, port: u16) -> Result<(), String> {
-    let url: tauri::Url = format!("http://127.0.0.1:{port}/webui/")
-        .parse()
-        .map_err(|e| format!("URL 解析失败：{e}"))?;
-    let win = app
-        .get_webview_window("main")
-        .ok_or("主窗口不存在")?;
-    win.navigate(url).map_err(|e| format!("页面导航失败：{e}"))
-}
-
-fn emit_status(app: &AppHandle, state: &str, message: &str, log: Option<String>) {
-    let _ = app.emit("sbot://status", json!({ "state": state, "message": message, "log": log }));
-}
 
 impl Backend {
     /// 退出回收（仅 owned 实例）：POST /api/shutdown 优雅关停 → 信号 → 强杀，逐级升级
