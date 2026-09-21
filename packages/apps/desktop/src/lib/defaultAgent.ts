@@ -2,7 +2,7 @@ import { api } from './api'
 
 /**
  * 桌面端「内置助手」：聊天窗口仅在这些固定 agent 之间切换。
- * 每次启动 upsert：不存在则创建；已存在则把 name / systemPrompt 重置为内置内容
+ * 每次启动 upsert：不存在则创建；已存在则把 name / mcp / systemPrompt 重置为内置内容
  * （model 等其余字段保留用户设置）。
  */
 
@@ -51,6 +51,14 @@ export const BUILTIN_AGENTS: BuiltinAgentDef[] = [
 
 export const BUILTIN_AGENT_IDS = BUILTIN_AGENTS.map(a => a.id)
 
+/** 内置助手固定挂载的 MCP 工具（每次启动强制，覆盖用户改动） */
+export const BUILTIN_AGENT_MCPS = [
+  'builtin_command',
+  'builtin_filesystem',
+  'builtin_exa',
+  'builtin_webfetch',
+]
+
 interface AgentListItem {
   id: string
   name?: string
@@ -61,7 +69,7 @@ interface AgentListItem {
 }
 
 /**
- * 确保所有内置助手存在且 name / systemPrompt 为内置内容（model 等其余字段保留用户设置）。
+ * 确保所有内置助手存在且 name / mcp / systemPrompt 为内置内容（model 等其余字段保留用户设置）。
  * 无可用模型时跳过（Onboarding 阶段），等模型配置好后由 modelsEmpty watch / 重启重试。
  */
 export async function ensureBuiltinAgents(): Promise<void> {
@@ -84,15 +92,17 @@ export async function ensureBuiltinAgents(): Promise<void> {
           name: def.name,
           type: 'single',
           model,
+          mcp: BUILTIN_AGENT_MCPS,
           systemPrompt: def.prompt,
         })
         continue
       }
 
-      // saveAgent 是整体替换：全字段带回，name 与 systemPrompt 强制为内置内容（model 等保留用户设置）
+      // saveAgent 是整体替换：全字段带回，name / mcp / systemPrompt 强制为内置内容（model 等保留用户设置）
       await api.put(`/api/agents/${def.id}`, {
         ...existing,
         name: def.name,
+        mcp: BUILTIN_AGENT_MCPS,
         systemPrompt: def.prompt,
       })
     }

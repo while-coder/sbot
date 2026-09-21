@@ -5,7 +5,7 @@ import {
 } from '@sbot/ui'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
-import { BUILTIN_AGENTS } from '../../../lib/defaultAgent'
+import { BUILTIN_AGENTS, BUILTIN_AGENT_MCPS } from '../../../lib/defaultAgent'
 import { useToast } from '@sbot/ui'
 import { themeMode } from '../../../theme/theme'
 import type { ThemeMode } from '../../../theme/theme'
@@ -109,6 +109,7 @@ async function saveBuiltinAgents(): Promise<void> {
         ...entry,
         name: def.name,
         model,
+        mcp: BUILTIN_AGENT_MCPS,
         systemPrompt: def.prompt,
       })
     } else {
@@ -117,6 +118,7 @@ async function saveBuiltinAgents(): Promise<void> {
         name: def.name,
         type: 'single',
         model,
+        mcp: BUILTIN_AGENT_MCPS,
         systemPrompt: def.prompt,
       })
     }
