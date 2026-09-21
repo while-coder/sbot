@@ -180,7 +180,7 @@ fn candidate_ports() -> Vec<u16> {
 }
 
 /// 与 packages/backend/sbot/src/Core/Config.ts 对齐：dev 模式配置目录为 ~/.sbot-dev
-fn sbot_config_dir() -> Option<PathBuf> {
+pub fn sbot_config_dir() -> Option<PathBuf> {
     let home = home_dir()?;
     let dir = if cfg!(debug_assertions) { ".sbot-dev" } else { ".sbot" };
     Some(home.join(dir))

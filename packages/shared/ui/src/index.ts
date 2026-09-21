@@ -60,7 +60,7 @@ export {
   SBadge, STag, STagInput, STagFilter, SChip, SCheckCard, SSwitch, STabBar, STab,
   STree, STreeNode,
 }
-export type { STableColumn } from './components/STable.vue'
+export type { STableColumn } from './components/STable.types'
 
 export { useToast } from './composables/useToast'
 export { useTheme, isDark } from './composables/useTheme'

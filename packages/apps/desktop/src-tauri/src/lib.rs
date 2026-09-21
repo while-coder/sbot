@@ -1,4 +1,4 @@
-//! SBot Desktop：自动拉起/复用本地 sbot 后端，原生 Codex 风格 UI + 原生菜单 + 独立设置窗口
+//! SBot Desktop：自动拉起/复用本地 sbot 后端，原生 Codex 风格 UI + 原生菜单（设置为主窗口内 modal）
 
 mod backend;
 
@@ -10,49 +10,13 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 
-// ── 设置窗口初始页：窗口创建前写入，前端挂载时 invoke 取走（避免事件早于监听的竞态） ──
+// ── 设置：主窗口内 modal 呈现，菜单只负责广播打开事件（page 可选定位到某分类） ──
 
-static SETTINGS_INITIAL_PAGE: Mutex<Option<String>> = Mutex::new(None);
-
-fn open_settings_window_impl(app: &tauri::AppHandle, page: Option<String>) -> Result<(), String> {
-    // 已存在：切页 + 聚焦
-    if let Some(win) = app.get_webview_window("settings") {
-        if let Some(page) = &page {
-            let _ = app.emit_to(
-                "settings",
-                "settings://navigate",
-                serde_json::json!({ "page": page }),
-            );
-        }
-        let _ = win.show();
-        let _ = win.set_focus();
-        return Ok(());
-    }
-    // 不存在：记录初始页 → 创建窗口（前端挂载时 invoke get_settings_initial_page 取走）
-    *SETTINGS_INITIAL_PAGE.lock().unwrap() = page;
-    let url = tauri::WebviewUrl::App("index.html".into());
-    let win = tauri::WebviewWindowBuilder::new(app, "settings", url)
-        .title("设置")
-        .inner_size(980.0, 640.0)
-        .min_inner_size(720.0, 484.0)
-        .build()
-        .map_err(|e| format!("打开设置窗口失败：{e}"))?;
-    let _ = win.show();
-    let _ = win.set_focus();
-    // Windows/Linux 下 app 级菜单会出现在每个窗口，设置窗口不需要菜单栏
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
-    let _ = win.remove_menu();
-    Ok(())
-}
-
-#[tauri::command]
-fn open_settings_window(app: tauri::AppHandle, page: Option<String>) -> Result<(), String> {
-    open_settings_window_impl(&app, page)
-}
-
-#[tauri::command]
-fn get_settings_initial_page() -> Option<String> {
-    SETTINGS_INITIAL_PAGE.lock().unwrap().take()
+fn open_settings(app: &tauri::AppHandle, page: Option<&str>) {
+    let _ = app.emit(
+        "sbot://open-settings",
+        serde_json::json!({ "page": page }),
+    );
 }
 
 #[tauri::command]
@@ -76,8 +40,21 @@ fn change_zoom(win: Option<&tauri::WebviewWindow>, delta: Option<f64>) {
 
 // ── 帮助菜单动作 ──
 
+/// 菜单动作失败：stderr 记录 + 前端 Toast（Rust 无 UI，错误必须桥接给用户）
+fn notify_error(app: &tauri::AppHandle, message: &str) {
+    eprintln!("[sbot-desktop] {message}");
+    let _ = app.emit(
+        "sbot://toast",
+        serde_json::json!({ "message": message, "type": "error" }),
+    );
+}
+
 fn open_log_dir_impl(app: &tauri::AppHandle) -> Result<(), String> {
-    let dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+    // sbot 日志在配置目录的 logs/ 下（~/.sbot/logs，dev 为 ~/.sbot-dev/logs），
+    // 不是 Tauri 的 app_log_dir
+    let dir = crate::backend::sbot_config_dir()
+        .ok_or("无法定位用户主目录")?
+        .join("logs");
     let _ = std::fs::create_dir_all(&dir);
     app.opener()
         .open_path(dir.to_string_lossy(), None::<&str>)
@@ -86,7 +63,10 @@ fn open_log_dir_impl(app: &tauri::AppHandle) -> Result<(), String> {
 
 fn open_admin_ui_impl(app: &tauri::AppHandle) -> Result<(), String> {
     let info = backend::get_backend_info(&app);
-    let port = info.port.ok_or("sbot 服务尚未就绪")?;
+    let port = info.port.ok_or_else(|| {
+        // 服务没起来（启动失败/仍在启动）：给出用户能懂的原因
+        if info.phase == "failed" { info.message.clone() } else { "sbot 服务尚未就绪，请稍后再试".into() }
+    })?;
     let url = format!("http://127.0.0.1:{port}/webui/");
     app.opener()
         .open_url(url, None::<&str>)
@@ -211,11 +191,7 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
 fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
     let win = focused_window(app).or_else(|| app.get_webview_window("main"));
     match event.id().as_ref() {
-        "menu.settings" => {
-            if let Err(e) = open_settings_window_impl(app, None) {
-                eprintln!("[sbot-desktop] {e}");
-            }
-        }
+        "menu.settings" => open_settings(app, None),
         "menu.reload" => {
             if let Some(win) = win {
                 let _ = win.reload();
@@ -227,19 +203,15 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
         "menu.theme" => {
             let _ = app.emit("sbot://menu", serde_json::json!({ "action": "toggle-theme" }));
         }
-        "menu.about" => {
-            if let Err(e) = open_settings_window_impl(app, Some("about".into())) {
-                eprintln!("[sbot-desktop] {e}");
-            }
-        }
+        "menu.about" => open_settings(app, Some("about")),
         "menu.logs" => {
             if let Err(e) = open_log_dir_impl(app) {
-                eprintln!("[sbot-desktop] {e}");
+                notify_error(app, &e);
             }
         }
         "menu.admin" => {
             if let Err(e) = open_admin_ui_impl(app) {
-                eprintln!("[sbot-desktop] {e}");
+                notify_error(app, &e);
             }
         }
         #[cfg(debug_assertions)]
@@ -254,6 +226,7 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // 二次启动：聚焦已有窗口，后端由首实例管理
             if let Some(win) = app.get_webview_window("main") {
@@ -270,8 +243,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_backend_info,
-            open_settings_window,
-            get_settings_initial_page,
             open_log_dir,
             open_admin_ui,
         ])

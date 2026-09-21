@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { computed, ref } from 'vue'
 import GeneralPage from './pages/GeneralPage.vue'
 import ModelsPage from './pages/ModelsPage.vue'
 import ChannelsPage from './pages/ChannelsPage.vue'
 import AboutPage from './pages/AboutPage.vue'
 
 type PageKey = 'general' | 'models' | 'channels' | 'about'
+
+const props = defineProps<{ initialPage?: PageKey }>()
 
 const NAV: Array<{ key: PageKey; label: string; desc: string }> = [
   { key: 'general', label: '常规', desc: '外观与基础行为' },
@@ -16,33 +16,13 @@ const NAV: Array<{ key: PageKey; label: string; desc: string }> = [
   { key: 'about', label: '关于', desc: '版本与诊断' },
 ]
 
-function parseInitialPage(): PageKey {
-  // 窗口 URL 若带 hash 参数（index.html#/settings?page=models）则直接解析
-  const m = window.location.hash.match(/[?&]page=(\w+)/)
-  return m && NAV.some(n => n.key === m[1]) ? (m[1] as PageKey) : 'general'
-}
-
-const active = ref<PageKey>(parseInitialPage())
-
-// Rust 侧创建窗口时记录的初始页（一次性取走，规避事件早于监听的竞态）
-void invoke<string | null>('get_settings_initial_page')
-  .then((page) => {
-    if (page && NAV.some(n => n.key === page)) active.value = page as PageKey
-  })
-  .catch(() => { /* 命令尚未就绪时忽略，hash 解析已兜底 */ })
-
-const unlistenPromise = listen<{ page?: string }>('settings://navigate', (e) => {
-  const page = e.payload?.page
-  if (page && NAV.some(n => n.key === page)) active.value = page as PageKey
-})
-
-onUnmounted(() => void unlistenPromise.then(unlisten => unlisten()))
+const active = ref<PageKey>(props.initialPage ?? 'general')
+const activeInfo = computed(() => NAV.find(n => n.key === active.value) ?? NAV[0])
 </script>
 
 <template>
   <div class="settings-app">
     <aside class="nav">
-      <div class="nav-title">设置</div>
       <button
         v-for="item in NAV"
         :key="item.key"
@@ -51,51 +31,46 @@ onUnmounted(() => void unlistenPromise.then(unlisten => unlisten()))
         type="button"
         @click="active = item.key"
       >
-        <span class="nav-label">{{ item.label }}</span>
-        <span class="nav-desc">{{ item.desc }}</span>
+        {{ item.label }}
       </button>
     </aside>
 
     <main class="content">
-      <GeneralPage v-show="active === 'general'" />
-      <ModelsPage v-show="active === 'models'" />
-      <ChannelsPage v-show="active === 'channels'" />
-      <AboutPage v-show="active === 'about'" />
+      <header class="content-head">
+        <h3>{{ activeInfo.label }}</h3>
+        <p>{{ activeInfo.desc }}</p>
+      </header>
+      <div class="pages">
+        <GeneralPage v-show="active === 'general'" />
+        <ModelsPage v-show="active === 'models'" />
+        <ChannelsPage v-show="active === 'channels'" />
+        <AboutPage v-show="active === 'about'" />
+      </div>
     </main>
   </div>
 </template>
 
 <style scoped>
 .settings-app {
-  height: 100vh;
+  height: 100%;
   display: flex;
   overflow: hidden;
-  background: var(--sui-bg, #fff);
   color: var(--sui-fg, #1f2328);
 }
 .nav {
-  width: 200px;
+  width: 160px;
   flex-shrink: 0;
-  padding: 16px 10px;
+  padding: 12px 10px;
   border-right: 1px solid var(--sui-border, #e5e7eb);
-  background: var(--sui-bg-subtle, #f6f7f8);
   display: flex;
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
 }
-.nav-title {
-  font-size: 15px;
-  font-weight: 700;
-  padding: 0 10px 12px;
-}
 .nav-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
+  padding: 7px 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -107,18 +82,33 @@ onUnmounted(() => void unlistenPromise.then(unlisten => unlisten()))
 }
 .nav-item.active {
   background: var(--sui-bg-active, #e0e2e6);
-}
-.nav-label {
   font-weight: 600;
-}
-.nav-desc {
-  font-size: 11px;
-  color: var(--sui-fg-muted, #8a8f98);
 }
 .content {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
   display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.content-head {
+  flex-shrink: 0;
+  padding: 18px 24px 10px;
+}
+.content-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sui-fg, #1f2328);
+}
+.content-head p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--sui-fg-muted, #8a8f98);
+}
+.pages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 </style>

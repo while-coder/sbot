@@ -61,6 +61,35 @@
       "cwd": "${workspaceFolder}/packages/apps/client"
     },
     {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "Launch SBot Desktop",
+      // 需要先有 sbot debug 产物（跑过 pnpm run debug:sbot），
+      // 缺失时 SplashGate 会显示错误与提示
+      "command": "pnpm dev",
+      "cwd": "${workspaceFolder}/packages/apps/desktop"
+    },
+    {
+      // Rust 断点调试需要 CodeLLDB 扩展 (vadimcn.vscode-lldb)；
+      // 前端调试用 dev 模式菜单「视图 → 开发者工具」
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug SBot Desktop (Rust)",
+      "cargo": {
+        "args": [
+          "build",
+          "--no-default-features",
+          "--manifest-path=${workspaceFolder}/packages/apps/desktop/src-tauri/Cargo.toml"
+        ],
+        "filter": {
+          "name": "sbot-desktop",
+          "kind": ["bin"]
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}/packages/apps/desktop/src-tauri"
+    },
+    {
       "name": "Launch AdminUI",
       "type": "pwa-chrome",
       "request": "launch",

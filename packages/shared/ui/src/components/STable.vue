@@ -1,14 +1,6 @@
 <script lang="ts">
-export type STableColumn = {
-  key: string
-  label?: string
-  slot?: string
-  ellipsis?: boolean
-  primary?: boolean
-  ops?: boolean
-  width?: string
-  align?: 'left' | 'right' | 'center'
-}
+import type { STableColumn } from './STable.types'
+export type { STableColumn }
 </script>
 
 <script setup lang="ts" generic="T extends Record<string, any>">

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ChatView, ChatEventType, WebSocketTransport } from '@sbot/chat-ui'
 import type { ChatEvent, IChatTransport } from '@sbot/chat-ui'
-import { useToast } from '@sbot/ui'
+import { SModal, useToast } from '@sbot/ui'
 import SplashGate from './SplashGate.vue'
 import OnboardingCard from './OnboardingCard.vue'
+import SettingsApp from './settings/SettingsApp.vue'
 import { backend } from '../lib/backend'
 import { api } from '../lib/api'
 
@@ -49,8 +49,25 @@ watch(ready, (isReady) => {
 }, { immediate: true })
 
 function openModelsSettings(): void {
-  void invoke('open_settings_window', { page: 'models' })
+  openSettings('models')
 }
+
+// ── 设置 modal：菜单/引导卡统一入口（Rust 菜单广播 sbot://open-settings） ──
+
+type SettingsPage = 'general' | 'models' | 'channels' | 'about'
+
+const settingsOpen = ref(false)
+const settingsPage = ref<SettingsPage>('general')
+
+function openSettings(page: SettingsPage): void {
+  settingsPage.value = page
+  settingsOpen.value = true
+}
+
+const unlistenOpenSettings = listen<{ page?: string | null }>('sbot://open-settings', (e) => {
+  const page = e.payload?.page
+  openSettings(page === 'models' || page === 'channels' || page === 'about' || page === 'general' ? page : 'general')
+})
 
 // ── 设置变更 → 等聊天流空闲后重挂 ChatView（ChatView 仅 mount 时拉一次配置） ──
 
@@ -68,7 +85,7 @@ function remountWhenIdle(): void {
     stopIdleWatch()
     return
   }
-  if (!idleTimer) toast.info('配置已更新，将在当前回复完成后应用')
+  if (!idleTimer) toast.show('配置已更新，将在当前回复完成后应用')
 }
 
 const unlistenPromise = listen('sbot://settings-changed', () => {
@@ -81,6 +98,7 @@ const unlistenPromise = listen('sbot://settings-changed', () => {
 onUnmounted(() => {
   stopIdleWatch()
   void unlistenPromise.then((unlisten) => unlisten())
+  void unlistenOpenSettings.then((unlisten) => unlisten())
 })
 </script>
 
@@ -96,6 +114,17 @@ onUnmounted(() => {
       :show-attachments="true"
       layout-mode="auto"
     />
+
+    <SModal
+      v-model:visible="settingsOpen"
+      title="设置"
+      width="xl"
+      draggable
+      :close-on-overlay="false"
+      class="settings-modal"
+    >
+      <SettingsApp :initial-page="settingsPage" />
+    </SModal>
   </div>
 </template>
 
@@ -105,5 +134,20 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+</style>
+
+<style>
+/* SModal teleport 到 body，需用全局样式定制设置 modal：撑高 + 去掉 body 默认内边距 */
+.settings-modal {
+  height: min(86vh, 780px);
+}
+.settings-modal .s-modal-body {
+  padding: 0;
+  display: flex;
+}
+.settings-modal .s-modal-body > * {
+  flex: 1;
+  min-width: 0;
 }
 </style>
