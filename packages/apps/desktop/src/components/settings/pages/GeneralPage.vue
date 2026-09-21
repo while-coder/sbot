@@ -5,6 +5,7 @@ import {
 } from '@sbot/ui'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
+import { BUILTIN_AGENTS } from '../../../lib/defaultAgent'
 import { useToast } from '@sbot/ui'
 import { themeMode } from '../../../theme/theme'
 import type { ThemeMode } from '../../../theme/theme'
@@ -18,11 +19,21 @@ interface GeneralSettings {
   autoCheckUpdate?: boolean
   maxImageSize?: number
   contextFileNames?: string[]
+  models?: Record<string, { name?: string }>
 }
 
 const toast = useToast()
 const loaded = ref(false)
 const saving = ref(false)
+
+// ── 内置助手 ──
+
+const models = ref<Record<string, { name?: string }>>({})
+const builtinModels = ref<Record<string, string>>({})
+
+const modelOptions = computed(() =>
+  Object.entries(models.value).map(([id, m]) => ({ value: id, label: m.name || id })),
+)
 
 const form = ref<Required<Pick<GeneralSettings, 'autoApproveAllTools' | 'autoCheckUpdate'>> & GeneralSettings>({
   httpUrl: '',
@@ -47,6 +58,16 @@ onMounted(async () => {
       maxImageSize: settings.maxImageSize,
       contextFileNames: settings.contextFileNames ?? [],
     }
+    models.value = settings.models ?? {}
+    try {
+      const agents = await api.get<Array<{ id: string; model?: string }>>('/api/agents')
+      const modelById = Object.fromEntries(agents?.map(a => [a.id, a.model ?? '']) ?? [])
+      builtinModels.value = Object.fromEntries(
+        BUILTIN_AGENTS.map(def => [def.id, modelById[def.id] ?? '']),
+      )
+    } catch {
+      // 内置助手尚未创建（如无模型），下拉留空即可
+    }
     loaded.value = true
   } catch (e: any) {
     toast.error(e.message)
@@ -65,12 +86,40 @@ async function save(): Promise<void> {
       maxImageSize: form.value.maxImageSize,
       contextFileNames: form.value.contextFileNames,
     })
+    await saveBuiltinAgents()
     toast.success('已保存')
     emitSettingsChanged()
   } catch (e: any) {
     toast.error(e.message)
   } finally {
     saving.value = false
+  }
+}
+
+/** 保存各内置助手的模型（saveAgent 为整体替换，需取最新条目全字段带回；缺失的当场创建） */
+async function saveBuiltinAgents(): Promise<void> {
+  const changed = BUILTIN_AGENTS.filter(def => builtinModels.value[def.id])
+  if (!changed.length) return
+  const agents = await api.get<Array<Record<string, unknown> & { id: string }>>('/api/agents')
+  for (const def of changed) {
+    const model = builtinModels.value[def.id]
+    const entry = agents?.find(a => a.id === def.id)
+    if (entry) {
+      await api.put(`/api/agents/${def.id}`, {
+        ...entry,
+        name: def.name,
+        model,
+        systemPrompt: def.prompt,
+      })
+    } else {
+      await api.post('/api/agents', {
+        id: def.id,
+        name: def.name,
+        type: 'single',
+        model,
+        systemPrompt: def.prompt,
+      })
+    }
   }
 }
 
@@ -92,6 +141,18 @@ const themeModeValue = computed<ThemeMode>({
       <SFormItem label="主题">
         <SSelect v-model="themeModeValue" :options="themeOptions" class="narrow" />
         <template #hint>更改立即生效，并在主窗口同步</template>
+      </SFormItem>
+    </SFormSection>
+
+    <SFormSection title="内置助手">
+      <SFormItem v-for="def in BUILTIN_AGENTS" :key="def.id" :label="def.name">
+        <SSelect
+          v-model="builtinModels[def.id]"
+          :options="modelOptions"
+          class="narrow"
+          :disabled="!modelOptions.length"
+        />
+        <template #hint>{{ modelOptions.length ? '聊天窗口使用的固定助手，此处为其执行模型' : '请先在「模型」页添加模型' }}</template>
       </SFormItem>
     </SFormSection>
 

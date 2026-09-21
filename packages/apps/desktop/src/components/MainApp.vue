@@ -9,6 +9,7 @@ import OnboardingCard from './OnboardingCard.vue'
 import SettingsApp from './settings/SettingsApp.vue'
 import { backend } from '../lib/backend'
 import { api } from '../lib/api'
+import { BUILTIN_AGENT_IDS, ensureBuiltinAgents } from '../lib/defaultAgent'
 
 const ready = computed(() => backend.phase === 'ready' && !!backend.baseUrl)
 
@@ -45,8 +46,16 @@ async function refreshModelsEmpty(): Promise<void> {
 }
 
 watch(ready, (isReady) => {
-  if (isReady) void refreshModelsEmpty()
+  if (isReady) {
+    void refreshModelsEmpty()
+    void ensureBuiltinAgents()
+  }
 }, { immediate: true })
+
+// 首次启动 models 为空时跳过创建内置助手，配好模型后补建
+watch(modelsEmpty, (isEmpty) => {
+  if (!isEmpty && backend.baseUrl) void ensureBuiltinAgents()
+})
 
 function openModelsSettings(): void {
   openSettings('models')
@@ -113,6 +122,7 @@ onUnmounted(() => {
       :transport="transport"
       :show-attachments="true"
       layout-mode="auto"
+      :builtin-agent-ids="BUILTIN_AGENT_IDS"
     />
 
     <SModal

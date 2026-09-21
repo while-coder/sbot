@@ -27,12 +27,15 @@ const props = withDefaults(defineProps<{
   layoutMode?: ChatLayoutMode
   fixedWorkPath?: string
   workPathLocked?: boolean
+  /** 内置 agent 白名单：仅允许在这些 agent 间切换，非法值一律对齐到第一项；不传则保持原有行为 */
+  builtinAgentIds?: string[]
 }>(), {
   showAttachments: true,
   alwaysCompact: false,
   layoutMode: 'auto',
   fixedWorkPath: '',
   workPathLocked: false,
+  builtinAgentIds: () => [],
 })
 
 const L = computed(() => resolveLabels(props.labels))
@@ -116,13 +119,22 @@ const effectiveWorkPath = computed(() =>
 
 const fetchThinks = computed(() => props.transport.fetchThinks?.bind(props.transport))
 
-const agentOptions = computed(() => [
-  { value: '', label: L.value.useChannelDefault },
-  ...Object.entries(settings.value.agents || {}).map(([id, a]) => ({
-    value: id,
-    label: `${a.name || id}${a.type ? ` (${a.type})` : ''}`,
-  })),
-])
+const agentOptions = computed(() => {
+  if (props.builtinAgentIds.length) {
+    // 内置模式：下拉仅列内置 agent（不含「使用渠道默认值」）
+    return props.builtinAgentIds.map(id => {
+      const a = settings.value.agents?.[id]
+      return { value: id, label: a?.name || id }
+    })
+  }
+  return [
+    { value: '', label: L.value.useChannelDefault },
+    ...Object.entries(settings.value.agents || {}).map(([id, a]) => ({
+      value: id,
+      label: `${a.name || id}${a.type ? ` (${a.type})` : ''}`,
+    })),
+  ]
+})
 
 const saverOptions = computed(() => [
   { value: '', label: L.value.useChannelDefault },
@@ -548,8 +560,11 @@ async function onRenameSession(id: string, name: string) {
 
 async function createNewSession() {
   try {
-    const res = await props.transport.createSession({ name: '' })
+    const res = await props.transport.createSession(
+      props.builtinAgentIds.length ? { name: '', agent: props.builtinAgentIds[0] } : { name: '' },
+    )
     sessions.value = await props.transport.listSessions()
+    if (props.builtinAgentIds.length) void enforceBuiltinAgents(sessions.value)
     activeProfileId.value = res.id
     sidebarOpen.value = false
     settingsOpen.value = false
@@ -594,6 +609,9 @@ async function renameSessionFromFirstMessage(id: string, text: string) {
 async function onUpdateConfig(field: string, value: unknown) {
   const id = activeProfileId.value
   if (!id) return
+  // builtinAgentIds 模式下 agent 只能在白名单内切换（下拉已限制，此处防御本地状态漂移）
+  if (field === 'agent' && props.builtinAgentIds.length
+    && (typeof value !== 'string' || !props.builtinAgentIds.includes(value))) return
   try {
     const wireValue = value === undefined ? null : value
     await props.transport.updateSession(id, { [field]: wireValue } as Partial<SessionItem>)
@@ -692,6 +710,21 @@ async function onClearHistory() {
 
 // ── Lifecycle ──
 
+/** builtinAgentIds 模式：把 agent 不在白名单内的会话（含历史会话、'' 渠道默认）逐个持久化为白名单第一项 */
+async function enforceBuiltinAgents(list: SessionItem[]) {
+  const allowed = props.builtinAgentIds
+  if (!allowed.length) return
+  const fallback = allowed[0]
+  const mismatched = list.filter(x => x.agent == null || !allowed.includes(x.agent))
+  for (const x of mismatched) x.agent = fallback
+  const results = await Promise.allSettled(
+    mismatched.map(x => props.transport.updateSession(x.id, { agent: fallback })),
+  )
+  for (const r of results) {
+    if (r.status === 'rejected') console.error('[ChatView] enforceBuiltinAgents', r.reason)
+  }
+}
+
 onMounted(async () => {
   props.transport.onEvent(handleEvent)
   props.transport.connect()
@@ -703,6 +736,7 @@ onMounted(async () => {
     sessions.value = s
     settings.value = cfg
     if (s.length > 0 && !activeProfileId.value) activeProfileId.value = s[0].id
+    if (props.builtinAgentIds.length) void enforceBuiltinAgents(s)
   } catch (e) {
     console.error('[ChatView] init', e)
   }
