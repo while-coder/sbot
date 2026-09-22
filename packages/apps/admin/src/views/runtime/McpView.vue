@@ -5,7 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { mcpManager } from '@/managers/mcpManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, SNavTab, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STab, STabs, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
@@ -218,17 +218,19 @@ onMounted(load)
       <SButton type="primary" size="sm" @click="openAdd">{{ t('mcp.add') }}</SButton>
     </SPageToolbar>
 
-    <STabBar v-model:active="activeTab">
-      <SNavTab name="all" :count="mcpManager.list.value.length">{{ t('common.all') }}</SNavTab>
-      <SNavTab
-        v-for="src in sources"
-        :key="src"
-        :name="src"
-        :count="mcpManager.list.value.filter(m => m.source === src).length"
-      >{{ src }}</SNavTab>
-      <div class="tab-bar-spacer" />
+    <div class="tab-bar-row">
+      <STabs v-model:value="activeTab" class="tab-bar-tabs">
+        <STab name="all" :count="mcpManager.list.value.length" :tab="t('common.all')" />
+        <STab
+          v-for="src in sources"
+          :key="src"
+          :name="src"
+          :count="mcpManager.list.value.filter(m => m.source === src).length"
+          :tab="src"
+        />
+      </STabs>
       <SInput v-model:value="searchQuery" size="sm" :placeholder="t('mcp.search_placeholder')" class="mcp-search" />
-    </STabBar>
+    </div>
 
     <SPageContent>
       <SEntityTable
@@ -349,7 +351,8 @@ onMounted(load)
 </template>
 
 <style scoped>
-.tab-bar-spacer { flex: 1; }
+.tab-bar-row { display: flex; align-items: center; }
+.tab-bar-tabs { flex: 1; min-width: 0; }
 .mcp-search { width: 220px; }
 .mcp-desc {
   color: var(--sui-fg-muted);

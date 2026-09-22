@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import { SButton, SInput, SSelect, SModal, SFormItem, SFormDetails, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SCollapse, SCollapseItem, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
 import type { EntityTableColumn } from '@sbot/ui-kit'
 import { ModelProvider } from '@/shared/types'
 import type { ModelConfig } from '@/shared/types'
@@ -440,7 +440,8 @@ async function refresh() {
           <template v-if="field.type !== 'boolean' && field.description" #hint>{{ field.description }}</template>
         </SFormItem>
       </template>
-      <SFormDetails :summary="t('models.section_params')" :badge="paramCount || ''" :open="true">
+      <SCollapse :default-expanded-names="['params']">
+      <SCollapseItem :title="t('models.section_params')" :badge="paramCount || ''" name="params">
         <section class="catalog-card" :class="{ 'catalog-card--loading': llmInfoLoading }">
           <div class="catalog-card__head">
             <div>
@@ -576,7 +577,8 @@ async function refresh() {
           </div>
         </div>
         </template>
-      </SFormDetails>
+      </SCollapseItem>
+      </SCollapse>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
         <SButton type="primary" @click="save">{{ t('common.save') }}</SButton>

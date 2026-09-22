@@ -2,7 +2,7 @@
 import { useAttrs } from "vue"
 
 defineOptions({ name: "STabPane", inheritAttrs: false })
-defineProps<{ name?: any; tab?: string | number; active?: boolean; displayDirective?: string; tabId?: string; panelId?: string }>()
+defineProps<{ name?: any; tab?: string | number; count?: string | number; active?: boolean; displayDirective?: string; tabId?: string; panelId?: string }>()
 const attrs = useAttrs()
 </script>
 

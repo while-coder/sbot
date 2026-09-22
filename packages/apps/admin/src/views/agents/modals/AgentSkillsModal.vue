@@ -10,7 +10,7 @@ import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
 import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
-import { SModal, SButton, SInput, STabBar, SNavTab, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 
@@ -196,16 +196,17 @@ defineExpose({ open })
     <SModal v-model:show="visible" :title="`${agentDisplayName} — ${t('agents.skills_title')}`" width="xl">
       <!-- Tab bar（新 SModal 无 toolbar 插槽，内联到默认插槽顶部） -->
       <div class="modal-toolbar" style="padding-bottom:0;margin-bottom:0;border-bottom:none">
-        <STabBar v-model:active="activeTab" style="flex:1;padding:0;border:none;background:transparent">
-          <SNavTab name="all" :count="allGlobalSkills.length">{{ t('common.all') }}</SNavTab>
-          <SNavTab
+        <STabs v-model:value="activeTab" style="flex:1;padding:0;border:none;background:transparent">
+          <STab name="all" :count="allGlobalSkills.length" :tab="t('common.all')" />
+          <STab
             v-for="src in sources"
             :key="src"
             :name="src"
             :count="allGlobalSkills.filter(s => s.source === src).length"
-          >{{ src }}</SNavTab>
-          <SNavTab :name="t('agents.skills_exclusive_tab')" :count="skills.length">{{ t('agents.skills_exclusive_tab') }}</SNavTab>
-        </STabBar>
+            :tab="src"
+          />
+          <STab :name="t('agents.skills_exclusive_tab')" :count="skills.length" :tab="t('agents.skills_exclusive_tab')" />
+        </STabs>
         <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
       </div>
 

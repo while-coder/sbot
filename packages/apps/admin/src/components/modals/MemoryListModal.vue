@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { SButton, SModal, SBadge, SInput, SSelect, STabBar, SNavTab, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SModal, SBadge, SInput, SSelect, STab, STabs, toast, confirm } from '@sbot/ui-kit'
 
 interface MemorySummary {
   slug: string
@@ -363,11 +363,11 @@ defineExpose({ openByMemoryId })
 <template>
   <SModal v-model:show="visible" :title="title" width="xl">
     <div class="memory-viewer">
-      <STabBar v-model:active="tab" class="memory-tabs">
-        <SNavTab name="memories">{{ t('memory_profiles.viewer_memories') }}</SNavTab>
-        <SNavTab name="history">{{ t('memory_profiles.viewer_history') }}</SNavTab>
-        <SNavTab name="jobs">{{ t('memory_profiles.viewer_jobs') }}</SNavTab>
-      </STabBar>
+      <STabs v-model:value="tab" class="memory-tabs">
+        <STab name="memories" :tab="t('memory_profiles.viewer_memories')" />
+        <STab name="history" :tab="t('memory_profiles.viewer_history')" />
+        <STab name="jobs" :tab="t('memory_profiles.viewer_jobs')" />
+      </STabs>
 
       <div v-if="tab === 'memories'" class="memory-tab-pane">
         <div class="memory-tab-toolbar">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SInput, STextarea, SSelect, SFormItem, SMultiSelect, SButton, SFormDetails } from '@sbot/ui-kit'
+import { SInput, STextarea, SSelect, SFormItem, SButton, SCollapse, SCollapseItem } from '@sbot/ui-kit'
 import { ApprovalTimeoutValue, IntentFilterMode } from '@sbot/shared'
 
 export interface DataConfigValue {
@@ -107,6 +107,8 @@ const agendaRefOptions = computed(() => [
   { value: '', label: isProfileMode() ? t('channels.use_channel_default') : t('agents.agenda_disabled') },
   ...props.agendaProfileOptions.map(p => ({ value: p.id, label: p.label })),
 ])
+const noteSelectOptions = computed(() => props.noteOptions.map(o => ({ value: o.id, label: o.label })))
+const wikiSelectOptions = computed(() => props.wikiOptions.map(o => ({ value: o.id, label: o.label })))
 
 const resolvedDefaultOpenSections = computed<DataConfigSection[]>(() =>
   props.defaultOpenSections ?? (isProfileMode() ? ['common'] : ['common', 'resources'])
@@ -270,7 +272,8 @@ function showIntentModelConfig(): boolean {
 
 <template>
   <div class="data-config-editor">
-    <SFormDetails :summary="t('channels.section_common')" :open="isSectionOpen('common')">
+    <SCollapse :default-expanded-names="isSectionOpen('common') ? ['common'] : []">
+    <SCollapseItem :title="t('channels.section_common')" name="common">
 
     <SFormItem :label="t('common.agent')" :hint="inheritLabel('agentId', fmtAgent)">
       <SSelect :value="modelValue.agentId ?? ''" :options="agentSelectOptions" @update:value="v => update('agentId', v === '' ? null : String(v))" />
@@ -279,19 +282,21 @@ function showIntentModelConfig(): boolean {
     <SFormItem :label="t('common.storage')" :hint="inheritLabel('saver', fmtSaver)">
       <SSelect :value="modelValue.saver ?? ''" :options="saverSelectOptions" @update:value="v => update('saver', v === '' ? null : String(v))" />
     </SFormItem>
-    </SFormDetails>
+    </SCollapseItem>
+    </SCollapse>
 
-    <SFormDetails :summary="t('channels.section_resources_workspace')" :badge="resourcesBadge" :open="isSectionOpen('resources')">
+    <SCollapse :default-expanded-names="isSectionOpen('resources') ? ['resources'] : []">
+    <SCollapseItem :title="t('channels.section_resources_workspace')" :badge="resourcesBadge" name="resources">
 
     <SFormItem :label="t('common.note')" :hint="inheritLabel('notes', fmtList)">
-      <SMultiSelect :value="modelValue.notes ?? []" :options="noteOptions" @update:value="v => update('notes', v as string[])" />
+      <SSelect multiple :value="modelValue.notes ?? []" :options="noteSelectOptions" @update:value="v => update('notes', v as string[])" />
       <SFormItem v-if="isProfileMode()" :label="t('channels.use_channel_notes')" :hint="t('channels.use_channel_notes_hint')" class="nested-form-item">
         <SSelect :value="String(!!modelValue.useChannelNotes)" :options="enabledDisabledOptions" @update:value="v => update('useChannelNotes', v === 'true')" />
       </SFormItem>
     </SFormItem>
 
     <SFormItem :label="t('common.wiki')" :hint="inheritLabel('wikis', fmtList)">
-      <SMultiSelect :value="modelValue.wikis ?? []" :options="wikiOptions" @update:value="v => update('wikis', v as string[])" />
+      <SSelect multiple :value="modelValue.wikis ?? []" :options="wikiSelectOptions" @update:value="v => update('wikis', v as string[])" />
       <SFormItem v-if="isProfileMode()" :label="t('channels.use_channel_wikis')" :hint="t('channels.use_channel_wikis_hint')" class="nested-form-item">
         <SSelect :value="String(!!modelValue.useChannelWikis)" :options="enabledDisabledOptions" @update:value="v => update('useChannelWikis', v === 'true')" />
       </SFormItem>
@@ -313,9 +318,11 @@ function showIntentModelConfig(): boolean {
     <SFormItem :label="t('agents.disable_workspace_mcp')" :hint="inheritLabel('disableWorkspaceMcp', fmtInject) || t('agents.disable_workspace_mcp_hint')">
       <SSelect :value="injectSelectValue('disableWorkspaceMcp')" :options="inheritBoolOptions" @update:value="v => updateInject('disableWorkspaceMcp', String(v))" />
     </SFormItem>
-    </SFormDetails>
+    </SCollapseItem>
+    </SCollapse>
 
-    <SFormDetails :summary="t('channels.section_runtime')" :badge="runtimeBadge" :open="isSectionOpen('runtime')">
+    <SCollapse :default-expanded-names="isSectionOpen('runtime') ? ['runtime'] : []">
+    <SCollapseItem :title="t('channels.section_runtime')" :badge="runtimeBadge" name="runtime">
 
     <SFormItem :label="t('channels.stream_verbose')" :hint="inheritLabel('streamVerbose', fmtBool) || t('channels.stream_verbose_hint')">
       <SSelect :value="booleanSelectValue('streamVerbose')" :options="inheritBoolOptions" @update:value="v => updateBool('streamVerbose', String(v))" />
@@ -357,9 +364,11 @@ function showIntentModelConfig(): boolean {
         </SFormItem>
       </template>
     </template>
-    </SFormDetails>
+    </SCollapseItem>
+    </SCollapse>
 
-    <SFormDetails :summary="t('channels.section_automation_memory')" :badge="automationBadge" :open="isSectionOpen('automation')">
+    <SCollapse :default-expanded-names="isSectionOpen('automation') ? ['automation'] : []">
+    <SCollapseItem :title="t('channels.section_automation_memory')" :badge="automationBadge" name="automation">
 
     <SFormItem :label="t('agents.memory_enabled')" :hint="inheritLabel('memory', fmtMemory) || t('agents.memory_hint')">
       <SSelect :value="refSelectValue('memory')" :options="memoryRefOptions" @update:value="v => updateRef('memory', String(v))" />
@@ -368,12 +377,13 @@ function showIntentModelConfig(): boolean {
     <SFormItem :label="t('agents.agenda_enabled')" :hint="inheritLabel('agenda', fmtAgenda) || t('agents.agenda_hint')">
       <SSelect :value="refSelectValue('agenda')" :options="agendaRefOptions" @update:value="v => updateRef('agenda', String(v))" />
     </SFormItem>
-    </SFormDetails>
+    </SCollapseItem>
+    </SCollapse>
   </div>
 </template>
 
 <style scoped>
-.data-config-editor :deep(.s-form-details:first-child) { margin-top: 0; }
+.data-config-editor :deep(.s-collapse:first-child) { margin-top: 0; }
 .path-row {
   display: flex;
   gap: var(--sui-sp-2);

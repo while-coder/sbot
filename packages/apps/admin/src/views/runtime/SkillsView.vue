@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { skillsManager } from '@/managers/skillsManager'
-import { SButton, SInput, STabBar, SNavTab, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, STab, STabs, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
@@ -79,17 +79,19 @@ onMounted(load)
       <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
       <SButton type="primary" size="sm" @click="openAdd">{{ t('skills.add') }}</SButton>
     </SPageToolbar>
-    <STabBar v-model:active="activeTab">
-      <SNavTab name="all" :count="allSkills.length">{{ t('common.all') }}</SNavTab>
-      <SNavTab
-        v-for="src in sources"
-        :key="src"
-        :name="src"
-        :count="allSkills.filter(s => s.source === src).length"
-      >{{ src }}</SNavTab>
-      <div class="tab-bar-spacer" />
+    <div class="tab-bar-row">
+      <STabs v-model:value="activeTab" class="tab-bar-tabs">
+        <STab name="all" :count="allSkills.length" :tab="t('common.all')" />
+        <STab
+          v-for="src in sources"
+          :key="src"
+          :name="src"
+          :count="allSkills.filter(s => s.source === src).length"
+          :tab="src"
+        />
+      </STabs>
       <SInput v-model:value="searchQuery" size="sm" :placeholder="t('skills.search_placeholder')" class="skills-search" />
-    </STabBar>
+    </div>
     <SPageContent>
       <div class="dir-hint-panel">
         {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/skills/</code>
@@ -128,7 +130,8 @@ onMounted(load)
 </template>
 
 <style scoped>
-.tab-bar-spacer { flex: 1; }
+.tab-bar-row { display: flex; align-items: center; }
+.tab-bar-tabs { flex: 1; min-width: 0; }
 .skills-search { width: 220px; }
 .dir-hint-panel {
   margin-bottom: var(--sui-sp-7);

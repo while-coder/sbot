@@ -11,7 +11,7 @@ import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } f
 import { serverAddr } from '@/utils/mcpSchema'
 import { sourceBadgeStyle } from '@/utils/badges'
 import McpToolsModal from '@/components/modals/McpToolsModal.vue'
-import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STabBar, SNavTab, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 
@@ -435,16 +435,17 @@ defineExpose({ open })
     <SModal v-model:show="visible" :title="`${agentDisplayName} — ${t('agents.mcp_title')}`" width="xl">
       <!-- Tab bar（新 SModal 无 toolbar 插槽，内联到默认插槽顶部） -->
       <div class="modal-toolbar" style="padding-bottom:0;margin-bottom:0;border-bottom:none">
-        <STabBar v-model:active="activeTab" style="flex:1;padding:0;border:none;background:transparent">
-          <SNavTab name="all" :count="allGlobalMcps.length">{{ t('common.all') }}</SNavTab>
-          <SNavTab
+        <STabs v-model:value="activeTab" style="flex:1;padding:0;border:none;background:transparent">
+          <STab name="all" :count="allGlobalMcps.length" :tab="t('common.all')" />
+          <STab
             v-for="src in sources"
             :key="src"
             :name="src"
             :count="allGlobalMcps.filter((m: { source?: string }) => m.source === src).length"
-          >{{ src }}</SNavTab>
-          <SNavTab :name="t('agents.mcp_exclusive_tab')" :count="Object.keys(servers).length">{{ t('agents.mcp_exclusive_tab') }}</SNavTab>
-        </STabBar>
+            :tab="src"
+          />
+          <STab :name="t('agents.mcp_exclusive_tab')" :count="Object.keys(servers).length" :tab="t('agents.mcp_exclusive_tab')" />
+        </STabs>
         <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
       </div>
 

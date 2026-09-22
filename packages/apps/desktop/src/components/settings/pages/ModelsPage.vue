@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  SButton, SInput, SSelect, SModal, SFormItem, SFormDetails, SPageToolbar,
+  SButton, SInput, SSelect, SModal, SFormItem, SCollapse, SCollapseItem, SPageToolbar,
   SPageContent, SEntityTable, toast, confirm,
 } from '@sbot/ui-kit'
 import type { EntityTableColumn } from '@sbot/ui-kit'
@@ -256,7 +256,8 @@ const providerOptions = computed(() =>
 
       <SchemaForm :schema="currentSchema" :config="form.config" />
 
-      <SFormDetails summary="参数（可选，留空自动适配）" :open="false">
+      <SCollapse>
+      <SCollapseItem title="参数（可选，留空自动适配）" name="params">
         <SFormItem label="Temperature">
           <SInput v-model:value.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
         </SFormItem>
@@ -269,7 +270,8 @@ const providerOptions = computed(() =>
         <SFormItem label="最大工具数">
           <SInput v-model:value.number="form.maxTools" type="number" step="1" placeholder="不限制" />
         </SFormItem>
-      </SFormDetails>
+      </SCollapseItem>
+      </SCollapse>
 
       <template #footer>
         <SButton type="outline" :loading="testing" @click="testConnection">测试连接</SButton>

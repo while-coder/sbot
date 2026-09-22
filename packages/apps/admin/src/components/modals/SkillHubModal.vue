@@ -5,7 +5,7 @@ import axios from 'axios'
 import { apiFetch } from '@/shared/api'
 import { toast } from '@sbot/ui-kit'
 import { badgeClawhub, badgeSkillssh } from '@/utils/badges'
-import { SModal, SButton, SInput, STabBar, SNavTab, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
 
 interface HubSkillResult {
   id: string
@@ -183,11 +183,11 @@ defineExpose({ open })
   <!-- Skill Hub modal -->
   <SModal v-model:show="visible" :title="title || t('skills.hub_title')" width="xl">
     <div class="modal-toolbar" style="padding-bottom:0;margin-bottom:0;border-bottom:none">
-      <STabBar v-model:active="hubTab" style="padding:0;border:none;background:transparent">
-        <SNavTab name="search">{{ t('skills.search_tab') }}</SNavTab>
-        <SNavTab name="url">{{ t('skills.url_install_tab') }}</SNavTab>
-        <SNavTab name="zip">{{ t('skills.zip_install_tab') }}</SNavTab>
-      </STabBar>
+      <STabs v-model:value="hubTab" style="padding:0;border:none;background:transparent">
+        <STab name="search" :tab="t('skills.search_tab')" />
+        <STab name="url" :tab="t('skills.url_install_tab')" />
+        <STab name="zip" :tab="t('skills.zip_install_tab')" />
+      </STabs>
     </div>
 
     <div style="display:flex;flex-direction:column;height:60vh">

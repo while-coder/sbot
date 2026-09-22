@@ -166,7 +166,7 @@ onMounted(() => {
   window.addEventListener("pointermove", moveDrag)
   window.addEventListener("pointerup", finishDrag)
   window.addEventListener("pointercancel", finishDrag)
-  window.addEventListener("blur", finishDrag)
+  window.addEventListener("blur", finishDrag as EventListener)
   window.addEventListener("resize", keepBoxInViewport)
 })
 onBeforeUnmount(() => {
@@ -177,7 +177,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("pointermove", moveDrag)
   window.removeEventListener("pointerup", finishDrag)
   window.removeEventListener("pointercancel", finishDrag)
-  window.removeEventListener("blur", finishDrag)
+  window.removeEventListener("blur", finishDrag as EventListener)
   window.removeEventListener("resize", keepBoxInViewport)
 })
 </script>

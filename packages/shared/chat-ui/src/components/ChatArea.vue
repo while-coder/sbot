@@ -6,7 +6,7 @@ import type {
   DisplayContent,
 } from '../types'
 import type { CommandInfo } from '../transport'
-import { SMultiSelect } from '@sbot/ui-kit'
+import { SSelect } from '@sbot/ui-kit'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
 import { useAttachments } from '../composables/useAttachments'
@@ -64,9 +64,9 @@ const emit = defineEmits<{
 const L = computed(() => resolveLabels(props.labels))
 const isCompact = useCompact()
 
-// 下拉选择器复用 SMultiSelect 的单选模式（与「笔记」/「Wiki」同一套下拉样式）
-const agentMsOptions = computed(() => props.agentOptions.map(o => ({ id: o.value, label: o.label })))
-const saverMsOptions = computed(() => props.saverOptions.map(o => ({ id: o.value, label: o.label })))
+// 下拉选择器复用 SSelect multiple + single 的单选形态（与「笔记」/「Wiki」同一套下拉样式）
+const agentMsOptions = computed(() => props.agentOptions.map(o => ({ value: o.value, label: o.label })))
+const saverMsOptions = computed(() => props.saverOptions.map(o => ({ value: o.value, label: o.label })))
 const agentMsValue = computed(() => (props.agent ? [props.agent] : []))
 const saverMsValue = computed(() => (props.saver ? [props.saver] : []))
 
@@ -253,9 +253,10 @@ defineExpose({ scrollToBottom })
                 <path d="m3 4.5 3 3 3-3" />
               </svg>
             </button>
-            <SMultiSelect
+            <SSelect
               v-if="agentOptions.length"
               class="chatui-agent-select"
+              multiple
               single
               placement="top"
               :value="agentMsValue"
@@ -294,8 +295,9 @@ defineExpose({ scrollToBottom })
       <div v-if="hasSaver" class="chatui-input-config">
         <div class="chatui-input-config-item">
           <span class="chatui-input-config-label">{{ L.storage }}</span>
-          <SMultiSelect
+          <SSelect
             class="chatui-config-select"
+            multiple
             single
             compact
             placement="top"
@@ -463,12 +465,12 @@ defineExpose({ scrollToBottom })
   max-width: 170px;
   min-width: 0;
 }
-.chatui-agent-select :deep(.s-ms-trigger) {
+.chatui-agent-select :deep(.s-multi-select-trigger) {
   min-height: 30px;
   max-width: 170px;
 }
-.chatui-agent-select :deep(.s-ms-chip),
-.chatui-agent-select :deep(.s-ms-placeholder) {
+.chatui-agent-select :deep(.s-multi-select-chip),
+.chatui-agent-select :deep(.s-multi-select-placeholder) {
   font-size: 12px;
   line-height: 1.4;
 }
@@ -496,11 +498,11 @@ defineExpose({ scrollToBottom })
   min-width: 0;
   max-width: 180px;
 }
-.chatui-config-select :deep(.s-ms-trigger) {
+.chatui-config-select :deep(.s-multi-select-trigger) {
   max-width: 180px;
 }
-.chatui-config-select :deep(.s-ms-chip),
-.chatui-config-select :deep(.s-ms-placeholder) {
+.chatui-config-select :deep(.s-multi-select-chip),
+.chatui-config-select :deep(.s-multi-select-placeholder) {
   font-size: 12px;
   line-height: 1.4;
 }

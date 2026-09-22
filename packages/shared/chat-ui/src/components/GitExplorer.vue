@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { SBadge, SNavTab, STabBar, STreePanel, STreeRow, SSwitch } from '@sbot/ui-kit'
+import { SBadge, STab, STabs, STreePanel, STreeRow, SSwitch } from '@sbot/ui-kit'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, GitStatusItem } from '../types'
 import type { ExplorerGitViewState } from '../composables/useExplorerViewState'
@@ -455,10 +455,10 @@ onMounted(() => {
               {{ selectedGitStatus }}
             </SBadge>
           </div>
-          <STabBar v-model:active="diffViewMode" class="chatui-explorer-diff-tabs">
-            <SNavTab name="unified">{{ L.explorerUnifiedDiff }}</SNavTab>
-            <SNavTab name="split">{{ L.explorerSplitDiff }}</SNavTab>
-          </STabBar>
+          <STabs v-model:value="diffViewMode" class="chatui-explorer-diff-tabs">
+            <STab name="unified" :tab="L.explorerUnifiedDiff" />
+            <STab name="split" :tab="L.explorerSplitDiff" />
+          </STabs>
           <div class="chatui-explorer-git-toolbar-right">
             <SSwitch v-model:value="showFullDiff" :label="L.explorerFullDiff" class="chatui-explorer-full-diff-switch" />
           </div>
@@ -641,7 +641,11 @@ onMounted(() => {
   border-radius: 0;
   background: transparent;
 }
-.chatui-explorer-diff-tabs :deep(.s-tab) {
+.chatui-explorer-diff-tabs :deep(.s-tab-list) {
+  min-height: 0;
+  border-bottom: none;
+}
+.chatui-explorer-diff-tabs :deep(.s-tab-button) {
   height: 24px;
   padding: 0 8px;
   border: none;
@@ -650,15 +654,15 @@ onMounted(() => {
   color: var(--chatui-fg-secondary);
   font-size: 12px;
   font-weight: 500;
-  margin-bottom: 0;
 }
-.chatui-explorer-diff-tabs :deep(.s-tab + .s-tab) {
+.chatui-explorer-diff-tabs :deep(.s-tab-button + .s-tab-button) {
   margin-left: 2px;
 }
-.chatui-explorer-diff-tabs :deep(.s-tab:hover:not(.s-tab--disabled)) {
+.chatui-explorer-diff-tabs :deep(.s-tab-button:hover) {
+  background: transparent;
   color: var(--chatui-fg);
 }
-.chatui-explorer-diff-tabs :deep(.s-tab--active) {
+.chatui-explorer-diff-tabs :deep(.s-tab-button.active) {
   background: transparent;
   border-bottom-color: var(--chatui-fg);
   color: var(--chatui-fg);

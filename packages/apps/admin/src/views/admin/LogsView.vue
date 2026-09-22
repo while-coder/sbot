@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { SButton, SSelect, SInput, SPageToolbar, STabBar, SNavTab, toast } from '@sbot/ui-kit'
+import { SButton, SSelect, SInput, SPageToolbar, STab, STabs, toast } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 
@@ -158,9 +158,11 @@ onUnmounted(() => stopAutoRefresh())
         <SSelect v-if="autoRefresh" v-model:value.number="refreshInterval" size="sm" :options="intervalSelectOptions" />
       </template>
     </SPageToolbar>
-    <STabBar v-model:active="activeTab" class="logs-tab-bar">
-      <SNavTab name="normal" :count="normalFiles.length">{{ t('logs.normal') }}</SNavTab>
-      <SNavTab name="lifecycle" :count="hasLifecycleLog ? 1 : 0">{{ t('logs.lifecycle') }}</SNavTab>
+    <div class="logs-tab-bar">
+      <STabs v-model:value="activeTab" class="logs-tabs">
+        <STab name="normal" :count="normalFiles.length" :tab="t('logs.normal')" />
+        <STab name="lifecycle" :count="hasLifecycleLog ? 1 : 0" :tab="t('logs.lifecycle')" />
+      </STabs>
       <div class="logs-inline-filters">
         <SSelect v-if="!isLifecycleLog" v-model:value="selectedNormalFile" size="sm" class="logs-file-select" :options="normalFileOptions" />
         <span v-else class="logs-current-file">{{ t('logs.lifecycle_file') }}</span>
@@ -168,7 +170,7 @@ onUnmounted(() => stopAutoRefresh())
         <SInput v-model:value="keyword" size="sm" :placeholder="t('logs.search_placeholder')" class="logs-keyword" @keyup.enter="loadContent()" />
         <SSelect v-model:value.number="tailCount" size="sm" :options="tailCountOptions" @change="loadContent()" />
       </div>
-    </STabBar>
+    </div>
     <div ref="logRef" class="log-viewer">
       <div v-if="loading" class="log-empty">{{ t('common.loading') }}</div>
       <div v-else-if="!lines.length" class="log-empty">{{ emptyText }}</div>
@@ -202,8 +204,14 @@ onUnmounted(() => stopAutoRefresh())
 .logs-file-select :deep(select) { font-family: var(--sui-font-mono); }
 .logs-keyword { width: 180px; }
 .logs-tab-bar {
+  display: flex;
+  align-items: center;
   overflow-x: auto;
   overflow-y: hidden;
+}
+.logs-tabs {
+  flex: 1;
+  min-width: 0;
 }
 .logs-inline-filters {
   display: flex;

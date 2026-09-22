@@ -67,4 +67,40 @@
   --sui-z-modal-nest: 3000;
   --sui-z-toast: 5000;
   --sui-transition: 0.15s ease;
+
+  /* ── 扩展 token：sbot 应用层（admin/chat-ui 自有样式）引用的字阶/间距/语义色，迁自 sbot base.css ── */
+  --sui-font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sui-fg-strong: #1c1c1c;
+  --sui-fg-soft: #888;
+  --sui-border-dashed: #bbb;
+  --sui-danger-hover: #dc2626;
+  --sui-on-primary-danger: #fff;
+  --sui-info-strong: #1e3a5f;
+  --sui-info-link: #4f46e5;
+  --sui-info-link-hover: #3730a3;
+  --sui-warning-bg: #fffbeb;
+  --sui-warning-label: #8b6c2a;
+  --sui-success-fg: #16a34a;
+  --sui-violet: #8b5cf6;
+  --sui-violet-soft: #ede9fe;
+  --sui-violet-bg: #f5f3ff;
+  --sui-cyan: #0891b2;
+  --sui-neutral-mid: #d1d5db;
+  --sui-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --sui-shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.15);
+  --sui-mask-strong: rgba(0, 0, 0, 0.5);
+  --sui-mask-soft: rgba(0, 0, 0, 0.3);
+  --sui-fs-xxs: 10px;
+  --sui-fs-xs: 11px;
+  --sui-fs-sm: 12px;
+  --sui-fs-md: 13px;
+  --sui-fs-lg: 14px;
+  --sui-fs-xl: 15px;
+  --sui-fs-2xl: 16px;
+  --sui-sp-8: 20px;
+  --sui-radius-xs: 3px;
+  --sui-radius-full: 9999px;
+  --sui-transition-fast: 0.12s;
+  --sui-transition-base: 0.15s;
+  --sui-transition-slow: 0.2s;
 }

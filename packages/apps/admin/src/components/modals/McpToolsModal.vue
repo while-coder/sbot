@@ -3,7 +3,7 @@ import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { renderToolParams } from '@/utils/mcpSchema'
-import { SModal, SButton, SBadge, SSwitch, STabBar, SNavTab } from '@sbot/ui-kit'
+import { SModal, SButton, SBadge, SSwitch, STab, STabs } from '@sbot/ui-kit'
 
 defineProps<{
   visible: boolean
@@ -59,11 +59,11 @@ function close() {
   <SModal :visible="visible" :title="title" width="lg" @update:visible="emit('update:visible', $event)" @close="close">
     <div v-if="loading" class="tools-loading">{{ t('mcp.connecting') }}</div>
     <template v-else>
-      <STabBar v-model:active="activeTab">
-        <SNavTab name="tools" :count="tools.length">{{ t('mcp.tab_tools') }}</SNavTab>
-        <SNavTab name="prompts" :count="prompts.length">{{ t('mcp.tab_prompts') }}</SNavTab>
-        <SNavTab name="resources" :count="resources.length + resourceTemplates.length">{{ t('mcp.tab_resources') }}</SNavTab>
-      </STabBar>
+      <STabs v-model:value="activeTab">
+        <STab name="tools" :count="tools.length" :tab="t('mcp.tab_tools')" />
+        <STab name="prompts" :count="prompts.length" :tab="t('mcp.tab_prompts')" />
+        <STab name="resources" :count="resources.length + resourceTemplates.length" :tab="t('mcp.tab_resources')" />
+      </STabs>
 
       <!-- Tools Tab -->
       <div v-show="activeTab === 'tools'">

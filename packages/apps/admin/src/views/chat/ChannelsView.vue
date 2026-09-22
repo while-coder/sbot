@@ -7,7 +7,7 @@ import { profileManager } from '@/managers/profileManager'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
 import { saverManager } from '@/managers/saverManager'
-import { SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, SNavTab, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SCollapse, SCollapseItem, SPageToolbar, SPageContent, SEntityList, STab, STabs, toast, confirm } from '@sbot/ui-kit'
 import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, IntentFilterMode, type ChannelConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
@@ -136,7 +136,7 @@ const visibleSchemaEntries = computed(() =>
 
 const currentToolOptions = computed(() => {
   const p = plugins.value.find(p => p.type === form.value.type)
-  return (p?.tools ?? []).map(t => ({ id: t.name, label: t.label }))
+  return (p?.tools ?? []).map(t => ({ value: t.name, label: t.label }))
 })
 
 const channels = computed(() => store.settings.channels || {})
@@ -839,10 +839,10 @@ async function refresh() {
           <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
         </template>
         <template #expanded="{ item: c }">
-          <STabBar :active="getChannelTab(c.id)" @update:active="setChannelTab(c.id, $event as 'sessions' | 'users')" variant="underline">
-            <SNavTab name="sessions" :count="(sessionMap[c.id] || []).length">{{ t('channels.sessions') }}</SNavTab>
-            <SNavTab name="users" :count="(userMap[c.id] || []).length">{{ t('channels.users') }}</SNavTab>
-          </STabBar>
+          <STabs :value="getChannelTab(c.id)" @update:value="setChannelTab(c.id, $event as 'sessions' | 'users')">
+            <STab name="sessions" :count="(sessionMap[c.id] || []).length" :tab="t('channels.sessions')" />
+            <STab name="users" :count="(userMap[c.id] || []).length" :tab="t('channels.users')" />
+          </STabs>
           <div class="channel-detail-body">
             <div v-if="channelLoading[c.id]" class="detail-empty">{{ t('common.loading') }}</div>
             <template v-else>
@@ -977,7 +977,8 @@ async function refresh() {
             @browse-path="pathPicker?.open(channelDataConfig.workPath || '')"
           />
 
-          <SFormDetails :summary="t('channels.section_channel_advanced')" :badge="channelAdvancedBadge">
+          <SCollapse>
+          <SCollapseItem :title="t('channels.section_channel_advanced')" :badge="channelAdvancedBadge" name="channel-advanced">
             <SFormItem :label="t('channels.merge_window')" :hint="t('channels.merge_window_hint')">
               <SInput v-model:value.number="form.mergeWindow" type="number" placeholder="0" />
             </SFormItem>
@@ -988,7 +989,7 @@ async function refresh() {
                   { value: 'whitelist', label: t('channels.tools_mode_whitelist') },
                   { value: 'block', label: t('channels.tools_mode_block') },
                 ]" />
-                <SMultiSelect v-if="formToolsMode === 'whitelist'" v-model:value="formTools" :options="currentToolOptions" />
+                <SSelect v-if="formToolsMode === 'whitelist'" multiple v-model:value="formTools" :options="currentToolOptions" />
               </SFormItem>
               <SFormItem :label="t('channels.trigger_tools')" :hint="t('channels.trigger_tools_hint')">
                 <SSelect v-model:value="formTriggerToolsMode" :options="[
@@ -996,10 +997,11 @@ async function refresh() {
                   { value: 'whitelist', label: t('channels.tools_mode_whitelist') },
                   { value: 'block', label: t('channels.tools_mode_block') },
                 ]" />
-                <SMultiSelect v-if="formTriggerToolsMode === 'whitelist'" v-model:value="formTriggerTools" :options="currentToolOptions" />
+                <SSelect v-if="formTriggerToolsMode === 'whitelist'" multiple v-model:value="formTriggerTools" :options="currentToolOptions" />
               </SFormItem>
             </template>
-          </SFormDetails>
+          </SCollapseItem>
+          </SCollapse>
         </div>
         <div class="drawer-footer">
           <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>

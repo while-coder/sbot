@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { SMultiSelect } from '@sbot/ui-kit'
+import { SSelect } from '@sbot/ui-kit'
 import type { SessionItem, AppSettings, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
@@ -21,7 +21,7 @@ const emit = defineEmits<{
 const L = computed(() => resolveLabels(props.labels))
 
 function toMSOptions<T extends { name?: string }>(map: Record<string, T> | undefined) {
-  return Object.entries(map || {}).map(([id, v]) => ({ id, label: v.name || id }))
+  return Object.entries(map || {}).map(([id, v]) => ({ value: id, label: v.name || id }))
 }
 
 const noteOptions = computed(() => toMSOptions(props.settings.notes))
@@ -33,7 +33,8 @@ const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
     <template v-if="session">
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.note }}</label>
-        <SMultiSelect
+        <SSelect
+          multiple
           :value="session.notes || []"
           :options="noteOptions"
           compact
@@ -46,7 +47,8 @@ const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
 
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.wiki }}</label>
-        <SMultiSelect
+        <SSelect
+          multiple
           :value="session.wikis || []"
           :options="wikiOptions"
           compact
@@ -107,12 +109,12 @@ const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
 }
 .chatui-compact :deep(.s-select),
 .chatui-compact :deep(.s-input),
-.chatui-compact :deep(.s-ms) {
+.chatui-compact :deep(.s-multi-select) {
   width: 100%;
   min-width: 0 !important;
   max-width: none !important;
 }
-.chatui-compact :deep(.s-ms-trigger) {
+.chatui-compact :deep(.s-multi-select-trigger) {
   width: 100%;
 }
 .chatui-compact .chatui-toolbar-clear {

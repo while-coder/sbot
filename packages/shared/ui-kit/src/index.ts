@@ -3,10 +3,9 @@ import type { App, Component } from "vue"
 import * as components from "./components"
 
 export type { SelectOption } from "./components/SSelect.vue"
-export type { MultiSelectOption } from "./components/SMultiSelect.vue"
-export type { EntityTableColumn } from "./components/SEntityTable.types"
 export type { TreeOption } from "./components/STree.vue"
 export type { DataTableColumn } from "./components/SDataTable.vue"
+export type { EntityTableColumn } from "./components/SEntityTable.types"
 export { toast, confirm, loading } from "./composables/message"
 export type { LoadingHandle, ConfirmOptions } from "./composables/message"
 //主题响应式探测：MutationObserver 跟随 html[data-theme]，与 styles/theme-dark.css 约定一致
@@ -93,14 +92,10 @@ declare module "vue" {
   SEntityTable: typeof components.SEntityTable
   STreePanel: typeof components.STreePanel
   STreeRow: typeof components.STreeRow
-  STabBar: typeof components.STabBar
-  SNavTab: typeof components.SNavTab
-  SFormDetails: typeof components.SFormDetails
   SFormSection: typeof components.SFormSection
   SHint: typeof components.SHint
   SInfoRow: typeof components.SInfoRow
   SInfoTable: typeof components.SInfoTable
-  SMultiSelect: typeof components.SMultiSelect
   SPageContent: typeof components.SPageContent
   SPageToolbar: typeof components.SPageToolbar
   SRadio: typeof components.SRadio
