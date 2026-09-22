@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { profileManager } from '@/managers/profileManager'
 import { mcpManager } from '@/managers/mcpManager'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
@@ -17,6 +16,7 @@ import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
 import type { SkillItem, McpItem, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { sourceBadgeStyle, badgePrivate } from '@/utils/badges'
 import { serverAddr } from '@/utils/mcpSchema'
+import { useResourceRefs } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
 const { show } = useToast()
@@ -74,42 +74,22 @@ const filteredAgentRows = computed<AgentRow[]>(() => {
 })
 const modelName = (id: string) => modelManager.nameOf(id)
 
-// ── Agent 引用情况（频道 / 会话档案 / 父智能体），方便清理无用资源 ──
-interface ProfileLite { id: number; name: string; agentId: string | null; sessionCount?: number }
-const profilesList = computed(() => profileManager.list.value as unknown as ProfileLite[])
-
-async function loadProfiles() {
-  try {
-    await profileManager.ensure(true)
-  } catch (e: any) {
-    show(e.message, 'error')
-  }
-}
+// ── Agent 引用情况（频道 / 会话档案 / 会话私有覆盖 / 父智能体），方便清理无用资源 ──
+// 复用 useResourceRefs：会话里 /agent 切换写在 auto profile 上，不在 /api/session-profiles
+// （仅 visible profile）里，需额外扫 /api/channel-sessions 补全，否则会误报「未被引用」。
+const { loadProfiles, makeResourceRefs } = useResourceRefs()
+const agentRefs = makeResourceRefs({
+  channel: (c, id) => c?.agent === id,
+  profile: (p, id) => p.agentId === id,
+  session: (s, id) => s.agentId === id,
+  agent: (a, id) => Array.isArray(a?.agents) && a.agents.some((s: any) => s?.id === id),
+})
 
 onMounted(() => {
   loadProfiles()
   skillsManager.ensure().catch(() => {})
   mcpManager.ensure().catch(() => {})
 })
-
-interface AgentRefs {
-  channels: { id: string; name: string }[]
-  profiles: { id: number; name: string; sessionCount: number }[]
-  parents:  { id: string; name: string }[]
-  total: number
-}
-function agentRefs(id: string): AgentRefs {
-  const channels = Object.entries(store.settings.channels || {})
-    .filter(([, c]) => (c as any)?.agent === id)
-    .map(([cid, c]) => ({ id: cid, name: (c as any).name || cid }))
-  const profiles = profilesList.value
-    .filter(p => p.agentId === id)
-    .map(p => ({ id: p.id, name: p.name || String(p.id), sessionCount: p.sessionCount ?? 0 }))
-  const parents = Object.entries(store.settings.agents || {})
-    .filter(([, a]) => Array.isArray((a as any)?.agents) && (a as any).agents.some((s: any) => s.id === id))
-    .map(([pid, a]) => ({ id: pid, name: (a as any).name || pid }))
-  return { channels, profiles, parents, total: channels.length + profiles.length + parents.length }
-}
 
 const columns = computed<STableColumn[]>(() => [
   { key: 'name',  label: t('agents.name_col'),  primary: true, ellipsis: true },
@@ -528,8 +508,11 @@ async function saveMcpParams() {
                         {{ p.name }}<span v-if="p.sessionCount" class="ref-chip-sub">{{ t('agents.ref_profile_sessions', { n: p.sessionCount }) }}</span>
                       </span>
                     </SInfoRow>
-                    <SInfoRow v-if="agentRefs(row.id).parents.length" :label="t('agents.ref_parents')">
-                      <span v-for="p in agentRefs(row.id).parents" :key="p.id" class="ref-chip">{{ p.name }}</span>
+                    <SInfoRow v-if="agentRefs(row.id).sessions.length" :label="t('agents.ref_sessions')">
+                      <span v-for="s in agentRefs(row.id).sessions" :key="s.id" class="ref-chip">{{ s.name }}</span>
+                    </SInfoRow>
+                    <SInfoRow v-if="agentRefs(row.id).agents.length" :label="t('agents.ref_parents')">
+                      <span v-for="p in agentRefs(row.id).agents" :key="p.id" class="ref-chip">{{ p.name }}</span>
                     </SInfoRow>
                   </SInfoTable>
                 </template>
