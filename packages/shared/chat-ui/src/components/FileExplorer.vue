@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { STree, STreeNode, SIconButton, SModal, SInput, SButton, useConfirm } from '@sbot/ui'
+import { STree, STreeNode, SIconButton, SModal, SInput, SButton, useConfirm } from '@sbot/ui-kit'
 import type { FsUploadProgress, IChatTransport } from '../transport'
 import type { ChatLabels, FsTreeItem } from '../types'
 import type { ExplorerFilesViewState } from '../composables/useExplorerViewState'

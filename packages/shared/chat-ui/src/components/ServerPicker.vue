@@ -58,7 +58,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { SInput, SButton, SCheckbox } from '@sbot/ui'
+import { SInput, SButton, SCheckbox } from '@sbot/ui-kit'
 import type { RemoteEntry, ChatLabels } from '../types';
 import { resolveLabels } from '../labels';
 

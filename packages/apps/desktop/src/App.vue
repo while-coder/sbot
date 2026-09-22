@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { SConfirm, SToast } from '@sbot/ui'
+import { SConfirm, SToast } from '@sbot/ui-kit'
 import MainApp from './components/MainApp.vue'
 </script>
 

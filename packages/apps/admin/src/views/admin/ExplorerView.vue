@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SButton, SPageToolbar, useToast } from '@sbot/ui'
+import { SButton, SPageToolbar, useToast } from '@sbot/ui-kit'
 import { WorkbenchPanel, WebSocketTransport, PathPickerModal } from '@sbot/chat-ui'
 
 const { t } = useI18n()

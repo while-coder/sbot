@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { SInput, SSelect, SSwitch, SFormItem } from '@sbot/ui'
+import { SInput, SSelect, SSwitch, SFormItem } from '@sbot/ui-kit'
 import { isConfigFieldVisible } from '../../lib/configField'
 import type { ConfigField } from '../../lib/configField'
 

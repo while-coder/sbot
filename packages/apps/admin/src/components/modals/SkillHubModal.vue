@@ -3,9 +3,9 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import axios from 'axios'
 import { apiFetch } from '@/shared/api'
-import { useToast } from '@sbot/ui'
+import { useToast } from '@sbot/ui-kit'
 import { badgeClawhub, badgeSkillssh } from '@/utils/badges'
-import { SModal, SButton, SInput, STabBar, STab, SCheckCard, STable, type STableColumn } from '@sbot/ui'
+import { SModal, SButton, SInput, STabBar, STab, SCheckCard, STable, type STableColumn } from '@sbot/ui-kit'
 
 interface HubSkillResult {
   id: string

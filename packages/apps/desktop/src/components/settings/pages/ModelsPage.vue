@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import {
   SButton, SInput, SSelect, SModal, SFormItem, SFormDetails, SPageToolbar,
   SPageContent, STable, useToast, useConfirm,
-} from '@sbot/ui'
-import type { STableColumn } from '@sbot/ui'
+} from '@sbot/ui-kit'
+import type { STableColumn } from '@sbot/ui-kit'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { pickVisibleConfig } from '../../../lib/configField'

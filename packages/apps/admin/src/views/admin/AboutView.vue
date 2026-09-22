@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { marked } from 'marked'
 import { GITHUB_REPO_URL, GITHUB_ISSUES_URL, NPM_URL, DOCKER_URL, fetchLatestRelease, compareSemver } from '@sbot/shared'
-import { SCard, SPageToolbar, SPageContent, SInfoTable, SInfoRow } from '@sbot/ui'
+import { SCard, SPageToolbar, SPageContent, SInfoTable, SInfoRow } from '@sbot/ui-kit'
 
 const { t, locale } = useI18n()
 

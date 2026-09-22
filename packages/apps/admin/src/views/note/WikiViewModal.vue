@@ -2,8 +2,8 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm } from '@sbot/ui'
-import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, STable, type STableColumn } from '@sbot/ui'
+import { useToast, useConfirm } from '@sbot/ui-kit'
+import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, STable, type STableColumn } from '@sbot/ui-kit'
 import type { WikiConfig } from '@/shared/types'
 
 interface WikiPageItem {

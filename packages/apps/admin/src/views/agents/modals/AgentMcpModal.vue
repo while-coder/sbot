@@ -5,13 +5,13 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { mcpManager } from '@/managers/mcpManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast, useConfirm } from '@sbot/ui'
+import { useToast, useConfirm } from '@sbot/ui-kit'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
 import { sourceBadgeStyle } from '@/utils/badges'
 import McpToolsModal from '@/components/modals/McpToolsModal.vue'
-import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STabBar, STab, SCheckCard, STable, type STableColumn } from '@sbot/ui'
+import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STabBar, STab, SCheckCard, STable, type STableColumn } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 

@@ -1,17 +1,17 @@
-/* @sbot/ui bridge for chat-ui hosts
+/* @sbot/ui-kit bridge for chat-ui hosts
  *
- * 用于 desktop / pwa / vscode-extension 等不直接消费 @sbot/ui 设计 token 的宿主。
- * 让 @sbot/ui 组件在 chat-ui 上下文中跟随当前 chat-ui 主题（含 vscode 透传）。
+ * 用于 desktop / pwa / vscode-extension 等不直接消费 @sbot/ui-kit 设计 token 的宿主。
+ * 让 @sbot/ui-kit 组件在 chat-ui 上下文中跟随当前 chat-ui 主题（含 vscode 透传）。
  *
  * 加载顺序（host App.vue）：
  *   import '@sbot/chat-ui/themes/variables.css'
  *   import '@sbot/chat-ui/themes/theme-XXX.css'
  *   import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
  *
- * admin 不需要加载本文件 —— 它已经直接加载 @sbot/ui/tokens/index.css。
+ * admin 不需要加载本文件 —— 它已经直接加载 @sbot/ui-kit/tokens/index.css。
  */
 
-@import '../../../ui/src/tokens/base.css';
+@import '../../../ui-kit/src/tokens/base.css';
 
 :root {
   /* ── 中性背景 ─────────────────────────────────────────── */

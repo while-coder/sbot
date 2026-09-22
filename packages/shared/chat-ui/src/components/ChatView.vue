@@ -17,7 +17,7 @@ import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
 import WorkbenchPanel from './WorkbenchPanel.vue'
-import { SButton, SInput, SModal, useConfirm } from '@sbot/ui'
+import { SButton, SInput, SModal, useConfirm } from '@sbot/ui-kit'
 
 const props = withDefaults(defineProps<{
   transport: IChatTransport

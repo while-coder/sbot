@@ -2,8 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm } from '@sbot/ui'
-import { SButton, SIconButton, SBadge, SChip, STree, STreeNode } from '@sbot/ui'
+import { useToast, useConfirm } from '@sbot/ui-kit'
+import { SButton, SIconButton, SBadge, SChip, STree, STreeNode } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 const { show } = useToast()

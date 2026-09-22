@@ -8,7 +8,7 @@ import '@sbot/chat-ui/themes/variables.css'
 // Admin's <html data-theme="dark"> overrides happen via the rules in the non-scoped
 // <style> block below (and in MessageList.vue), so we avoid a duplicate full dark import here.
 import '@sbot/chat-ui/themes/theme-light.css'
-import { SButton } from '@sbot/ui'
+import { SButton } from '@sbot/ui-kit'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import MemoryListModal from '@/components/modals/MemoryListModal.vue'
 

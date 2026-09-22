@@ -1,5 +1,5 @@
 import { listen } from '@tauri-apps/api/event'
-import { useToast } from '@sbot/ui'
+import { useToast } from '@sbot/ui-kit'
 import { toggleTheme } from '../theme/theme'
 
 /** 原生菜单里需要前端配合的动作（Rust 直接能做的——缩放/重载/打开目录——不经此桥） */

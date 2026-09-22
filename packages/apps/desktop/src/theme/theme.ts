@@ -3,12 +3,12 @@ import lightThemeCSS from '@sbot/chat-ui/themes/theme-light.css?inline'
 import darkThemeCSS from '@sbot/chat-ui/themes/theme-dark.css?inline'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
-import '@sbot/ui/tokens/index.css'
+import '@sbot/ui-kit/tokens/index.css'
 
 /**
  * 三态主题单例（system/light/dark）：
  * - chat-ui 的 theme css 单份注入（client 已验证方案），同一时刻只有一份 :root 生效
- * - documentElement.dataset.theme 驱动 @sbot/ui tokens（html[data-theme="dark"]）与原生控件
+ * - documentElement.dataset.theme 驱动 @sbot/ui-kit tokens（html[data-theme="dark"]）与原生控件
  * - mode 存 localStorage（同 origin 两窗口共享，storage 事件跨窗口同步）
  */
 export type ThemeMode = 'system' | 'light' | 'dark'

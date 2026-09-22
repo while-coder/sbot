@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useToast, SModal, SButton } from '@sbot/ui'
+import { useToast, SModal, SButton } from '@sbot/ui-kit'
 import { FileExplorer, WebSocketTransport } from '@sbot/chat-ui'
 import { sourceBadgeStyle } from '@/utils/badges'
 

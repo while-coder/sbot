@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { SBadge, STab, STabBar, STree, STreeNode, SSwitch } from '@sbot/ui'
+import { SBadge, STab, STabBar, STree, STreeNode, SSwitch } from '@sbot/ui-kit'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, GitStatusItem } from '../types'
 import type { ExplorerGitViewState } from '../composables/useExplorerViewState'

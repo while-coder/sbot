@@ -5,12 +5,12 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast, useConfirm } from '@sbot/ui'
+import { useToast, useConfirm } from '@sbot/ui-kit'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
 import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
-import { SModal, SButton, SInput, STabBar, STab, SCheckCard, STable, type STableColumn } from '@sbot/ui'
+import { SModal, SButton, SInput, STabBar, STab, SCheckCard, STable, type STableColumn } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 

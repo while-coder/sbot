@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SInput, STextarea, SSelect, SFormItem, SMultiSelect, SButton, SFormDetails } from '@sbot/ui'
+import { SInput, STextarea, SSelect, SFormItem, SMultiSelect, SButton, SFormDetails } from '@sbot/ui-kit'
 import { ApprovalTimeoutValue, IntentFilterMode } from '@sbot/shared'
 
 export interface DataConfigValue {

@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, SButton, SSelect, SInput, SPageToolbar, STabBar, STab } from '@sbot/ui'
+import { useToast, SButton, SSelect, SInput, SPageToolbar, STabBar, STab } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 const { show } = useToast()

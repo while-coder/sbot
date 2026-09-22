@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SButton, SModal, STab, STabBar, useToast } from '@sbot/ui'
+import { SBadge, SButton, SModal, STab, STabBar, useToast } from '@sbot/ui-kit'
 import AgendaBoard from '@/components/AgendaBoard.vue'
 import AgendaTriggerEditModal from '@/components/modals/AgendaTriggerEditModal.vue'
 import AgendaFiresModal from '@/components/modals/AgendaFiresModal.vue'

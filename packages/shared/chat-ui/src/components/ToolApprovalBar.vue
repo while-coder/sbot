@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { SButton } from '@sbot/ui'
+import { SButton } from '@sbot/ui-kit'
 import type { ToolCallEvent, ToolApprovalPayload, ChatLabels } from '../types'
 import { ApprovalTimeoutValue, ToolApproval } from '../types'
 import { resolveLabels } from '../labels'

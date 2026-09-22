@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
-import { SBadge, SButton, SEntityList, SFormItem, SModal, SSelect, STextarea } from '@sbot/ui'
+import { SBadge, SButton, SEntityList, SFormItem, SModal, SSelect, STextarea } from '@sbot/ui-kit'
 import AgendaTriggerFields from '@/components/AgendaTriggerFields.vue'
 import {
   firstNextFire,

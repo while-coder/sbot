@@ -3,7 +3,7 @@ import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { renderToolParams } from '@/utils/mcpSchema'
-import { SModal, SButton, SBadge, SSwitch, STabBar, STab } from '@sbot/ui'
+import { SModal, SButton, SBadge, SSwitch, STabBar, STab } from '@sbot/ui-kit'
 
 defineProps<{
   visible: boolean

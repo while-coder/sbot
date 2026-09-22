@@ -1,14 +1,14 @@
-// @sbot/ui - 共享 UI 组件库
+// @sbot/ui-kit - 共享 UI 组件库
 //
 // 使用方式：
-//   import '@sbot/ui/tokens/index.css'                 // 顶层入口一次性引入 token
+//   import '@sbot/ui-kit/tokens/index.css'                 // 顶层入口一次性引入 token
 //
 //   方式 A — 全局插件注册（模板里直接 <SButton>，无需 import）：
-//     import SbotUI from '@sbot/ui'
+//     import SbotUI from '@sbot/ui-kit'
 //     app.use(SbotUI)
 //
 //   方式 B — 按需具名 import（保留 tree-shaking）：
-//     import { SButton, SModal } from '@sbot/ui'
+//     import { SButton, SModal } from '@sbot/ui-kit'
 //
 //   两种方式可同时混用。
 

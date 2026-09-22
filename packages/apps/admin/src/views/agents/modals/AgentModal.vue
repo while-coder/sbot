@@ -5,10 +5,10 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
-import { useToast, useConfirm } from '@sbot/ui'
+import { useToast, useConfirm } from '@sbot/ui-kit'
 import { AgentMode, ACPSessionMode } from '@/shared/types'
 import type { AgentConfig, SubAgentRef } from '@/shared/types'
-import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard, STagInput } from '@sbot/ui'
+import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard, STagInput } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 const { confirm } = useConfirm()

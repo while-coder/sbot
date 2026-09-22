@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SModal, useToast } from '@sbot/ui'
+import { SBadge, SModal, useToast } from '@sbot/ui-kit'
 import { apiFetch } from '@/shared/api'
 import type { AgendaRow, AgendaTrigger, AgendaTriggerFire } from '@/composables/useAgendas'
 

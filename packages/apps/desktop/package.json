@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",
-    "@sbot/ui": "workspace:*",
+    "@sbot/ui-kit": "workspace:*",
     "@tauri-apps/api": "^2.11.0"
   },
   "devDependencies": {

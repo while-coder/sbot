@@ -6,7 +6,7 @@ import type {
   DisplayContent,
 } from '../types'
 import type { CommandInfo } from '../transport'
-import { SMultiSelect } from '@sbot/ui'
+import { SMultiSelect } from '@sbot/ui-kit'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
 import { useAttachments } from '../composables/useAttachments'

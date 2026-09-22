@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useConfirm, useToast } from '@sbot/ui'
+import { useConfirm, useToast } from '@sbot/ui-kit'
 
 export type AgendaStatus = 'pending' | 'done' | 'cancelled' | 'expired'
 export type AgendaPriority = 'low' | 'normal' | 'high'

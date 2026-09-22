@@ -8,7 +8,7 @@ import {
   useToast, useConfirm,
   SButton, SInput, SCard, SFormItem, SCheckCard, SBadge,
   SPageToolbar, SPageContent,
-} from '@sbot/ui'
+} from '@sbot/ui-kit'
 import { TunnelProviderType, type TunnelStatus, type TunnelConfig } from '@sbot/shared'
 
 const { t } = useI18n()

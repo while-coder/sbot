@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, computed, watch } from 'vue'
-import { SModal, SButton, SInput, SChip } from '@sbot/ui'
+import { SModal, SButton, SInput, SChip } from '@sbot/ui-kit'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, DriveEntry, QuickDir } from '../types'
 import { resolveLabels } from '../labels'

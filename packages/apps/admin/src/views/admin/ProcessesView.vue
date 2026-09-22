@@ -2,8 +2,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm, SButton, SBadge, SPageToolbar, SPageContent, STable } from '@sbot/ui'
-import type { STableColumn } from '@sbot/ui'
+import { useToast, useConfirm, SButton, SBadge, SPageToolbar, SPageContent, STable } from '@sbot/ui-kit'
+import type { STableColumn } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 const { show } = useToast()

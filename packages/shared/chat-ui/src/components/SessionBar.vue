@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import { SButton, SInput, useConfirm } from '@sbot/ui'
+import { SButton, SInput, useConfirm } from '@sbot/ui-kit'
 import type { SessionItem, ChatLabels } from '../types'
 import { resolveLabels, tpl } from '../labels'
 

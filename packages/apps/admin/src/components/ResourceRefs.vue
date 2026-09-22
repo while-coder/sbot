@@ -3,7 +3,7 @@
 // mode="badge"：名称列旁的小标签（未被引用 / N 处引用）。
 // mode="card" ：展开区里的引用方明细卡片。
 import { useI18n } from 'vue-i18n'
-import { SCard, SInfoTable, SInfoRow } from '@sbot/ui'
+import { SCard, SInfoTable, SInfoRow } from '@sbot/ui-kit'
 import type { ResourceRefsValue } from '@/composables/useResourceRefs'
 
 defineProps<{ refs: ResourceRefsValue; mode: 'badge' | 'card' }>()

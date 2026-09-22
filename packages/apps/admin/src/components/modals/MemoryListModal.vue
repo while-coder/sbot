@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, useConfirm, SButton, SModal, SBadge, SInput, SSelect, STabBar, STab } from '@sbot/ui'
+import { useToast, useConfirm, SButton, SModal, SBadge, SInput, SSelect, STabBar, STab } from '@sbot/ui-kit'
 
 interface MemorySummary {
   slug: string

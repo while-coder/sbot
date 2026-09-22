@@ -28,7 +28,7 @@
     "@tiptap/vue-3": "catalog:",
     "dompurify": "^3.4.10",
     "marked": "catalog:",
-    "@sbot/ui": "workspace:*",
+    "@sbot/ui-kit": "workspace:*",
     "vue-codemirror": "^6.1.1"
   },
   "devDependencies": {

@@ -2,8 +2,8 @@ import { createApp } from 'vue'
 import router from './router'
 import App from './App.vue'
 import { i18n } from './i18n'
-import SbotUI from '@sbot/ui'
-import '@sbot/ui/tokens/index.css'
+import SbotUI from '@sbot/ui-kit'
+import '@sbot/ui-kit/tokens/index.css'
 
 const app = createApp(App)
 app.use(router)

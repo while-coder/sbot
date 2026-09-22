@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { SButton, SFormItem, SInput, SSelect, STextarea } from '@sbot/ui'
+import { SButton, SFormItem, SInput, SSelect, STextarea } from '@sbot/ui-kit'
 import SessionSelect from '@/components/SessionSelect.vue'
 import type { TriggerDraft } from '@/composables/agendaTriggerDraft'
 

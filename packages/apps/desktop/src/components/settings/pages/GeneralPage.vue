@@ -2,11 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   SButton, SInput, SSelect, SSwitch, STagInput, SFormItem, SFormSection,
-} from '@sbot/ui'
+} from '@sbot/ui-kit'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { BUILTIN_AGENTS, BUILTIN_AGENT_MCPS } from '../../../lib/defaultAgent'
-import { useToast } from '@sbot/ui'
+import { useToast } from '@sbot/ui-kit'
 import { themeMode } from '../../../theme/theme'
 import type { ThemeMode } from '../../../theme/theme'
 

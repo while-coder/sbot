@@ -22,7 +22,7 @@ import {
   SPageContent,
   STable,
   type STableColumn,
-} from '@sbot/ui'
+} from '@sbot/ui-kit'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { SSelect } from '@sbot/ui'
+import { SSelect } from '@sbot/ui-kit'
 import { channelManager, type ChannelSession } from '@/managers/channelManager'
 
 const props = withDefaults(defineProps<{

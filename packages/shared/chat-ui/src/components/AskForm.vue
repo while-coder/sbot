@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { SRadio, SCheckbox, SInput, SButton } from '@sbot/ui'
+import { SRadio, SCheckbox, SInput, SButton } from '@sbot/ui-kit'
 import type { AskEvent, AskAnswerPayload, ChatLabels } from '../types'
 import { AskQuestionType } from '../types'
 import { resolveLabels } from '../labels'

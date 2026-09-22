@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { SButton, SInfoRow, SInfoTable, useToast } from '@sbot/ui'
+import { SButton, SInfoRow, SInfoTable, useToast } from '@sbot/ui-kit'
 import { backend } from '../../../lib/backend'
 import { api } from '../../../lib/api'
 
