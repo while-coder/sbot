@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import { SButton, SInput, useConfirm } from '@sbot/ui-kit'
+import { SButton, SInput, confirm } from '@sbot/ui-kit'
 import type { SessionItem, ChatLabels } from '../types'
 import { resolveLabels, tpl } from '../labels'
 
@@ -35,7 +35,6 @@ const emit = defineEmits<{
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
-const { confirm } = useConfirm()
 
 const editingId = ref<string | null>(null)
 const editingName = ref('')
@@ -78,7 +77,9 @@ function commitEdit() {
 async function onDelete(id: string) {
   const s = props.sessions.find(s => s.id === id)
   const label = s?.name || L.value.untitledSession
-  if (await confirm(tpl(L.value.confirmDeleteSession, { name: label }), {
+  if (await confirm.show({
+    title: L.value.deleteSession,
+    content: tpl(L.value.confirmDeleteSession, { name: label }),
     danger: true,
     cancelText: L.value.cancel,
   })) {
@@ -136,7 +137,7 @@ function formatSessionCreatedAt(value?: number): string {
             <SInput
               v-if="editingId === s.id"
               ref="nameInputEl"
-              v-model="editingName"
+              v-model:value="editingName"
               size="sm"
               class="chatui-session-name-input"
               @click.stop

@@ -6,7 +6,7 @@ import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
 import { promptFileManager } from '@/managers/promptFileManager'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import MemoryListModal from '@/components/modals/MemoryListModal.vue'
 import ResourceRefs from '@/components/ResourceRefs.vue'
 import { useResourceRefs } from '@/composables/useResourceRefs'
@@ -21,8 +21,6 @@ interface MemoryProfileForm {
 }
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const profiles = computed(() => store.settings.memoryProfiles || {})
 const profileList = computed(() =>
@@ -40,7 +38,7 @@ const refs = makeResourceRefs({
 const expandedIds = ref<string[]>([])
 onMounted(loadProfiles)
 
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'name',         label: t('common.name'),                primary: true },
   { key: 'enabled',      label: t('common.enabled'),             width: '100px', align: 'center' },
   { key: 'writerModel',  label: t('memory_profiles.writer_model'), width: '200px' },
@@ -105,9 +103,9 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
   if (form.value.enabled) {
-    if (!form.value.writerModel) { show(t('memory_profiles.error_writer_model'), 'error'); return }
+    if (!form.value.writerModel) { toast.show('error', t('memory_profiles.error_writer_model')); return }
   }
   try {
     const body: any = {
@@ -123,23 +121,23 @@ async function save() {
       ? await apiFetch(`/api/settings/memoryProfiles/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/memoryProfiles', 'POST', body)
     settingsManager.apply(res.data)
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function remove(id: string) {
   const p: any = profiles.value[id]
   const label = p?.name || id
-  if (!await confirm(t('memory_profiles.confirm_delete', { name: label }), { danger: true })) return
+  if (!await confirm.show({ title: t('memory_profiles.confirm_delete', { name: label }), danger: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/memoryProfiles/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -148,7 +146,7 @@ async function refresh() {
     await settingsManager.refresh()
     await loadProfiles()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -170,7 +168,7 @@ function modelLabel(id: string | undefined | null): string {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('memory_profiles.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable
+      <SEntityTable
         :columns="columns"
         :rows="profileList"
         row-key="id"
@@ -196,47 +194,35 @@ function modelLabel(id: string | undefined | null): string {
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
-        <template #_expanded="{ row }">
+        <template #expanded="{ row }">
           <div class="refs-expanded">
             <ResourceRefs mode="card" :refs="refs(row.id)" />
           </div>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
-    <SModal v-model:visible="showModal" :title="editingId !== null ? t('memory_profiles.edit_title') : t('memory_profiles.add_title')" width="md">
+    <SModal v-model:show="showModal" :title="editingId !== null ? t('memory_profiles.edit_title') : t('memory_profiles.add_title')" width="md">
       <SFormItem :label="t('common.name') + ' *'">
-        <SInput v-model="form.name" :placeholder="t('memory_profiles.name_placeholder')" />
+        <SInput v-model:value="form.name" :placeholder="t('memory_profiles.name_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('common.enabled')">
-        <SSelect :model-value="form.enabled ? 'true' : 'false'" @update:model-value="(v: any) => (form.enabled = v === 'true')">
-          <option value="true">{{ t('common.enabled') }}</option>
-          <option value="false">{{ t('common.disabled') }}</option>
-        </SSelect>
+        <SSelect :value="form.enabled ? 'true' : 'false'" @update:value="(v: any) => (form.enabled = v === 'true')" :options="[
+          { value: 'true', label: t('common.enabled') },
+          { value: 'false', label: t('common.disabled') },
+        ]" />
       </SFormItem>
       <SFormItem :label="t('memory_profiles.writer_model') + ' *'">
-        <SSelect v-model="form.writerModel">
-          <option value="" disabled>{{ t('memory_profiles.writer_model_placeholder') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.writerModel" :placeholder="t('memory_profiles.writer_model_placeholder')" :options="modelOptions.map(m => ({ value: m.id, label: m.label }))" />
       </SFormItem>
       <SFormItem :label="t('memory_profiles.selector_model')">
-        <SSelect v-model="form.selectorModel">
-          <option value="">{{ t('memory_profiles.use_writer_model') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.selectorModel" :options="[{ value: '', label: t('memory_profiles.use_writer_model') }, ...modelOptions.map(m => ({ value: m.id, label: m.label }))]" />
       </SFormItem>
       <SFormItem :label="t('memory_profiles.writer_prompt')">
-        <SSelect v-model="form.writerPromptFile">
-          <option value="">{{ t('common.default') }}</option>
-          <option v-for="p in writerPromptFiles" :key="p.path" :value="p.path">{{ p.path }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.writerPromptFile" :options="[{ value: '', label: t('common.default') }, ...writerPromptFiles.map(p => ({ value: p.path, label: p.path }))]" />
       </SFormItem>
       <SFormItem :label="t('memory_profiles.read_prompt')">
-        <SSelect v-model="form.readPromptFile">
-          <option value="">{{ t('common.default') }}</option>
-          <option v-for="p in readPromptFiles" :key="p.path" :value="p.path">{{ p.path }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.readPromptFile" :options="[{ value: '', label: t('common.default') }, ...readPromptFiles.map(p => ({ value: p.path, label: p.path }))]" />
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>

@@ -2,9 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent,
-  STable, useToast, useConfirm,
+  SEntityTable, toast, confirm,
 } from '@sbot/ui-kit'
-import type { STableColumn } from '@sbot/ui-kit'
+import type { EntityTableColumn } from '@sbot/ui-kit'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { pickVisibleConfig } from '../../../lib/configField'
@@ -27,9 +27,6 @@ interface PluginDefinition {
   configSchema: Record<string, ConfigField>
 }
 
-const toast = useToast()
-const { confirm } = useConfirm()
-
 const channels = ref<Record<string, ChannelConfigForm>>({})
 const plugins = ref<PluginDefinition[]>([])
 const agents = ref<Record<string, { name?: string }>>({})
@@ -37,7 +34,7 @@ const savers = ref<Record<string, { name?: string }>>({})
 const loading = ref(false)
 
 const rows = computed(() => Object.entries(channels.value).map(([id, c]) => ({ id, ...c })))
-const columns: STableColumn[] = [
+const columns: EntityTableColumn[] = [
   { key: 'name', label: '名称', primary: true },
   { key: 'type', label: '类型' },
   { key: 'agent', label: 'Agent' },
@@ -68,7 +65,7 @@ async function refresh(): Promise<void> {
     savers.value = settings.savers ?? {}
     plugins.value = pluginList
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
@@ -147,7 +144,7 @@ function validate(): string | null {
 
 async function save(): Promise<void> {
   const err = validate()
-  if (err) { toast.error(err); return }
+  if (err) { toast.show('error', err); return }
   saving.value = true
   try {
     const config = pickVisibleConfig(currentSchema.value, form.value.config)
@@ -166,28 +163,28 @@ async function save(): Promise<void> {
       }
       await api.post('/api/settings/channels', payload)
     }
-    toast.success('已保存，渠道已热载')
+    toast.show('success', '已保存，渠道已热载')
     showModal.value = false
     await refresh()
     emitSettingsChanged()
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   } finally {
     saving.value = false
   }
 }
 
 async function remove(id: string): Promise<void> {
-  if (isBuiltin(id)) { toast.error('内置渠道不可删除'); return }
+  if (isBuiltin(id)) { toast.show('error', '内置渠道不可删除'); return }
   const label = channels.value[id]?.name || id
-  if (!await confirm(`确定删除渠道「${label}」？`, { danger: true })) return
+  if (!await confirm.show({ title: '删除渠道', content: `确定删除渠道「${label}」？`, danger: true })) return
   try {
     await api.del(`/api/settings/channels/${encodeURIComponent(id)}`)
-    toast.success('已删除')
+    toast.show('success', '已删除')
     await refresh()
     emitSettingsChanged()
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -199,7 +196,7 @@ async function remove(id: string): Promise<void> {
       <SButton type="primary" size="sm" @click="openAdd">添加渠道</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable :columns="columns" :rows="rows" row-key="id" empty-text="还没有渠道，点击右上角添加">
+      <SEntityTable :columns="columns" :rows="rows" row-key="id" empty-text="还没有渠道，点击右上角添加">
         <template #name="{ row }">
           {{ row.name || row.id }}
           <span v-if="isBuiltin(row.id)" class="builtin-tag">内置</span>
@@ -210,21 +207,21 @@ async function remove(id: string): Promise<void> {
           <SButton type="outline" size="sm" @click="openEdit(row.id)">编辑</SButton>
           <SButton v-if="!isBuiltin(row.id)" type="danger" size="sm" @click="remove(row.id)">删除</SButton>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
-    <SModal v-model:visible="showModal" :title="editingId ? '编辑渠道' : '添加渠道'" width="md">
+    <SModal v-model:show="showModal" :title="editingId ? '编辑渠道' : '添加渠道'" width="md">
       <SFormItem label="名称 *">
-        <SInput v-model="form.name" placeholder="渠道显示名称" />
+        <SInput v-model:value="form.name" placeholder="渠道显示名称" />
       </SFormItem>
       <SFormItem label="类型 *">
-        <SSelect v-model="form.type" :options="typeOptions" :disabled="isEditingBuiltin" />
+        <SSelect v-model:value="form.type" :options="typeOptions" :disabled="isEditingBuiltin" />
       </SFormItem>
       <SFormItem label="Agent *">
-        <SSelect v-model="form.agent" :options="agentOptions" />
+        <SSelect v-model:value="form.agent" :options="agentOptions" />
       </SFormItem>
       <SFormItem label="存储 *">
-        <SSelect v-model="form.saver" :options="saverOptions" />
+        <SSelect v-model:value="form.saver" :options="saverOptions" />
       </SFormItem>
 
       <SchemaForm :schema="currentSchema" :config="form.config" />

@@ -5,8 +5,8 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { profileManager } from '@/managers/profileManager'
 import { modelManager } from '@/managers/modelManager'
-import { useToast, useConfirm, SButton, SInput, SFormItem, SPageToolbar, SPageContent, STable, SModal } from '@sbot/ui-kit'
-import type { STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SFormItem, SPageToolbar, SPageContent, SEntityTable, SModal, toast, confirm } from '@sbot/ui-kit'
+import type { EntityTableColumn } from '@sbot/ui-kit'
 import { ApprovalTimeoutValue, IntentFilterMode } from '@sbot/shared'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides } from '@/components/SessionConfigOverridesEditor.vue'
@@ -45,8 +45,6 @@ interface ProfileRow {
 }
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const pickerTransport = new WebSocketTransport()
 const pickerLabels = computed(() => ({
@@ -91,7 +89,7 @@ async function openSessions(p: ProfileRow) {
     const res = await apiFetch(`/api/session-profiles/${p.id}`)
     sessionsModalRows.value = ((res.data as any)?.sessions || []) as SessionLite[]
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     sessionsModalLoading.value = false
   }
@@ -109,13 +107,13 @@ async function loadAll() {
   try {
     await profileManager.ensure(true)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 onMounted(loadAll)
 
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'name',         label: t('session_profiles.name'), primary: true },
   { key: 'agent',        label: t('common.agent') },
   { key: 'saver',        label: t('common.storage') },
@@ -198,12 +196,12 @@ function openEdit(p: ProfileRow) {
 
 async function save() {
   const f = form.value
-  if (!f.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!f.name.trim()) { toast.show('error', t('common.name_required')); return }
   // 编辑时若被多 session 共享，弹警告
   if (!isCreating.value && editing.value) {
     const count = editing.value.sessionCount ?? 0
     if (count > 1) {
-      const ok = await confirm(t('channels.profile_shared_warn', { n: count }), { danger: true })
+      const ok = await confirm.show({ title: t('channels.profile_shared_warn', { n: count }), danger: true , content: ''})
       if (!ok) return
     }
   }
@@ -216,11 +214,11 @@ async function save() {
       if (!editing.value) return
       await apiFetch(`/api/session-profiles/${editing.value.id}`, 'PUT', buildPayload(f))
     }
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     editing.value = null
     await loadAll()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -257,16 +255,16 @@ function buildPayload(f: ProfileForm): Record<string, any> {
 
 async function remove(p: ProfileRow) {
   if ((p.sessionCount ?? 0) > 0) {
-    show(t('session_profiles.delete_in_use', { n: p.sessionCount }), 'error')
+    toast.show('error', t('session_profiles.delete_in_use', { n: p.sessionCount }))
     return
   }
-  if (!await confirm(t('session_profiles.confirm_delete', { name: p.name }), { danger: true })) return
+  if (!await confirm.show({ title: t('session_profiles.confirm_delete', { name: p.name }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/session-profiles/${p.id}`, 'DELETE')
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
     await loadAll()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -278,7 +276,7 @@ async function remove(p: ProfileRow) {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('session_profiles.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable :columns="columns" :rows="profiles" row-key="id" :empty-text="t('session_profiles.empty')">
+      <SEntityTable :columns="columns" :rows="profiles" row-key="id" :empty-text="t('session_profiles.empty')">
         <template #agent="{ row }">
           <span v-if="row.agentId">{{ agentOptions.find(a => a.id === row.agentId)?.label || row.agentId }}</span>
           <span v-else style="color: var(--sui-fg-disabled)">—</span>
@@ -297,7 +295,7 @@ async function remove(p: ProfileRow) {
           <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" :disabled="(row.sessionCount ?? 0) > 0" @click="remove(row)">{{ t('common.delete') }}</SButton>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
     <Transition name="drawer-fade">
@@ -311,7 +309,7 @@ async function remove(p: ProfileRow) {
         </div>
         <div class="drawer-body">
           <SFormItem :label="t('session_profiles.name') + ' *'">
-            <SInput v-model="form.name" :placeholder="t('session_profiles.name_placeholder')" />
+            <SInput v-model:value="form.name" :placeholder="t('session_profiles.name_placeholder')" />
           </SFormItem>
 
           <SessionConfigOverridesEditor
@@ -340,15 +338,10 @@ async function remove(p: ProfileRow) {
       :transport="pickerTransport"
       :labels="pickerLabels"
       @confirm="p => { form.overrides.workPath = p }"
-      @error="msg => show(msg, 'error')"
+      @error="msg => toast.show('error', msg)"
     />
 
-    <SModal v-model:visible="sessionsModalVisible" width="md">
-      <template #header>
-        <h3 class="s-modal-title">
-          {{ t('session_profiles.sessions_modal_title', { name: sessionsModalProfile?.name || '' }) }}
-        </h3>
-      </template>
+    <SModal v-model:show="sessionsModalVisible" :title="t('session_profiles.sessions_modal_title', { name: sessionsModalProfile?.name || '' })" width="md">
       <div v-if="sessionsModalLoading" class="modal-loading">{{ t('common.loading') }}</div>
       <div v-else-if="sessionsModalRows.length === 0" class="modal-empty">{{ t('session_profiles.used_by_none') }}</div>
       <ul v-else class="sess-list">

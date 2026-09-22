@@ -3,7 +3,7 @@ import lightThemeCSS from '@sbot/chat-ui/themes/theme-light.css?inline'
 import darkThemeCSS from '@sbot/chat-ui/themes/theme-dark.css?inline'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
-import '@sbot/ui-kit/tokens/index.css'
+import '@sbot/ui-kit/style.css'
 
 /**
  * 三态主题单例（system/light/dark）：

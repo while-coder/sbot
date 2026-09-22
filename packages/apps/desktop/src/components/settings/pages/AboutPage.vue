@@ -1,23 +1,22 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { SButton, SInfoRow, SInfoTable, useToast } from '@sbot/ui-kit'
+import { SButton, SInfoRow, SInfoTable, toast } from '@sbot/ui-kit'
 import { backend } from '../../../lib/backend'
 import { api } from '../../../lib/api'
 
-const toast = useToast()
 const about = ref<{ name?: string; version?: string; description?: string }>({})
 
 onMounted(async () => {
   try {
     about.value = await api.get<{ name?: string; version?: string; description?: string }>('/api/about')
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   }
 })
 
 function openAdmin(): void {
-  if (!backend.baseUrl) { toast.error('sbot 服务尚未就绪'); return }
+  if (!backend.baseUrl) { toast.show('error', 'sbot 服务尚未就绪'); return }
   void invoke('open_admin_ui')
 }
 

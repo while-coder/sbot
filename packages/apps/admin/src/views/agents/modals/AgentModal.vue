@@ -5,13 +5,12 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
-import { useToast, useConfirm } from '@sbot/ui-kit'
+import { toast, confirm } from '@sbot/ui-kit'
 import { AgentMode, ACPSessionMode } from '@/shared/types'
 import type { AgentConfig, SubAgentRef } from '@/shared/types'
 import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard, STagInput } from '@sbot/ui-kit'
 
 const { t } = useI18n()
-const { confirm } = useConfirm()
 
 const emit = defineEmits<{ saved: [] }>()
 
@@ -35,7 +34,6 @@ function applyPreset(idx: number) {
     }
   }
 }
-const { show } = useToast()
 
 const agents      = computed(() => store.settings.agents || {})
 const allTagSuggestions = computed(() => {
@@ -107,13 +105,13 @@ function open(id?: string) {
 }
 
 async function save() {
-  if (!editingId.value && !form.value.id.trim()) { show('ID is required', 'error'); return }
-  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!editingId.value && !form.value.id.trim()) { toast.show('error', 'ID is required'); return }
+  if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
   const { type } = form.value
-  if (type !== AgentMode.ACP && !form.value.model) { show(t('agents.error_model'), 'error'); return }
-  if (type === AgentMode.ACP && !form.value.command.trim()) { show(t('agents.error_command'), 'error'); return }
+  if (type !== AgentMode.ACP && !form.value.model) { toast.show('error', t('agents.error_model')); return }
+  if (type === AgentMode.ACP && !form.value.command.trim()) { toast.show('error', t('agents.error_command')); return }
   if (type === AgentMode.ReAct && tempSubAgents.value.length === 0) {
-    show(t('agents.error_sub_agents'), 'error'); return
+    toast.show('error', t('agents.error_sub_agents')); return
   }
   try {
     const config: AgentConfig = { type }
@@ -165,11 +163,11 @@ async function save() {
       await apiFetch('/api/agents', 'POST', config)
     }
     await settingsManager.refresh()
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
     emit('saved')
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -197,8 +195,8 @@ function editSubAgent(idx: number) {
 }
 
 function saveSubAgent() {
-  if (!subForm.value.id)             { show(t('agents.error_agent'), 'error'); return }
-  if (!subForm.value.desc.trim())    { show(t('agents.error_desc'),  'error'); return }
+  if (!subForm.value.id)             { toast.show('error', t('agents.error_agent')); return }
+  if (!subForm.value.desc.trim())    { toast.show('error', t('agents.error_desc')); return }
   const ref: SubAgentRef = { id: subForm.value.id, desc: subForm.value.desc.trim() }
   if (editingSubIdx.value >= 0) {
     tempSubAgents.value[editingSubIdx.value] = ref
@@ -206,31 +204,31 @@ function saveSubAgent() {
     tempSubAgents.value.push(ref)
   }
   showSubModal.value = false
-  show(t('agents.sub_updated'))
+  toast.show('success', t('agents.sub_updated'))
 }
 
 // 由 LLM 根据目标 agent 的 systemPrompt/tools/skills 生成 desc，填回输入框供用户确认/编辑
 const generatingDesc = ref(false)
 async function generateDesc() {
-  if (!subForm.value.id) { show(t('agents.error_agent'), 'error'); return }
+  if (!subForm.value.id) { toast.show('error', t('agents.error_agent')); return }
   generatingDesc.value = true
   try {
     // 传入编排者（当前正在编辑的 ReAct agent）选定的 model：用同一模型生成描述更贴合编排者的路由判断
     const res = await apiFetch(`/api/agents/${encodeURIComponent(subForm.value.id)}/generate-desc`, 'POST', { model: form.value.model || undefined })
     const desc = (res.data?.desc || '').trim()
     if (desc) subForm.value.desc = desc
-    else show(t('agents.gen_desc_empty'), 'error')
+    else toast.show('error', t('agents.gen_desc_empty'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     generatingDesc.value = false
   }
 }
 
 async function deleteSubAgent(idx: number) {
-  if (!await confirm(t('agents.confirm_delete_sub'), { danger: true })) return
+  if (!await confirm.show({ title: t('agents.confirm_delete_sub'), danger: true , content: ''})) return
   tempSubAgents.value.splice(idx, 1)
-  show(t('agents.sub_deleted'))
+  toast.show('success', t('agents.sub_deleted'))
 }
 
 function subAgentSelectOptions() {
@@ -242,41 +240,38 @@ defineExpose({ open })
 
 <template>
   <!-- Agent Modal -->
-  <SModal v-model:visible="showModal" :title="editingId ? t('agents.edit_title') : t('agents.add_title')" width="lg">
+  <SModal v-model:show="showModal" :title="editingId ? t('agents.edit_title') : t('agents.add_title')" width="lg">
     <SFormItem v-if="!editingId" label="ID *" :hint="t('agents.id_hint')">
-      <SInput v-model="form.id" placeholder="ID" />
+      <SInput v-model:value="form.id" placeholder="ID" />
     </SFormItem>
     <SFormItem :label="t('agents.name') + ' *'">
-      <SInput v-model="form.name" :placeholder="t('agents.name_placeholder')" />
+      <SInput v-model:value="form.name" :placeholder="t('agents.name_placeholder')" />
     </SFormItem>
     <SFormItem :label="t('agents.tags')" :hint="t('agents.tags_hint')">
       <STagInput
-        v-model="form.tags"
+        v-model:value="form.tags"
         :placeholder="t('agents.tags_placeholder')"
         :suggestions="allTagSuggestions"
-        @invalid="(reason) => reason === 'duplicate' ? show(t('agents.tags_duplicate')) : null"
+        @invalid="(reason) => reason === 'duplicate' ? toast.show('success', t('agents.tags_duplicate')) : null"
       />
     </SFormItem>
     <SFormItem :label="t('common.type') + ' *'">
-      <SSelect v-model="form.type">
-        <option :value="AgentMode.Single">{{ t('agents.type_single') }}</option>
-        <option :value="AgentMode.ReAct">{{ t('agents.type_react') }}</option>
-        <option :value="AgentMode.Generative">{{ t('agents.type_generative') }}</option>
-        <option :value="AgentMode.ACP">{{ t('agents.type_acp') }}</option>
-      </SSelect>
+      <SSelect v-model:value="form.type" :options="[
+        { value: AgentMode.Single, label: t('agents.type_single') },
+        { value: AgentMode.ReAct, label: t('agents.type_react') },
+        { value: AgentMode.Generative, label: t('agents.type_generative') },
+        { value: AgentMode.ACP, label: t('agents.type_acp') },
+      ]" />
     </SFormItem>
 
     <!-- 系统提示词（ACP 模式无 systemPrompt，由外部 Agent 自行管理） -->
     <SFormItem v-if="form.type !== AgentMode.ACP" :label="t('agents.system_prompt')">
-      <STextarea v-model="form.systemPrompt" :rows="3" :placeholder="t('agents.system_prompt_placeholder')" />
+      <STextarea v-model:value="form.systemPrompt" :rows="3" :placeholder="t('agents.system_prompt_placeholder')" />
     </SFormItem>
 
     <!-- Model (ACP 模式不需要本地模型) -->
     <SFormItem v-if="form.type !== AgentMode.ACP" :label="t('agents.model_col') + ' *'">
-      <SSelect v-model="form.model">
-        <option value="">{{ t('common.select_placeholder') }}</option>
-        <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-      </SSelect>
+      <SSelect v-model:value="form.model" :options="[{ value: '', label: t('common.select_placeholder') }, ...modelOptions.map(m => ({ value: m.id, label: m.label }))]" />
     </SFormItem>
 
     <!-- Compact Model (Generative/ACP 不支持) -->
@@ -285,10 +280,7 @@ defineExpose({ open })
       :label="t('agents.compact_model')"
       :hint="t('agents.compact_model_hint')"
     >
-      <SSelect v-model="form.compactModel">
-        <option value="">{{ t('agents.compact_model_placeholder') }}</option>
-        <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-      </SSelect>
+      <SSelect v-model:value="form.compactModel" :options="[{ value: '', label: t('agents.compact_model_placeholder') }, ...modelOptions.map(m => ({ value: m.id, label: m.label }))]" />
     </SFormItem>
 
     <!-- ACP 专属字段 -->
@@ -299,28 +291,28 @@ defineExpose({ open })
         </div>
       </SFormItem>
       <SFormItem :label="t('agents.acp_command') + ' *'">
-        <SInput v-model="form.command" :placeholder="t('agents.acp_command_placeholder')" />
+        <SInput v-model:value="form.command" :placeholder="t('agents.acp_command_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('agents.acp_args')">
         <div v-for="(_, i) in form.args" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
-          <SInput v-model="form.args[i]" :placeholder="t('agents.acp_args_placeholder')" style="flex:1" />
+          <SInput v-model:value="form.args[i]" :placeholder="t('agents.acp_args_placeholder')" style="flex:1" />
           <SButton type="danger" size="sm" @click="form.args.splice(i, 1)" style="flex-shrink:0">&times;</SButton>
         </div>
         <SButton type="outline" size="sm" @click="form.args.push('')">+ {{ t('agents.acp_args_add') }}</SButton>
       </SFormItem>
       <SFormItem :label="t('agents.acp_session_mode')" :hint="t('agents.acp_session_mode_hint')">
-        <SSelect v-model="form.sessionMode">
-          <option :value="ACPSessionMode.Persistent">{{ t('agents.acp_session_persistent') }}</option>
-          <option :value="ACPSessionMode.Transient">{{ t('agents.acp_session_transient') }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.sessionMode" :options="[
+          { value: ACPSessionMode.Persistent, label: t('agents.acp_session_persistent') },
+          { value: ACPSessionMode.Transient, label: t('agents.acp_session_transient') },
+        ]" />
       </SFormItem>
       <SFormItem :label="t('agents.acp_init_timeout')" :hint="t('agents.acp_init_timeout_hint')">
-        <SInput v-model.number="form.initTimeout" type="number" :placeholder="t('agents.acp_init_timeout_placeholder')" />
+        <SInput v-model:value.number="form.initTimeout" type="number" :placeholder="t('agents.acp_init_timeout_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('agents.acp_env')">
         <div v-for="(item, i) in form.env" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
-          <SInput v-model="item.key" placeholder="KEY" style="flex:1" />
-          <SInput v-model="item.value" placeholder="VALUE" style="flex:2" />
+          <SInput v-model:value="item.key" placeholder="KEY" style="flex:1" />
+          <SInput v-model:value="item.value" placeholder="VALUE" style="flex:2" />
           <SButton type="danger" size="sm" @click="form.env.splice(i, 1)" style="flex-shrink:0">&times;</SButton>
         </div>
         <SButton type="outline" size="sm" @click="form.env.push({ key: '', value: '' })">+ {{ t('agents.acp_env_add') }}</SButton>
@@ -329,7 +321,7 @@ defineExpose({ open })
 
     <!-- autoApproveAllTools -->
     <SFormItem>
-      <SCheckCard v-model="form.autoApproveAllTools">{{ t('agents.auto_approve_all_tools') }}</SCheckCard>
+      <SCheckCard v-model:checked="form.autoApproveAllTools">{{ t('agents.auto_approve_all_tools') }}</SCheckCard>
     </SFormItem>
 
     <!-- modelCallTimeout (ACP/Generative 不需要) -->
@@ -337,7 +329,7 @@ defineExpose({ open })
       v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP"
       :label="t('agents.model_call_timeout')"
     >
-      <SInput v-model.number="form.modelCallTimeout" type="number" :placeholder="t('agents.model_call_timeout_placeholder')" />
+      <SInput v-model:value.number="form.modelCallTimeout" type="number" :placeholder="t('agents.model_call_timeout_placeholder')" />
     </SFormItem>
 
     <!-- ReAct fields -->
@@ -370,12 +362,9 @@ defineExpose({ open })
   </SModal>
 
   <!-- Sub-agent Modal -->
-  <SModal v-model:visible="showSubModal" :title="subModalTitle" width="sm" nested>
+  <SModal v-model:show="showSubModal" :title="subModalTitle" width="sm" nested>
     <SFormItem :label="t('agents.sub_agent_label') + ' *'">
-      <SSelect v-model="subForm.id">
-        <option value="">{{ t('common.select_placeholder') }}</option>
-        <option v-for="a in subAgentSelectOptions()" :key="a.id" :value="a.id">{{ a.label }} ({{ a.type }})</option>
-      </SSelect>
+      <SSelect v-model:value="subForm.id" :options="[{ value: '', label: t('common.select_placeholder') }, ...subAgentSelectOptions().map(a => ({ value: a.id, label: `${a.label} (${a.type})` }))]" />
     </SFormItem>
     <SFormItem :label="t('agents.sub_desc_label') + ' *'">
       <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
@@ -383,7 +372,7 @@ defineExpose({ open })
           {{ generatingDesc ? t('agents.generating_desc') : t('agents.generate_desc') }}
         </SButton>
       </div>
-      <STextarea v-model="subForm.desc" :placeholder="t('agents.sub_desc_placeholder')" :rows="3" resize="vertical" />
+      <STextarea v-model:value="subForm.desc" :placeholder="t('agents.sub_desc_placeholder')" :rows="3" resize="vertical" />
     </SFormItem>
 
     <template #footer>

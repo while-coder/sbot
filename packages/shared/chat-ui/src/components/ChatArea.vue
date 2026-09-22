@@ -258,10 +258,10 @@ defineExpose({ scrollToBottom })
               class="chatui-agent-select"
               single
               placement="top"
-              :model-value="agentMsValue"
+              :value="agentMsValue"
               :options="agentMsOptions"
               :placeholder="L.selectPlaceholder"
-              @update:model-value="(v) => emit('update-agent', v[0] ?? '')"
+              @update:value="(v) => emit('update-agent', v[0] ?? '')"
             />
           </div>
           <div class="chatui-input-toolbar-side">
@@ -299,10 +299,10 @@ defineExpose({ scrollToBottom })
             single
             compact
             placement="top"
-            :model-value="saverMsValue"
+            :value="saverMsValue"
             :options="saverMsOptions"
             :placeholder="L.selectPlaceholder"
-            @update:model-value="(v) => emit('update-config', 'saver', v[0] ?? '')"
+            @update:value="(v) => emit('update-config', 'saver', v[0] ?? '')"
           />
         </div>
         <div v-if="!workPathReadonly" class="chatui-input-config-item chatui-input-config-path-wrap">

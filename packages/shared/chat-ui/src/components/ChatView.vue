@@ -17,7 +17,7 @@ import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
 import WorkbenchPanel from './WorkbenchPanel.vue'
-import { SButton, SInput, SModal, useConfirm } from '@sbot/ui-kit'
+import { SButton, SInput, SModal, confirm } from '@sbot/ui-kit'
 
 const props = withDefaults(defineProps<{
   transport: IChatTransport
@@ -39,7 +39,6 @@ const props = withDefaults(defineProps<{
 })
 
 const L = computed(() => resolveLabels(props.labels))
-const { confirm } = useConfirm()
 
 const CHAT_VIEW_STATE_KEY = 'sbot:chatview:state:v1'
 
@@ -387,7 +386,9 @@ async function deleteActiveSessionFromMenu() {
   if (!session) return
   compactMenuOpen.value = false
   const label = session.name || L.value.untitledSession
-  if (await confirm(tpl(L.value.confirmDeleteSession, { name: label }), {
+  if (await confirm.show({
+    title: L.value.deleteSession,
+    content: tpl(L.value.confirmDeleteSession, { name: label }),
     danger: true,
     cancelText: L.value.cancel,
   })) {
@@ -696,7 +697,9 @@ async function onRefresh() {
 
 async function onClearHistory() {
   const id = activeProfileId.value
-  if (!id || !await confirm(L.value.confirmClearHistory, {
+  if (!id || !await confirm.show({
+    title: L.value.clearHistory,
+    content: L.value.confirmClearHistory,
     danger: true,
     cancelText: L.value.cancel,
   })) return
@@ -1057,7 +1060,7 @@ function saveRightPanelOpenState(open: boolean): void {
       @confirm="onPathConfirmed"
     />
     <SModal
-      :visible="renameDialogVisible"
+      :show="renameDialogVisible"
       :title="L.renameSession"
       width="sm"
       class="chatui-rename-dialog"
@@ -1067,7 +1070,7 @@ function saveRightPanelOpenState(open: boolean): void {
       <div class="chatui-rename-hint">{{ L.renameSessionHint }}</div>
       <SInput
         ref="renameInputEl"
-        v-model="renameDraft"
+        v-model:value="renameDraft"
         :placeholder="L.sessionNamePlaceholder"
         autofocus
         @keydown="onRenameDialogKeydown"

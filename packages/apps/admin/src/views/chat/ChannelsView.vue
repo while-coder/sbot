@@ -7,7 +7,7 @@ import { profileManager } from '@/managers/profileManager'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
 import { saverManager } from '@/managers/saverManager'
-import { useToast, useConfirm, SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, STab } from '@sbot/ui-kit'
+import { SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SFormDetails, SPageToolbar, SPageContent, SMultiSelect, SEntityList, STabBar, SNavTab, toast, confirm } from '@sbot/ui-kit'
 import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, IntentFilterMode, type ChannelConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
@@ -18,7 +18,6 @@ import SessionConfigOverridesEditor, { type SessionOverrides, type ConfigSource 
 import SessionDataConfigEditor, { type DataConfigValue } from '@/components/SessionDataConfigEditor.vue'
 
 const { t } = useI18n()
-const { confirm } = useConfirm()
 
 // Render a field description as a hint, turning explicit http(s) URLs into clickable links.
 // Escapes first, then only injects anchors for matched URLs — safe against HTML in descriptions.
@@ -103,7 +102,6 @@ interface UserRow {
   channelId: string
 }
 
-const { show } = useToast()
 
 const pickerTransport = new WebSocketTransport()
 const pickerLabels = computed(() => ({
@@ -314,13 +312,13 @@ async function selectProfile(targetId: number | 'default') {
   try {
     if (targetId === 'default') {
       await apiFetch(`/api/channel-sessions/${s.id}/detach-profile`, 'POST', {})
-      show(t('channels.profile_detach_done'))
+      toast.show('success', t('channels.profile_detach_done'))
     } else {
       await apiFetch(`/api/channel-sessions/${s.id}`, 'PUT', { profileId: targetId })
     }
     await openEditSession(s)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -330,10 +328,10 @@ async function cloneProfileFromCurrent() {
   try {
     const name = `${s.sessionName || s.sessionId}-profile`
     await apiFetch(`/api/channel-sessions/${s.id}/clone-profile`, 'POST', { name })
-    show(t('channels.profile_clone_done'))
+    toast.show('success', t('channels.profile_clone_done'))
     await openEditSession(s)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -402,7 +400,7 @@ async function saveSession() {
 
   // 共享 profile 且确有变更时才弹警告
   if (profileChanged && isCurrentProfileShared.value) {
-    const ok = await confirm(t('channels.profile_shared_warn', { n: p.sessionCount }), { danger: true })
+    const ok = await confirm.show({ title: t('channels.profile_shared_warn', { n: p.sessionCount }), danger: true , content: ''})
     if (!ok) return
   }
 
@@ -416,10 +414,10 @@ async function saveSession() {
       Object.assign(s, profilePayload)
     }
     s.sessionName = sessionForm.value.name.trim()
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     editingSession.value = null
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -548,7 +546,7 @@ async function loadChannelData(id: string) {
     }))
     userMap.value[id]    = userRes.data || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     sessionMap.value[id] = []
     userMap.value[id]    = []
   } finally {
@@ -567,26 +565,26 @@ async function refreshSessions(ids: string[]) {
 }
 
 async function removeSession(channelId: string, session: ChannelSessionRow) {
-  if (!await confirm(t('channels.confirm_delete_session', { name: session.sessionId }), { danger: true })) return
+  if (!await confirm.show({ title: t('channels.confirm_delete_session', { name: session.sessionId }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/channel-sessions/${session.id}`, 'DELETE')
     const list = sessionMap.value[channelId]
     if (list) sessionMap.value[channelId] = list.filter(s => s.id !== session.id)
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function removeUser(channelId: string, user: UserRow) {
-  if (!await confirm(t('users.confirm_delete', { name: user.userName || user.userId }), { danger: true })) return
+  if (!await confirm.show({ title: t('users.confirm_delete', { name: user.userName || user.userId }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
     const list = userMap.value[channelId]
     if (list) userMap.value[channelId] = list.filter(u => u.id !== user.id)
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -605,7 +603,7 @@ function clearActionState() {
 async function triggerAction(key: string) {
   const channelId = editingId.value
   const type = form.value.type
-  if (!type) { show('请先选择频道类型', 'error'); return }
+  if (!type) { toast.show('error', '请先选择频道类型'); return }
 
   actionState.value[key] = { loading: true }
   try {
@@ -654,7 +652,7 @@ async function waitForQRConfirm(key: string, channelId: string | null, type: str
           }
         }
       }
-      show('登录成功，请记得保存')
+      toast.show('success', '登录成功，请记得保存')
     } else if (data?.status === 'expired') {
       s.qrUrl = undefined
       s.error = '二维码已过期，请重新生成'
@@ -690,13 +688,13 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
-  if (!form.value.agent) { show(t('channels.select_agent'), 'error'); return }
-  if (!form.value.saver) { show(t('channels.select_saver'), 'error'); return }
+  if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
+  if (!form.value.agent) { toast.show('error', t('channels.select_agent')); return }
+  if (!form.value.saver) { toast.show('error', t('channels.select_saver')); return }
   const channelMemory = ((form.value as any).memory as string | null) || undefined
   const channelAgenda = ((form.value as any).agenda as string | null) || undefined
-  if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
-  if (formTriggerToolsMode.value === 'whitelist' && formTriggerTools.value.length === 0) { show(t('channels.tools_whitelist_empty'), 'error'); return }
+  if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { toast.show('error', t('channels.tools_whitelist_empty')); return }
+  if (formTriggerToolsMode.value === 'whitelist' && formTriggerTools.value.length === 0) { toast.show('error', t('channels.tools_whitelist_empty')); return }
   try {
     const validNoteIds = new Set(noteOptions.value.map(n => n.id))
     const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
@@ -750,10 +748,10 @@ async function save() {
         store.settings.channels[id] = payload
       }
     }
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -766,7 +764,7 @@ function isBuiltin(id: string): boolean {
 async function remove(id: string) {
   const c = channels.value[id]
   const label = c?.name || id
-  if (!await confirm(t('channels.confirm_delete', { name: label }), { danger: true })) return
+  if (!await confirm.show({ title: t('channels.confirm_delete', { name: label }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/settings/channels/${id}`, 'DELETE')
     if (c?.saver) {
@@ -774,9 +772,9 @@ async function remove(id: string) {
       await saverManager.clearHistory(c.saver, `${c.type}_${id}`).catch(() => {})
     }
     if (store.settings.channels) delete store.settings.channels[id]
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -786,7 +784,7 @@ async function refresh() {
     await loadPlugins()
     if (expandedChannels.value.length > 0) await refreshSessions(expandedChannels.value)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -841,9 +839,9 @@ async function refresh() {
           <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
         </template>
         <template #expanded="{ item: c }">
-          <STabBar :model-value="getChannelTab(c.id)" @update:model-value="setChannelTab(c.id, $event as 'sessions' | 'users')" variant="underline">
-            <STab name="sessions" :count="(sessionMap[c.id] || []).length">{{ t('channels.sessions') }}</STab>
-            <STab name="users" :count="(userMap[c.id] || []).length">{{ t('channels.users') }}</STab>
+          <STabBar :active="getChannelTab(c.id)" @update:active="setChannelTab(c.id, $event as 'sessions' | 'users')" variant="underline">
+            <SNavTab name="sessions" :count="(sessionMap[c.id] || []).length">{{ t('channels.sessions') }}</SNavTab>
+            <SNavTab name="users" :count="(userMap[c.id] || []).length">{{ t('channels.users') }}</SNavTab>
           </STabBar>
           <div class="channel-detail-body">
             <div v-if="channelLoading[c.id]" class="detail-empty">{{ t('common.loading') }}</div>
@@ -919,15 +917,13 @@ async function refresh() {
         <div class="drawer-body">
           <SFormSection :title="t('channels.section_basic')">
             <SFormItem v-if="editingId" :label="t('common.id')">
-              <SInput :model-value="editingId" disabled class="cell-mono" />
+              <SInput :value="editingId" disabled class="cell-mono" />
             </SFormItem>
             <SFormItem :label="t('channels.display_name') + ' *'">
-              <SInput v-model="form.name" :placeholder="t('channels.display_name_placeholder')" />
+              <SInput v-model:value="form.name" :placeholder="t('channels.display_name_placeholder')" />
             </SFormItem>
             <SFormItem :label="t('channels.channel_type') + ' *'">
-              <SSelect v-model="form.type" @change="form.config = {}" :disabled="!!editingId">
-                <option v-for="p in plugins.filter(p => !p.builtin || editingId)" :key="p.type" :value="p.type">{{ p.label }}</option>
-              </SSelect>
+              <SSelect v-model:value="form.type" @change="form.config = {}" :disabled="!!editingId" :options="plugins.filter(p => !p.builtin || editingId).map(p => ({ value: p.type, label: p.label }))" />
             </SFormItem>
           </SFormSection>
 
@@ -948,20 +944,18 @@ async function refresh() {
                 </div>
               </SFormItem>
               <SFormItem v-else :label="field.label + (field.required ? ' *' : '')">
-                <SSelect v-if="field.type === 'select'" v-model="form.config[key]">
-                  <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </SSelect>
+                <SSelect v-if="field.type === 'select'" v-model:value="form.config[key]" :options="(field.options ?? []).map(opt => ({ value: opt.value, label: opt.label }))" />
                 <label v-else-if="field.type === 'boolean'" class="toggle-label">
                   <input type="checkbox" v-model="form.config[key]" />
                   <span>{{ field.description || '' }}</span>
                 </label>
-                <SInput v-else-if="field.type === 'number'" type="number" v-model.number="form.config[key]" :placeholder="field.description || ''" />
+                <SInput v-else-if="field.type === 'number'" type="number" v-model:value.number="form.config[key]" :placeholder="field.description || ''" />
                 <div v-else-if="field.type === 'password'" class="apikey-field">
-                  <SInput v-model="form.config[key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" class="apikey-input" />
+                  <SInput v-model:value="form.config[key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" class="apikey-input" />
                   <button type="button" class="apikey-toggle" @click="passwordVisible[key] = !passwordVisible[key]" :title="passwordVisible[key] ? t('common.hide') : t('common.show')">{{ passwordVisible[key] ? t('common.hide') : t('common.show') }}</button>
                 </div>
-                <SInput v-else-if="field.type === 'textarea'" multiline v-model="form.config[key]" :placeholder="field.description || ''" />
-                <SInput v-else v-model="form.config[key]" :placeholder="field.description || ''" />
+                <SInput type="textarea" v-else-if="field.type === 'textarea'" v-model:value="form.config[key]" :placeholder="field.description || ''" />
+                <SInput v-else v-model:value="form.config[key]" :placeholder="field.description || ''" />
                 <template v-if="field.type !== 'boolean' && field.description" #hint>
                   <span v-html="linkifyHint(field.description || '')"></span>
                 </template>
@@ -985,24 +979,24 @@ async function refresh() {
 
           <SFormDetails :summary="t('channels.section_channel_advanced')" :badge="channelAdvancedBadge">
             <SFormItem :label="t('channels.merge_window')" :hint="t('channels.merge_window_hint')">
-              <SInput v-model.number="form.mergeWindow" type="number" placeholder="0" />
+              <SInput v-model:value.number="form.mergeWindow" type="number" placeholder="0" />
             </SFormItem>
             <template v-if="currentToolOptions.length > 0">
               <SFormItem :label="t('channels.tools')" :hint="t('channels.tools_hint')">
-                <SSelect v-model="formToolsMode">
-                  <option value="default">{{ t('channels.tools_mode_default') }}</option>
-                  <option value="whitelist">{{ t('channels.tools_mode_whitelist') }}</option>
-                  <option value="block">{{ t('channels.tools_mode_block') }}</option>
-                </SSelect>
-                <SMultiSelect v-if="formToolsMode === 'whitelist'" v-model="formTools" :options="currentToolOptions" />
+                <SSelect v-model:value="formToolsMode" :options="[
+                  { value: 'default', label: t('channels.tools_mode_default') },
+                  { value: 'whitelist', label: t('channels.tools_mode_whitelist') },
+                  { value: 'block', label: t('channels.tools_mode_block') },
+                ]" />
+                <SMultiSelect v-if="formToolsMode === 'whitelist'" v-model:value="formTools" :options="currentToolOptions" />
               </SFormItem>
               <SFormItem :label="t('channels.trigger_tools')" :hint="t('channels.trigger_tools_hint')">
-                <SSelect v-model="formTriggerToolsMode">
-                  <option value="default">{{ t('channels.tools_mode_default') }}</option>
-                  <option value="whitelist">{{ t('channels.tools_mode_whitelist') }}</option>
-                  <option value="block">{{ t('channels.tools_mode_block') }}</option>
-                </SSelect>
-                <SMultiSelect v-if="formTriggerToolsMode === 'whitelist'" v-model="formTriggerTools" :options="currentToolOptions" />
+                <SSelect v-model:value="formTriggerToolsMode" :options="[
+                  { value: 'default', label: t('channels.tools_mode_default') },
+                  { value: 'whitelist', label: t('channels.tools_mode_whitelist') },
+                  { value: 'block', label: t('channels.tools_mode_block') },
+                ]" />
+                <SMultiSelect v-if="formTriggerToolsMode === 'whitelist'" v-model:value="formTriggerTools" :options="currentToolOptions" />
               </SFormItem>
             </template>
           </SFormDetails>
@@ -1026,25 +1020,21 @@ async function refresh() {
         </div>
         <div class="drawer-body">
           <SFormItem :label="t('channels.session_id')">
-            <SInput :model-value="editingSession.sessionId" disabled class="cell-mono" />
+            <SInput :value="editingSession.sessionId" disabled class="cell-mono" />
           </SFormItem>
           <SFormItem :label="t('channels.auto_session_name')">
-            <SInput :model-value="editingSession.autoSessionName" disabled />
+            <SInput :value="editingSession.autoSessionName" disabled />
           </SFormItem>
           <SFormItem :label="t('channels.session_name')">
-            <SInput v-model="sessionForm.name" :placeholder="t('channels.session_name_placeholder')" />
+            <SInput v-model:value="sessionForm.name" :placeholder="t('channels.session_name_placeholder')" />
           </SFormItem>
 
           <SFormItem :label="t('channels.profile')" :hint="t('channels.profile_hint')">
             <SSelect
-              :model-value="isCurrentProfileAuto ? 'default' : String(editingProfile?.id ?? '')"
-              @update:model-value="v => selectProfile(v === 'default' ? 'default' : Number(v))"
-            >
-              <option value="default">{{ t('channels.profile_none') }}</option>
-              <option v-for="p in visibleProfiles" :key="p.id" :value="String(p.id)">
-                {{ p.name }}{{ p.sessionCount && p.sessionCount > 1 ? ` (${p.sessionCount})` : '' }}
-              </option>
-            </SSelect>
+              :value="isCurrentProfileAuto ? 'default' : String(editingProfile?.id ?? '')"
+              @update:value="v => selectProfile(v === 'default' ? 'default' : Number(v))"
+              :options="[{ value: 'default', label: t('channels.profile_none') }, ...visibleProfiles.map(p => ({ value: String(p.id), label: `${p.name}${p.sessionCount && p.sessionCount > 1 ? ` (${p.sessionCount})` : ''}` }))]"
+            />
             <div class="profile-actions">
               <SButton v-if="isCurrentProfileAuto" type="outline" size="sm" @click="cloneProfileFromCurrent">{{ t('channels.profile_clone') }}</SButton>
               <SButton v-else type="outline" size="sm" @click="selectProfile('default')">{{ t('channels.profile_detach') }}</SButton>
@@ -1080,22 +1070,22 @@ async function refresh() {
     <SModal :visible="!!viewUser" :title="viewUser ? t('users.detail_title', { name: viewUser.userName || viewUser.userId }) : ''" width="lg" @update:visible="v => { if (!v) viewUser = null }">
       <template v-if="viewUser">
         <SFormItem :label="t('common.id')">
-          <SInput :model-value="String(viewUser.id)" disabled />
+          <SInput :value="String(viewUser.id)" disabled />
         </SFormItem>
         <SFormItem :label="t('users.user_id')">
-          <SInput :model-value="viewUser.userId" disabled />
+          <SInput :value="viewUser.userId" disabled />
         </SFormItem>
         <SFormItem :label="t('users.open_id')">
-          <SInput :model-value="viewUser.openId" disabled />
+          <SInput :value="viewUser.openId" disabled />
         </SFormItem>
         <SFormItem :label="t('users.username')">
-          <SInput :model-value="viewUser.userName" disabled />
+          <SInput :value="viewUser.userName" disabled />
         </SFormItem>
         <SFormItem :label="t('users.channel')">
-          <SInput :model-value="viewUser.channelId" disabled />
+          <SInput :value="viewUser.channelId" disabled />
         </SFormItem>
         <SFormItem :label="t('users.user_info')">
-          <STextarea :model-value="formatUserInfo(viewUser.userInfo)" disabled :rows="16" class="user-info-text" />
+          <STextarea :value="formatUserInfo(viewUser.userInfo)" disabled :rows="16" class="user-info-text" />
         </SFormItem>
       </template>
       <template #footer>
@@ -1111,7 +1101,7 @@ async function refresh() {
       :transport="pickerTransport"
       :labels="pickerLabels"
       @confirm="p => { if (editingSession) sessionForm.overrides.workPath = p; else form.workPath = p }"
-      @error="msg => show(msg, 'error')"
+      @error="msg => toast.show('error', msg)"
     />
   </div>
 </template>

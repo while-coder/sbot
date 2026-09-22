@@ -24,31 +24,31 @@ const entries = computed(() =>
   >
     <SSelect
       v-if="field.type === 'select'"
-      v-model="config[key]"
+      v-model:value="config[key]"
       :options="field.options ?? []"
     />
-    <SSwitch v-else-if="field.type === 'boolean'" v-model="config[key]" />
+    <SSwitch v-else-if="field.type === 'boolean'" v-model:value="config[key]" />
     <SInput
       v-else-if="field.type === 'number'"
-      v-model.number="config[key]"
+      v-model:value.number="config[key]"
       type="number"
       :placeholder="field.description || ''"
     />
     <SInput
       v-else-if="field.type === 'password'"
-      v-model="config[key]"
+      v-model:value="config[key]"
       type="password"
       :placeholder="field.description || ''"
     />
     <SInput
       v-else-if="field.type === 'textarea'"
-      v-model="config[key]"
-      multiline
+      v-model:value="config[key]"
+      type="textarea"
       :placeholder="field.description || ''"
     />
     <SInput
       v-else
-      v-model="config[key]"
+      v-model:value="config[key]"
       :placeholder="field.description || ''"
     />
     <template v-if="field.type === 'qrcode'" #hint>桌面端不支持扫码，请直接粘贴内容</template>

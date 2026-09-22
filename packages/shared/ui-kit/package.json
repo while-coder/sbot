@@ -1,16 +1,23 @@
 {
   "name": "@sbot/ui-kit",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./components/*": "./src/components/*",
-    "./tokens/*": "./src/tokens/*"
+    "./style.css": "./src/styles/index.css",
+    "./tokens.css": "./src/styles/tokens.css",
+    "./shared.css": "./src/styles/shared.css"
+  },
+  "scripts": {
+    "typecheck": "vue-tsc --noEmit"
   },
   "peerDependencies": {
     "vue": "^3.5.38"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vue": "^3.5.38",
+    "vue-tsc": "^2.2.10"
   }
 }

@@ -3,22 +3,20 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { skillsManager } from '@/managers/skillsManager'
-import { useToast, useConfirm, SButton, SInput, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, STabBar, SNavTab, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
 import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const allSkills = skillsManager.list
 
 const searchQuery = ref('')
 const activeTab = ref('all')
 
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'name',        label: t('common.name'),        primary: true, ellipsis: true, width: '240px' },
   { key: 'description', label: t('common.description'), ellipsis: true },
   { key: 'ops',         label: t('common.ops'),         ops: true,     width: '120px' },
@@ -45,7 +43,7 @@ async function load() {
   try {
     await skillsManager.ensure(true)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -56,13 +54,13 @@ function openView(row: SkillItem) {
 }
 
 async function remove(name: string) {
-  if (!await confirm(t('skills.confirm_delete', { name }), { danger: true })) return
+  if (!await confirm.show({ title: t('skills.confirm_delete', { name }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/skills/${encodeURIComponent(name)}`, 'DELETE')
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -81,22 +79,22 @@ onMounted(load)
       <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
       <SButton type="primary" size="sm" @click="openAdd">{{ t('skills.add') }}</SButton>
     </SPageToolbar>
-    <STabBar v-model="activeTab">
-      <STab name="all" :count="allSkills.length">{{ t('common.all') }}</STab>
-      <STab
+    <STabBar v-model:active="activeTab">
+      <SNavTab name="all" :count="allSkills.length">{{ t('common.all') }}</SNavTab>
+      <SNavTab
         v-for="src in sources"
         :key="src"
         :name="src"
         :count="allSkills.filter(s => s.source === src).length"
-      >{{ src }}</STab>
+      >{{ src }}</SNavTab>
       <div class="tab-bar-spacer" />
-      <SInput v-model="searchQuery" size="sm" :placeholder="t('skills.search_placeholder')" class="skills-search" />
+      <SInput v-model:value="searchQuery" size="sm" :placeholder="t('skills.search_placeholder')" class="skills-search" />
     </STabBar>
     <SPageContent>
       <div class="dir-hint-panel">
         {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/skills/</code>
       </div>
-      <STable
+      <SEntityTable
         :columns="columns"
         :rows="filteredSkills"
         row-key="name"
@@ -113,7 +111,7 @@ onMounted(load)
             <SButton v-if="row.source === '全局'" type="danger" size="sm" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
     <SkillViewerModal ref="skillViewRef" />

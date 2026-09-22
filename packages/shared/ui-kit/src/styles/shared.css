@@ -1,0 +1,62 @@
+/* ui-kit 全局共享类
+ *
+ * token 在 tokens.css；组件私有样式在各 .vue 的 <style scoped>。
+ * 这里只放"跨组件/跨包共享"的选择器，每条注明被谁共用——
+ * 新增共享类前先想想能否做成组件私有，避免这里继续膨胀。
+ *
+ *    - 键盘焦点环（13 个可交互组件）
+ *    - .s-spinner（SButton、SSpin）
+ *    - .s-icon-close（SCard、SModal）
+ *    - .s-empty（SEmpty、SDataTable 空行）
+ *    - .s-input / .s-select 控件基础（SInput、SAutoComplete、SSelect）
+ *    - .s-input-wrap / .s-input-suffix（SInput 的包裹层）
+ *    - .s-table 基础（STable、SDataTable）
+ *    - .s-log-line（SLog，且 BasicLogPane 在自己 DOM 上直接复用，必须全局）
+ *    - 工具类 .s-truncate / .s-mono（业务模板直接使用）
+ */
+
+/* 键盘焦点环：所有可交互控件共用 */
+.s-button:focus-visible, .s-input:focus-visible, .s-select:focus-visible, .s-switch:focus-visible, .s-tab-button:focus-visible, .s-tree-label:focus-visible, .s-tree-toggle:focus-visible, .s-icon-close:focus-visible, .s-tag-close:focus-visible, .s-input-clear:focus-visible, .s-dropdown-item:focus-visible, .s-table-sort:focus-visible, .s-table-filter:focus-visible, .s-split-trigger:focus-visible { outline: 2px solid var(--sui-primary); outline-offset: 2px; }
+
+/* loading 圈：SButton 与 SSpin 共用 */
+.s-spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sui-spin .7s linear infinite; }
+.s-spinner.large { width: 24px; height: 24px; }
+@keyframes sui-spin { to { transform: rotate(360deg); } }
+
+/* 关闭按钮：SCard 与 SModal 共用 */
+.s-icon-close { width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--sui-radius-md); background: transparent; color: var(--sui-fg-muted); cursor: pointer; font-size: 21px; }
+.s-icon-close:hover { background: var(--sui-bg-hover); color: var(--sui-fg); }
+
+/* 空态：SEmpty 与 SDataTable 空行共用 */
+.s-empty { display: grid; min-height: 70px; place-items: center; color: var(--sui-fg-muted); font-size: 13px; }
+
+/* 输入控件基础：SInput、SAutoComplete 用 .s-input，SSelect 用 .s-select */
+.s-input, .s-select { width: 100%; min-width: 0; min-height: 32px; padding: 5px 9px; border: 1px solid var(--sui-border-strong); border-radius: var(--sui-radius-md); background: var(--sui-bg); color: var(--sui-fg); font: inherit; }
+.s-input:disabled, .s-select:disabled { opacity: 0.55; }
+
+/* 输入包裹层：SInput 共用 */
+.s-input-wrap { position: relative; display: inline-flex; width: 100%; min-width: 0; align-items: center; }
+.s-input-wrap.has-suffix .s-input, .s-input-wrap.has-clear .s-input { padding-right: 42px; }
+.s-input-wrap.has-suffix.has-clear .s-input { padding-right: 68px; }
+.s-input-suffix { position: absolute; right: 9px; color: var(--sui-fg-muted); font-size: 12px; pointer-events: none; }
+
+/* 表格基础：STable 与 SDataTable 共用 */
+.s-table { width: 100%; border-collapse: collapse; color: var(--sui-fg-secondary); font-size: 13px; }
+.s-table th, .s-table td { padding: 10px 12px; border-bottom: 1px solid var(--sui-border); text-align: left; vertical-align: middle; }
+.s-table th { position: sticky; top: 0; z-index: 1; background: var(--sui-bg-soft); color: var(--sui-fg-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
+.s-table tr:hover td { background: var(--sui-bg-soft); }
+
+/* 日志行：SLog 渲染，BasicLogPane 也在自己 DOM 上直接复用（必须全局） */
+.s-log-line { white-space: pre-wrap; }
+.s-log-line.tone-warning { color: var(--sui-log-tone-warning); }
+.s-log-line.tone-error { color: var(--sui-log-tone-error); background: var(--sui-log-tone-error-bg); }
+
+/* 工具类：业务模板直接使用 */
+.s-truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-mono { font-family: var(--sui-font-mono); font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .s-modal-enter-active, .s-modal-leave-active, .s-modal-enter-active .s-modal-box, .s-modal-leave-active .s-modal-box { transition-duration: .01ms !important; }
+  .s-spinner { animation-duration: .01ms !important; }
+  .s-switch-track, .s-switch-thumb, .s-multi-select-arrow { transition-duration: .01ms !important; }
+}

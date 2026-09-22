@@ -154,21 +154,19 @@ defineExpose({ open })
 
 <template>
   <SModal
-    v-model:visible="pickerOpen"
+    v-model:show="pickerOpen"
     :title="L.selectDirTitle"
     width="480px"
     class="chatui-picker-modal"
     :nested="nested"
   >
-    <template #toolbar>
-      <SInput
-        v-model="pathInput"
-        size="sm"
-        class="chatui-picker-path-bar"
-        :placeholder="L.myComputer"
-        @keydown.enter="navigate(String(pathInput).trim())"
-      />
-    </template>
+    <SInput
+      v-model:value="pathInput"
+      size="sm"
+      class="chatui-picker-path-bar"
+      :placeholder="L.myComputer"
+      @keydown.enter="navigate(String(pathInput).trim())"
+    />
 
     <div v-if="pickerQuickDirs.length" class="chatui-picker-quickdirs">
       <SChip
@@ -200,7 +198,7 @@ defineExpose({ open })
           <span class="chatui-picker-icon">▶</span>
           <SInput
             ref="newNameInput"
-            v-model="pickerNewName"
+            v-model:value="pickerNewName"
             size="sm"
             class="chatui-picker-create-input"
             :placeholder="L.newFolderPlaceholder"

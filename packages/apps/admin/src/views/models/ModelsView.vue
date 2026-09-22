@@ -4,8 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFormDetails, SPageToolbar, SPageContent, STable } from '@sbot/ui-kit'
-import type { STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SFormDetails, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
+import type { EntityTableColumn } from '@sbot/ui-kit'
 import { ModelProvider } from '@/shared/types'
 import type { ModelConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
@@ -13,14 +13,12 @@ import ResourceRefs from '@/components/ResourceRefs.vue'
 import { useResourceRefs } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const models = computed(() => store.settings.models || {})
 const modelRows = computed(() =>
   Object.entries(models.value).map(([id, m]) => ({ id, ...m })),
 )
-const modelColumns = computed<STableColumn[]>(() => [
+const modelColumns = computed<EntityTableColumn[]>(() => [
   { key: 'name',     label: t('common.name'),     primary: true },
   { key: 'provider', label: t('common.provider') },
   { key: 'baseURL',  label: t('common.base_url'), ellipsis: true },
@@ -151,7 +149,7 @@ function autofillParams(info: CatalogLLMInfo): void {
 function fillLLMInfoFromCatalog(): void {
   const info = autoLLMInfo.value
   if (!info?.fromCatalog) {
-    show(t('models.llm_fill_unlisted'), 'error')
+    toast.show('error', t('models.llm_fill_unlisted'))
     return
   }
   setOverride('vision', String(Boolean(info.vision)) as LLMCapabilityValue)
@@ -208,7 +206,7 @@ async function loadProviders() {
     const res = await apiFetch('/api/llm-providers')
     providers.value = res.data as ModelProviderDefinition[]
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -250,7 +248,7 @@ async function openPicker() {
     const res = await apiFetch('/api/models/available', 'POST', {})
     pickerModels.value = res.data as string[]
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     showPicker.value = false
   } finally {
     pickerLoading.value = false
@@ -304,14 +302,14 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
-  if (!form.value.baseURL.trim()) { show(t('common.base_url_required'), 'error'); return }
-  if (apiKeyRequired.value && !form.value.apiKey.trim()) { show(t('common.api_key_required'), 'error'); return }
-  if (!form.value.model.trim()) { show(t('common.model_required'), 'error'); return }
+  if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
+  if (!form.value.baseURL.trim()) { toast.show('error', t('common.base_url_required')); return }
+  if (apiKeyRequired.value && !form.value.apiKey.trim()) { toast.show('error', t('common.api_key_required')); return }
+  if (!form.value.model.trim()) { toast.show('error', t('common.model_required')); return }
   for (const [key, field] of visibleSchemaEntries.value) {
     const value = form.value.config?.[key]
     if (field.required && (value === undefined || value === null || value === '')) {
-      show(`${field.label} is required`, 'error')
+      toast.show('error', `${field.label} is required`)
       return
     }
   }
@@ -339,23 +337,23 @@ async function save() {
       ? await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/models', 'POST', body)
     settingsManager.apply(res.data)
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function remove(id: string) {
   const m = models.value[id]
   const label = m.name || id
-  if (!await confirm(t('models.confirm_delete', { name: label }), { danger: true })) return
+  if (!await confirm.show({ title: t('models.confirm_delete', { name: label }), danger: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/models/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -364,7 +362,7 @@ async function refresh() {
     await settingsManager.refresh()
     await loadProfiles()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -376,7 +374,7 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('models.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable
+      <SEntityTable
         :columns="modelColumns"
         :rows="modelRows"
         row-key="id"
@@ -392,57 +390,53 @@ async function refresh() {
           <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
         </template>
-        <template #_expanded="{ row }">
+        <template #expanded="{ row }">
           <div class="refs-expanded">
             <ResourceRefs mode="card" :refs="refs(row.id)" />
           </div>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
     <!-- Edit/Add modal -->
-    <SModal v-model:visible="showModal" :title="editingName !== null ? t('models.edit_title') : t('models.add_title')" width="md">
+    <SModal v-model:show="showModal" :title="editingName !== null ? t('models.edit_title') : t('models.add_title')" width="md">
       <SFormItem :label="t('common.name') + ' *'">
-        <SInput v-model="form.name" :placeholder="t('models.name_placeholder')" />
+        <SInput v-model:value="form.name" :placeholder="t('models.name_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('common.provider') + ' *'">
-        <SSelect v-model="form.provider" @change="onProviderChange">
-          <option v-for="provider in providerOptions" :key="provider.type" :value="provider.type">{{ provider.label }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.provider" @change="onProviderChange" :options="providerOptions.map(provider => ({ value: provider.type, label: provider.label }))" />
       </SFormItem>
       <SFormItem :label="t('common.base_url') + ' *'">
-        <SInput v-model="form.baseURL" :placeholder="providerBaseURL" />
+        <SInput v-model:value="form.baseURL" :placeholder="providerBaseURL" />
       </SFormItem>
       <SFormItem v-if="apiKeyEnabled" :label="t('common.api_key') + (apiKeyRequired ? ' *' : '')">
         <div class="apikey-field">
-          <SInput v-model="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="API Key" class="apikey-input" />
+          <SInput v-model:value="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="API Key" class="apikey-input" />
           <SButton type="outline" size="sm" @click="showApiKey = !showApiKey">{{ showApiKey ? t('common.hide') : t('common.show') }}</SButton>
         </div>
       </SFormItem>
       <SFormItem :label="t('models.model') + ' *'">
         <div class="model-field">
-          <SInput v-model="form.model" placeholder="Model ID" class="model-input" />
+          <SInput v-model:value="form.model" placeholder="Model ID" class="model-input" />
           <SButton type="outline" size="sm" @click="openPicker">{{ t('models.pick') }}</SButton>
         </div>
       </SFormItem>
       <template v-for="[key, field] in visibleSchemaEntries" :key="key">
         <SFormItem :label="field.label + (field.required ? ' *' : '')">
-          <SSelect v-if="field.type === 'select'" v-model="providerConfig[key]">
-            <option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option>
-          </SSelect>
+          <SSelect v-if="field.type === 'select'" v-model:value="providerConfig[key]" :options="(field.options ?? []).map(option => ({ value: option.value, label: option.label }))" />
           <label v-else-if="field.type === 'boolean'" class="checkbox-label">
             <input v-model="providerConfig[key]" type="checkbox" />
             {{ field.description || '' }}
           </label>
-          <SInput v-else-if="field.type === 'number'" v-model.number="providerConfig[key]" type="number" :placeholder="field.description || ''" />
+          <SInput v-else-if="field.type === 'number'" v-model:value.number="providerConfig[key]" type="number" :placeholder="field.description || ''" />
           <div v-else-if="field.type === 'password'" class="apikey-field">
-            <SInput v-model="providerConfig[key]" :type="privateFieldVisible[key] ? 'text' : 'password'" :placeholder="field.description || ''" class="apikey-input" />
+            <SInput v-model:value="providerConfig[key]" :type="privateFieldVisible[key] ? 'text' : 'password'" :placeholder="field.description || ''" class="apikey-input" />
             <SButton type="outline" size="sm" @click="privateFieldVisible[key] = !privateFieldVisible[key]">
               {{ privateFieldVisible[key] ? t('common.hide') : t('common.show') }}
             </SButton>
           </div>
-          <SInput v-else-if="field.type === 'textarea'" v-model="providerConfig[key]" multiline :placeholder="field.description || ''" />
-          <SInput v-else v-model="providerConfig[key]" :placeholder="field.description || ''" />
+          <SInput type="textarea" v-else-if="field.type === 'textarea'" v-model:value="providerConfig[key]" :placeholder="field.description || ''" />
+          <SInput v-else v-model:value="providerConfig[key]" :placeholder="field.description || ''" />
           <template v-if="field.type !== 'boolean' && field.description" #hint>{{ field.description }}</template>
         </SFormItem>
       </template>
@@ -528,17 +522,17 @@ async function refresh() {
           </div>
           <div class="parameter-grid">
             <SFormItem :label="t('models.temperature')">
-              <SInput v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" :readonly="temperatureReadOnly" />
+              <SInput v-model:value.number="form.temperature" type="number" step="0.1" placeholder="0.7" :readonly="temperatureReadOnly" />
               <template v-if="temperatureReadOnly" #hint>{{ t('models.temperature_unsupported_hint') }}</template>
             </SFormItem>
             <SFormItem :label="t('models.max_tools')">
-              <SInput v-model.number="form.maxTools" type="number" step="1" :placeholder="t('models.no_limit')" />
+              <SInput v-model:value.number="form.maxTools" type="number" step="1" :placeholder="t('models.no_limit')" />
             </SFormItem>
             <SFormItem :label="t('models.context_window')">
-              <SInput v-model.number="form.contextWindow" type="number" step="1" placeholder="128000" />
+              <SInput v-model:value.number="form.contextWindow" type="number" step="1" placeholder="128000" />
             </SFormItem>
             <SFormItem :label="t('models.max_tokens')">
-              <SInput v-model.number="form.maxTokens" type="number" step="1" :placeholder="t('models.no_limit')" />
+              <SInput v-model:value.number="form.maxTokens" type="number" step="1" :placeholder="t('models.no_limit')" />
             </SFormItem>
           </div>
         </div>
@@ -550,34 +544,34 @@ async function refresh() {
           </div>
           <div class="parameter-grid">
             <SFormItem :label="t('models.vision')">
-              <SSelect v-model="visionValue">
-                <option value="true">{{ t('models.capability_supported') }}</option>
-                <option value="false">{{ t('models.capability_unsupported') }}</option>
-              </SSelect>
+              <SSelect v-model:value="visionValue" :options="[
+                { value: 'true', label: t('models.capability_supported') },
+                { value: 'false', label: t('models.capability_unsupported') },
+              ]" />
             </SFormItem>
             <SFormItem :label="t('models.tool_call')">
-              <SSelect v-model="toolCallValue">
-                <option value="true">{{ t('models.capability_supported') }}</option>
-                <option value="false">{{ t('models.capability_unsupported') }}</option>
-              </SSelect>
+              <SSelect v-model:value="toolCallValue" :options="[
+                { value: 'true', label: t('models.capability_supported') },
+                { value: 'false', label: t('models.capability_unsupported') },
+              ]" />
             </SFormItem>
             <SFormItem :label="t('models.reasoning')">
-              <SSelect v-model="reasoningValue">
-                <option value="true">{{ t('models.capability_supported') }}</option>
-                <option value="false">{{ t('models.capability_unsupported') }}</option>
-              </SSelect>
+              <SSelect v-model:value="reasoningValue" :options="[
+                { value: 'true', label: t('models.capability_supported') },
+                { value: 'false', label: t('models.capability_unsupported') },
+              ]" />
             </SFormItem>
             <SFormItem :label="t('models.temperature_control')">
-              <SSelect v-model="temperatureCapabilityValue">
-                <option value="true">{{ t('models.capability_supported') }}</option>
-                <option value="false">{{ t('models.capability_unsupported') }}</option>
-              </SSelect>
+              <SSelect v-model:value="temperatureCapabilityValue" :options="[
+                { value: 'true', label: t('models.capability_supported') },
+                { value: 'false', label: t('models.capability_unsupported') },
+              ]" />
             </SFormItem>
             <SFormItem :label="t('models.structured_output')">
-              <SSelect v-model="structuredOutputValue">
-                <option value="true">{{ t('models.capability_supported') }}</option>
-                <option value="false">{{ t('models.capability_unsupported') }}</option>
-              </SSelect>
+              <SSelect v-model:value="structuredOutputValue" :options="[
+                { value: 'true', label: t('models.capability_supported') },
+                { value: 'false', label: t('models.capability_unsupported') },
+              ]" />
             </SFormItem>
           </div>
         </div>
@@ -590,16 +584,14 @@ async function refresh() {
     </SModal>
 
     <!-- Model picker -->
-    <SModal v-model:visible="showPicker" :title="t('models.pick_title')" width="sm" nested>
-      <template #toolbar>
-        <div class="picker-filter-bar">
-          <svg class="picker-filter-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" stroke-width="1.4"/>
-            <path d="M10 10l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
-          <input v-model="pickerFilter" :placeholder="t('common.filter')" class="picker-filter-input" />
-        </div>
-      </template>
+    <SModal v-model:show="showPicker" :title="t('models.pick_title')" width="sm" nested>
+      <div class="picker-filter-bar" style="margin-bottom:10px">
+        <svg class="picker-filter-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M10 10l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <input v-model="pickerFilter" :placeholder="t('common.filter')" class="picker-filter-input" />
+      </div>
       <div class="picker-list">
         <div v-if="pickerLoading" class="picker-empty">{{ t('common.loading') }}</div>
         <div v-else-if="filteredModels.length === 0" class="picker-empty">{{ t('models.pick_empty') }}</div>

@@ -2,23 +2,22 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast } from '@sbot/ui-kit'
+import { toast } from '@sbot/ui-kit'
 import { SModal, SButton, SFormItem, SInput, STextarea } from '@sbot/ui-kit'
 
 const props = defineProps<{
   prefix: string
   defaultExt?: string
-  visible: boolean
+  show: boolean
 }>()
 
 const emit = defineEmits<{
   created: [filePath: string, fileName: string]
-  'update:visible': [value: boolean]
+  'update:show': [value: boolean]
   close: []
 }>()
 
 const { t } = useI18n()
-const { show } = useToast()
 
 const name = ref('')
 const content = ref('')
@@ -27,34 +26,34 @@ const ext = props.defaultExt || '.txt'
 
 async function create() {
   const n = name.value.trim()
-  if (!n) { show(t('common.name_required'), 'error'); return }
+  if (!n) { toast.show('error', t('common.name_required')); return }
   const fileName = `${n}${n.endsWith('.txt') || n.endsWith('.md') ? '' : ext}`
   const filePath = `${props.prefix}${fileName}`
   try {
     await apiFetch('/api/prompts/content', 'PUT', { path: filePath, content: content.value })
-    show(t('common.created'))
+    toast.show('success', t('common.created'))
     emit('created', filePath, fileName)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 function onClose() {
-  emit('update:visible', false)
+  emit('update:show', false)
   emit('close')
 }
 </script>
 
 <template>
-  <SModal :visible="visible" :title="t('prompts.create_title')" width="sm" nested @update:visible="emit('update:visible', $event)" @close="emit('close')">
+  <SModal :show="show" :title="t('prompts.create_title')" width="sm" nested @update:show="emit('update:show', $event)" @close="emit('close')">
     <SFormItem :label="t('prompts.filename')">
       <div style="display:flex;align-items:center;gap:4px">
         <span class="prefix-hint">{{ prefix }}</span>
-        <SInput v-model="name" :placeholder="`my-prompt${ext}`" style="flex:1" @keyup.enter="create" />
+        <SInput v-model:value="name" :placeholder="`my-prompt${ext}`" style="flex:1" @keyup.enter="create" />
       </div>
     </SFormItem>
     <SFormItem :label="t('prompts.content')">
-      <STextarea v-model="content" :rows="8" class="content-area" />
+      <STextarea v-model:value="content" :rows="8" class="content-area" />
     </SFormItem>
     <template #footer>
       <SButton type="outline" @click="onClose">{{ t('common.cancel') }}</SButton>

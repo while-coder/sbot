@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ServerChatShell, isLocalBaseUrl, type ChatLayoutMode, useServerSelection } from '@sbot/chat-ui'
-import { SConfirm } from '@sbot/ui-kit'
+import { SMessageHost } from '@sbot/ui-kit'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-vscode.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
@@ -77,7 +77,7 @@ onBeforeUnmount(() => {
       @switch-server="switchServer"
     />
   </div>
-  <SConfirm default-confirm-text="确定" default-cancel-text="取消" />
+  <SMessageHost confirm-text="确定" cancel-text="取消" />
 </template>
 
 <style>

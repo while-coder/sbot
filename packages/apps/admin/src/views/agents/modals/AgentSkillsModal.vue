@@ -5,18 +5,16 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast, useConfirm } from '@sbot/ui-kit'
+import { toast, confirm } from '@sbot/ui-kit'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
 import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
-import { SModal, SButton, SInput, STabBar, STab, SCheckCard, STable, type STableColumn } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, STabBar, SNavTab, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
 
 const { t } = useI18n()
 
 const emit = defineEmits<{ saved: [agentName: string] }>()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const visible    = ref(false)
 const agentName  = ref('')
@@ -71,13 +69,13 @@ const sources = computed(() => {
   return Array.from(seen)
 })
 
-const exclusiveColumns = computed<STableColumn[]>(() => [
+const exclusiveColumns = computed<EntityTableColumn[]>(() => [
   { key: 'name',        label: t('common.name'), primary: true },
   { key: 'description', label: t('common.description') },
   { key: 'ops',         label: t('common.ops'), ops: true },
 ])
 
-const globalColumns = computed<STableColumn[]>(() => [
+const globalColumns = computed<EntityTableColumn[]>(() => [
   { key: 'select',      label: '',                      width: '40px' },
   { key: 'name',        label: t('common.name'),        primary: true, width: '280px' },
   { key: 'description', label: t('common.description'), ellipsis: true },
@@ -123,7 +121,7 @@ async function load() {
     skillsExclude.value = rawExclude
     origExclude.value   = [...rawExclude]
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -143,10 +141,10 @@ async function saveGlobalSkills() {
     origUseAll.value = useAllSkills.value
     agentSkillNames.value = useAllSkills.value ? [] : [...selectedSkills.value]
     origExclude.value = useAllSkills.value ? [...skillsExclude.value] : []
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     emit('saved', agentName.value)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -158,13 +156,13 @@ function openView(row: SkillItem, badge = row.source || '') {
 }
 
 async function remove(name: string) {
-  if (!await confirm(t('skills.confirm_delete', { name }), { danger: true })) return
+  if (!await confirm.show({ title: t('skills.confirm_delete', { name }), danger: true , content: ''})) return
   try {
     await apiFetch(`${apiBase()}/${encodeURIComponent(name)}`, 'DELETE')
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -195,39 +193,33 @@ defineExpose({ open })
 <template>
   <template v-if="visible">
     <!-- ── Main modal ──────────────────────────────────────────── -->
-    <SModal v-model:visible="visible" width="xl">
-      <template #header>
-        <div style="display:flex;align-items:center;gap:var(--sui-sp-4)">
-          <h3 class="s-modal-title">{{ agentDisplayName }} — {{ t('agents.skills_title') }}</h3>
-          <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
-        </div>
-      </template>
-
-      <!-- Tab bar -->
-      <template #toolbar>
-        <STabBar v-model="activeTab" style="padding:0;border:none;background:transparent">
-          <STab name="all" :count="allGlobalSkills.length">{{ t('common.all') }}</STab>
-          <STab
+    <SModal v-model:show="visible" :title="`${agentDisplayName} — ${t('agents.skills_title')}`" width="xl">
+      <!-- Tab bar（新 SModal 无 toolbar 插槽，内联到默认插槽顶部） -->
+      <div class="modal-toolbar" style="padding-bottom:0;margin-bottom:0;border-bottom:none">
+        <STabBar v-model:active="activeTab" style="flex:1;padding:0;border:none;background:transparent">
+          <SNavTab name="all" :count="allGlobalSkills.length">{{ t('common.all') }}</SNavTab>
+          <SNavTab
             v-for="src in sources"
             :key="src"
             :name="src"
             :count="allGlobalSkills.filter(s => s.source === src).length"
-          >{{ src }}</STab>
-          <STab :name="t('agents.skills_exclusive_tab')" :count="skills.length">{{ t('agents.skills_exclusive_tab') }}</STab>
+          >{{ src }}</SNavTab>
+          <SNavTab :name="t('agents.skills_exclusive_tab')" :count="skills.length">{{ t('agents.skills_exclusive_tab') }}</SNavTab>
         </STabBar>
-      </template>
+        <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+      </div>
 
       <div style="height:62vh;overflow:auto">
         <!-- Global skills tab -->
         <template v-if="activeTab !== t('agents.skills_exclusive_tab')">
           <div class="picker-toolbar">
-            <SCheckCard v-model="useAllSkills">{{ t('agents.use_all') }}</SCheckCard>
-            <SInput v-model="skillSearch" :placeholder="t('skills.search_placeholder')" size="sm" style="flex:1" />
+            <SCheckCard v-model:checked="useAllSkills">{{ t('agents.use_all') }}</SCheckCard>
+            <SInput v-model:value="skillSearch" :placeholder="t('skills.search_placeholder')" size="sm" style="flex:1" />
             <SButton type="primary" size="sm" :disabled="!skillsChanged" @click="saveGlobalSkills">{{ t('common.save') }}</SButton>
             <span v-if="skillsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
           </div>
           <div v-if="useAllSkills" class="picker-hint">{{ t('agents.skills_exclude_hint') }}</div>
-          <STable
+          <SEntityTable
             :columns="globalColumns"
             :rows="filteredGlobalSkills"
             row-key="name"
@@ -253,7 +245,7 @@ defineExpose({ open })
             <template #ops="{ row }">
               <SButton type="outline" size="sm" @click="openView(row, row.source)">{{ t('common.view') }}</SButton>
             </template>
-          </STable>
+          </SEntityTable>
         </template>
 
         <!-- Agent-specific skills tab -->
@@ -264,7 +256,7 @@ defineExpose({ open })
           <div class="dir-hint-panel">
             {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/agents/{{ agentName }}/skills/</code>
           </div>
-          <STable
+          <SEntityTable
             :columns="exclusiveColumns"
             :rows="skills"
             row-key="name"
@@ -280,7 +272,7 @@ defineExpose({ open })
                 <SButton type="danger" size="sm" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
               </div>
             </template>
-          </STable>
+          </SEntityTable>
         </template>
       </div>
     </SModal>
@@ -297,6 +289,16 @@ defineExpose({ open })
 </template>
 
 <style scoped>
+/* 新 SModal 无 toolbar 插槽：工具行内联到默认插槽顶部 */
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  padding-bottom: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-3);
+  border-bottom: 1px solid var(--sui-border);
+}
+
 .picker-toolbar {
   display: flex;
   align-items: center;

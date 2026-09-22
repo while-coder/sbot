@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { SBadge, STab, STabBar, STree, STreeNode, SSwitch } from '@sbot/ui-kit'
+import { SBadge, SNavTab, STabBar, STreePanel, STreeRow, SSwitch } from '@sbot/ui-kit'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, GitStatusItem } from '../types'
 import type { ExplorerGitViewState } from '../composables/useExplorerViewState'
@@ -404,13 +404,13 @@ onMounted(() => {
       'chatui-git-explorer--vertical': resizeMode === 'vertical',
     }"
   >
-    <STree class="chatui-explorer-tree" :style="treeStyle">
+    <STreePanel class="chatui-explorer-tree" :style="treeStyle">
       <div v-if="!props.root" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
       <div v-else-if="gitLoading && gitItems.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
       <div v-else-if="gitErrMsg && gitItems.length === 0" class="chatui-explorer-empty-tip chatui-explorer-error">{{ gitErrMsg }}</div>
       <div v-else-if="gitItems.length === 0" class="chatui-explorer-empty-tip">{{ L.explorerGitNoChanges }}</div>
       <template v-else>
-        <STreeNode
+        <STreeRow
           v-for="item in gitItems"
           :key="item.path"
           type="file"
@@ -430,9 +430,9 @@ onMounted(() => {
               {{ gitStatusLabel(item) }}
             </SBadge>
           </template>
-        </STreeNode>
+        </STreeRow>
       </template>
-    </STree>
+    </STreePanel>
 
     <div
       class="chatui-explorer-splitter"
@@ -455,14 +455,12 @@ onMounted(() => {
               {{ selectedGitStatus }}
             </SBadge>
           </div>
-          <STabBar v-model="diffViewMode" class="chatui-explorer-diff-tabs">
-            <STab name="unified">{{ L.explorerUnifiedDiff }}</STab>
-            <STab name="split">{{ L.explorerSplitDiff }}</STab>
+          <STabBar v-model:active="diffViewMode" class="chatui-explorer-diff-tabs">
+            <SNavTab name="unified">{{ L.explorerUnifiedDiff }}</SNavTab>
+            <SNavTab name="split">{{ L.explorerSplitDiff }}</SNavTab>
           </STabBar>
           <div class="chatui-explorer-git-toolbar-right">
-            <SSwitch v-model="showFullDiff" class="chatui-explorer-full-diff-switch">
-              {{ L.explorerFullDiff }}
-            </SSwitch>
+            <SSwitch v-model:value="showFullDiff" :label="L.explorerFullDiff" class="chatui-explorer-full-diff-switch" />
           </div>
         </div>
         <div v-if="gitDiffLoading" class="chatui-explorer-state">{{ L.loading }}</div>

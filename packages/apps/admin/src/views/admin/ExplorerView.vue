@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SButton, SPageToolbar, useToast } from '@sbot/ui-kit'
+import { SButton, SPageToolbar, toast } from '@sbot/ui-kit'
 import { WorkbenchPanel, WebSocketTransport, PathPickerModal } from '@sbot/chat-ui'
 
 const { t } = useI18n()
-const { show } = useToast()
 
 const STORAGE_KEY = 'explorer-root-path'
 const root = ref<string>('')
@@ -76,7 +75,7 @@ onMounted(() => {
       :transport="transport"
       :labels="panelLabels"
       @confirm="onPicked"
-      @error="msg => show(msg, 'error')"
+      @error="msg => toast.show('error', msg)"
     />
   </div>
 </template>

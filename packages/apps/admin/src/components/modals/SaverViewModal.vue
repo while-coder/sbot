@@ -2,15 +2,13 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm } from '@sbot/ui-kit'
+import { toast, confirm } from '@sbot/ui-kit'
 import { SModal, SButton, SBadge } from '@sbot/ui-kit'
 import MessageList from '@/components/MessageList.vue'
 import { MessageKind } from '@sbot/chat-ui'
 import type { StoredMessage } from '@sbot/chat-ui'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const visible       = ref(false)
 const saverId       = ref('')
@@ -50,20 +48,20 @@ async function load() {
     const res = await apiFetch(historyUrl())
     messages.value = res.data || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
 }
 
 async function clear() {
-  if (!await confirm(t('savers.clear_confirm'), { danger: true })) return
+  if (!await confirm.show({ title: t('savers.clear_confirm'), danger: true , content: ''})) return
   try {
     await apiFetch(historyUrl(), 'DELETE')
-    show(t('savers.history_cleared'))
+    toast.show('success', t('savers.history_cleared'))
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -104,7 +102,7 @@ async function openByDbId(id: number, name: string) {
     threadId.value = info.threadId
     saverInfo.value = info
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     loading.value = false
     return
   }
@@ -115,25 +113,8 @@ defineExpose({ open, openByDbId })
 </script>
 
 <template>
-  <SModal v-model:visible="visible" width="xl">
-    <template #header>
-      <div class="saver-view-header">
-        <div class="saver-view-header-row">
-          <h3 class="s-modal-title">{{ t('savers.history_title') }}</h3>
-          <SBadge variant="neutral" size="sm">{{ saverName }}</SBadge>
-          <span v-if="!loading" class="saver-count-badge">
-            {{ archivedCount > 0
-              ? t('savers.count_with_archived', { count: messages.length, archived: archivedCount })
-              : t('savers.count', { count: messages.length }) }}
-          </span>
-        </div>
-        <div v-if="saverInfo?.storagePath" class="saver-view-header-row saver-view-meta">
-          <span class="saver-meta-path" :title="t('savers.storage_path')">{{ saverInfo.storagePath }}</span>
-        </div>
-      </div>
-    </template>
-
-    <template #toolbar>
+  <SModal v-model:show="visible" :title="t('savers.history_title')" width="xl">
+    <div class="modal-toolbar">
       <SButton type="outline" size="sm" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
@@ -145,7 +126,21 @@ defineExpose({ open, openByDbId })
       <SButton type="danger" size="sm" style="margin-left:auto" :disabled="messages.length === 0" @click="clear">
         {{ t('savers.clear_history') }}
       </SButton>
-    </template>
+    </div>
+
+    <div class="saver-view-header">
+      <div class="saver-view-header-row">
+        <SBadge variant="neutral" size="sm">{{ saverName }}</SBadge>
+        <span v-if="!loading" class="saver-count-badge">
+          {{ archivedCount > 0
+            ? t('savers.count_with_archived', { count: messages.length, archived: archivedCount })
+            : t('savers.count', { count: messages.length }) }}
+        </span>
+      </div>
+      <div v-if="saverInfo?.storagePath" class="saver-view-header-row saver-view-meta">
+        <span class="saver-meta-path" :title="t('savers.storage_path')">{{ saverInfo.storagePath }}</span>
+      </div>
+    </div>
 
     <div v-if="loading" class="modal-loading">{{ t('common.loading') }}</div>
     <div v-else-if="displayedMessages.length === 0" class="modal-empty">{{ t('savers.no_history') }}</div>
@@ -154,6 +149,15 @@ defineExpose({ open, openByDbId })
 </template>
 
 <style scoped>
+/* 新 SModal 无 toolbar 插槽：工具行内联到默认插槽顶部 */
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  padding-bottom: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-3);
+  border-bottom: 1px solid var(--sui-border);
+}
 .saver-view-header {
   display: flex;
   flex-direction: column;

@@ -2,9 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   SButton, SInput, SSelect, SModal, SFormItem, SFormDetails, SPageToolbar,
-  SPageContent, STable, useToast, useConfirm,
+  SPageContent, SEntityTable, toast, confirm,
 } from '@sbot/ui-kit'
-import type { STableColumn } from '@sbot/ui-kit'
+import type { EntityTableColumn } from '@sbot/ui-kit'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { pickVisibleConfig } from '../../../lib/configField'
@@ -34,15 +34,12 @@ interface ProviderDefinition {
   apiKeyMode?: 'disabled' | 'enabled' | 'required'
 }
 
-const toast = useToast()
-const { confirm } = useConfirm()
-
 const models = ref<Record<string, ModelConfigForm>>({})
 const providers = ref<ProviderDefinition[]>([])
 const loading = ref(false)
 
 const rows = computed(() => Object.entries(models.value).map(([id, m]) => ({ id, ...m })))
-const columns: STableColumn[] = [
+const columns: EntityTableColumn[] = [
   { key: 'name', label: '名称', primary: true },
   { key: 'provider', label: '提供商' },
   { key: 'baseURL', label: 'Base URL', ellipsis: true },
@@ -60,7 +57,7 @@ async function refresh(): Promise<void> {
     models.value = settings.models ?? {}
     providers.value = providerList
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
@@ -167,7 +164,7 @@ function buildBody(): Record<string, any> {
 
 async function save(): Promise<void> {
   const err = validate()
-  if (err) { toast.error(err); return }
+  if (err) { toast.show('error', err); return }
   saving.value = true
   try {
     const body = buildBody()
@@ -176,12 +173,12 @@ async function save(): Promise<void> {
     } else {
       await api.post('/api/settings/models', body)
     }
-    toast.success('已保存')
+    toast.show('success', '已保存')
     showModal.value = false
     await refresh()
     emitSettingsChanged()
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   } finally {
     saving.value = false
   }
@@ -189,7 +186,7 @@ async function save(): Promise<void> {
 
 async function testConnection(): Promise<void> {
   const err = !form.value.model.trim() ? '请先填写模型 ID' : null
-  if (err) { toast.error(err); return }
+  if (err) { toast.show('error', err); return }
   testing.value = true
   try {
     const result = await api.post<{ ok: boolean; latencyMs: number; preview: string }>('/api/models/test', {
@@ -199,9 +196,9 @@ async function testConnection(): Promise<void> {
       model: form.value.model,
       config: form.value.config,
     })
-    toast.success(`连接成功 · ${result.latencyMs}ms${result.preview ? ` · ${result.preview}` : ''}`)
+    toast.show('success', `连接成功 · ${result.latencyMs}ms${result.preview ? ` · ${result.preview}` : ''}`)
   } catch (e: any) {
-    toast.error(`连接失败：${e.message}`)
+    toast.show('error', `连接失败：${e.message}`)
   } finally {
     testing.value = false
   }
@@ -209,14 +206,14 @@ async function testConnection(): Promise<void> {
 
 async function remove(id: string): Promise<void> {
   const label = models.value[id]?.name || id
-  if (!await confirm(`确定删除模型「${label}」？`, { danger: true })) return
+  if (!await confirm.show({ title: '删除模型', content: `确定删除模型「${label}」？`, danger: true })) return
   try {
     await api.del(`/api/settings/models/${encodeURIComponent(id)}`)
     toast.success('已删除')
     await refresh()
     emitSettingsChanged()
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   }
 }
 
@@ -231,46 +228,46 @@ const providerOptions = computed(() =>
       <SButton type="primary" size="sm" @click="openAdd">添加模型</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable :columns="columns" :rows="rows" row-key="id" empty-text="还没有模型，点击右上角添加">
+      <SEntityTable :columns="columns" :rows="rows" row-key="id" empty-text="还没有模型，点击右上角添加">
         <template #name="{ row }">{{ row.name || row.id }}</template>
         <template #ops="{ row }">
           <SButton type="outline" size="sm" @click="openEdit(row.id)">编辑</SButton>
           <SButton type="danger" size="sm" @click="remove(row.id)">删除</SButton>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
-    <SModal v-model:visible="showModal" :title="editingId ? '编辑模型' : '添加模型'" width="md">
+    <SModal v-model:show="showModal" :title="editingId ? '编辑模型' : '添加模型'" width="md">
       <SFormItem label="名称 *">
-        <SInput v-model="form.name" placeholder="显示名称，如 GPT-4o" />
+        <SInput v-model:value="form.name" placeholder="显示名称，如 GPT-4o" />
       </SFormItem>
       <SFormItem label="提供商 *">
-        <SSelect v-model="form.provider" :options="providerOptions" @change="onProviderChange" />
+        <SSelect v-model:value="form.provider" :options="providerOptions" @change="onProviderChange" />
       </SFormItem>
       <SFormItem label="Base URL *">
-        <SInput v-model="form.baseURL" :placeholder="currentProvider?.defaults?.baseURL || 'https://api.openai.com/v1'" />
+        <SInput v-model:value="form.baseURL" :placeholder="currentProvider?.defaults?.baseURL || 'https://api.openai.com/v1'" />
       </SFormItem>
       <SFormItem v-if="apiKeyEnabled" :label="'API Key' + (apiKeyRequired ? ' *' : '')">
-        <SInput v-model="form.apiKey" type="password" placeholder="API Key" />
+        <SInput v-model:value="form.apiKey" type="password" placeholder="API Key" />
       </SFormItem>
       <SFormItem label="模型 ID *">
-        <SInput v-model="form.model" placeholder="如 gpt-4o-mini" />
+        <SInput v-model:value="form.model" placeholder="如 gpt-4o-mini" />
       </SFormItem>
 
       <SchemaForm :schema="currentSchema" :config="form.config" />
 
       <SFormDetails summary="参数（可选，留空自动适配）" :open="false">
         <SFormItem label="Temperature">
-          <SInput v-model.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
+          <SInput v-model:value.number="form.temperature" type="number" step="0.1" placeholder="0.7" />
         </SFormItem>
         <SFormItem label="Max Tokens">
-          <SInput v-model.number="form.maxTokens" type="number" step="1" placeholder="不限制" />
+          <SInput v-model:value.number="form.maxTokens" type="number" step="1" placeholder="不限制" />
         </SFormItem>
         <SFormItem label="上下文窗口">
-          <SInput v-model.number="form.contextWindow" type="number" step="1" placeholder="128000" />
+          <SInput v-model:value.number="form.contextWindow" type="number" step="1" placeholder="128000" />
         </SFormItem>
         <SFormItem label="最大工具数">
-          <SInput v-model.number="form.maxTools" type="number" step="1" placeholder="不限制" />
+          <SInput v-model:value.number="form.maxTools" type="number" step="1" placeholder="不限制" />
         </SFormItem>
       </SFormDetails>
 

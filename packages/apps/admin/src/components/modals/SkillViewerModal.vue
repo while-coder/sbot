@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useToast, SModal, SButton } from '@sbot/ui-kit'
+import { SModal, SButton, toast } from '@sbot/ui-kit'
 import { FileExplorer, WebSocketTransport } from '@sbot/chat-ui'
 import { sourceBadgeStyle } from '@/utils/badges'
 
 const { t } = useI18n()
-const { show } = useToast()
 
 const visible = ref(false)
 const skillName = ref('')
@@ -21,7 +20,7 @@ const initialViewState = computed(() => ({
 
 function open(name: string, badge: string, path: string) {
   if (!path) {
-    show('Missing skill path', 'error')
+    toast.show('error', 'Missing skill path')
     return
   }
   skillName.value = name
@@ -39,13 +38,10 @@ defineExpose({ open })
 </script>
 
 <template>
-  <SModal v-model:visible="visible" width="xl" class="skill-viewer-modal-box">
-    <template #header>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span v-if="skillBadge" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(skillBadge)}`">{{ skillBadge }}</span>
-        <h3 class="s-modal-title" style="font-family:var(--sui-font-mono)">{{ skillName }}</h3>
-      </div>
-    </template>
+  <SModal v-model:show="visible" :title="skillName" width="xl" class="skill-viewer-modal-box">
+    <div v-if="skillBadge" style="margin-bottom:8px">
+      <span :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(skillBadge)}`">{{ skillBadge }}</span>
+    </div>
 
     <div class="skill-viewer-body">
       <FileExplorer

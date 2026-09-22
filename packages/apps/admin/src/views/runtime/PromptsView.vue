@@ -2,12 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm } from '@sbot/ui-kit'
-import { SButton, SIconButton, SBadge, SChip, STree, STreeNode } from '@sbot/ui-kit'
+import { toast, confirm } from '@sbot/ui-kit'
+import { SButton, SIconButton, SBadge, SChip, STreePanel, STreeRow } from '@sbot/ui-kit'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 // ── Tree ──────────────────────────────────────────────────────────
 type TreeNode = { name: string; type: 'file' | 'dir'; path: string; isOverride?: boolean; isUserOnly?: boolean; children?: TreeNode[] }
@@ -96,7 +94,7 @@ async function loadTree() {
     const res = await apiFetch('/api/prompts/tree')
     tree.value = res.data || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -163,7 +161,7 @@ async function selectFile(p: string) {
     isOverride.value = res.data?.isOverride ?? false
     vars.value = res.data?.vars ?? []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
@@ -176,10 +174,10 @@ async function save() {
     await apiFetch('/api/prompts/content', 'PUT', { path: selectedPath.value, content: editContent.value })
     originalContent.value = editContent.value
     isOverride.value = true
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     loadTree()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     saving.value = false
   }
@@ -193,10 +191,10 @@ async function reset() {
     editContent.value = res.data?.content ?? ''
     originalContent.value = editContent.value
     isOverride.value = false
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     loadTree()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -220,27 +218,27 @@ async function confirmCreate(category: string) {
   const filePath = `${category}/${name}${name.includes('.') ? '' : '.md'}`
   try {
     await apiFetch('/api/prompts/content', 'PUT', { path: filePath, content: '' })
-    show(t('common.created'))
+    toast.show('success', t('common.created'))
     cancelCreate()
     await loadTree()
     selectFile(filePath)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function deleteFile(filePath: string) {
-  if (!await confirm(t('prompts.confirm_delete', { name: filePath }), { danger: true })) return
+  if (!await confirm.show({ title: t('prompts.confirm_delete', { name: filePath }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/prompts/content?path=${encodeURIComponent(filePath)}`, 'DELETE')
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
     if (selectedPath.value === filePath) {
       selectedPath.value = ''
       editContent.value = ''
     }
     await loadTree()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -253,9 +251,9 @@ onMounted(async () => {
 <template>
   <div class="prompts-layout">
     <!-- Left: file tree -->
-    <STree :header="t('prompts.header')" class="prompts-tree">
+    <STreePanel :header="t('prompts.header')" class="prompts-tree">
       <template v-for="cat in categories" :key="cat.key">
-        <STreeNode
+        <STreeRow
           type="category"
           :expandable="true"
           :expanded="!collapsedCats.has(cat.key)"
@@ -266,9 +264,9 @@ onMounted(async () => {
             <span v-if="cat.node.isOverride" class="prompts-dot" :title="t('prompts.contains_custom')" />
           </template>
           <template v-if="cat.key === 'heartbeat'" #actions>
-            <SIconButton size="xs" variant="outline" :title="t('prompts.create_file')" @click.stop="startCreate(cat.key)">+</SIconButton>
+            <SIconButton size="16" variant="outline" :title="t('prompts.create_file')" @click.stop="startCreate(cat.key)">+</SIconButton>
           </template>
-        </STreeNode>
+        </STreeRow>
         <template v-if="!collapsedCats.has(cat.key)">
           <div v-if="creatingInCat === cat.key" class="prompts-new-row">
             <input
@@ -278,10 +276,10 @@ onMounted(async () => {
               @keyup.enter="confirmCreate(cat.key)"
               @keyup.escape="cancelCreate"
             />
-            <SIconButton size="xs" @click="confirmCreate(cat.key)">&#10003;</SIconButton>
-            <SIconButton size="xs" @click="cancelCreate">&#10005;</SIconButton>
+            <SIconButton size="16" variant="plain" @click="confirmCreate(cat.key)">&#10003;</SIconButton>
+            <SIconButton size="16" variant="plain" @click="cancelCreate">&#10005;</SIconButton>
           </div>
-          <STreeNode
+          <STreeRow
             v-for="{ node, depth } in flattenChildren(cat.node)"
             :key="node.path"
             :type="node.type === 'dir' ? 'dir' : 'file'"
@@ -298,12 +296,12 @@ onMounted(async () => {
               <span v-if="node.isUserOnly" class="prompts-user-badge" :title="t('prompts.user_only')">&#9679;</span>
             </template>
             <template v-if="node.isUserOnly && node.type === 'file'" #actions>
-              <SIconButton size="xs" variant="plain" danger class="s-tree-node__hover-only" :title="t('common.delete')" @click.stop="deleteFile(node.path)">&times;</SIconButton>
+              <SIconButton size="16" variant="plain" danger class="s-tree-node__hover-only" :title="t('common.delete')" @click.stop="deleteFile(node.path)">&times;</SIconButton>
             </template>
-          </STreeNode>
+          </STreeRow>
         </template>
       </template>
-    </STree>
+    </STreePanel>
 
     <!-- Right: editor -->
     <div class="prompts-editor">

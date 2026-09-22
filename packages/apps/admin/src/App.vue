@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Layout from '@/layouts/Layout.vue'
-import { SToast, SConfirm } from '@sbot/ui-kit'
+import { SMessageHost } from '@sbot/ui-kit'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -8,6 +8,5 @@ const { t } = useI18n()
 
 <template>
   <Layout />
-  <SToast />
-  <SConfirm :default-confirm-text="t('common.confirm')" :default-cancel-text="t('common.cancel')" />
+  <SMessageHost :confirm-text="t('common.confirm')" :cancel-text="t('common.cancel')" />
 </template>

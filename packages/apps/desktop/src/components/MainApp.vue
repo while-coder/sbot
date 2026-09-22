@@ -3,7 +3,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { ChatView, ChatEventType, WebSocketTransport } from '@sbot/chat-ui'
 import type { ChatEvent, IChatTransport } from '@sbot/chat-ui'
-import { SModal, useToast } from '@sbot/ui-kit'
+import { SModal, toast } from '@sbot/ui-kit'
 import SplashGate from './SplashGate.vue'
 import OnboardingCard from './OnboardingCard.vue'
 import SettingsApp from './settings/SettingsApp.vue'
@@ -80,7 +80,6 @@ const unlistenOpenSettings = listen<{ page?: string | null }>('sbot://open-setti
 
 // ── 设置变更 → 等聊天流空闲后重挂 ChatView（ChatView 仅 mount 时拉一次配置） ──
 
-const toast = useToast()
 const settingsVersion = ref(0)
 let idleTimer: ReturnType<typeof setInterval> | null = null
 
@@ -94,7 +93,7 @@ function remountWhenIdle(): void {
     stopIdleWatch()
     return
   }
-  if (!idleTimer) toast.show('配置已更新，将在当前回复完成后应用')
+  if (!idleTimer) toast.show('info', '配置已更新，将在当前回复完成后应用')
 }
 
 const unlistenPromise = listen('sbot://settings-changed', () => {
@@ -126,7 +125,7 @@ onUnmounted(() => {
     />
 
     <SModal
-      v-model:visible="settingsOpen"
+      v-model:show="settingsOpen"
       title="设置"
       width="xl"
       draggable

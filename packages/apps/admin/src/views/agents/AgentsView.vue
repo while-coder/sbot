@@ -7,7 +7,7 @@ import { mcpManager } from '@/managers/mcpManager'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
-import { useToast, useConfirm, SButton, SCard, SPageToolbar, SPageContent, STable, SInfoTable, SInfoRow, SModal, SInput, SSelect, STagFilter, type STableColumn } from '@sbot/ui-kit'
+import { SButton, SCard, SPageToolbar, SPageContent, SEntityTable, SInfoTable, SInfoRow, SModal, SInput, SSelect, STagFilter, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import AgentModal from './modals/AgentModal.vue'
 import AgentMcpModal from './modals/AgentMcpModal.vue'
 import AgentSkillsModal from './modals/AgentSkillsModal.vue'
@@ -19,8 +19,6 @@ import { serverAddr } from '@/utils/mcpSchema'
 import { useResourceRefs } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const agents = computed(() => store.settings.agents || {})
 type AgentRow = Record<string, any> & { id: string }
@@ -91,7 +89,7 @@ onMounted(() => {
   mcpManager.ensure().catch(() => {})
 })
 
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'name',  label: t('agents.name_col'),  primary: true, ellipsis: true },
   { key: 'type',  label: t('agents.type_col'),  width: '120px' },
   { key: 'model', label: t('agents.model_col'), ellipsis: true },
@@ -138,7 +136,7 @@ async function loadSkills(id: string) {
     const res = await apiFetch(`/api/agents/${encodeURIComponent(id)}/skills`)
     skillsMap.value[id] = res.data?.skills || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -147,7 +145,7 @@ async function loadMcp(id: string) {
     const res = await apiFetch(`/api/agents/${encodeURIComponent(id)}/mcp`)
     mcpServersMap.value[id] = res.data?.servers || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -174,22 +172,22 @@ async function exportAgent(id: string) {
     a.download = `${pkg.name || id}.json`
     a.click()
     URL.revokeObjectURL(url)
-    show(t('agentStore.export_success'))
+    toast.show('success', t('agentStore.export_success'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function removeAgent(id: string) {
   const label = (agents.value[id] as any)?.name || id
-  if (!await confirm(t('agents.confirm_delete', { name: label }), { danger: true })) return
+  if (!await confirm.show({ title: t('agents.confirm_delete', { name: label }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'DELETE')
     await settingsManager.refresh()
     expandedIds.value = expandedIds.value.filter(x => x !== id)
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -230,7 +228,7 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
     resourcesList.value = res.data?.resources || []
     resourceTemplatesList.value = res.data?.resourceTemplates || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     showToolsModal.value = false
   } finally {
     toolsLoading.value = false
@@ -255,7 +253,7 @@ async function saveAutoApprove(next: string[]) {
     )
     await settingsManager.refresh()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -288,7 +286,7 @@ async function refresh() {
       ...expandedIds.value.flatMap(id => [loadSkills(id), loadMcp(id)]),
     ])
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -301,14 +299,14 @@ function tabsForAgent(id: string, type: string): { key: 'config' | 'skills' | 'm
   return tabs
 }
 
-const skillCols = computed<STableColumn[]>(() => [
+const skillCols = computed<EntityTableColumn[]>(() => [
   { key: 'name',   label: t('common.name'),  primary: true, ellipsis: true },
   { key: 'source', label: '来源',             width: '80px' },
   { key: 'desc',   label: '描述',             ellipsis: true },
   { key: 'ops',    label: t('common.ops'),   ops: true, width: '90px' },
 ])
 
-const mcpCols = computed<STableColumn[]>(() => [
+const mcpCols = computed<EntityTableColumn[]>(() => [
   { key: 'name',   label: t('common.name'),       primary: true, ellipsis: true },
   { key: 'source', label: '来源',                  width: '80px' },
   { key: 'desc',   label: '描述',                  ellipsis: true },
@@ -374,10 +372,10 @@ async function saveMcpParams() {
       payload,
     )
     await settingsManager.refresh()
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showParamsModal.value = false
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -389,15 +387,15 @@ async function saveMcpParams() {
       <SButton type="primary" size="sm" @click="agentModal?.open()">{{ t('agents.add') }}</SButton>
       <div class="agents-sort">
         <span class="agents-sort-label">{{ t('agents.sort_label') }}</span>
-        <SSelect v-model="sortBy" size="sm" :options="sortOptions" />
+        <SSelect v-model:value="sortBy" size="sm" :options="sortOptions" />
       </div>
       <div v-if="allTags.length" class="agents-tag-filter">
         <span class="agents-tag-filter-label">{{ t('agents.filter_by_tag') }}</span>
-        <STagFilter v-model="activeTagFilters" :options="allTags" />
+        <STagFilter v-model:value="activeTagFilters" :options="allTags" />
       </div>
     </SPageToolbar>
     <SPageContent>
-      <STable
+      <SEntityTable
         :columns="columns"
         :rows="filteredAgentRows"
         row-key="id"
@@ -443,7 +441,7 @@ async function saveMcpParams() {
           </div>
         </template>
 
-        <template #_expanded="{ row }">
+        <template #expanded="{ row }">
           <div class="agent-tab-bar">
             <button
               v-for="tab in tabsForAgent(row.id, row.type)"
@@ -537,7 +535,7 @@ async function saveMcpParams() {
                 <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.manage_skills') }}</SButton>
                 <div class="manage-hint">{{ t('agents.agent_skills') }}</div>
               </div>
-              <STable :columns="skillCols" :rows="skillRows(row.id)" row-key="_key">
+              <SEntityTable :columns="skillCols" :rows="skillRows(row.id)" row-key="_key">
                 <template #name="{ row: s }"><span class="cell-mono">{{ s.name }}</span></template>
                 <template #source="{ row: s }">
                   <span v-if="s._private" :style="badgePrivate()">{{ t('agents.skills_exclusive_tab') }}</span>
@@ -553,7 +551,7 @@ async function saveMcpParams() {
                     <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.configure_skills') }}</SButton>
                   </div>
                 </template>
-              </STable>
+              </SEntityTable>
             </template>
 
             <template v-else-if="getTab(row.id) === 'mcp'">
@@ -561,7 +559,7 @@ async function saveMcpParams() {
                 <SButton type="outline" size="sm" @click="agentMcpModal?.open(row.id)">{{ t('agents.manage_tools') }}</SButton>
                 <div class="manage-hint">{{ t('agents.agent_mcps') }}</div>
               </div>
-              <STable :columns="mcpCols" :rows="mcpRows(row.id)" row-key="_key">
+              <SEntityTable :columns="mcpCols" :rows="mcpRows(row.id)" row-key="_key">
                 <template #name="{ row: s }"><span class="cell-mono">{{ s.name }}</span></template>
                 <template #source="{ row: s }">
                   <span v-if="s._private" :style="`font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;${sourceBadgeStyle(t('agents.mcp_exclusive_tab'))}`">{{ t('agents.mcp_exclusive_tab') }}</span>
@@ -575,11 +573,11 @@ async function saveMcpParams() {
                   </SButton>
                   <SButton type="outline" size="sm" @click="openMcpView(row.id, s.id, s._private)">{{ t('common.view') }}</SButton>
                 </template>
-              </STable>
+              </SEntityTable>
             </template>
           </div>
         </template>
-      </STable>
+      </SEntityTable>
 
     </SPageContent>
 
@@ -605,11 +603,11 @@ async function saveMcpParams() {
 
     <SkillViewerModal ref="skillViewRef" />
 
-    <SModal v-model:visible="showParamsModal" :title="t('agents.mcp_params_title', { name: paramsMcpId })" width="md">
+    <SModal v-model:show="showParamsModal" :title="t('agents.mcp_params_title', { name: paramsMcpId })" width="md">
       <div class="params-hint">{{ t('agents.mcp_params_hint') }}</div>
       <div v-for="(row, i) in paramsRows" :key="i" class="params-row">
-        <SInput v-model="row.key" placeholder="Key" size="sm" style="flex:1" />
-        <SInput v-model="row.value" placeholder="Value" size="sm" style="flex:2" />
+        <SInput v-model:value="row.key" placeholder="Key" size="sm" style="flex:1" />
+        <SInput v-model:value="row.value" placeholder="Value" size="sm" style="flex:2" />
         <SButton type="danger" size="sm" @click="paramsRows.splice(i,1)">×</SButton>
       </div>
       <SButton type="outline" size="sm" @click="paramsRows.push({key:'',value:''})">{{ t('agents.mcp_params_add') }}</SButton>

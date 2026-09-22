@@ -3,9 +3,9 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import axios from 'axios'
 import { apiFetch } from '@/shared/api'
-import { useToast } from '@sbot/ui-kit'
+import { toast } from '@sbot/ui-kit'
 import { badgeClawhub, badgeSkillssh } from '@/utils/badges'
-import { SModal, SButton, SInput, STabBar, STab, SCheckCard, STable, type STableColumn } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, STabBar, SNavTab, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
 
 interface HubSkillResult {
   id: string
@@ -32,7 +32,6 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ installed: [] }>()
 
 const { t } = useI18n()
-const { show } = useToast()
 
 // ── Hub state ────────────────────────────────────────────────────
 const visible = ref(false)
@@ -59,7 +58,7 @@ const showInstall = ref(false)
 const installing = ref(false)
 const selected = ref<HubSkillResult | null>(null)
 
-const hubColumns = computed<STableColumn[]>(() => [
+const hubColumns = computed<EntityTableColumn[]>(() => [
   { key: 'name',        label: t('common.name'),            primary: true, ellipsis: true, width: '180px' },
   { key: 'description', label: t('common.description'),     ellipsis: true },
   { key: 'popularity',  label: t('skills.popularity_col'),  width: '80px' },
@@ -128,7 +127,7 @@ async function hubSearch() {
     hubResults.value = Array.isArray(res) ? res : (res.data ?? [])
     hubSearched.value = true
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     hubSearching.value = false
   }
@@ -143,11 +142,11 @@ async function installByUrl() {
       url,
       overwrite: hubUrlOverwrite.value,
     })
-    show(`已安装：${res.data?.name ?? url}`)
+    toast.show('success', `已安装：${res.data?.name ?? url}`)
     hubUrlInput.value = ''
     emit('installed')
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     hubUrlInstalling.value = false
   }
@@ -167,11 +166,11 @@ async function confirmInstall() {
       url: selected.value.sourceUrl,
       overwrite: overwrite.value,
     })
-    show(`已安装：${res.data?.name ?? selected.value.name}`)
+    toast.show('success', `已安装：${res.data?.name ?? selected.value.name}`)
     showInstall.value = false
     emit('installed')
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     installing.value = false
   }
@@ -182,30 +181,25 @@ defineExpose({ open })
 
 <template>
   <!-- Skill Hub modal -->
-  <SModal v-model:visible="visible" :title="title || t('skills.hub_title')" width="xl">
-    <template #toolbar>
-      <STabBar v-model="hubTab" style="padding:0;border:none;background:transparent">
-        <STab name="search">{{ t('skills.search_tab') }}</STab>
-        <STab name="url">{{ t('skills.url_install_tab') }}</STab>
-        <STab name="zip">{{ t('skills.zip_install_tab') }}</STab>
+  <SModal v-model:show="visible" :title="title || t('skills.hub_title')" width="xl">
+    <div class="modal-toolbar" style="padding-bottom:0;margin-bottom:0;border-bottom:none">
+      <STabBar v-model:active="hubTab" style="padding:0;border:none;background:transparent">
+        <SNavTab name="search">{{ t('skills.search_tab') }}</SNavTab>
+        <SNavTab name="url">{{ t('skills.url_install_tab') }}</SNavTab>
+        <SNavTab name="zip">{{ t('skills.zip_install_tab') }}</SNavTab>
       </STabBar>
-    </template>
+    </div>
 
     <div style="display:flex;flex-direction:column;height:60vh">
       <!-- Tab: URL install -->
       <template v-if="hubTab === 'url'">
         <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
-          <SInput
-            v-model="hubUrlInput"
-            :placeholder="t('skills.url_placeholder')"
-            style="flex:1"
-            @keydown.enter="installByUrl"
-          />
+          <SInput v-model:value="hubUrlInput" :placeholder="t('skills.url_placeholder')" style="flex:1" @keydown.enter="installByUrl" />
           <SButton type="primary" :disabled="hubUrlInstalling || !hubUrlInput.trim()" @click="installByUrl">
             {{ hubUrlInstalling ? t('common.loading') : '安装' }}
           </SButton>
         </div>
-        <SCheckCard v-model="hubUrlOverwrite">{{ t('skills.override') }}</SCheckCard>
+        <SCheckCard v-model:checked="hubUrlOverwrite">{{ t('skills.override') }}</SCheckCard>
         <div class="hub-info-panel">
           {{ t('skills.support_formats') }}<br>
           <code v-for="fmt in urlFormats" :key="fmt" style="font-family:var(--sui-font-mono);display:block">{{ fmt }}</code>
@@ -227,7 +221,7 @@ defineExpose({ open })
           </SButton>
         </div>
         <div style="margin-bottom:12px">
-          <SCheckCard v-model="zipOverwrite">{{ t('skills.override') }}</SCheckCard>
+          <SCheckCard v-model:checked="zipOverwrite">{{ t('skills.override') }}</SCheckCard>
         </div>
         <div v-if="zipFiles.length && !zipResults.length" style="font-size:13px;color:var(--sui-fg-muted)">
           已选择 {{ zipFiles.length }} 个文件
@@ -249,12 +243,7 @@ defineExpose({ open })
       <!-- Tab: Search -->
       <template v-else>
         <div style="display:flex;gap:8px;margin-bottom:16px;flex-shrink:0">
-          <SInput
-            v-model="hubQuery"
-            :placeholder="t('skills.search_placeholder_hub')"
-            style="flex:1"
-            @keydown.enter="hubSearch"
-          />
+          <SInput v-model:value="hubQuery" :placeholder="t('skills.search_placeholder_hub')" style="flex:1" @keydown.enter="hubSearch" />
           <SButton type="primary" :disabled="hubSearching || !hubQuery.trim()" @click="hubSearch">
             {{ hubSearching ? t('skills.searching') : '搜索' }}
           </SButton>
@@ -263,7 +252,7 @@ defineExpose({ open })
         <div style="flex:1;overflow-y:auto;min-height:0">
           <div v-if="hubSearching" class="hub-empty-text">{{ t('skills.searching') }}</div>
           <template v-else-if="hubSearched">
-            <STable
+            <SEntityTable
               :columns="hubColumns"
               :rows="hubResults"
               :row-key="hubRowKey"
@@ -291,7 +280,7 @@ defineExpose({ open })
               <template #ops="{ row }">
                 <SButton type="primary" size="sm" @click="openInstall(row)">{{ t('skills.install_title') }}</SButton>
               </template>
-            </STable>
+            </SEntityTable>
           </template>
           <div v-else class="hub-empty-text" style="padding:60px">
             输入关键词搜索 Skill Hub
@@ -302,7 +291,7 @@ defineExpose({ open })
   </SModal>
 
   <!-- Install confirm modal -->
-  <SModal v-if="selected" v-model:visible="showInstall" :title="t('skills.install_title')" width="md" nested>
+  <SModal v-if="selected" v-model:show="showInstall" :title="t('skills.install_title')" width="md" nested>
     <div style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <span class="hub-install-name">{{ selected.name || selected.id }}</span>
@@ -313,7 +302,7 @@ defineExpose({ open })
     <div class="hub-install-target">
       {{ t('skills.install_to') }}<code class="hub-install-code">{{ installDir }}</code>
     </div>
-    <SCheckCard v-model="overwrite">{{ t('skills.override') }}</SCheckCard>
+    <SCheckCard v-model:checked="overwrite">{{ t('skills.override') }}</SCheckCard>
 
     <template #footer>
       <SButton type="outline" @click="showInstall = false">{{ t('common.cancel') }}</SButton>
@@ -325,6 +314,16 @@ defineExpose({ open })
 </template>
 
 <style scoped>
+/* 新 SModal 无 toolbar 插槽：工具行内联到默认插槽顶部 */
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  padding-bottom: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-3);
+  border-bottom: 1px solid var(--sui-border);
+}
+
 .hub-info-panel {
   margin-top: var(--sui-sp-5);
   padding: var(--sui-sp-4) var(--sui-sp-5);

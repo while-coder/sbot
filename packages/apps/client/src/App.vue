@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ServerChatShell, WebSocketTransport, useServerSelection } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
-import { SConfirm, SToast } from '@sbot/ui-kit'
+import { SMessageHost } from '@sbot/ui-kit'
 import ThemeMenu from './ThemeMenu.vue'
 import { UpdaterDialog } from '@while-coder/tauri-updater-vue'
 import '@sbot/chat-ui/themes/variables.css'
@@ -116,8 +116,7 @@ onUnmounted(removeSystemThemeListener)
 <template>
   <div class="desktop-app">
     <UpdaterDialog />
-    <SToast />
-    <SConfirm default-confirm-text="确定" default-cancel-text="取消" />
+    <SMessageHost confirm-text="确定" cancel-text="取消" />
     <ServerChatShell
       :phase="phase"
       :remotes="remotes"

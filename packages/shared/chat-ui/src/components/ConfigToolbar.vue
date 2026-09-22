@@ -34,11 +34,11 @@ const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.note }}</label>
         <SMultiSelect
-          :model-value="session.notes || []"
+          :value="session.notes || []"
           :options="noteOptions"
           compact
           style="min-width:140px"
-          @update:model-value="emit('updateConfig', 'notes', $event)"
+          @update:value="emit('updateConfig', 'notes', $event)"
         />
       </div>
 
@@ -47,11 +47,11 @@ const wikiOptions = computed(() => toMSOptions(props.settings.wikis))
       <div class="chatui-toolbar-group">
         <label class="chatui-toolbar-label">{{ L.wiki }}</label>
         <SMultiSelect
-          :model-value="session.wikis || []"
+          :value="session.wikis || []"
           :options="wikiOptions"
           compact
           style="min-width:140px"
-          @update:model-value="emit('updateConfig', 'wikis', $event)"
+          @update:value="emit('updateConfig', 'wikis', $event)"
         />
       </div>
     </template>

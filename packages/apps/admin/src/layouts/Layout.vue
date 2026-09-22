@@ -7,7 +7,7 @@ import { store } from '@/shared/store'
 import { mcpManager } from '@/managers/mcpManager'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast } from '@sbot/ui-kit'
+import { toast } from '@sbot/ui-kit'
 import { fetchLatestRelease, compareSemver, GITHUB_REPO_URL, GITHUB_RELEASES_URL, DOCS_URL, DOCS_ZH_URL } from '@sbot/shared'
 import { useResponsive } from '../composables/useResponsive'
 import { saveLocale } from '@/i18n'
@@ -15,7 +15,6 @@ import { saveLocale } from '@/i18n'
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
-const { show } = useToast()
 const { isMobile } = useResponsive()
 const sidebarOpen = ref(false)
 
@@ -190,9 +189,9 @@ async function reloadConfig() {
   try {
     await apiFetch('/api/reload', 'POST')
     await Promise.all([settingsManager.refresh(), mcpManager.ensure(true)])
-    show(t('nav.reload_success'))
+    toast.show('success', t('nav.reload_success'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 

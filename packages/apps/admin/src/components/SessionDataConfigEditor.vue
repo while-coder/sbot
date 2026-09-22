@@ -62,6 +62,52 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const isProfileMode = () => props.mode === 'profile'
 
+const enabledDisabledOptions = computed(() => [
+  { value: 'true', label: t('common.enabled') },
+  { value: 'false', label: t('common.disabled') },
+])
+const agentSelectOptions = computed(() => [
+  isProfileMode() ? { value: '', label: t('channels.use_channel_default') } : { value: '', label: t('channels.select_agent'), disabled: true },
+  ...props.agentOptions.map(a => ({ value: a.id, label: a.type ? `${a.label} (${a.type})` : a.label })),
+])
+const saverSelectOptions = computed(() => [
+  isProfileMode() ? { value: '', label: t('channels.use_channel_default') } : { value: '', label: t('channels.select_saver'), disabled: true },
+  ...props.saverOptions.map(s => ({ value: s.id, label: s.label })),
+])
+const inheritBoolOptions = computed(() => [
+  ...(isProfileMode() ? [{ value: '', label: t('channels.use_channel_default') }] : []),
+  ...enabledDisabledOptions.value,
+])
+const timeoutModeOptions = computed(() => [
+  ...(isProfileMode() ? [{ value: 'inherit', label: t('channels.use_channel_default') }] : []),
+  { value: 'off', label: t('channels.timeout_off') },
+  { value: 'custom', label: t('channels.timeout_custom') },
+])
+const approvalTimeoutValueOptions = computed(() => [
+  ...(isProfileMode() ? [{ value: '', label: t('channels.use_channel_default') }] : []),
+  { value: ApprovalTimeoutValue.Deny, label: t('channels.approval_timeout_value_deny') },
+  { value: ApprovalTimeoutValue.Allow, label: t('channels.approval_timeout_value_allow') },
+])
+const intentFilterModeOptions = computed(() => [
+  ...(isProfileMode() ? [{ value: '__default__', label: t('channels.use_channel_default') }] : []),
+  { value: IntentFilterMode.Auto, label: t('channels.intent_filter_mode_auto') },
+  { value: IntentFilterMode.Off, label: t('channels.intent_filter_mode_off') },
+  { value: IntentFilterMode.All, label: t('channels.intent_filter_mode_all') },
+])
+const intentModelOptions = computed(() => [
+  ...(isProfileMode() ? [{ value: '__default__', label: t('channels.use_channel_default') }] : []),
+  { value: '', label: t('common.not_use') },
+  ...props.modelOptions.map(m => ({ value: m.id, label: m.label })),
+])
+const memoryRefOptions = computed(() => [
+  { value: '', label: isProfileMode() ? t('channels.use_channel_default') : t('agents.memory_disabled') },
+  ...props.memoryProfileOptions.map(p => ({ value: p.id, label: p.label })),
+])
+const agendaRefOptions = computed(() => [
+  { value: '', label: isProfileMode() ? t('channels.use_channel_default') : t('agents.agenda_disabled') },
+  ...props.agendaProfileOptions.map(p => ({ value: p.id, label: p.label })),
+])
+
 const resolvedDefaultOpenSections = computed<DataConfigSection[]>(() =>
   props.defaultOpenSections ?? (isProfileMode() ? ['common'] : ['common', 'resources'])
 )
@@ -227,142 +273,87 @@ function showIntentModelConfig(): boolean {
     <SFormDetails :summary="t('channels.section_common')" :open="isSectionOpen('common')">
 
     <SFormItem :label="t('common.agent')" :hint="inheritLabel('agentId', fmtAgent)">
-      <SSelect :model-value="modelValue.agentId ?? ''" @update:model-value="v => update('agentId', v === '' ? null : String(v))">
-        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
-        <option v-else value="" disabled>{{ t('channels.select_agent') }}</option>
-        <option v-for="a in agentOptions" :key="a.id" :value="a.id">{{ a.label }}{{ a.type ? ` (${a.type})` : '' }}</option>
-      </SSelect>
+      <SSelect :value="modelValue.agentId ?? ''" :options="agentSelectOptions" @update:value="v => update('agentId', v === '' ? null : String(v))" />
     </SFormItem>
 
     <SFormItem :label="t('common.storage')" :hint="inheritLabel('saver', fmtSaver)">
-      <SSelect :model-value="modelValue.saver ?? ''" @update:model-value="v => update('saver', v === '' ? null : String(v))">
-        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
-        <option v-else value="" disabled>{{ t('channels.select_saver') }}</option>
-        <option v-for="s in saverOptions" :key="s.id" :value="s.id">{{ s.label }}</option>
-      </SSelect>
+      <SSelect :value="modelValue.saver ?? ''" :options="saverSelectOptions" @update:value="v => update('saver', v === '' ? null : String(v))" />
     </SFormItem>
     </SFormDetails>
 
     <SFormDetails :summary="t('channels.section_resources_workspace')" :badge="resourcesBadge" :open="isSectionOpen('resources')">
 
     <SFormItem :label="t('common.note')" :hint="inheritLabel('notes', fmtList)">
-      <SMultiSelect :model-value="modelValue.notes ?? []" :options="noteOptions" @update:model-value="v => update('notes', v as string[])" />
+      <SMultiSelect :value="modelValue.notes ?? []" :options="noteOptions" @update:value="v => update('notes', v as string[])" />
       <SFormItem v-if="isProfileMode()" :label="t('channels.use_channel_notes')" :hint="t('channels.use_channel_notes_hint')" class="nested-form-item">
-        <SSelect :model-value="String(!!modelValue.useChannelNotes)" @update:model-value="v => update('useChannelNotes', v === 'true')">
-          <option value="true">{{ t('common.enabled') }}</option>
-          <option value="false">{{ t('common.disabled') }}</option>
-        </SSelect>
+        <SSelect :value="String(!!modelValue.useChannelNotes)" :options="enabledDisabledOptions" @update:value="v => update('useChannelNotes', v === 'true')" />
       </SFormItem>
     </SFormItem>
 
     <SFormItem :label="t('common.wiki')" :hint="inheritLabel('wikis', fmtList)">
-      <SMultiSelect :model-value="modelValue.wikis ?? []" :options="wikiOptions" @update:model-value="v => update('wikis', v as string[])" />
+      <SMultiSelect :value="modelValue.wikis ?? []" :options="wikiOptions" @update:value="v => update('wikis', v as string[])" />
       <SFormItem v-if="isProfileMode()" :label="t('channels.use_channel_wikis')" :hint="t('channels.use_channel_wikis_hint')" class="nested-form-item">
-        <SSelect :model-value="String(!!modelValue.useChannelWikis)" @update:model-value="v => update('useChannelWikis', v === 'true')">
-          <option value="true">{{ t('common.enabled') }}</option>
-          <option value="false">{{ t('common.disabled') }}</option>
-        </SSelect>
+        <SSelect :value="String(!!modelValue.useChannelWikis)" :options="enabledDisabledOptions" @update:value="v => update('useChannelWikis', v === 'true')" />
       </SFormItem>
     </SFormItem>
 
     <SFormItem :label="t('directory.path_label')" :hint="inheritLabel('workPath')">
       <div class="path-row">
-        <SInput :model-value="modelValue.workPath ?? ''" type="text" class="path-input" @update:model-value="v => update('workPath', String(v).trim() ? String(v) : null)" />
+        <SInput :value="modelValue.workPath ?? ''" type="text" class="path-input" @update:value="v => update('workPath', String(v).trim() ? String(v) : null)" />
         <SButton type="outline" size="sm" @click="emit('browse-path')">{{ t('directory.browse') }}</SButton>
       </div>
     </SFormItem>
 
     <SFormItem :label="t('agents.disable_workspace_context')" :hint="inheritLabel('disableWorkspaceContext', fmtInject) || t('agents.disable_workspace_context_hint')">
-      <SSelect :model-value="injectSelectValue('disableWorkspaceContext')" @update:model-value="v => updateInject('disableWorkspaceContext', String(v))">
-        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
-        <option value="true">{{ t('common.enabled') }}</option>
-        <option value="false">{{ t('common.disabled') }}</option>
-      </SSelect>
+      <SSelect :value="injectSelectValue('disableWorkspaceContext')" :options="inheritBoolOptions" @update:value="v => updateInject('disableWorkspaceContext', String(v))" />
     </SFormItem>
     <SFormItem :label="t('agents.disable_workspace_skills')" :hint="inheritLabel('disableWorkspaceSkills', fmtInject) || t('agents.disable_workspace_skills_hint')">
-      <SSelect :model-value="injectSelectValue('disableWorkspaceSkills')" @update:model-value="v => updateInject('disableWorkspaceSkills', String(v))">
-        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
-        <option value="true">{{ t('common.enabled') }}</option>
-        <option value="false">{{ t('common.disabled') }}</option>
-      </SSelect>
+      <SSelect :value="injectSelectValue('disableWorkspaceSkills')" :options="inheritBoolOptions" @update:value="v => updateInject('disableWorkspaceSkills', String(v))" />
     </SFormItem>
     <SFormItem :label="t('agents.disable_workspace_mcp')" :hint="inheritLabel('disableWorkspaceMcp', fmtInject) || t('agents.disable_workspace_mcp_hint')">
-      <SSelect :model-value="injectSelectValue('disableWorkspaceMcp')" @update:model-value="v => updateInject('disableWorkspaceMcp', String(v))">
-        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
-        <option value="true">{{ t('common.enabled') }}</option>
-        <option value="false">{{ t('common.disabled') }}</option>
-      </SSelect>
+      <SSelect :value="injectSelectValue('disableWorkspaceMcp')" :options="inheritBoolOptions" @update:value="v => updateInject('disableWorkspaceMcp', String(v))" />
     </SFormItem>
     </SFormDetails>
 
     <SFormDetails :summary="t('channels.section_runtime')" :badge="runtimeBadge" :open="isSectionOpen('runtime')">
 
     <SFormItem :label="t('channels.stream_verbose')" :hint="inheritLabel('streamVerbose', fmtBool) || t('channels.stream_verbose_hint')">
-      <SSelect :model-value="booleanSelectValue('streamVerbose')" @update:model-value="v => updateBool('streamVerbose', String(v))">
-        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
-        <option value="true">{{ t('common.enabled') }}</option>
-        <option value="false">{{ t('common.disabled') }}</option>
-      </SSelect>
+      <SSelect :value="booleanSelectValue('streamVerbose')" :options="inheritBoolOptions" @update:value="v => updateBool('streamVerbose', String(v))" />
     </SFormItem>
     <SFormItem :label="t('settings.auto_approve_all')" :hint="inheritLabel('autoApproveAllTools', fmtBool) || t('settings.auto_approve_all_hint')">
-      <SSelect :model-value="booleanSelectValue('autoApproveAllTools')" @update:model-value="v => updateBool('autoApproveAllTools', String(v))">
-        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
-        <option value="true">{{ t('common.enabled') }}</option>
-        <option value="false">{{ t('common.disabled') }}</option>
-      </SSelect>
+      <SSelect :value="booleanSelectValue('autoApproveAllTools')" :options="inheritBoolOptions" @update:value="v => updateBool('autoApproveAllTools', String(v))" />
     </SFormItem>
     <SFormItem :label="t('channels.approval_timeout')" :hint="inheritLabel('approvalTimeout') || t('channels.approval_timeout_hint')">
-      <SSelect :model-value="timeoutMode('approvalTimeout')" @update:model-value="v => setTimeoutMode('approvalTimeout', String(v))">
-        <option v-if="isProfileMode()" value="inherit">{{ t('channels.use_channel_default') }}</option>
-        <option value="off">{{ t('channels.timeout_off') }}</option>
-        <option value="custom">{{ t('channels.timeout_custom') }}</option>
-      </SSelect>
+      <SSelect :value="timeoutMode('approvalTimeout')" :options="timeoutModeOptions" @update:value="v => setTimeoutMode('approvalTimeout', String(v))" />
       <SFormItem v-if="timeoutMode('approvalTimeout') === 'custom'" :label="t('channels.timeout_seconds')" class="nested-form-item">
-        <SInput :model-value="modelValue.approvalTimeout ?? ''" type="number" min="1" placeholder="30" @update:model-value="v => update('approvalTimeout', (v === '' || v === null || Number(v) <= 0) ? 1 : Number(v))" />
+        <SInput :value="modelValue.approvalTimeout ?? ''" type="number" min="1" placeholder="30" @update:value="v => update('approvalTimeout', (v === '' || v === null || Number(v) <= 0) ? 1 : Number(v))" />
       </SFormItem>
     </SFormItem>
     <SFormItem v-if="timeoutMode('approvalTimeout') === 'custom'" :label="t('channels.approval_timeout_value')" :hint="inheritLabel('approvalTimeoutValue', fmtApprovalValue)">
-      <SSelect :model-value="modelValue.approvalTimeoutValue ?? ''" @update:model-value="v => update('approvalTimeoutValue', v === '' ? null : v as ApprovalTimeoutValue)">
-        <option v-if="isProfileMode()" value="">{{ t('channels.use_channel_default') }}</option>
-        <option :value="ApprovalTimeoutValue.Deny">{{ t('channels.approval_timeout_value_deny') }}</option>
-        <option :value="ApprovalTimeoutValue.Allow">{{ t('channels.approval_timeout_value_allow') }}</option>
-      </SSelect>
+      <SSelect :value="modelValue.approvalTimeoutValue ?? ''" :options="approvalTimeoutValueOptions" @update:value="v => update('approvalTimeoutValue', v === '' ? null : v as ApprovalTimeoutValue)" />
     </SFormItem>
     <SFormItem :label="t('channels.ask_timeout')" :hint="inheritLabel('askTimeout') || t('channels.ask_timeout_hint')">
-      <SSelect :model-value="timeoutMode('askTimeout')" @update:model-value="v => setTimeoutMode('askTimeout', String(v))">
-        <option v-if="isProfileMode()" value="inherit">{{ t('channels.use_channel_default') }}</option>
-        <option value="off">{{ t('channels.timeout_off') }}</option>
-        <option value="custom">{{ t('channels.timeout_custom') }}</option>
-      </SSelect>
+      <SSelect :value="timeoutMode('askTimeout')" :options="timeoutModeOptions" @update:value="v => setTimeoutMode('askTimeout', String(v))" />
       <SFormItem v-if="timeoutMode('askTimeout') === 'custom'" :label="t('channels.timeout_seconds')" class="nested-form-item">
-        <SInput :model-value="modelValue.askTimeout ?? ''" type="number" min="1" placeholder="30" @update:model-value="v => update('askTimeout', (v === '' || v === null || Number(v) <= 0) ? 1 : Number(v))" />
+        <SInput :value="modelValue.askTimeout ?? ''" type="number" min="1" placeholder="30" @update:value="v => update('askTimeout', (v === '' || v === null || Number(v) <= 0) ? 1 : Number(v))" />
       </SFormItem>
     </SFormItem>
     <SFormItem v-if="timeoutMode('askTimeout') === 'custom'" :label="t('channels.ask_timeout_message')" :hint="inheritLabel('askTimeoutMessage') || t('channels.ask_timeout_message_hint')">
-      <SInput :model-value="modelValue.askTimeoutMessage ?? ''" type="text" @update:model-value="v => update('askTimeoutMessage', String(v).trim() ? String(v) : null)" />
+      <SInput :value="modelValue.askTimeoutMessage ?? ''" type="text" @update:value="v => update('askTimeoutMessage', String(v).trim() ? String(v) : null)" />
     </SFormItem>
     <SFormItem :label="t('channels.intent_filter_mode')" :hint="inheritLabel('intentFilterMode', fmtIntentFilterMode) || t('channels.intent_filter_mode_hint')">
-      <SSelect :model-value="intentFilterModeValue()" @update:model-value="v => updateIntentFilterMode(String(v))">
-        <option v-if="isProfileMode()" value="__default__">{{ t('channels.use_channel_default') }}</option>
-        <option :value="IntentFilterMode.Auto">{{ t('channels.intent_filter_mode_auto') }}</option>
-        <option :value="IntentFilterMode.Off">{{ t('channels.intent_filter_mode_off') }}</option>
-        <option :value="IntentFilterMode.All">{{ t('channels.intent_filter_mode_all') }}</option>
-      </SSelect>
+      <SSelect :value="intentFilterModeValue()" :options="intentFilterModeOptions" @update:value="v => updateIntentFilterMode(String(v))" />
     </SFormItem>
     <template v-if="showIntentModelConfig()">
       <SFormItem :label="t('channels.intent_model')" :hint="inheritLabel('intentModel', fmtModel) || t('channels.intent_model_hint')">
-        <SSelect :model-value="modelValue.intentModel ?? (isProfileMode() ? '__default__' : '')" @update:model-value="v => update('intentModel', v === '__default__' ? null : String(v))">
-          <option v-if="isProfileMode()" value="__default__">{{ t('channels.use_channel_default') }}</option>
-          <option value="">{{ t('common.not_use') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
+        <SSelect :value="modelValue.intentModel ?? (isProfileMode() ? '__default__' : '')" :options="intentModelOptions" @update:value="v => update('intentModel', v === '__default__' ? null : String(v))" />
       </SFormItem>
       <template v-if="modelValue.intentModel">
         <SFormItem :label="t('channels.intent_threshold')" :hint="inheritLabel('intentThreshold') || t('channels.intent_threshold_hint')">
-          <SInput :model-value="modelValue.intentThreshold ?? ''" type="number" placeholder="0.7" @update:model-value="v => update('intentThreshold', v === '' || v === null ? null : Number(v))" />
+          <SInput :value="modelValue.intentThreshold ?? ''" type="number" placeholder="0.7" @update:value="v => update('intentThreshold', v === '' || v === null ? null : Number(v))" />
         </SFormItem>
         <SFormItem :label="t('channels.intent_prompt')" :hint="inheritLabel('intentPrompt')">
-          <STextarea :model-value="modelValue.intentPrompt ?? ''" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" @update:model-value="v => update('intentPrompt', String(v).trim() ? String(v) : null)" />
+          <STextarea :value="modelValue.intentPrompt ?? ''" :rows="4" :placeholder="t('channels.intent_prompt_placeholder')" @update:value="v => update('intentPrompt', String(v).trim() ? String(v) : null)" />
         </SFormItem>
       </template>
     </template>
@@ -371,17 +362,11 @@ function showIntentModelConfig(): boolean {
     <SFormDetails :summary="t('channels.section_automation_memory')" :badge="automationBadge" :open="isSectionOpen('automation')">
 
     <SFormItem :label="t('agents.memory_enabled')" :hint="inheritLabel('memory', fmtMemory) || t('agents.memory_hint')">
-      <SSelect :model-value="refSelectValue('memory')" @update:model-value="v => updateRef('memory', String(v))">
-        <option value="">{{ isProfileMode() ? t('channels.use_channel_default') : t('agents.memory_disabled') }}</option>
-        <option v-for="p in memoryProfileOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
-      </SSelect>
+      <SSelect :value="refSelectValue('memory')" :options="memoryRefOptions" @update:value="v => updateRef('memory', String(v))" />
     </SFormItem>
 
     <SFormItem :label="t('agents.agenda_enabled')" :hint="inheritLabel('agenda', fmtAgenda) || t('agents.agenda_hint')">
-      <SSelect :model-value="refSelectValue('agenda')" @update:model-value="v => updateRef('agenda', String(v))">
-        <option value="">{{ isProfileMode() ? t('channels.use_channel_default') : t('agents.agenda_disabled') }}</option>
-        <option v-for="p in agendaProfileOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
-      </SSelect>
+      <SSelect :value="refSelectValue('agenda')" :options="agendaRefOptions" @update:value="v => updateRef('agenda', String(v))" />
     </SFormItem>
     </SFormDetails>
   </div>

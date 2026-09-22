@@ -3,7 +3,7 @@ import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { renderToolParams } from '@/utils/mcpSchema'
-import { SModal, SButton, SBadge, SSwitch, STabBar, STab } from '@sbot/ui-kit'
+import { SModal, SButton, SBadge, SSwitch, STabBar, SNavTab } from '@sbot/ui-kit'
 
 defineProps<{
   visible: boolean
@@ -59,10 +59,10 @@ function close() {
   <SModal :visible="visible" :title="title" width="lg" @update:visible="emit('update:visible', $event)" @close="close">
     <div v-if="loading" class="tools-loading">{{ t('mcp.connecting') }}</div>
     <template v-else>
-      <STabBar v-model="activeTab">
-        <STab name="tools" :count="tools.length">{{ t('mcp.tab_tools') }}</STab>
-        <STab name="prompts" :count="prompts.length">{{ t('mcp.tab_prompts') }}</STab>
-        <STab name="resources" :count="resources.length + resourceTemplates.length">{{ t('mcp.tab_resources') }}</STab>
+      <STabBar v-model:active="activeTab">
+        <SNavTab name="tools" :count="tools.length">{{ t('mcp.tab_tools') }}</SNavTab>
+        <SNavTab name="prompts" :count="prompts.length">{{ t('mcp.tab_prompts') }}</SNavTab>
+        <SNavTab name="resources" :count="resources.length + resourceTemplates.length">{{ t('mcp.tab_resources') }}</SNavTab>
       </STabBar>
 
       <!-- Tools Tab -->
@@ -79,10 +79,10 @@ function close() {
               <div class="tool-header">
                 <div class="tool-name" :class="{ expanded: expandedTools.has(i) }" @click="toggleTool(i)">{{ tool.name }}</div>
                 <SSwitch
-                  :model-value="autoApprovedTools.includes(tool.name)"
+                  :value="autoApprovedTools.includes(tool.name)"
                   :label="t('mcp.auto_approve')"
                   :title="t('mcp.auto_approve')"
-                  @update:model-value="emit('toggle-auto-approve', tool.name)"
+                  @update:value="emit('toggle-auto-approve', tool.name)"
                   @click.stop
                 />
               </div>

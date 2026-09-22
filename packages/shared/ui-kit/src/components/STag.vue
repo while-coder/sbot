@@ -1,46 +1,25 @@
 <script setup lang="ts">
-defineProps<{
-  closable?: boolean
-}>()
+import { useAttrs } from "vue"
 
-const emit = defineEmits<{
-  close: []
-}>()
+defineOptions({ name: "STag", inheritAttrs: false })
+const props = withDefaults(defineProps<{ type?: string; size?: string; closable?: boolean; bordered?: boolean }>(), { type: "default", bordered: true })
+const emit = defineEmits<{ close: [] }>()
+const attrs = useAttrs()
 </script>
 
 <template>
-  <span class="s-tag">
+  <span v-bind="attrs" :class="['s-tag', `type-${props.type}`, `size-${props.size ?? 'medium'}`, { bordered: props.bordered }]">
     <slot />
-    <button
-      v-if="closable"
-      type="button"
-      class="s-tag__close"
-      @click.stop="emit('close')"
-      aria-label="remove"
-    >×</button>
+    <button v-if="props.closable" type="button" class="s-tag-close" aria-label="移除" @click="emit('close')">×</button>
   </span>
 </template>
 
 <style scoped>
-.s-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sui-sp-1);
-  padding: 2px var(--sui-sp-3);
-  background: var(--sui-border);
-  border-radius: var(--sui-radius-sm);
-  font-size: var(--sui-fs-sm);
-  color: var(--sui-fg-secondary);
-  white-space: nowrap;
-}
-.s-tag__close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  color: var(--sui-fg-soft);
-  padding: 0 1px;
-}
-.s-tag__close:hover { color: var(--sui-danger-strong); }
+.s-tag { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 2px 8px; border-radius: var(--sui-radius-sm); background: var(--sui-bg-soft); color: var(--sui-fg-secondary); font-size: 12px; }
+.s-tag.bordered { border: 1px solid var(--sui-border); }
+.s-tag.type-success { color: var(--sui-success); }
+.s-tag.type-warning { color: var(--sui-warning); }
+.s-tag.type-error { color: var(--sui-danger); }
+.s-tag.type-info, .s-tag.type-primary { color: var(--sui-info); }
+.s-tag-close { border: 0; background: transparent; color: inherit; cursor: pointer; }
 </style>

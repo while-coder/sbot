@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { STree, STreeNode, SIconButton, SModal, SInput, SButton, useConfirm } from '@sbot/ui-kit'
+import { STreePanel, STreeRow, SIconButton, SModal, SInput, SButton, confirm } from '@sbot/ui-kit'
 import type { FsUploadProgress, IChatTransport } from '../transport'
 import type { ChatLabels, FsTreeItem } from '../types'
 import type { ExplorerFilesViewState } from '../composables/useExplorerViewState'
@@ -32,7 +32,6 @@ const emit = defineEmits<{
 }>()
 
 const L = computed(() => resolveLabels(props.labels))
-const { confirm } = useConfirm()
 
 type DirState = {
   loaded: boolean
@@ -343,8 +342,9 @@ async function onFilesSelected(e: Event): Promise<void> {
 
 async function handleDelete(item: FsTreeItem): Promise<void> {
   if (busy.value) return
-  const ok = await confirm({
-    message: tpl(L.value.explorerConfirmDelete, { name: item.name }),
+  const ok = await confirm.show({
+    title: L.value.explorerDelete,
+    content: tpl(L.value.explorerConfirmDelete, { name: item.name }),
     confirmText: L.value.explorerDelete,
     cancelText: L.value.cancel,
     danger: true,
@@ -459,8 +459,9 @@ function resetEditState(): void {
 
 async function confirmDiscardDirty(): Promise<boolean> {
   if (!isDirty.value) return true
-  return await confirm({
-    message: L.value.explorerEditDiscardConfirm,
+  return await confirm.show({
+    title: L.value.explorerEditDirty,
+    content: L.value.explorerEditDiscardConfirm,
     cancelText: L.value.cancel,
     danger: true,
   })
@@ -494,8 +495,9 @@ async function saveEdit(): Promise<void> {
     editing.value = false
   } catch (e: any) {
     if (e?.status === 409 || /STALE_MTIME/i.test(e?.message ?? '')) {
-      const reload = await confirm({
-        message: L.value.explorerEditStaleConfirm,
+      const reload = await confirm.show({
+        title: L.value.explorerEdit,
+        content: L.value.explorerEditStaleConfirm,
         cancelText: L.value.cancel,
         danger: true,
       })
@@ -821,12 +823,12 @@ onMounted(() => {
         </div>
       </div>
       <div v-else-if="uploadNotice" class="chatui-explorer-upload-notice">{{ uploadNotice }}</div>
-      <STree class="chatui-explorer-tree">
+      <STreePanel class="chatui-explorer-tree">
         <div v-if="!hasRoot" class="chatui-explorer-empty-tip">{{ L.explorerPickRootHint }}</div>
         <div v-else-if="rootLoading && rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.loading }}</div>
         <div v-else-if="rootRows.length === 0" class="chatui-explorer-empty-tip">{{ L.explorerEmptyDir }}</div>
         <template v-else>
-          <STreeNode
+          <STreeRow
             v-for="{ item, depth } in rootRows"
             :key="item.path"
             :type="item.type === 'dir' ? 'dir' : 'file'"
@@ -868,9 +870,9 @@ onMounted(() => {
                 @click="handleDelete(item)"
               >×</SIconButton>
             </template>
-          </STreeNode>
+          </STreeRow>
         </template>
-      </STree>
+      </STreePanel>
       <input
         v-if="editable"
         ref="fileInputEl"
@@ -969,7 +971,7 @@ onMounted(() => {
     </div>
     <ImageLightbox ref="imageLightbox" :labels="props.labels" />
     <SModal
-      :visible="uploadConflict.visible"
+      :show="uploadConflict.visible"
       :title="L.explorerUploadConflictTitle"
       width="sm"
       :close-on-overlay="false"
@@ -985,11 +987,11 @@ onMounted(() => {
       <template #footer>
         <SButton type="outline" @click="settleUploadConflict('cancel')">{{ L.explorerUploadCancel }}</SButton>
         <SButton @click="settleUploadConflict('skip')">{{ L.explorerUploadSkip }}</SButton>
-        <SButton type="danger" @click="settleUploadConflict('overwrite')">{{ L.explorerUploadOverwrite }}</SButton>
+        <SButton type="error" @click="settleUploadConflict('overwrite')">{{ L.explorerUploadOverwrite }}</SButton>
       </template>
     </SModal>
     <SModal
-      :visible="newFolderVisible"
+      :show="newFolderVisible"
       :title="L.explorerNewFolder"
       width="sm"
       :close-on-overlay="false"
@@ -1000,7 +1002,7 @@ onMounted(() => {
       </div>
       <SInput
         ref="newFolderInputEl"
-        v-model="newFolderName"
+        v-model:value="newFolderName"
         :placeholder="L.explorerNewFolderPlaceholder"
         autofocus
         @keydown="onNewFolderKeydown"

@@ -2,15 +2,13 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm } from '@sbot/ui-kit'
-import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SCheckCard, STable, type STableColumn } from '@sbot/ui-kit'
+import { toast, confirm } from '@sbot/ui-kit'
+import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
 import type { NoteItem, NoteConfig } from '@/shared/types'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'content',      label: t('notes.content_col'),        primary: true, ellipsis: true },
   { key: 'createdAt',    label: t('notes.created_col'),        width: '150px', ellipsis: true },
   { key: 'accessCount',  label: t('notes.access_count_col'),   width: '60px',  align: 'center' },
@@ -45,7 +43,7 @@ async function load() {
     const res = await apiFetch(noteUrl())
     notes.value = res.data || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
@@ -54,20 +52,20 @@ async function load() {
 async function remove(id: string) {
   try {
     await apiFetch(noteUrl(`/${encodeURIComponent(id)}`), 'DELETE')
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function clearAll() {
-  if (!await confirm(t('notes.confirm_clear', { name: noteConfig.value.name || noteId.value }), { danger: true })) return
+  if (!await confirm.show({ title: t('notes.confirm_clear', { name: noteConfig.value.name || noteId.value }), danger: true , content: ''})) return
   try {
     await apiFetch(noteUrl(), 'DELETE')
     notes.value = []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -79,7 +77,7 @@ function openAdd() {
 }
 
 async function confirmAdd() {
-  if (!addContent.value.trim()) { show(t('notes.error_content'), 'error'); return }
+  if (!addContent.value.trim()) { toast.show('error', t('notes.error_content')); return }
   adding.value = true
   try {
     const res = await apiFetch(noteUrl('/add'), 'POST', {
@@ -87,11 +85,11 @@ async function confirmAdd() {
       autoSplit: autoSplit.value,
       chunkSize: autoSplit.value ? chunkSize.value : undefined,
     })
-    show(t('notes.added_count', { count: res.data?.ids?.length ?? 0 }))
+    toast.show('success', t('notes.added_count', { count: res.data?.ids?.length ?? 0 }))
     showAddModal.value = false
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     adding.value = false
   }
@@ -104,15 +102,15 @@ function openEdit(row: NoteItem) {
 }
 
 async function confirmEdit() {
-  if (!editContent.value.trim()) { show(t('notes.error_content'), 'error'); return }
+  if (!editContent.value.trim()) { toast.show('error', t('notes.error_content')); return }
   saving.value = true
   try {
     await apiFetch(noteUrl(`/${encodeURIComponent(editId.value)}`), 'PUT', { content: editContent.value.trim() })
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showEditModal.value = false
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     saving.value = false
   }
@@ -130,16 +128,13 @@ defineExpose({ open })
 </script>
 
 <template>
-  <SModal v-model:visible="visible" width="xl">
-    <template #header>
-      <div style="display:flex;align-items:center;gap:10px">
-        <h3 class="s-modal-title">{{ t('notes.content_title') }}</h3>
-        <SBadge variant="neutral" size="sm">{{ noteConfig.name || noteId }}</SBadge>
-        <span v-if="!loading" class="note-count-badge">{{ t('notes.count', { count: notes.length }) }}</span>
-      </div>
-    </template>
+  <SModal v-model:show="visible" :title="t('notes.content_title')" width="xl">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <SBadge variant="neutral" size="sm">{{ noteConfig.name || noteId }}</SBadge>
+      <span v-if="!loading" class="note-count-badge">{{ t('notes.count', { count: notes.length }) }}</span>
+    </div>
 
-    <template #toolbar>
+    <div class="modal-toolbar">
       <SButton type="outline" size="sm" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
@@ -147,9 +142,9 @@ defineExpose({ open })
       <SButton type="danger" size="sm" style="margin-left:auto" :disabled="notes.length === 0" @click="clearAll">
         {{ t('notes.clear_all') }}
       </SButton>
-    </template>
+    </div>
 
-    <STable
+    <SEntityTable
       :columns="columns"
       :rows="notes"
       row-key="id"
@@ -173,17 +168,17 @@ defineExpose({ open })
         <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
         <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
       </template>
-    </STable>
+    </SEntityTable>
   </SModal>
 
   <!-- Add note modal (nested) -->
-  <SModal v-model:visible="showAddModal" :title="t('notes.add_note_title')" width="sm" nested>
+  <SModal v-model:show="showAddModal" :title="t('notes.add_note_title')" width="sm" nested>
     <SFormItem :label="t('notes.note_content')">
-      <STextarea v-model="addContent" :rows="7" :placeholder="t('notes.note_placeholder')" />
+      <STextarea v-model:value="addContent" :rows="7" :placeholder="t('notes.note_placeholder')" />
     </SFormItem>
-    <SCheckCard v-model="autoSplit" style="margin-top:8px">{{ t('notes.auto_split') }}</SCheckCard>
+    <SCheckCard v-model:checked="autoSplit" style="margin-top:8px">{{ t('notes.auto_split') }}</SCheckCard>
     <SFormItem v-if="autoSplit" :label="t('notes.chunk_size')" style="margin-top:8px">
-      <SInput v-model.number="chunkSize" type="number" min="50" :placeholder="t('notes.chunk_size_placeholder')" />
+      <SInput v-model:value.number="chunkSize" type="number" min="50" :placeholder="t('notes.chunk_size_placeholder')" />
     </SFormItem>
     <template #footer>
       <SButton type="outline" :disabled="adding" @click="showAddModal = false">{{ t('common.cancel') }}</SButton>
@@ -194,9 +189,9 @@ defineExpose({ open })
   </SModal>
 
   <!-- Edit note modal (nested) -->
-  <SModal v-model:visible="showEditModal" :title="t('notes.edit_note_title')" width="sm" nested>
+  <SModal v-model:show="showEditModal" :title="t('notes.edit_note_title')" width="sm" nested>
     <SFormItem :label="t('notes.note_content')">
-      <STextarea v-model="editContent" :rows="7" :placeholder="t('notes.note_placeholder')" />
+      <STextarea v-model:value="editContent" :rows="7" :placeholder="t('notes.note_placeholder')" />
     </SFormItem>
     <template #footer>
       <SButton type="outline" :disabled="saving" @click="showEditModal = false">{{ t('common.cancel') }}</SButton>
@@ -208,6 +203,16 @@ defineExpose({ open })
 </template>
 
 <style scoped>
+/* 新 SModal 无 toolbar 插槽：工具行内联到默认插槽顶部 */
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  padding-bottom: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-3);
+  border-bottom: 1px solid var(--sui-border);
+}
+
 .note-count-badge {
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  SButton, SInput, SSelect, SSwitch, STagInput, SFormItem, SFormSection,
+  SButton, SInput, SSelect, SSwitch, STagInput, SFormItem, SFormSection, toast,
 } from '@sbot/ui-kit'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { BUILTIN_AGENTS, BUILTIN_AGENT_MCPS } from '../../../lib/defaultAgent'
-import { useToast } from '@sbot/ui-kit'
 import { themeMode } from '../../../theme/theme'
 import type { ThemeMode } from '../../../theme/theme'
 
@@ -22,7 +21,6 @@ interface GeneralSettings {
   models?: Record<string, { name?: string }>
 }
 
-const toast = useToast()
 const loaded = ref(false)
 const saving = ref(false)
 
@@ -70,7 +68,7 @@ onMounted(async () => {
     }
     loaded.value = true
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   }
 })
 
@@ -87,10 +85,10 @@ async function save(): Promise<void> {
       contextFileNames: form.value.contextFileNames,
     })
     await saveBuiltinAgents()
-    toast.success('已保存')
+    toast.show('success', '已保存')
     emitSettingsChanged()
   } catch (e: any) {
-    toast.error(e.message)
+    toast.show('error', e.message)
   } finally {
     saving.value = false
   }
@@ -141,7 +139,7 @@ const themeModeValue = computed<ThemeMode>({
   <div class="page">
     <SFormSection title="外观">
       <SFormItem label="主题">
-        <SSelect v-model="themeModeValue" :options="themeOptions" class="narrow" />
+        <SSelect v-model:value="themeModeValue" :options="themeOptions" class="narrow" />
         <template #hint>更改立即生效，并在主窗口同步</template>
       </SFormItem>
     </SFormSection>
@@ -149,7 +147,7 @@ const themeModeValue = computed<ThemeMode>({
     <SFormSection title="内置助手">
       <SFormItem v-for="def in BUILTIN_AGENTS" :key="def.id" :label="def.name">
         <SSelect
-          v-model="builtinModels[def.id]"
+          v-model:value="builtinModels[def.id]"
           :options="modelOptions"
           class="narrow"
           :disabled="!modelOptions.length"
@@ -160,37 +158,37 @@ const themeModeValue = computed<ThemeMode>({
 
     <SFormSection title="通用">
       <SFormItem label="自动检查更新">
-        <SSwitch v-model="form.autoCheckUpdate" />
+        <SSwitch v-model:value="form.autoCheckUpdate" />
       </SFormItem>
       <SFormItem label="外网访问 URL">
-        <SInput v-model="form.httpUrl" placeholder="https://example.com（留空禁用）" />
+        <SInput v-model:value="form.httpUrl" placeholder="https://example.com（留空禁用）" />
         <template #hint>对外展示的服务地址，用于生成回调链接</template>
       </SFormItem>
       <SFormItem label="图片最大尺寸 (px)">
-        <SInput v-model.number="form.maxImageSize" type="number" placeholder="不设置则不压缩" class="narrow" />
+        <SInput v-model:value.number="form.maxImageSize" type="number" placeholder="不设置则不压缩" class="narrow" />
       </SFormItem>
       <SFormItem label="上下文文件名">
-        <STagInput v-model="form.contextFileNames" placeholder="回车添加，如 SBOT.md" />
+        <STagInput v-model:value="form.contextFileNames" placeholder="回车添加，如 SBOT.md" />
         <template #hint>工作目录上下文文件按优先级排列，留空使用默认</template>
       </SFormItem>
     </SFormSection>
 
     <SFormSection title="工具审批">
       <SFormItem label="自动审批全部工具">
-        <SSwitch v-model="form.autoApproveAllTools" />
+        <SSwitch v-model:value="form.autoApproveAllTools" />
       </SFormItem>
       <SFormItem label="自动审批工具列表">
-        <STagInput v-model="form.autoApproveTools" placeholder="回车添加工具名" />
+        <STagInput v-model:value="form.autoApproveTools" placeholder="回车添加工具名" />
         <template #hint>命中列表的工具执行时不再请求确认</template>
       </SFormItem>
     </SFormSection>
 
     <SFormSection title="高级">
       <SFormItem label="启动命令">
-        <STagInput v-model="form.startupCommands" placeholder="回车添加命令行，启动后依次执行" />
+        <STagInput v-model:value="form.startupCommands" placeholder="回车添加命令行，启动后依次执行" />
       </SFormItem>
       <SFormItem label="HTTP 端口">
-        <SInput :model-value="form.httpPort ?? '自动分配'" disabled class="narrow" />
+        <SInput :value="form.httpPort ?? '自动分配'" disabled class="narrow" />
         <template #hint>桌面端端口由启动器自动管理，此处的端口仅对 CLI 运行方式生效</template>
       </SFormItem>
     </SFormSection>

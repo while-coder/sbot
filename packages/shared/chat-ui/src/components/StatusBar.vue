@@ -270,8 +270,8 @@ function onClickOutside(e: MouseEvent) {
     <div class="chatui-toolbar-actions">
       <span v-if="(archivedCount ?? 0) > 0" class="chatui-archived-toggle" :title="L.showArchived">
         <SCheckbox
-          :model-value="!!showArchived"
-          @update:model-value="(v) => emit('update:showArchived', v as boolean)"
+          :checked="!!showArchived"
+          @update:checked="(v) => emit('update:showArchived', v as boolean)"
         >
           <span v-if="!isCompact">{{ L.showArchived }}</span>
           <span class="chatui-archived-count">({{ archivedCount }})</span>

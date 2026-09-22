@@ -2,12 +2,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm, SButton, SBadge, SPageToolbar, SPageContent, STable } from '@sbot/ui-kit'
-import type { STableColumn } from '@sbot/ui-kit'
+import { SButton, SBadge, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
+import type { EntityTableColumn } from '@sbot/ui-kit'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 interface ProcessInfo {
   key: string
@@ -23,7 +21,7 @@ const items = ref<ProcessInfo[]>([])
 const loading = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'agentName',    label: t('processes.agent'), primary: true },
   { key: 'dbSessionId',  label: t('processes.session') },
   { key: 'createdAt',    label: t('processes.created') },
@@ -38,32 +36,32 @@ async function load() {
     const res = await apiFetch('/api/acp-sessions')
     items.value = res.data || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
 }
 
 async function stop(item: ProcessInfo) {
-  if (!await confirm(t('processes.confirm_stop', { name: item.agentName }), { danger: true })) return
+  if (!await confirm.show({ title: t('processes.confirm_stop', { name: item.agentName }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/acp-sessions/${encodeURIComponent(item.key)}`, 'DELETE')
-    show(t('processes.stopped'))
+    toast.show('success', t('processes.stopped'))
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function stopAll() {
   if (!items.value.length) return
-  if (!await confirm(t('processes.confirm_stop_all'), { danger: true })) return
+  if (!await confirm.show({ title: t('processes.confirm_stop_all'), danger: true , content: ''})) return
   try {
     await apiFetch('/api/acp-sessions', 'DELETE')
-    show(t('processes.stopped'))
+    toast.show('success', t('processes.stopped'))
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -94,7 +92,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       <SButton type="danger" size="sm" :disabled="!items.length" @click="stopAll">{{ t('processes.stop_all') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable :columns="columns" :rows="items" row-key="key" :empty-text="t('processes.empty')">
+      <SEntityTable :columns="columns" :rows="items" row-key="key" :empty-text="t('processes.empty')">
         <template #agentName="{ row }">
           <span class="processes-name">{{ row.agentName }}</span>
           <SBadge variant="success" pill class="processes-acp">ACP</SBadge>
@@ -115,7 +113,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         <template #ops="{ row }">
           <SButton type="danger" size="sm" :disabled="!row.alive" @click="stop(row)">{{ t('processes.stop') }}</SButton>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
   </div>
 </template>

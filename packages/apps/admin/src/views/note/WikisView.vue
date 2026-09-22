@@ -5,7 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { embeddingManager } from '@/managers/embeddingManager'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SBadge, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import type { WikiConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import WikiViewModal from './WikiViewModal.vue'
@@ -13,14 +13,12 @@ import ResourceRefs from '@/components/ResourceRefs.vue'
 import { useResourceRefs, parseList } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const wikis = computed(() => store.settings.wikis || {})
 const wikiList = computed(() =>
   Object.entries(wikis.value).map(([id, w]) => ({ id, ...w })),
 )
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'name',      label: t('common.name'),         primary: true },
   { key: 'embedding', label: t('wikis.embedding_col'), width: '140px' },
   { key: 'pages',     label: t('wikis.pages_col'),     width: '70px',  align: 'center' },
@@ -130,9 +128,9 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
   if (editingName.value === null && !/^[a-z0-9][a-z0-9_-]{0,31}$/.test(formId.value)) {
-    show(t('wikis.id_invalid'), 'error'); return
+    toast.show('error', t('wikis.id_invalid')); return
   }
   try {
     const processedConfig: Record<string, any> = {}
@@ -153,24 +151,24 @@ async function save() {
       ? await apiFetch(`/api/settings/wikis/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/wikis', 'POST', { ...body, id: formId.value })
     settingsManager.apply(res.data)
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function remove(id: string) {
   const w = wikis.value[id]
   const label = w.name || id
-  if (!await confirm(t('wikis.confirm_delete', { name: label }), { danger: true })) return
+  if (!await confirm.show({ title: t('wikis.confirm_delete', { name: label }), danger: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/wikis/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
     delete wikiCounts.value[id]
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -181,7 +179,7 @@ async function refresh() {
     wikiCounts.value = {}
     await Promise.all([loadCounts(), loadProfiles()])
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -193,7 +191,7 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('wikis.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable
+      <SEntityTable
         :columns="columns"
         :rows="wikiList"
         row-key="id"
@@ -231,57 +229,45 @@ async function refresh() {
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
-        <template #_expanded="{ row }">
+        <template #expanded="{ row }">
           <div class="refs-expanded">
             <ResourceRefs mode="card" :refs="refs(row.id)" />
           </div>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
     <!-- Edit/Add modal -->
-    <SModal v-model:visible="showModal" :title="editingName !== null ? t('wikis.edit_title') : t('wikis.add_title')" width="md">
+    <SModal v-model:show="showModal" :title="editingName !== null ? t('wikis.edit_title') : t('wikis.add_title')" width="md">
       <SFormItem :label="t('common.name') + ' *'">
-        <SInput v-model="form.name" :placeholder="t('wikis.name_placeholder')" @input="onNameInput" />
+        <SInput v-model:value="form.name" :placeholder="t('wikis.name_placeholder')" @input="onNameInput" />
       </SFormItem>
       <SFormItem :label="'ID' + (editingName === null ? ' *' : '')" :hint="t('wikis.id_hint')">
-        <SInput
-          v-model="formId"
-          :disabled="editingName !== null"
-          :placeholder="t('wikis.id_placeholder')"
-          @input="formIdTouched = true"
-        />
+        <SInput v-model:value="formId" :disabled="editingName !== null" :placeholder="t('wikis.id_placeholder')" @input="formIdTouched = true" />
       </SFormItem>
       <SFormItem :label="t('wikis.source_type')">
-        <SSelect v-model="form.type" @change="form.config = {}" :disabled="editingName !== null">
-          <option v-for="p in plugins" :key="p.type" :value="p.type">{{ p.label }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.type" @change="form.config = {}" :disabled="editingName !== null" :options="plugins.map(p => ({ value: p.type, label: p.label }))" />
       </SFormItem>
       <SFormItem :label="t('wikis.embedding_model')">
-        <SSelect v-model="form.embedding">
-          <option value="">{{ t('wikis.embedding_none') }}</option>
-          <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }} ({{ e.detail }})</option>
-        </SSelect>
+        <SSelect v-model:value="form.embedding" :options="[{ value: '', label: t('wikis.embedding_none') }, ...embeddingOptions.map(e => ({ value: e.id, label: `${e.label} (${e.detail})` }))]" />
       </SFormItem>
 
       <!-- 数据源插件私有配置 -->
       <SFormSection v-if="Object.keys(currentSchema).length > 0" :title="t('wikis.source_config')">
         <template v-for="[key, field] in visibleSchemaEntries" :key="key">
           <SFormItem :label="field.label + (field.required ? ' *' : '')">
-            <SSelect v-if="field.type === 'select'" v-model="form.config![key]">
-              <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </SSelect>
+            <SSelect v-if="field.type === 'select'" v-model:value="form.config![key]" :options="(field.options ?? []).map(opt => ({ value: opt.value, label: opt.label }))" />
             <label v-else-if="field.type === 'boolean'" class="toggle-label">
               <input type="checkbox" v-model="form.config![key]" />
               <span>{{ field.description || '' }}</span>
             </label>
-            <SInput v-else-if="field.type === 'number'" type="number" v-model.number="form.config![key]" :placeholder="field.description || ''" />
+            <SInput v-else-if="field.type === 'number'" type="number" v-model:value.number="form.config![key]" :placeholder="field.description || ''" />
             <div v-else-if="field.type === 'password'" class="apikey-field">
-              <SInput v-model="form.config![key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" class="apikey-input" />
+              <SInput v-model:value="form.config![key]" :placeholder="field.description || ''" :type="passwordVisible[key] ? 'text' : 'password'" class="apikey-input" />
               <button type="button" class="apikey-toggle" @click="passwordVisible[key] = !passwordVisible[key]">{{ passwordVisible[key] ? t('common.hide') : t('common.show') }}</button>
             </div>
-            <SInput v-else-if="field.type === 'textarea'" multiline v-model="form.config![key]" :placeholder="field.description || ''" />
-            <SInput v-else v-model="form.config![key]" :placeholder="field.description || ''" />
+            <SInput type="textarea" v-else-if="field.type === 'textarea'" v-model:value="form.config![key]" :placeholder="field.description || ''" />
+            <SInput v-else v-model:value="form.config![key]" :placeholder="field.description || ''" />
             <template v-if="field.type !== 'boolean' && field.description" #hint>{{ field.description }}</template>
           </SFormItem>
         </template>

@@ -4,11 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast, useConfirm, SButton, SInput, STextarea, SCard, SFormItem, SCheckCard, SPageToolbar, SPageContent } from '@sbot/ui-kit'
+import { SButton, SInput, STextarea, SCard, SFormItem, SCheckCard, SPageToolbar, SPageContent, toast, confirm } from '@sbot/ui-kit'
 const { t } = useI18n()
 
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const httpPort = ref<number | ''>('')
 const httpUrl = ref('')
@@ -102,20 +100,20 @@ async function save() {
       contextFileNames: ctxNames,
     })
     settingsManager.apply(res.data)
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function shutdown() {
-  if (!await confirm(t('settings.shutdown_confirm'), { danger: true })) return
+  if (!await confirm.show({ title: t('settings.shutdown_confirm'), danger: true , content: ''})) return
   shutdownLoading.value = true
   try {
     await apiFetch('/api/shutdown', 'POST')
-    show(t('settings.shutdown_started'))
+    toast.show('success', t('settings.shutdown_started'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     shutdownLoading.value = false
   }
 }
@@ -187,7 +185,7 @@ async function scanCleanup() {
     const res = await apiFetch('/api/admin/cleanup-orphans', 'POST', {})
     cleanupReport.value = res.data as CleanupReport
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     cleanupLoading.value = false
   }
@@ -195,14 +193,14 @@ async function scanCleanup() {
 
 async function applyCleanup() {
   if (cleanableCount.value === 0) return
-  if (!await confirm(t('settings.cleanup_confirm', { n: cleanableCount.value }), { danger: true })) return
+  if (!await confirm.show({ title: t('settings.cleanup_confirm', { n: cleanableCount.value }), danger: true , content: ''})) return
   cleanupLoading.value = true
   try {
     const res = await apiFetch('/api/admin/cleanup-orphans?apply=1', 'POST', {})
     cleanupReport.value = res.data as CleanupReport
-    show(t('settings.cleanup_done'))
+    toast.show('success', t('settings.cleanup_done'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     cleanupLoading.value = false
   }
@@ -246,13 +244,13 @@ function fmtItem(category: string, item: any): string {
       <SCard :title="t('settings.service')">
         <div class="inline-form">
           <SFormItem :label="t('settings.http_port')">
-            <SInput v-model.number="httpPort" type="number" placeholder="5500" min="1" max="65535" />
+            <SInput v-model:value.number="httpPort" type="number" placeholder="5500" min="1" max="65535" />
           </SFormItem>
           <SFormItem :label="t('settings.http_url')">
-            <SInput v-model="httpUrl" type="text" placeholder="http://localhost:5500" />
+            <SInput v-model:value="httpUrl" type="text" placeholder="http://localhost:5500" />
           </SFormItem>
           <SFormItem :label="t('settings.max_image_size')" :hint="t('settings.max_image_size_hint')">
-            <SInput v-model.number="maxImageSize" type="number" placeholder="1024" min="0" />
+            <SInput v-model:value.number="maxImageSize" type="number" placeholder="1024" min="0" />
           </SFormItem>
         </div>
         <div class="service-actions">
@@ -263,7 +261,7 @@ function fmtItem(category: string, item: any): string {
         </div>
       </SCard>
       <SCard :title="t('settings.version_updates')">
-        <SCheckCard v-model="autoCheckUpdate">
+        <SCheckCard v-model:checked="autoCheckUpdate">
           {{ t('settings.auto_check_update') }}
         </SCheckCard>
         <div class="form-hint" style="margin-top:6px">{{ t('settings.auto_check_update_hint') }}</div>
@@ -283,13 +281,13 @@ function fmtItem(category: string, item: any): string {
           @dragend="onDragEnd(contextDrag)"
         >
           <span class="drag-handle" :title="t('settings.startup_commands_drag')">⠿</span>
-          <SInput v-model="contextFileNames[index]" type="text" :placeholder="t('settings.context_file_names_placeholder')" class="draggable-row-input" />
+          <SInput v-model:value="contextFileNames[index]" type="text" :placeholder="t('settings.context_file_names_placeholder')" class="draggable-row-input" />
           <SButton type="text" size="sm" :title="t('common.delete')" class="draggable-row-remove" @click="removeContextFileName(index)">✕</SButton>
         </div>
         <SButton type="outline" size="sm" @click="addContextFileName">{{ t('settings.context_file_names_add') }}</SButton>
       </SCard>
       <SCard :title="t('settings.tool_approval')">
-        <SCheckCard v-model="autoApproveAllTools">
+        <SCheckCard v-model:checked="autoApproveAllTools">
           {{ t('settings.auto_approve_all') }}
         </SCheckCard>
         <div class="form-hint" style="margin-top:6px">{{ t('settings.auto_approve_all_hint') }}</div>
@@ -309,7 +307,7 @@ function fmtItem(category: string, item: any): string {
           @dragend="onDragEnd(startupDrag)"
         >
           <span class="drag-handle" :title="t('settings.startup_commands_drag')">⠿</span>
-          <STextarea v-model="startupCommands[index]" :rows="3" :placeholder="t('settings.startup_commands_placeholder')" class="draggable-row-input draggable-row-textarea" />
+          <STextarea v-model:value="startupCommands[index]" :rows="3" :placeholder="t('settings.startup_commands_placeholder')" class="draggable-row-input draggable-row-textarea" />
           <SButton type="text" size="sm" :title="t('common.delete')" class="draggable-row-remove" @click="removeStartupCommand(index)">✕</SButton>
         </div>
         <SButton type="outline" size="sm" @click="addStartupCommand">{{ t('settings.startup_commands_add') }}</SButton>

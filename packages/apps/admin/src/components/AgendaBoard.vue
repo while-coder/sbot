@@ -58,6 +58,19 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const statusFilterOptions = computed(() => [
+  { value: 'pending', label: t('agenda.filter_pending') },
+  { value: 'done', label: t('agenda.filter_done') },
+  { value: 'cancelled', label: t('agenda.filter_cancelled') },
+  { value: 'expired', label: t('agenda.filter_expired') },
+  { value: 'all', label: t('agenda.filter_all') },
+])
+const priorityOptions = computed(() => [
+  { value: 'low', label: t('agenda.priority_low') },
+  { value: 'normal', label: t('agenda.priority_normal') },
+  { value: 'high', label: t('agenda.priority_high') },
+])
+
 const visibleCount = computed(() => props.items.length)
 const profileCount = computed(() => new Set(props.items.map(row => row.agendaId)).size)
 
@@ -202,13 +215,7 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
 
     <section class="agenda-controls" aria-label="Agenda controls">
       <div class="agenda-filters">
-        <SSelect :model-value="statusFilter" size="sm" class="agenda-status-select" @update:model-value="v => emit('update:statusFilter', v as AgendaStatusFilter)">
-          <option value="pending">{{ t('agenda.filter_pending') }}</option>
-          <option value="done">{{ t('agenda.filter_done') }}</option>
-          <option value="cancelled">{{ t('agenda.filter_cancelled') }}</option>
-          <option value="expired">{{ t('agenda.filter_expired') }}</option>
-          <option value="all">{{ t('agenda.filter_all') }}</option>
-        </SSelect>
+        <SSelect :value="statusFilter" size="sm" class="agenda-status-select" :options="statusFilterOptions" @update:value="v => emit('update:statusFilter', v as AgendaStatusFilter)" />
         <SButton type="outline" size="sm" :loading="loading" @click="emit('refresh')">{{ t('common.refresh') }}</SButton>
       </div>
     </section>
@@ -381,16 +388,12 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
       </template>
     </SEntityList>
 
-    <SModal v-model:visible="showEdit" :title="editingRow ? t('agenda.edit_title', { id: editingRow.item.id }) : ''" width="md">
+    <SModal v-model:show="showEdit" :title="editingRow ? t('agenda.edit_title', { id: editingRow.item.id }) : ''" width="md">
       <SFormItem :label="t('agenda.edit_content') + ' *'">
-        <STextarea v-model="editForm.content" :placeholder="t('agenda.edit_content_placeholder')" :rows="3" />
+        <STextarea v-model:value="editForm.content" :placeholder="t('agenda.edit_content_placeholder')" :rows="3" />
       </SFormItem>
       <SFormItem :label="t('agenda.priority_col')">
-        <SSelect v-model="editForm.priority">
-          <option value="low">{{ t('agenda.priority_low') }}</option>
-          <option value="normal">{{ t('agenda.priority_normal') }}</option>
-          <option value="high">{{ t('agenda.priority_high') }}</option>
-        </SSelect>
+        <SSelect v-model:value="editForm.priority" :options="priorityOptions" />
       </SFormItem>
       <SFormItem :label="t('agenda.edit_due_at')" :hint="t('agenda.edit_due_at_hint')">
         <div class="agenda-edit-due">
@@ -406,8 +409,8 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
     </SModal>
 
     <SModal
-      v-model:visible="showTriggerEdit"
-      :title="editingTrigger ? t('agenda.trigger_edit_title_edit', { id: editingTrigger.id }) : ''"
+      v-model:show="showTriggerEdit"
+      :title="t('agenda.trigger_edit_title_edit', { id: editingTrigger?.id ?? '' })"
       width="md"
     >
       <p class="agenda-edit-trigger-hint">{{ t('agenda.trigger_edit_hint') }}</p>

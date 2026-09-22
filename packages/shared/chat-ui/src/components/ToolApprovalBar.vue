@@ -57,7 +57,7 @@ onUnmounted(stopTimer)
         <SButton size="sm" @click="approve(ToolApproval.Allow)">{{ L.allow }}<span v-if="hasCountdown && timeoutOn === ToolApproval.Allow"> ({{ countdown }}s)</span></SButton>
         <SButton type="outline" size="sm" @click="approve(ToolApproval.AlwaysArgs)">{{ L.alwaysAllowArgs }}</SButton>
         <SButton type="outline" size="sm" @click="approve(ToolApproval.AlwaysTool)">{{ L.alwaysAllowAll }}</SButton>
-        <SButton type="danger" size="sm" @click="approve(ToolApproval.Deny)">{{ L.deny }}<span v-if="hasCountdown && timeoutOn === ToolApproval.Deny"> ({{ countdown }}s)</span></SButton>
+        <SButton type="error" size="sm" @click="approve(ToolApproval.Deny)">{{ L.deny }}<span v-if="hasCountdown && timeoutOn === ToolApproval.Deny"> ({{ countdown }}s)</span></SButton>
       </div>
     </div>
     <div v-if="Object.keys(toolCall.args).length" class="chatui-tool-approval-args" @click="argsExpanded = !argsExpanded">

@@ -6,8 +6,8 @@ import { store } from '@/shared/store'
 import { channelManager } from '@/managers/channelManager'
 import { saverManager } from '@/managers/saverManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, STable } from '@sbot/ui-kit'
-import type { STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
+import type { EntityTableColumn } from '@sbot/ui-kit'
 import { SaverType } from '@/shared/types'
 import type { SaverConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
@@ -17,8 +17,6 @@ import { useResourceRefs } from '@/composables/useResourceRefs'
 type SaverRow = { id: string; name: string; type: string; raw: SaverConfig }
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const savers = computed(() => store.settings.savers || {})
 
@@ -31,7 +29,7 @@ const saverRows = computed<SaverRow[]>(() =>
   })),
 )
 
-const saverColumns = computed<STableColumn[]>(() => [
+const saverColumns = computed<EntityTableColumn[]>(() => [
   { key: 'name', label: t('common.name'), primary: true },
   { key: 'type', label: t('common.type') },
   { key: 'ops',  label: t('common.ops'), ops: true },
@@ -99,7 +97,7 @@ async function loadThreads(id: string) {
   try {
     await saverManager.loadThreads(id)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -121,7 +119,7 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
   try {
     const body = { ...form.value }
     const id = editingName.value
@@ -129,35 +127,35 @@ async function save() {
       ? await apiFetch(`/api/settings/savers/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/savers', 'POST', body)
     settingsManager.apply(res.data)
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function remove(id: string) {
   const s = savers.value[id]
   const label = (s as any).name || id
-  if (!await confirm(t('savers.confirm_delete', { name: label }), { danger: true })) return
+  if (!await confirm.show({ title: t('savers.confirm_delete', { name: label }), danger: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function clearThread(saverId: string, thread: string) {
-  if (!await confirm(t('savers.cleanup_confirm', { name: thread }), { danger: true })) return
+  if (!await confirm.show({ title: t('savers.cleanup_confirm', { name: thread }), danger: true , content: ''})) return
   const key = `${saverId}::${thread}`
   threadClearing.value[key] = true
   try {
     await saverManager.clearHistory(saverId, thread)
-    show(t('savers.cleanup_success'))
+    toast.show('success', t('savers.cleanup_success'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     threadClearing.value[key] = false
   }
@@ -174,7 +172,7 @@ async function refresh() {
       await Promise.all(expandedIds.map(loadThreads))
     }
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -186,7 +184,7 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('savers.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable
+      <SEntityTable
         :columns="saverColumns"
         :rows="saverRows"
         row-key="id"
@@ -203,7 +201,7 @@ async function refresh() {
           <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
           <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
         </template>
-        <template #_expanded="{ row }">
+        <template #expanded="{ row }">
           <ResourceRefs mode="card" :refs="refs(row.id)" class="saver-refs" />
           <div v-if="saverManager.loadingMap[row.id]" class="thread-status">{{ t('common.loading') }}</div>
           <div v-else-if="(saverManager.threadsMap[row.id] || []).length === 0" class="thread-status thread-status--empty">
@@ -228,19 +226,19 @@ async function refresh() {
             </div>
           </div>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
-    <SModal v-model:visible="showModal" :title="editingName !== null ? t('savers.edit_title') : t('savers.add_title')" width="sm">
+    <SModal v-model:show="showModal" :title="editingName !== null ? t('savers.edit_title') : t('savers.add_title')" width="sm">
       <SFormItem :label="t('common.name') + ' *'">
-        <SInput v-model="form.name" :placeholder="t('savers.name_placeholder')" />
+        <SInput v-model:value="form.name" :placeholder="t('savers.name_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('savers.saver_type')">
-        <SSelect v-model="form.type">
-          <option value="file">File {{ t('common.recommended') }}</option>
-          <option value="sqlite">SQLite</option>
-          <option value="memory">Memory</option>
-        </SSelect>
+        <SSelect v-model:value="form.type" :options="[
+          { value: 'file', label: `File ${t('common.recommended')}` },
+          { value: 'sqlite', label: 'SQLite' },
+          { value: 'memory', label: 'Memory' },
+        ]" />
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>

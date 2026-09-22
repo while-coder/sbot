@@ -1,182 +1,203 @@
+<script lang="ts">
+import { ref } from "vue"
+
+let modalId = 0
+//当前打开的模态框数量（含嵌套）：供 SFloatWindow 等 Esc 消费方避让——模态开着时浮窗不响应 Esc
+export const openModalCount = ref(0)
+</script>
+
 <script setup lang="ts">
-import { computed, reactive, watch, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, useAttrs, watch } from "vue"
 
-defineOptions({ inheritAttrs: false })
-
+defineOptions({ name: "SModal", inheritAttrs: false })
 const props = withDefaults(defineProps<{
-  visible: boolean
+  show?: boolean
+  /** show 的别名（历史约定）：v-model:visible 亦可驱动 */
+  visible?: boolean
   title?: string
-  width?: 'sm' | 'md' | 'lg' | 'xl' | string   // sm=400, md=520(default), lg=660, xl=min(92vw,1040)
-  nested?: boolean                              // 嵌套 modal，使用 z-modal-nest 层级
+  preset?: string
+  style?: any
+  /** 卡片形态宽度：预设 sm/md/lg/xl（400/560/720/920px）或具体值；不传保持默认 560px */
+  width?: number | string
+  closable?: boolean
+  maskClosable?: boolean
+  closeOnEsc?: boolean
+  /** maskClosable 的别名 */
   closeOnOverlay?: boolean
+  /** closeOnEsc 的别名 */
   closeOnEscape?: boolean
-  draggable?: boolean                           // 标题栏按住拖动移动窗口位置
-}>(), {
-  width: 'md',
-  closeOnOverlay: true,
-  closeOnEscape: true,
-  draggable: false,
-})
+  nested?: boolean
+  draggable?: boolean
+  resizable?: boolean
+}>(), { closable: true, maskClosable: true, closeOnEsc: true })
+const emit = defineEmits<{ "update:show": [value: any]; "update:visible": [value: any]; close: [] }>()
+const attrs = useAttrs()
 
-const emit = defineEmits<{
-  'update:visible': [value: boolean]
-  close: []
-}>()
+const isShown = computed(() => props.show || props.visible)
+//closeOnOverlay/closeOnEscape 为别名：传了以别名为准，否则回退 maskClosable/closeOnEsc
+const canMaskClose = computed(() => props.closeOnOverlay ?? props.maskClosable)
+const canEscClose = computed(() => props.closeOnEscape ?? props.closeOnEsc)
 
-const overlayRef = ref<HTMLDivElement | null>(null)
-let mousedownTarget: EventTarget | null = null
-
-// ── 标题栏拖动：pointer capture + 视口内 clamp（弹窗超出视口时至少留 64px 标题栏可拖回） ──
-
-const boxRef = ref<HTMLDivElement | null>(null)
-const dragOffset = reactive({ x: 0, y: 0 })
+const titleId = `s-modal-title-${++modalId}`
+const box = ref<HTMLElement | null>(null)
+//拖拽仅在带标题栏的卡片形态下生效（bare 形态没有把手）。
+//标题栏按下发起，pointer capture 跟踪移动，偏移用 translate3d 应用；
+//位置始终 clamp 在视口内，窗口缩放或内容变化导致越界时自动拉回。
+const canDrag = computed(() => props.draggable === true)
+const offset = reactive({ x: 0, y: 0 })
 const dragging = ref(false)
 let dragPointerId: number | null = null
 let dragStartX = 0
 let dragStartY = 0
 let dragStartOffsetX = 0
 let dragStartOffsetY = 0
+let dragHandle: HTMLElement | null = null
+let dragResizeObserver: ResizeObserver | null = null
 
+//偏移为零且未在拖拽时不写 transform，让位给出入场 CSS 动画
 const dragStyle = computed(() =>
-  props.draggable ? { transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)` } : undefined)
-
-function clampOffset(x: number, y: number): { x: number; y: number } {
-  const box = boxRef.value
-  if (!box) return { x, y }
-  const margin = 8
-  const rescue = 64
-  const rect = box.getBoundingClientRect()
-  const baseLeft = rect.left - dragOffset.x
-  const baseTop = rect.top - dragOffset.y
-  const fitsW = rect.width <= window.innerWidth - margin * 2
-  const fitsH = rect.height <= window.innerHeight - margin * 2
-  const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
-  return {
-    x: fitsW
-      ? clamp(x, margin - baseLeft, window.innerWidth - margin - rect.width - baseLeft)
-      : clamp(x, margin + rescue - baseLeft - rect.width, window.innerWidth - margin - rescue - baseLeft),
-    y: fitsH
-      ? clamp(y, margin - baseTop, window.innerHeight - margin - rect.height - baseTop)
-      : clamp(y, margin - baseTop, window.innerHeight - margin - rescue - baseTop),
-  }
-}
-
-function startDrag(e: PointerEvent) {
-  if (!props.draggable || e.button !== 0) return
-  if ((e.target as Element).closest('button, a, input, select, textarea')) return
-  e.preventDefault()
-  dragPointerId = e.pointerId
-  dragStartX = e.clientX
-  dragStartY = e.clientY
-  dragStartOffsetX = dragOffset.x
-  dragStartOffsetY = dragOffset.y
-  dragging.value = true
-  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-}
-
-function moveDrag(e: PointerEvent) {
-  if (!dragging.value || e.pointerId !== dragPointerId) return
-  const next = clampOffset(dragStartOffsetX + e.clientX - dragStartX, dragStartOffsetY + e.clientY - dragStartY)
-  dragOffset.x = next.x
-  dragOffset.y = next.y
-}
-
-function endDrag(e?: PointerEvent) {
-  if (e && dragPointerId !== null && e.pointerId !== dragPointerId) return
-  dragging.value = false
-  dragPointerId = null
-}
-
-watch(() => props.visible, (v) => {
-  if (v) document.addEventListener('keydown', onKeydown)
-  else {
-    document.removeEventListener('keydown', onKeydown)
-    endDrag()
-    dragOffset.x = 0
-    dragOffset.y = 0
-  }
-}, { immediate: true })
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', onKeydown)
-})
-
-function close() {
-  emit('update:visible', false)
-  emit('close')
-}
-
-function onMousedown(e: MouseEvent) {
-  mousedownTarget = e.target
-}
-
-function onOverlayClick(e: MouseEvent) {
-  if (!props.closeOnOverlay) return
-  // 仅当 mousedown 也发生在 overlay 上才关闭，防止从 modal 内拖动到外部松开误触关闭
-  if (e.target === overlayRef.value && mousedownTarget === overlayRef.value) {
-    close()
-  }
-}
-
-function onKeydown(e: KeyboardEvent) {
-  if (props.closeOnEscape && e.key === 'Escape' && props.visible) {
-    close()
-  }
-}
+  canDrag.value && (offset.x || offset.y) ? { transform: `translate3d(${offset.x}px, ${offset.y}px, 0)` } : undefined
+)
+const boxStyle = computed(() => (canDrag.value ? [props.style, widthStyle.value, dragStyle.value] : [props.style, widthStyle.value]))
 
 const widthStyle = computed(() => {
-  const w = props.width
-  if (w === 'sm') return { width: '400px' }
-  if (w === 'md') return { width: '520px' }
-  if (w === 'lg') return { width: '660px' }
-  if (w === 'xl') return { width: 'min(92vw, 1040px)' }
-  return { width: w }
+  if (props.width == null) return undefined
+  const preset = ({ sm: "400px", md: "560px", lg: "720px", xl: "920px" } as Record<string, string>)[props.width as string] ?? props.width
+  return { width: `min(${preset}, calc(100vw - 32px))` }
 })
 
-const overlayStyle = computed(() => ({
-  zIndex: props.nested ? 'var(--sui-z-modal-nest)' : 'var(--sui-z-modal)',
-}))
+function clampDragOffset(x: number, y: number) {
+  const el = box.value
+  if (!el) return { x, y }
+  const margin = 8
+  //弹窗比视口还大时，至少留这么宽一段标题栏用来拖回来
+  const rescueSize = 64
+  const rect = el.getBoundingClientRect()
+  const baseLeft = rect.left - offset.x
+  const baseTop = rect.top - offset.y
+  const fitsWidth = rect.width <= window.innerWidth - margin * 2
+  const fitsHeight = rect.height <= window.innerHeight - margin * 2
+  return {
+    x: fitsWidth
+      ? Math.min(Math.max(x, margin - baseLeft), window.innerWidth - margin - rect.width - baseLeft)
+      : Math.min(Math.max(x, margin + rescueSize - baseLeft - rect.width), window.innerWidth - margin - rescueSize - baseLeft),
+    //高于视口就贴顶，余下内容靠弹窗主体自身滚动查看
+    y: fitsHeight
+      ? Math.min(Math.max(y, margin - baseTop), window.innerHeight - margin - rect.height - baseTop)
+      : margin - baseTop,
+  }
+}
+
+function startDrag(event: PointerEvent) {
+  if (!canDrag.value || event.button !== 0 || event.pointerType === "touch") return
+  //不劫持标题栏里的按钮/链接
+  if ((event.target as Element).closest("button, a, input, select, textarea")) return
+  event.preventDefault()
+  dragPointerId = event.pointerId
+  dragStartX = event.clientX
+  dragStartY = event.clientY
+  dragStartOffsetX = offset.x
+  dragStartOffsetY = offset.y
+  dragging.value = true
+  dragHandle = event.currentTarget as HTMLElement
+  dragHandle.setPointerCapture(event.pointerId)
+}
+
+function moveDrag(event: PointerEvent) {
+  if (!dragging.value || event.pointerId !== dragPointerId) return
+  const next = clampDragOffset(dragStartOffsetX + event.clientX - dragStartX, dragStartOffsetY + event.clientY - dragStartY)
+  offset.x = next.x
+  offset.y = next.y
+}
+
+function finishDrag(event?: PointerEvent) {
+  if (event && dragPointerId !== null && event.pointerId !== dragPointerId) return
+  if (dragPointerId !== null && dragHandle?.hasPointerCapture(dragPointerId)) dragHandle.releasePointerCapture(dragPointerId)
+  dragging.value = false
+  dragPointerId = null
+  dragHandle = null
+}
+
+function keepBoxInViewport() {
+  if (!canDrag.value) return
+  const next = clampDragOffset(offset.x, offset.y)
+  offset.x = next.x
+  offset.y = next.y
+}
+
+//弹窗初始关闭时 box 尚不存在，ResizeObserver 随开关挂载/卸载
+function observeBox() {
+  if (canDrag.value && box.value && typeof ResizeObserver !== "undefined" && !dragResizeObserver) {
+    dragResizeObserver = new ResizeObserver(keepBoxInViewport)
+    dragResizeObserver.observe(box.value)
+  }
+}
+function unobserveBox() {
+  dragResizeObserver?.disconnect()
+  dragResizeObserver = null
+}
+let previousFocus: HTMLElement | null = null
+let modalCounted = false
+const close = () => { emit("update:show", false); emit("update:visible", false); emit("close") }
+const onKey = (event: KeyboardEvent) => { if (isShown.value && canEscClose.value && event.key === "Escape") close() }
+const onMask = (event: MouseEvent) => { if (canMaskClose.value && event.target === event.currentTarget) close() }
+watch(isShown, show => {
+  if (show) {
+    if (!modalCounted) { modalCounted = true; openModalCount.value++ }
+    previousFocus = document.activeElement as HTMLElement | null
+    document.addEventListener("keydown", onKey)
+    nextTick(() => {
+      (box.value?.querySelector<HTMLElement>("button, input, textarea, select, [tabindex]:not([tabindex='-1'])") ?? box.value)?.focus()
+      observeBox()
+    })
+  } else {
+    if (modalCounted) { modalCounted = false; openModalCount.value-- }
+    document.removeEventListener("keydown", onKey)
+    previousFocus?.focus()
+    previousFocus = null
+    //关闭后结束拖拽并复位偏移，下次打开仍居中
+    finishDrag()
+    offset.x = 0
+    offset.y = 0
+    unobserveBox()
+  }
+}, { immediate: true })
+onMounted(() => {
+  window.addEventListener("pointermove", moveDrag)
+  window.addEventListener("pointerup", finishDrag)
+  window.addEventListener("pointercancel", finishDrag)
+  window.addEventListener("blur", finishDrag)
+  window.addEventListener("resize", keepBoxInViewport)
+})
+onBeforeUnmount(() => {
+  //开着时直接卸载（v-if 外层控制）也要回退计数
+  if (modalCounted) { modalCounted = false; openModalCount.value-- }
+  document.removeEventListener("keydown", onKey)
+  unobserveBox()
+  window.removeEventListener("pointermove", moveDrag)
+  window.removeEventListener("pointerup", finishDrag)
+  window.removeEventListener("pointercancel", finishDrag)
+  window.removeEventListener("blur", finishDrag)
+  window.removeEventListener("resize", keepBoxInViewport)
+})
 </script>
 
 <template>
   <Teleport to="body">
     <Transition name="s-modal">
-      <div
-        v-if="visible"
-        ref="overlayRef"
-        class="s-modal-overlay"
-        :style="overlayStyle"
-        @mousedown="onMousedown"
-        @click="onOverlayClick"
-      >
-        <div
-          v-bind="$attrs"
-          ref="boxRef"
-          class="s-modal-box"
-          :class="{ dragging }"
-          :style="[widthStyle, dragStyle]"
-        >
-          <div
-            v-if="$slots.header || title"
-            class="s-modal-header"
-            :class="{ draggable: draggable }"
-            @pointerdown="startDrag"
-            @pointermove="moveDrag"
-            @pointerup="endDrag"
-            @pointercancel="endDrag"
-          >
-            <slot name="header"><h3 class="s-modal-title">{{ title }}</h3></slot>
-            <button type="button" class="s-modal-close" @click="close">&times;</button>
-          </div>
-          <div v-if="$slots.toolbar" class="s-modal-toolbar">
-            <slot name="toolbar" />
-          </div>
-          <div class="s-modal-body">
-            <slot />
-          </div>
-          <div v-if="$slots.footer" class="s-modal-footer">
-            <slot name="footer" />
-          </div>
+      <div v-if="isShown" v-bind="attrs" :class="['s-modal-overlay', { nested }, attrs.class]" @mousedown="onMask">
+        <section v-if="preset === 'card' || title" ref="box" tabindex="-1"
+          :class="['s-modal-box', { dragging, resizable }]" :style="boxStyle"
+          role="dialog" aria-modal="true" :aria-labelledby="title ? titleId : undefined">
+          <header class="s-modal-header" :class="{ draggable: canDrag }" @pointerdown="startDrag">
+            <h2 :id="titleId">{{ title }}</h2>
+            <button v-if="closable" type="button" class="s-icon-close" aria-label="关闭" @click="close">×</button>
+          </header>
+          <div class="s-modal-body"><slot /></div>
+          <footer v-if="$slots.footer" class="s-modal-footer"><slot name="footer" /></footer>
+        </section>
+        <div v-else ref="box" tabindex="-1" class="s-modal-bare" :style="style" role="dialog" aria-modal="true">
+          <slot />
         </div>
       </div>
     </Transition>
@@ -184,87 +205,26 @@ const overlayStyle = computed(() => ({
 </template>
 
 <style scoped>
-.s-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--sui-mask);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.s-modal-box {
-  background: var(--sui-bg);
-  border-radius: var(--sui-radius-xl);
-  max-width: 96vw;
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--sui-shadow-lg);
-  overflow: hidden;
-}
-.s-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--sui-sp-6) var(--sui-sp-8);
-  border-bottom: 1px solid var(--sui-border);
-  flex-shrink: 0;
-}
-.s-modal-header.draggable {
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-.s-modal-box.dragging .s-modal-header {
-  cursor: grabbing;
-}
-.s-modal-box.dragging {
-  transition: none;
-}
-.s-modal-title {
-  font-size: var(--sui-fs-xl);
-  font-weight: 600;
-  color: var(--sui-fg);
-  margin: 0;
-}
-.s-modal-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sui-sp-3);
-  padding: var(--sui-sp-3) var(--sui-sp-7);
-  border-bottom: 1px solid var(--sui-border);
-  flex-shrink: 0;
-}
-.s-modal-close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: var(--sui-fg-disabled);
-  cursor: pointer;
-  padding: 0 var(--sui-sp-1);
-  line-height: 1;
-  transition: color var(--sui-transition-base);
-}
-.s-modal-close:hover { color: var(--sui-fg-secondary); }
-.s-modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--sui-sp-7) var(--sui-sp-8);
-  color: var(--sui-fg-secondary);
-}
-.s-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--sui-sp-3);
-  padding: var(--sui-sp-5) var(--sui-sp-8);
-  border-top: 1px solid var(--sui-border);
-  flex-shrink: 0;
-}
-
-.s-modal-enter-active, .s-modal-leave-active { transition: opacity .12s; }
-.s-modal-enter-active .s-modal-box, .s-modal-leave-active .s-modal-box {
-  transition: transform .15s ease;
-}
+.s-modal-overlay { position: fixed; inset: 0; z-index: var(--sui-z-modal); display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--sui-mask); }
+.s-modal-overlay.nested { z-index: var(--sui-z-modal-nest); }
+.s-modal-box { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--sui-border); border-radius: 10px; background: var(--sui-bg); box-shadow: var(--sui-shadow-lg); color: var(--sui-fg); }
+.s-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--sui-border); }
+.s-modal-header.draggable { cursor: grab; touch-action: none; user-select: none; }
+.s-modal-box.dragging .s-modal-header { cursor: grabbing; }
+.s-modal-header h2 { min-width: 0; margin: 0; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.s-modal-header .s-icon-close { flex: 0 0 auto; }
+.s-modal-body { min-height: 0; padding: 16px 18px; overflow: auto; }
+.s-modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--sui-border); }
+.s-modal-bare { max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); }
+/*右下角原生拖角缩放；overflow:hidden 已满足 resize 生效条件，尺寸变化由 ResizeObserver 联动位置 clamp*/
+.s-modal-box.resizable { resize: both; min-width: 320px; min-height: 180px; max-width: calc(100vw - 32px); }
+.s-modal-enter-active, .s-modal-leave-active { transition: opacity .12s ease; }
+.s-modal-enter-active .s-modal-box, .s-modal-leave-active .s-modal-box { transition: transform .15s ease; }
 .s-modal-enter-from, .s-modal-leave-to { opacity: 0; }
 .s-modal-enter-from .s-modal-box, .s-modal-leave-to .s-modal-box { transform: translateY(-8px); }
+@media (max-width: 720px) {
+  .s-modal-overlay { padding: 0; align-items: stretch; }
+  .s-modal-box { width: 100% !important; max-height: 100dvh; border: 0; border-radius: 0; }
+  .s-modal-box.resizable { resize: none; }
+}
 </style>

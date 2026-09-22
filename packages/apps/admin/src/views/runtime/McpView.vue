@@ -5,7 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { mcpManager } from '@/managers/mcpManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, STab, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STabBar, SNavTab, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
@@ -13,13 +13,11 @@ import McpToolsModal from '@/components/modals/McpToolsModal.vue'
 import { sourceBadgeStyle } from '@/utils/badges'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const searchQuery = ref('')
 const activeTab = ref('all')
 
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'name',        label: t('common.name'),        primary: true, ellipsis: true, width: '220px' },
   { key: 'description', label: t('common.description'), ellipsis: true },
   { key: 'address',     label: t('mcp.address_col'),    ellipsis: true, width: '260px' },
@@ -47,7 +45,7 @@ async function load() {
   try {
     await mcpManager.ensure()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -74,7 +72,7 @@ async function viewTools(id: string) {
     resourcesList.value = res.data?.resources || []
     resourceTemplatesList.value = res.data?.resourceTemplates || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     showToolsModal.value = false
   } finally {
     toolsLoading.value = false
@@ -94,7 +92,7 @@ async function saveAutoApprove(next: string[]) {
     const res = await apiFetch('/api/settings/general', 'PUT', { autoApproveTools: next })
     settingsManager.apply(res.data)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -166,17 +164,17 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
   syncToForm()
   try {
     const { name, type, url, headers, command, args, env, cwd, toolTimeout, enablePromptTools, enableResourceTools } = form.value
     const config: McpEntry = { type, name: name.trim() } as any
     if (type === McpTransport.Http || type === McpTransport.Sse) {
-      if (!url.trim()) { show(t('mcp.error_url'), 'error'); return }
+      if (!url.trim()) { toast.show('error', t('mcp.error_url')); return }
       config.url = url.trim()
       if (Object.keys(headers).length > 0) config.headers = headers
     } else {
-      if (!command.trim()) { show(t('mcp.error_command'), 'error'); return }
+      if (!command.trim()) { toast.show('error', t('mcp.error_command')); return }
       config.command = command.trim()
       if (args.length > 0) config.args = args
       if (Object.keys(env).length > 0) config.env = env
@@ -190,23 +188,23 @@ async function save() {
     } else {
       await apiFetch('/api/mcp', 'POST', config)
     }
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
     await mcpManager.ensure(true)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function remove(id: string) {
   const displayName = mcpManager.nameOf(id)
-  if (!await confirm(t('mcp.confirm_delete', { name: displayName }), { danger: true })) return
+  if (!await confirm.show({ title: t('mcp.confirm_delete', { name: displayName }), danger: true , content: ''})) return
   try {
     await apiFetch(`/api/mcp/${encodeURIComponent(id)}`, 'DELETE')
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
     await mcpManager.ensure(true)
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -220,20 +218,20 @@ onMounted(load)
       <SButton type="primary" size="sm" @click="openAdd">{{ t('mcp.add') }}</SButton>
     </SPageToolbar>
 
-    <STabBar v-model="activeTab">
-      <STab name="all" :count="mcpManager.list.value.length">{{ t('common.all') }}</STab>
-      <STab
+    <STabBar v-model:active="activeTab">
+      <SNavTab name="all" :count="mcpManager.list.value.length">{{ t('common.all') }}</SNavTab>
+      <SNavTab
         v-for="src in sources"
         :key="src"
         :name="src"
         :count="mcpManager.list.value.filter(m => m.source === src).length"
-      >{{ src }}</STab>
+      >{{ src }}</SNavTab>
       <div class="tab-bar-spacer" />
-      <SInput v-model="searchQuery" size="sm" :placeholder="t('mcp.search_placeholder')" class="mcp-search" />
+      <SInput v-model:value="searchQuery" size="sm" :placeholder="t('mcp.search_placeholder')" class="mcp-search" />
     </STabBar>
 
     <SPageContent>
-      <STable
+      <SEntityTable
         :columns="columns"
         :rows="filteredMcps"
         row-key="id"
@@ -256,29 +254,29 @@ onMounted(load)
             <SButton v-if="row.source !== '内置'" type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
     <!-- Edit / Add MCP Modal -->
-    <SModal v-model:visible="showModal" :title="editingId ? t('mcp.edit_title') : t('mcp.add_title')" width="md">
+    <SModal v-model:show="showModal" :title="editingId ? t('mcp.edit_title') : t('mcp.add_title')" width="md">
       <SFormItem :label="t('common.name') + ' *'">
-        <SInput v-model="form.name" :placeholder="t('mcp.name_placeholder')" />
+        <SInput v-model:value="form.name" :placeholder="t('mcp.name_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('mcp.transport_type') + ' *'">
-        <SSelect v-model="form.type">
-          <option :value="McpTransport.Http">{{ t('mcp.transport_http') }}</option>
-          <option :value="McpTransport.Sse">{{ t('mcp.transport_sse') }}</option>
-          <option :value="McpTransport.Stdio">{{ t('mcp.transport_stdio') }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.type" :options="[
+          { value: McpTransport.Http, label: t('mcp.transport_http') },
+          { value: McpTransport.Sse, label: t('mcp.transport_sse') },
+          { value: McpTransport.Stdio, label: t('mcp.transport_stdio') },
+        ]" />
       </SFormItem>
       <template v-if="form.type === McpTransport.Http || form.type === McpTransport.Sse">
         <SFormItem :label="t('mcp.url_label') + ' *'">
-          <SInput v-model="form.url" placeholder="http://example.com/mcp" />
+          <SInput v-model:value="form.url" placeholder="http://example.com/mcp" />
         </SFormItem>
         <SFormSection :title="t('mcp.headers_section')">
           <div v-for="(row, i) in headerRows" :key="i" class="kv-row">
-            <SInput v-model="row.key" size="sm" placeholder="Key" class="kv-key" />
-            <SInput v-model="row.value" size="sm" placeholder="Value" class="kv-value" />
+            <SInput v-model:value="row.key" size="sm" placeholder="Key" class="kv-key" />
+            <SInput v-model:value="row.value" size="sm" placeholder="Value" class="kv-value" />
             <SButton type="danger" size="sm" @click="headerRows.splice(i,1)">×</SButton>
           </div>
           <SButton type="outline" size="sm" @click="headerRows.push({key:'',value:''})">+ Header</SButton>
@@ -286,30 +284,30 @@ onMounted(load)
       </template>
       <template v-else>
         <SFormItem :label="t('mcp.command_label') + ' *'">
-          <SInput v-model="form.command" :placeholder="t('mcp.command_placeholder')" />
+          <SInput v-model:value="form.command" :placeholder="t('mcp.command_placeholder')" />
         </SFormItem>
         <SFormSection :title="t('mcp.args_section')">
           <div v-for="(_arg, i) in argsList" :key="i" class="kv-row">
-            <SInput v-model="argsList[i]" size="sm" :placeholder="t('mcp.arg_placeholder')" class="kv-flex" />
+            <SInput v-model:value="argsList[i]" size="sm" :placeholder="t('mcp.arg_placeholder')" class="kv-flex" />
             <SButton type="danger" size="sm" @click="argsList.splice(i,1)">×</SButton>
           </div>
           <SButton type="outline" size="sm" @click="argsList.push('')">{{ t('mcp.add_arg') }}</SButton>
         </SFormSection>
         <SFormSection :title="t('mcp.env_section')">
           <div v-for="(row, i) in envRows" :key="i" class="kv-row">
-            <SInput v-model="row.key" size="sm" placeholder="Key" class="kv-key" />
-            <SInput v-model="row.value" size="sm" placeholder="Value" class="kv-value" />
+            <SInput v-model:value="row.key" size="sm" placeholder="Key" class="kv-key" />
+            <SInput v-model:value="row.value" size="sm" placeholder="Value" class="kv-value" />
             <SButton type="danger" size="sm" @click="envRows.splice(i,1)">×</SButton>
           </div>
           <SButton type="outline" size="sm" @click="envRows.push({key:'',value:''})">+ Env</SButton>
         </SFormSection>
         <SFormItem :label="t('mcp.cwd_label')">
-          <SInput v-model="form.cwd" :placeholder="t('mcp.cwd_placeholder')" />
+          <SInput v-model:value="form.cwd" :placeholder="t('mcp.cwd_placeholder')" />
         </SFormItem>
       </template>
       <SFormSection title="高级设置">
         <SFormItem :label="t('mcp.tool_timeout')" :hint="t('mcp.timeout_hint')">
-          <SInput v-model="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" />
+          <SInput v-model:value="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" />
         </SFormItem>
         <div class="check-row">
           <label class="checkbox-label">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SButton, SModal, STab, STabBar, useToast } from '@sbot/ui-kit'
+import { SBadge, SButton, SModal, SNavTab, STabBar, toast } from '@sbot/ui-kit'
 import AgendaBoard from '@/components/AgendaBoard.vue'
 import AgendaTriggerEditModal from '@/components/modals/AgendaTriggerEditModal.vue'
 import AgendaFiresModal from '@/components/modals/AgendaFiresModal.vue'
@@ -20,7 +20,6 @@ interface AgendaJob {
 }
 
 const { t } = useI18n()
-const { show } = useToast()
 
 const visible = ref(false)
 const agendaIdRef = ref('')
@@ -83,7 +82,7 @@ async function loadJobs(): Promise<void> {
     const res = await apiFetch(`/api/agendas/jobs?${query}`)
     jobs.value = (res.data?.jobs || []) as AgendaJob[]
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     jobsLoading.value = false
   }
@@ -123,11 +122,11 @@ defineExpose({ openByAgendaId })
 </script>
 
 <template>
-  <SModal v-model:visible="visible" :title="title" width="xl">
+  <SModal v-model:show="visible" :title="title" width="xl">
     <div class="agenda-viewer-tabs">
-      <STabBar v-model="tab" class="agenda-tabs">
-        <STab name="items">{{ t('agenda.viewer_items') }}</STab>
-        <STab name="jobs">{{ t('agenda.viewer_jobs') }}</STab>
+      <STabBar v-model:active="tab" class="agenda-tabs">
+        <SNavTab name="items">{{ t('agenda.viewer_items') }}</SNavTab>
+        <SNavTab name="jobs">{{ t('agenda.viewer_jobs') }}</SNavTab>
       </STabBar>
       <SButton v-if="tab === 'jobs'" type="outline" size="sm" :loading="jobsLoading" @click="loadJobs">
         {{ t('common.refresh') }}

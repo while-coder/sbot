@@ -2,10 +2,9 @@
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, SButton, SSelect, SInput, SPageToolbar, STabBar, STab } from '@sbot/ui-kit'
+import { SButton, SSelect, SInput, SPageToolbar, STabBar, SNavTab, toast } from '@sbot/ui-kit'
 
 const { t } = useI18n()
-const { show } = useToast()
 
 type LogTab = 'normal' | 'lifecycle'
 
@@ -27,6 +26,18 @@ let loadSequence = 0
 
 const levels = ['', 'DEBUG', 'INFO', 'WARN', 'ERROR']
 const intervalOptions = [3, 5, 10, 30]
+const intervalSelectOptions = computed(() => intervalOptions.map(sec => ({ value: sec, label: t('logs.every_n_seconds', { n: sec }) })))
+const normalFileOptions = computed(() => normalFiles.value.map(f => ({ value: f, label: f })))
+const levelFilterOptions = computed(() => [
+  { value: '', label: t('logs.all_levels') },
+  ...levels.slice(1).map(lv => ({ value: lv, label: lv })),
+])
+const tailCountOptions = computed(() => [
+  { value: 200, label: t('logs.last_n', { n: 200 }) },
+  { value: 500, label: t('logs.last_n', { n: 500 }) },
+  { value: 1000, label: t('logs.last_n', { n: 1000 }) },
+  { value: 0, label: t('logs.all_lines') },
+])
 const lifecycleLogFile = 'process.log'
 const normalFiles = computed(() => files.value.filter(file => file !== lifecycleLogFile))
 const hasLifecycleLog = computed(() => files.value.includes(lifecycleLogFile))
@@ -48,7 +59,7 @@ async function loadFiles() {
       activeTab.value = 'lifecycle'
     }
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -71,7 +82,7 @@ async function loadContent() {
     if (sequence !== loadSequence) return
     lines.value = res.data?.lines || []
   } catch (e: any) {
-    if (sequence === loadSequence) show(e.message, 'error')
+    if (sequence === loadSequence) toast.show('error', e.message)
   } finally {
     if (sequence !== loadSequence) return
     loading.value = false
@@ -144,30 +155,18 @@ onUnmounted(() => stopAutoRefresh())
           <input v-model="autoRefresh" type="checkbox" />
           <span>{{ t('logs.auto_refresh') }}</span>
         </label>
-        <SSelect v-if="autoRefresh" v-model.number="refreshInterval" size="sm">
-          <option v-for="sec in intervalOptions" :key="sec" :value="sec">{{ t('logs.every_n_seconds', { n: sec }) }}</option>
-        </SSelect>
+        <SSelect v-if="autoRefresh" v-model:value.number="refreshInterval" size="sm" :options="intervalSelectOptions" />
       </template>
     </SPageToolbar>
-    <STabBar v-model="activeTab" class="logs-tab-bar">
-      <STab name="normal" :count="normalFiles.length">{{ t('logs.normal') }}</STab>
-      <STab name="lifecycle" :count="hasLifecycleLog ? 1 : 0">{{ t('logs.lifecycle') }}</STab>
+    <STabBar v-model:active="activeTab" class="logs-tab-bar">
+      <SNavTab name="normal" :count="normalFiles.length">{{ t('logs.normal') }}</SNavTab>
+      <SNavTab name="lifecycle" :count="hasLifecycleLog ? 1 : 0">{{ t('logs.lifecycle') }}</SNavTab>
       <div class="logs-inline-filters">
-        <SSelect v-if="!isLifecycleLog" v-model="selectedNormalFile" size="sm" class="logs-file-select">
-          <option v-for="f in normalFiles" :key="f" :value="f">{{ f }}</option>
-        </SSelect>
+        <SSelect v-if="!isLifecycleLog" v-model:value="selectedNormalFile" size="sm" class="logs-file-select" :options="normalFileOptions" />
         <span v-else class="logs-current-file">{{ t('logs.lifecycle_file') }}</span>
-        <SSelect v-model="levelFilter" size="sm" @change="loadContent()">
-          <option value="">{{ t('logs.all_levels') }}</option>
-          <option v-for="lv in levels.slice(1)" :key="lv" :value="lv">{{ lv }}</option>
-        </SSelect>
-        <SInput v-model="keyword" size="sm" :placeholder="t('logs.search_placeholder')" class="logs-keyword" @keyup.enter="loadContent()" />
-        <SSelect v-model.number="tailCount" size="sm" @change="loadContent()">
-          <option :value="200">{{ t('logs.last_n', { n: 200 }) }}</option>
-          <option :value="500">{{ t('logs.last_n', { n: 500 }) }}</option>
-          <option :value="1000">{{ t('logs.last_n', { n: 1000 }) }}</option>
-          <option :value="0">{{ t('logs.all_lines') }}</option>
-        </SSelect>
+        <SSelect v-model:value="levelFilter" size="sm" :options="levelFilterOptions" @change="loadContent()" />
+        <SInput v-model:value="keyword" size="sm" :placeholder="t('logs.search_placeholder')" class="logs-keyword" @keyup.enter="loadContent()" />
+        <SSelect v-model:value.number="tailCount" size="sm" :options="tailCountOptions" @change="loadContent()" />
       </div>
     </STabBar>
     <div ref="logRef" class="log-viewer">

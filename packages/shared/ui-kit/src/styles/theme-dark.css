@@ -1,0 +1,39 @@
+/* 暗色 token 覆盖：html[data-theme="dark"] 时生效，变量名与 base.css 一一对应 */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sui-bg: #1e293b;
+  --sui-bg-page: #0f172a;
+  --sui-bg-soft: #273449;
+  --sui-bg-subtle: #1b2534;
+  --sui-bg-active: #334155;
+  --sui-bg-hover: #334155;
+  --sui-fg: #f8fafc;
+  --sui-fg-secondary: #cbd5e1;
+  --sui-fg-muted: #94a3b8;
+  --sui-fg-disabled: #64748b;
+  --sui-border: #334155;
+  --sui-border-subtle: #293548;
+  --sui-border-strong: #475569;
+  --sui-primary: #60a5fa;
+  --sui-primary-hover: #3b82f6;
+  --sui-success: #4ade80;
+  --sui-warning: #fbbf24;
+  --sui-warning-soft: #3a2e0a;
+  --sui-on-warning-soft: #fcd34d;
+  --sui-warning-fg: #fdba74;
+  --sui-warning-chip-bg: #431407;
+  --sui-danger: #fb7185;
+  --sui-info: #60a5fa;
+  --sui-tool-bg: #2a2500;
+  --sui-on-tool-bg: #d4b860;
+  --sui-mask: rgba(2, 6, 23, 0.78);
+  --sui-log-bg: #090f1a;
+  --sui-log-fg: #d7e1ee;
+  --sui-log-tone-warning: #ffca4b;
+  --sui-log-tone-error: #ff6b68;
+  --sui-log-tone-error-bg: rgba(255, 107, 104, 0.08);
+  --sui-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --sui-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --sui-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
+}

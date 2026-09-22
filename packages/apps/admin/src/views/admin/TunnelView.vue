@@ -4,16 +4,10 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import {
-  useToast, useConfirm,
-  SButton, SInput, SCard, SFormItem, SCheckCard, SBadge,
-  SPageToolbar, SPageContent,
-} from '@sbot/ui-kit'
+import { SButton, SInput, SCard, SFormItem, SCheckCard, SBadge, SPageToolbar, SPageContent, toast, confirm } from '@sbot/ui-kit'
 import { TunnelProviderType, type TunnelStatus, type TunnelConfig } from '@sbot/shared'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 // ── State ────────────────────────────────────────────────────────
 const statuses = ref<TunnelStatus[]>([])
@@ -71,7 +65,7 @@ function addTunnel(type: TunnelProviderType): void {
 async function removeTunnel(idx: number): Promise<void> {
   const c = tunnels[idx]
   if (!c) return
-  if (!await confirm(t('tunnel.delete_confirm', { id: c.id }), { danger: true })) return
+  if (!await confirm.show({ title: t('tunnel.delete_confirm', { id: c.id }), danger: true , content: ''})) return
   tunnels.splice(idx, 1)
   delete expanded[c.id]
 }
@@ -103,9 +97,9 @@ async function saveConfig(): Promise<void> {
   busy.value = true
   try {
     await persistConfig()
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     busy.value = false
   }
@@ -117,9 +111,9 @@ async function startAll(): Promise<void> {
     if (isDirty.value) await persistConfig()
     const res = await apiFetch('/api/tunnel/start', 'POST')
     statuses.value = res.data
-    show(t('tunnel.started'))
+    toast.show('success', t('tunnel.started'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     await refreshStatus()
   } finally { busy.value = false }
 }
@@ -129,9 +123,9 @@ async function stopAll(): Promise<void> {
   try {
     const res = await apiFetch('/api/tunnel/stop', 'POST')
     statuses.value = res.data
-    show(t('tunnel.stopped'))
+    toast.show('success', t('tunnel.stopped'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally { busy.value = false }
 }
 
@@ -142,7 +136,7 @@ async function startEntry(id: string): Promise<void> {
     const res = await apiFetch(`/api/tunnel/entries/${encodeURIComponent(id)}/start`, 'POST')
     statuses.value = res.data
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     await refreshStatus()
   } finally { busy.value = false }
 }
@@ -153,7 +147,7 @@ async function stopEntry(id: string): Promise<void> {
     const res = await apiFetch(`/api/tunnel/entries/${encodeURIComponent(id)}/stop`, 'POST')
     statuses.value = res.data
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally { busy.value = false }
 }
 
@@ -161,9 +155,9 @@ async function copyUrl(url?: string): Promise<void> {
   if (!url) return
   try {
     await navigator.clipboard.writeText(url)
-    show(t('tunnel.copied'))
+    toast.show('success', t('tunnel.copied'))
   } catch {
-    show(t('tunnel.copy_failed'), 'error')
+    toast.show('error', t('tunnel.copy_failed'))
   }
 }
 
@@ -172,9 +166,9 @@ async function copyAllUrls(): Promise<void> {
   if (!urls) return
   try {
     await navigator.clipboard.writeText(urls)
-    show(t('tunnel.copied'))
+    toast.show('success', t('tunnel.copied'))
   } catch {
-    show(t('tunnel.copy_failed'), 'error')
+    toast.show('error', t('tunnel.copy_failed'))
   }
 }
 
@@ -273,13 +267,13 @@ const PT = TunnelProviderType
           <div v-if="expanded[tunnel.id]" class="entry-body">
             <div class="inline-form">
               <SFormItem :label="t('tunnel.entry_id_label')" :hint="t('tunnel.entry_id_hint')">
-                <SInput v-model="tunnel.id" type="text" placeholder="cf-quick-1" />
+                <SInput v-model:value="tunnel.id" type="text" placeholder="cf-quick-1" />
               </SFormItem>
               <SFormItem :label="t('tunnel.entry_name_label')">
-                <SInput v-model="tunnel.name" type="text" :placeholder="t('tunnel.entry_name_placeholder')" />
+                <SInput v-model:value="tunnel.name" type="text" :placeholder="t('tunnel.entry_name_placeholder')" />
               </SFormItem>
               <SFormItem :label="t('tunnel.entry_enabled_label')">
-                <SCheckCard v-model="tunnel.enabled">{{ t('tunnel.entry_enabled') }}</SCheckCard>
+                <SCheckCard v-model:checked="tunnel.enabled">{{ t('tunnel.entry_enabled') }}</SCheckCard>
               </SFormItem>
 
               <template v-if="tunnel.type === PT.CloudflareQuick">
@@ -288,16 +282,16 @@ const PT = TunnelProviderType
 
               <template v-if="tunnel.type === PT.CloudflareToken">
                 <SFormItem :label="t('tunnel.token_label')" :hint="t('tunnel.token_hint')">
-                  <SInput v-model="tunnel.cloudflareToken" type="password" placeholder="eyJhIjoi..." />
+                  <SInput v-model:value="tunnel.cloudflareToken" type="password" placeholder="eyJhIjoi..." />
                 </SFormItem>
                 <SFormItem :label="t('tunnel.token_url_label')" :hint="t('tunnel.token_url_hint')">
-                  <SInput v-model="tunnel.cloudflareTokenPublicUrl" type="text" placeholder="https://bot.example.com" />
+                  <SInput v-model:value="tunnel.cloudflareTokenPublicUrl" type="text" placeholder="https://bot.example.com" />
                 </SFormItem>
               </template>
 
               <template v-if="tunnel.type === PT.Localtunnel">
                 <SFormItem :label="t('tunnel.lt_subdomain_label')" :hint="t('tunnel.lt_subdomain_hint')">
-                  <SInput v-model="tunnel.localtunnelSubdomain" type="text" placeholder="my-sbot" />
+                  <SInput v-model:value="tunnel.localtunnelSubdomain" type="text" placeholder="my-sbot" />
                 </SFormItem>
                 <div class="form-hint">{{ t('tunnel.lt_first_visit_hint') }}</div>
               </template>

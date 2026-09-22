@@ -1,0 +1,70 @@
+/* ui-kit 设计 token · light 默认值（纯变量，不含任何选择器）
+ *
+ * 命名空间 --sui-*；暗色由 theme-dark.css 通过 :root[data-theme="dark"] 覆盖。
+ * 组件样式一律在各自 .vue 的 <style scoped>；跨组件共享类见 shared.css。
+ */
+
+:root {
+  color-scheme: light;
+  --sui-bg: #ffffff;
+  --sui-bg-page: #f3f4f6;
+  --sui-bg-soft: #f8fafc;
+  --sui-bg-subtle: #f1f5f9;
+  --sui-bg-active: #e2e8f0;
+  --sui-bg-hover: #eef2f7;
+  --sui-fg: #111827;
+  --sui-fg-secondary: #374151;
+  --sui-fg-muted: #6b7280;
+  --sui-fg-disabled: #9ca3af;
+  --sui-border: #e5e7eb;
+  --sui-border-subtle: #eef2f7;
+  --sui-border-strong: #cbd5e1;
+  --sui-primary: #3b82f6;
+  --sui-primary-hover: #2563eb;
+  --sui-on-primary: #ffffff;
+  --sui-success: #16a34a;
+  --sui-success-soft: #dcfce7;
+  --sui-on-success-soft: #166534;
+  --sui-warning: #d97706;
+  --sui-warning-soft: #fef08a;
+  --sui-on-warning-soft: #713f12;
+  --sui-warning-fg: #c05c00;
+  --sui-warning-chip-bg: #fff3e0;
+  --sui-danger: #dc2626;
+  --sui-danger-soft: #fee2e2;
+  --sui-danger-strong: #e53e3e;
+  --sui-on-danger-soft: #991b1b;
+  --sui-info: #3b82f6;
+  --sui-info-soft: #dbeafe;
+  --sui-on-info-soft: #1d4ed8;
+  --sui-tool-bg: #fefce8;
+  --sui-on-tool-bg: #713f12;
+  --sui-mask: rgba(15, 23, 42, 0.56);
+  --sui-sp-1: 4px;
+  --sui-sp-2: 6px;
+  --sui-sp-3: 8px;
+  --sui-sp-4: 10px;
+  --sui-sp-5: 12px;
+  --sui-sp-6: 16px;
+  --sui-sp-7: 20px;
+  --sui-radius-sm: 4px;
+  --sui-radius-md: 6px;
+  --sui-radius-lg: 8px;
+  --sui-radius-xl: 10px;
+  --sui-radius-pill: 12px;
+  --sui-font-mono: "Fira Code", "Cascadia Code", Consolas, Monaco, monospace;
+  --sui-log-bg: #f8fafc;
+  --sui-log-fg: #1f2937;
+  --sui-log-tone-warning: #b45309;
+  --sui-log-tone-error: #dc2626;
+  --sui-log-tone-error-bg: rgba(220, 38, 38, 0.07);
+  --sui-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --sui-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --sui-shadow-lg: 0 16px 48px rgba(15, 23, 42, 0.28);
+  --sui-z-dropdown: 4000;
+  --sui-z-float: 1000;
+  --sui-z-modal: 2000;
+  --sui-z-modal-nest: 3000;
+  --sui-z-toast: 5000;
+  --sui-transition: 0.15s ease;
+}

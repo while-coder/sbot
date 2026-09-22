@@ -42,7 +42,7 @@ defineExpose({ openCreate })
 </script>
 
 <template>
-  <SModal v-model:visible="visible" :title="t('agenda.trigger_edit_title_new')" width="md">
+  <SModal v-model:show="visible" :title="t('agenda.trigger_edit_title_new')" width="md">
     <AgendaTriggerFields :draft="draft" :agenda-id="agendaId" />
     <p v-if="invalid" class="agenda-trigger-edit-error">{{ t('agenda.trigger_edit_invalid') }}</p>
 

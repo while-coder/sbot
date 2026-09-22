@@ -13,16 +13,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
-import {
-  useToast,
-  SButton,
-  SSelect,
-  SCard,
-  SPageToolbar,
-  SPageContent,
-  STable,
-  type STableColumn,
-} from '@sbot/ui-kit'
+import { SButton, SSelect, SCard, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast } from '@sbot/ui-kit'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 
@@ -38,7 +29,6 @@ ChartJS.register(
 )
 
 const { t } = useI18n()
-const { show } = useToast()
 
 type Granularity = 'daily' | 'hourly'
 type ChartType = 'bar' | 'line' | 'table'
@@ -254,7 +244,7 @@ function queryParams(filters: AppliedFilters, overrideRange?: TimeRangeMs): URLS
 
 function validateFilters(filters: AppliedFilters): boolean {
   if (!filters.startDate || !filters.endDate || filters.startDate > filters.endDate) {
-    show(t('usage.invalid_range'), 'error')
+    toast.show('error', t('usage.invalid_range'))
     return false
   }
   return true
@@ -305,7 +295,7 @@ async function runQuery() {
     logPage.value = 0
     appliedFilters.value = filters
   } catch (error: any) {
-    if (sequence === querySequence) show(error?.message || t('usage.query_failed'), 'error')
+    if (sequence === querySequence) toast.show('error', error?.message || t('usage.query_failed'))
   } finally {
     if (sequence === querySequence) {
       loading.value = false
@@ -330,7 +320,7 @@ async function loadLogPage(page: number) {
     logTotal.value = res.data?.total ?? 0
     logPage.value = page
   } catch (error: any) {
-    if (sequence === logSequence) show(error?.message || t('usage.query_failed'), 'error')
+    if (sequence === logSequence) toast.show('error', error?.message || t('usage.query_failed'))
   } finally {
     if (sequence === logSequence) logsLoading.value = false
   }
@@ -391,7 +381,7 @@ async function selectTrendBucket(index: number) {
     logRows.value = logsRes.data?.rows ?? []
     logTotal.value = logsRes.data?.total ?? 0
   } catch (error: any) {
-    if (sequence === detailSequence) show(error?.message || t('usage.query_failed'), 'error')
+    if (sequence === detailSequence) toast.show('error', error?.message || t('usage.query_failed'))
   } finally {
     if (sequence === detailSequence) {
       detailLoading.value = false
@@ -457,6 +447,31 @@ const channelOptions = computed<FilterOption[]>(() => {
   return Array.from(ids, id => ({ id, label: channelName(id) }))
     .sort((a, b) => a.label.localeCompare(b.label))
 })
+const granularityOptions = computed(() => [
+  { value: 'daily', label: t('usage.granularity_daily') },
+  { value: 'hourly', label: t('usage.granularity_hourly') },
+])
+const agentFilterOptions = computed(() => [
+  { value: '', label: t('usage.all_agents') },
+  ...filterOptions.value.agents.map((option: FilterOption) => ({ value: option.id, label: option.label })),
+])
+const modelFilterOptions = computed(() => [
+  { value: '', label: t('usage.all_models') },
+  ...filterOptions.value.models.map((option: FilterOption) => ({ value: option.id, label: option.label })),
+])
+const providerFilterOptions = computed(() => [
+  { value: '', label: t('usage.all_providers') },
+  ...filterOptions.value.providers.map((option: string) => ({ value: option, label: option })),
+])
+const channelFilterOptions = computed(() => [
+  { value: '', label: t('usage.all_channels') },
+  ...channelOptions.value.map(option => ({ value: option.id, label: option.label })),
+])
+const pageSizeOptions = computed(() => [
+  { value: 20, label: '20 / ' + t('usage.page') },
+  { value: 50, label: '50 / ' + t('usage.page') },
+  { value: 100, label: '100 / ' + t('usage.page') },
+])
 const detailSummary = computed(() => detailDashboard.value.summary ?? EMPTY_SUMMARY)
 const averagePerCall = computed(() => summary.value.calls ? summary.value.totalTokens / summary.value.calls : 0)
 const cacheHitRate = computed(() => {
@@ -572,7 +587,7 @@ const dimensionSections = computed(() => [
   })),
 })))
 
-const dimensionColumns = computed<STableColumn[]>(() => [
+const dimensionColumns = computed<EntityTableColumn[]>(() => [
   { key: 'rank', label: '#', width: '48px', align: 'right' },
   { key: 'name', label: t('usage.name'), primary: true, ellipsis: true },
   { key: 'calls', label: t('usage.calls'), align: 'right' },
@@ -601,7 +616,7 @@ const logDisplayRows = computed(() => logRows.value.map(row => ({
   totalTokens: formatNumber(row.totalTokens),
 })))
 
-const logColumns = computed<STableColumn[]>(() => [
+const logColumns = computed<EntityTableColumn[]>(() => [
   { key: 'time', label: t('usage.column_time'), primary: true, width: '165px' },
   { key: 'agentName', label: t('usage.agent'), ellipsis: true },
   { key: 'modelName', label: t('usage.model'), ellipsis: true },
@@ -641,29 +656,14 @@ onMounted(runQuery)
             <input v-model="endDate" type="date" class="date-input" :min="startDate" @change="onDateChange" />
           </div>
 
-          <SSelect v-model="granularity" size="sm" class="granularity-select" @change="runQuery">
-            <option value="daily">{{ t('usage.granularity_daily') }}</option>
-            <option value="hourly">{{ t('usage.granularity_hourly') }}</option>
-          </SSelect>
+          <SSelect v-model:value="granularity" size="sm" class="granularity-select" :options="granularityOptions" @change="runQuery" />
         </div>
 
         <div class="query-row">
-          <SSelect v-model="agentId" size="sm" class="filter-select" @change="runQuery">
-            <option value="">{{ t('usage.all_agents') }}</option>
-            <option v-for="option in filterOptions.agents" :key="option.id" :value="option.id">{{ option.label }}</option>
-          </SSelect>
-          <SSelect v-model="modelId" size="sm" class="filter-select" @change="runQuery">
-            <option value="">{{ t('usage.all_models') }}</option>
-            <option v-for="option in filterOptions.models" :key="option.id" :value="option.id">{{ option.label }}</option>
-          </SSelect>
-          <SSelect v-model="provider" size="sm" class="filter-select" @change="runQuery">
-            <option value="">{{ t('usage.all_providers') }}</option>
-            <option v-for="option in filterOptions.providers" :key="option" :value="option">{{ option }}</option>
-          </SSelect>
-          <SSelect v-model="channelId" size="sm" class="filter-select" @change="runQuery">
-            <option value="">{{ t('usage.all_channels') }}</option>
-            <option v-for="option in channelOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-          </SSelect>
+          <SSelect v-model:value="agentId" size="sm" class="filter-select" :options="agentFilterOptions" @change="runQuery" />
+          <SSelect v-model:value="modelId" size="sm" class="filter-select" :options="modelFilterOptions" @change="runQuery" />
+          <SSelect v-model:value="provider" size="sm" class="filter-select" :options="providerFilterOptions" @change="runQuery" />
+          <SSelect v-model:value="channelId" size="sm" class="filter-select" :options="channelFilterOptions" @change="runQuery" />
           <div class="query-actions">
             <SButton size="sm" @click="resetFilters">{{ t('usage.reset') }}</SButton>
             <SButton type="primary" size="sm" :disabled="loading" @click="runQuery">{{ t('common.refresh') }}</SButton>
@@ -794,7 +794,7 @@ onMounted(runQuery)
                 <span>{{ section.rows.length }}</span>
               </div>
               <div class="table-scroll">
-                <STable :columns="dimensionColumns" :rows="section.rows" row-key="id" :loading="loading || detailLoading" :empty-text="t('usage.no_data')" />
+                <SEntityTable :columns="dimensionColumns" :rows="section.rows" row-key="id" :loading="loading || detailLoading" :empty-text="t('usage.no_data')" />
               </div>
             </section>
           </div>
@@ -812,18 +812,14 @@ onMounted(runQuery)
               <p>{{ selectedBucket ? t('usage.drilldown_logs_hint') : t('usage.call_logs_hint') }}</p>
             </div>
             <div class="pager">
-              <SSelect v-model="pageSize" size="sm" @change="onPageSizeChange">
-                <option :value="20">20 / {{ t('usage.page') }}</option>
-                <option :value="50">50 / {{ t('usage.page') }}</option>
-                <option :value="100">100 / {{ t('usage.page') }}</option>
-              </SSelect>
+              <SSelect v-model:value="pageSize" size="sm" :options="pageSizeOptions" @change="onPageSizeChange" />
               <span>{{ t('usage.page_of', { cur: logPage + 1, total: totalPages }) }}</span>
               <SButton size="sm" :disabled="logPage === 0 || logsLoading" @click="loadLogPage(logPage - 1)">{{ t('usage.prev_page') }}</SButton>
               <SButton size="sm" :disabled="logPage >= totalPages - 1 || logsLoading" @click="loadLogPage(logPage + 1)">{{ t('usage.next_page') }}</SButton>
             </div>
           </div>
           <div class="table-scroll log-table">
-            <STable :columns="logColumns" :rows="logDisplayRows" row-key="id" :loading="logsLoading" :empty-text="t('usage.no_data')" />
+            <SEntityTable :columns="logColumns" :rows="logDisplayRows" row-key="id" :loading="logsLoading" :empty-text="t('usage.no_data')" />
           </div>
         </SCard>
       </div>

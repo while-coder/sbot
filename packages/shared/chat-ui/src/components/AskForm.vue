@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { SRadio, SCheckbox, SInput, SButton } from '@sbot/ui-kit'
+import { SRadio, SCheckbox, SCheckboxGroup, SInput, SButton } from '@sbot/ui-kit'
 import type { AskEvent, AskAnswerPayload, ChatLabels } from '../types'
 import { AskQuestionType } from '../types'
 import { resolveLabels } from '../labels'
@@ -75,49 +75,49 @@ onUnmounted(stopTimer)
           v-for="opt in q.options"
           :key="opt"
           :name="`ask_${askEvent.id}_${i}`"
-          :value="opt"
+          :labelValue="opt"
           :label="opt"
-          v-model="(answers[i] as string)"
+          v-model:value="(answers[i] as string)"
         />
         <SRadio
           :name="`ask_${askEvent.id}_${i}`"
-          :value="CUSTOM_SENTINEL"
+          :labelValue="CUSTOM_SENTINEL"
           :label="L.askOther"
-          v-model="(answers[i] as string)"
+          v-model:value="(answers[i] as string)"
         />
         <SInput
           v-if="answers[i] === CUSTOM_SENTINEL"
           class="chatui-ask-custom-input"
           size="sm"
-          v-model="customInputs[i]"
+          v-model:value="customInputs[i]"
           :placeholder="L.askOtherPlaceholder"
         />
       </div>
       <div v-else-if="q.type === AskQuestionType.Checkbox" class="chatui-ask-options">
-        <SCheckbox
-          v-for="opt in q.options"
-          :key="opt"
-          :value="opt"
-          :label="opt"
-          v-model="(answers[i] as string[])"
-        />
-        <SCheckbox
-          :value="CUSTOM_SENTINEL"
-          :label="L.askOther"
-          v-model="(answers[i] as string[])"
-        />
+        <SCheckboxGroup v-model:value="(answers[i] as string[])">
+          <SCheckbox
+            v-for="opt in q.options"
+            :key="opt"
+            :value="opt"
+            :label="opt"
+          />
+          <SCheckbox
+            :value="CUSTOM_SENTINEL"
+            :label="L.askOther"
+          />
+        </SCheckboxGroup>
         <SInput
           v-if="(answers[i] as string[])?.includes(CUSTOM_SENTINEL)"
           class="chatui-ask-custom-input"
           size="sm"
-          v-model="customInputs[i]"
+          v-model:value="customInputs[i]"
           :placeholder="L.askOtherPlaceholder"
         />
       </div>
       <SInput
         v-else
         size="sm"
-        v-model="(answers[i] as string)"
+        v-model:value="(answers[i] as string)"
         :placeholder="q.placeholder ?? ''"
       />
     </div>

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SModal, useToast } from '@sbot/ui-kit'
+import { SBadge, SModal, toast } from '@sbot/ui-kit'
 import { apiFetch } from '@/shared/api'
 import type { AgendaRow, AgendaTrigger, AgendaTriggerFire } from '@/composables/useAgendas'
 
 const { t } = useI18n()
-const { show } = useToast()
 
 const visible = ref(false)
 const loading = ref(false)
@@ -39,7 +38,7 @@ async function fetchFires(url: string) {
     const res = await apiFetch(url)
     fires.value = res.data || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
@@ -62,7 +61,7 @@ defineExpose({ openFor, openForItem })
 
 <template>
   <SModal
-    v-model:visible="visible"
+    v-model:show="visible"
     :title="title"
     width="lg"
   >

@@ -1,0 +1,11 @@
+/* 全局样式入口：token（light/dark 变量）+ 跨组件共享类
+ *
+ * 消费方仍然只 import 这一个文件：
+ *   import "@wm-debugger/ui-kit/style.css"
+ * 也可以按需单独引 token：
+ *   import "@wm-debugger/ui-kit/tokens.css"
+ */
+
+@import "./tokens.css";
+@import "./theme-dark.css";
+@import "./shared.css";

@@ -17,17 +17,30 @@ const emit = defineEmits<{ (e: 'change'): void }>()
 
 const { t } = useI18n()
 
+const kindOptions = [
+  { value: 'absolute', label: t('agenda.trigger_absolute') },
+  { value: 'interval', label: t('agenda.trigger_interval') },
+  { value: 'cron', label: t('agenda.trigger_cron') },
+]
+const unitOptions = [
+  { value: 'minute', label: t('agenda.unit_minute') },
+  { value: 'hour', label: t('agenda.unit_hour') },
+  { value: 'day', label: t('agenda.unit_day') },
+  { value: 'week', label: t('agenda.unit_week') },
+]
+const actionOptions = [
+  { value: 'notify', label: t('agenda.action_notify') },
+  { value: 'notify_and_record', label: t('agenda.action_notify_and_record') },
+  { value: 'invoke', label: t('agenda.action_invoke') },
+]
+
 function onChange(): void { emit('change') }
 </script>
 
 <template>
   <div class="agenda-trigger-fields">
     <SFormItem :label="t('agenda.trigger_kind')">
-      <SSelect v-model="props.draft.kind" class="agenda-trigger-kind" @update:model-value="onChange">
-        <option value="absolute">{{ t('agenda.trigger_absolute') }}</option>
-        <option value="interval">{{ t('agenda.trigger_interval') }}</option>
-        <option value="cron">{{ t('agenda.trigger_cron') }}</option>
-      </SSelect>
+      <SSelect v-model:value="props.draft.kind" class="agenda-trigger-kind" :options="kindOptions" @update:value="onChange" />
     </SFormItem>
 
     <div v-if="props.draft.kind === 'absolute'" class="agenda-trigger-block">
@@ -39,19 +52,8 @@ function onChange(): void { emit('change') }
     <div v-else-if="props.draft.kind === 'interval'" class="agenda-trigger-block">
       <SFormItem :label="t('agenda.edit_trigger_every')">
         <div class="agenda-trigger-every">
-          <SInput
-            :model-value="String(props.draft.amount)"
-            type="number"
-            min="1"
-            class="agenda-trigger-amount"
-            @update:model-value="(v: string | number) => { props.draft.amount = Number(v); onChange() }"
-          />
-          <SSelect v-model="props.draft.unit" @update:model-value="onChange">
-            <option value="minute">{{ t('agenda.unit_minute') }}</option>
-            <option value="hour">{{ t('agenda.unit_hour') }}</option>
-            <option value="day">{{ t('agenda.unit_day') }}</option>
-            <option value="week">{{ t('agenda.unit_week') }}</option>
-          </SSelect>
+          <SInput :value="String(props.draft.amount)" type="number" min="1" class="agenda-trigger-amount" @update:value="(v: string | number) => { props.draft.amount = Number(v); onChange() }" />
+          <SSelect v-model:value="props.draft.unit" :options="unitOptions" @update:value="onChange" />
         </div>
       </SFormItem>
       <SFormItem :label="t('agenda.edit_trigger_start_at')" :hint="t('agenda.edit_trigger_start_at_hint')">
@@ -61,19 +63,13 @@ function onChange(): void { emit('change') }
         </div>
       </SFormItem>
       <SFormItem :label="t('agenda.edit_trigger_count')" :hint="t('agenda.edit_trigger_count_hint')">
-        <SInput
-          v-model="props.draft.count"
-          type="number"
-          min="1"
-          :placeholder="t('agenda.edit_trigger_count_placeholder')"
-          @update:model-value="onChange"
-        />
+        <SInput v-model:value="props.draft.count" type="number" min="1" :placeholder="t('agenda.edit_trigger_count_placeholder')" @update:value="onChange" />
       </SFormItem>
     </div>
 
     <div v-else-if="props.draft.kind === 'cron'" class="agenda-trigger-block">
       <SFormItem :label="t('agenda.edit_trigger_cron_expr')" :hint="t('agenda.edit_trigger_cron_expr_hint')">
-        <SInput v-model="props.draft.expr" :placeholder="'0 0 9 * * 1-5'" @update:model-value="onChange" />
+        <SInput v-model:value="props.draft.expr" :placeholder="'0 0 9 * * 1-5'" @update:value="onChange" />
       </SFormItem>
       <SFormItem :label="t('agenda.edit_trigger_start_at')" :hint="t('agenda.edit_trigger_start_at_hint')">
         <div class="agenda-trigger-due">
@@ -82,29 +78,19 @@ function onChange(): void { emit('change') }
         </div>
       </SFormItem>
       <SFormItem :label="t('agenda.edit_trigger_count')" :hint="t('agenda.edit_trigger_count_hint')">
-        <SInput
-          v-model="props.draft.count"
-          type="number"
-          min="1"
-          :placeholder="t('agenda.edit_trigger_count_placeholder')"
-          @update:model-value="onChange"
-        />
+        <SInput v-model:value="props.draft.count" type="number" min="1" :placeholder="t('agenda.edit_trigger_count_placeholder')" @update:value="onChange" />
       </SFormItem>
     </div>
 
     <SFormItem :label="t('agenda.trigger_action')">
-      <SSelect v-model="props.draft.action" @update:model-value="onChange">
-        <option value="notify">{{ t('agenda.action_notify') }}</option>
-        <option value="notify_and_record">{{ t('agenda.action_notify_and_record') }}</option>
-        <option value="invoke">{{ t('agenda.action_invoke') }}</option>
-      </SSelect>
+      <SSelect v-model:value="props.draft.action" :options="actionOptions" @update:value="onChange" />
     </SFormItem>
     <SFormItem :label="t('agenda.trigger_message') + ' *'">
       <STextarea
-        v-model="props.draft.message"
+        v-model:value="props.draft.message"
         :placeholder="t('agenda.edit_trigger_message_placeholder')"
         :rows="3"
-        @update:model-value="onChange"
+        @update:value="onChange"
       />
     </SFormItem>
     <SFormItem :label="t('agenda.edit_channel_session')" :hint="t('agenda.edit_channel_session_hint')">

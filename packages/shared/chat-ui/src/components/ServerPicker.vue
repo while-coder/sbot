@@ -12,12 +12,12 @@
         <template v-if="editingIndex === i">
           <div class="edit-form">
             <label>Host</label>
-            <SInput v-model="editHost" size="sm" placeholder="Host" />
+            <SInput v-model:value="editHost" size="sm" placeholder="Host" />
             <label>Port</label>
-            <SInput v-model.number="editPort" size="sm" type="number" placeholder="Port" />
-            <SCheckbox v-model="editSecure" label="HTTPS" />
+            <SInput v-model:value.number="editPort" size="sm" type="number" placeholder="Port" />
+            <SCheckbox v-model:checked="editSecure" label="HTTPS" />
             <label>{{ L.namePlaceholder }}</label>
-            <SInput v-model="editName" size="sm" :placeholder="L.namePlaceholder" />
+            <SInput v-model:value="editName" size="sm" :placeholder="L.namePlaceholder" />
             <div class="edit-actions">
               <SButton size="sm" @click="onSaveEdit(i)">{{ L.save }}</SButton>
               <SButton type="outline" size="sm" @click="editingIndex = -1">{{ L.cancel }}</SButton>
@@ -41,15 +41,15 @@
     <h3>{{ L.addRemoteServer }}</h3>
     <div class="form">
       <label>Host</label>
-      <SInput v-model="host" size="sm" placeholder="192.168.1.100" />
+      <SInput v-model:value="host" size="sm" placeholder="192.168.1.100" />
 
       <label>Port</label>
-      <SInput v-model.number="port" size="sm" type="number" placeholder="5500" />
+      <SInput v-model:value.number="port" size="sm" type="number" placeholder="5500" />
 
-      <SCheckbox v-model="secure" label="HTTPS" />
+      <SCheckbox v-model:checked="secure" label="HTTPS" />
 
       <label>{{ L.namePlaceholder }}</label>
-      <SInput v-model="name" size="sm" :placeholder="host ? `${host}:${port}` : ''" />
+      <SInput v-model:value="name" size="sm" :placeholder="host ? `${host}:${port}` : ''" />
 
       <SButton :disabled="!host" @click="onAdd" style="margin-top:4px">{{ L.add }}</SButton>
     </div>

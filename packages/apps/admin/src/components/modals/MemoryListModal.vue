@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { useToast, useConfirm, SButton, SModal, SBadge, SInput, SSelect, STabBar, STab } from '@sbot/ui-kit'
+import { SButton, SModal, SBadge, SInput, SSelect, STabBar, SNavTab, toast, confirm } from '@sbot/ui-kit'
 
 interface MemorySummary {
   slug: string
@@ -42,14 +42,16 @@ interface MemoryHistoryDiff extends MemoryHistoryEntry {
 }
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const visible = ref(false)
 const memoryId = ref('')
 const labelOverride = ref('')
 const workspaceScopes = ref<WorkspaceScope[]>([])
 const selectedWorkPath = ref('')
+const scopeOptions = computed(() => [
+  { value: '', label: t('memory_profiles.scope_global') },
+  ...workspaceScopes.value.map((scope: WorkspaceScope) => ({ value: scope.path, label: t('memory_profiles.scope_workspace_context', { path: scope.path }) })),
+])
 
 const tab = ref<'memories' | 'history' | 'jobs'>('memories')
 const loading = ref(false)
@@ -132,7 +134,7 @@ async function loadMemories() {
     if (next) await loadBody(next)
     else selectedBody.value = ''
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
@@ -146,7 +148,7 @@ async function loadJobs() {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs?${query}`)
     jobs.value = (res.data?.jobs || []) as MemoryJob[]
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     jobsLoading.value = false
   }
@@ -167,7 +169,7 @@ async function loadHistory() {
     if (next) await loadHistoryDiff(next)
     else selectedHistory.value = null
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     historyLoading.value = false
   }
@@ -185,7 +187,7 @@ async function loadHistoryDiff(item: MemoryHistoryEntry) {
     selectedHistory.value = res.data?.history as MemoryHistoryDiff
   } catch (e: any) {
     selectedHistory.value = null
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     diffLoading.value = false
   }
@@ -195,7 +197,7 @@ async function restoreHistoryVersion() {
   const item = selectedHistory.value
   const slug = historySlug.value.trim()
   if (!memoryId.value || !item || !slug || restoring.value) return
-  if (!await confirm(t('memory_profiles.confirm_restore_memory', { slug, commit: item.shortHash }), { danger: true })) return
+  if (!await confirm.show({ title: t('memory_profiles.confirm_restore_memory', { slug, commit: item.shortHash }), danger: true , content: ''})) return
   restoring.value = true
   try {
     await apiFetch(
@@ -203,10 +205,10 @@ async function restoreHistoryVersion() {
       'POST',
       {},
     )
-    show(t('memory_profiles.restore_memory_done'))
+    toast.show('success', t('memory_profiles.restore_memory_done'))
     await loadHistory()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     restoring.value = false
   }
@@ -228,7 +230,7 @@ async function loadBody(memory: MemorySummary) {
     selectedBody.value = res.data?.row?.body || ''
   } catch (e: any) {
     selectedBody.value = ''
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     bodyLoading.value = false
   }
@@ -246,9 +248,9 @@ async function runConsolidate() {
   consolidating.value = true
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/consolidate/run?${viewQuery.value}`, 'POST', {})
-    show(t('memory_profiles.consolidate_queued', { id: res.data?.jobId ?? '-' }))
+    toast.show('success', t('memory_profiles.consolidate_queued', { id: res.data?.jobId ?? '-' }))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     consolidating.value = false
   }
@@ -259,9 +261,9 @@ async function runReconcile() {
   reconciling.value = true
   try {
     const res = await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/reconcile/run?${viewQuery.value}`, 'POST', {})
-    show(t('memory_profiles.reconcile_queued', { id: res.data?.jobId ?? '-' }))
+    toast.show('success', t('memory_profiles.reconcile_queued', { id: res.data?.jobId ?? '-' }))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     reconciling.value = false
   }
@@ -272,10 +274,10 @@ async function retryFailedJob(job: MemoryJob) {
   retryingJobId.value = job.id
   try {
     await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}/retry?${viewQuery.value}`, 'POST', {})
-    show(t('memory_profiles.retry_job_done'))
+    toast.show('success', t('memory_profiles.retry_job_done'))
     await loadJobs()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     retryingJobId.value = null
   }
@@ -283,14 +285,14 @@ async function retryFailedJob(job: MemoryJob) {
 
 async function deleteFailedJob(job: MemoryJob) {
   if (!memoryId.value || job.status !== 'failed' || deletingJobId.value !== null) return
-  if (!await confirm(t('memory_profiles.confirm_delete_job', { id: job.id }), { danger: true })) return
+  if (!await confirm.show({ title: t('memory_profiles.confirm_delete_job', { id: job.id }), danger: true , content: ''})) return
   deletingJobId.value = job.id
   try {
     await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}?${viewQuery.value}`, 'DELETE')
-    show(t('memory_profiles.delete_job_done'))
+    toast.show('success', t('memory_profiles.delete_job_done'))
     await loadJobs()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     deletingJobId.value = null
   }
@@ -298,19 +300,19 @@ async function deleteFailedJob(job: MemoryJob) {
 
 async function deleteMemory(memory: MemorySummary) {
   if (!memoryId.value || !memory.slug || deleting.value) return
-  if (!await confirm(t('memory_profiles.confirm_delete_memory', { slug: memory.slug }), { danger: true })) return
+  if (!await confirm.show({ title: t('memory_profiles.confirm_delete_memory', { slug: memory.slug }), danger: true , content: ''})) return
   deleting.value = true
   try {
     const query = [viewQuery.value, `entryScope=${memory.scope}`].join('&')
     await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/entries/${encodeURIComponent(memory.slug)}?${query}`, 'DELETE')
-    show(t('memory_profiles.delete_memory_done'))
+    toast.show('success', t('memory_profiles.delete_memory_done'))
     if (selectedKey.value === rowKey(memory)) {
       selectedKey.value = ''
       selectedBody.value = ''
     }
     await loadMemories()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     deleting.value = false
   }
@@ -359,22 +361,17 @@ defineExpose({ openByMemoryId })
 </script>
 
 <template>
-  <SModal v-model:visible="visible" :title="title" width="xl">
+  <SModal v-model:show="visible" :title="title" width="xl">
     <div class="memory-viewer">
-      <STabBar v-model="tab" class="memory-tabs">
-        <STab name="memories">{{ t('memory_profiles.viewer_memories') }}</STab>
-        <STab name="history">{{ t('memory_profiles.viewer_history') }}</STab>
-        <STab name="jobs">{{ t('memory_profiles.viewer_jobs') }}</STab>
+      <STabBar v-model:active="tab" class="memory-tabs">
+        <SNavTab name="memories">{{ t('memory_profiles.viewer_memories') }}</SNavTab>
+        <SNavTab name="history">{{ t('memory_profiles.viewer_history') }}</SNavTab>
+        <SNavTab name="jobs">{{ t('memory_profiles.viewer_jobs') }}</SNavTab>
       </STabBar>
 
       <div v-if="tab === 'memories'" class="memory-tab-pane">
         <div class="memory-tab-toolbar">
-          <SSelect v-model="selectedWorkPath" size="sm" @change="changeScope">
-            <option value="">{{ t('memory_profiles.scope_global') }}</option>
-            <option v-for="scope in workspaceScopes" :key="scope.key" :value="scope.path">
-              {{ t('memory_profiles.scope_workspace_context', { path: scope.path }) }}
-            </option>
-          </SSelect>
+          <SSelect v-model:value="selectedWorkPath" size="sm" :options="scopeOptions" @change="changeScope" />
           <div class="memory-actions">
             <SBadge variant="info" size="sm">
               {{ t(selectedWorkPath ? 'memory_profiles.operation_scope_workspace' : 'memory_profiles.operation_scope_global') }}
@@ -442,19 +439,9 @@ defineExpose({ openByMemoryId })
 
       <div v-else-if="tab === 'history'" class="memory-tab-pane">
         <div class="memory-tab-toolbar memory-history-toolbar">
-          <SSelect v-model="selectedWorkPath" size="sm" @change="changeScope">
-            <option value="">{{ t('memory_profiles.scope_global') }}</option>
-            <option v-for="scope in workspaceScopes" :key="scope.key" :value="scope.path">
-              {{ t('memory_profiles.scope_workspace_context', { path: scope.path }) }}
-            </option>
-          </SSelect>
+          <SSelect v-model:value="selectedWorkPath" size="sm" :options="scopeOptions" @change="changeScope" />
           <div class="memory-actions memory-history-filter">
-            <SInput
-              v-model="historySlug"
-              size="sm"
-              :placeholder="t('memory_profiles.history_slug_placeholder')"
-              @keyup.enter="loadHistory"
-            />
+            <SInput v-model:value="historySlug" size="sm" :placeholder="t('memory_profiles.history_slug_placeholder')" @keyup.enter="loadHistory" />
             <SButton type="outline" size="sm" :loading="historyLoading" @click="loadHistory">
               {{ t('memory_profiles.view_history') }}
             </SButton>
@@ -509,12 +496,7 @@ defineExpose({ openByMemoryId })
 
       <div v-else class="memory-tab-pane">
         <div class="memory-tab-toolbar">
-          <SSelect v-model="selectedWorkPath" size="sm" @change="changeScope">
-            <option value="">{{ t('memory_profiles.scope_global') }}</option>
-            <option v-for="scope in workspaceScopes" :key="scope.key" :value="scope.path">
-              {{ t('memory_profiles.scope_workspace_context', { path: scope.path }) }}
-            </option>
-          </SSelect>
+          <SSelect v-model:value="selectedWorkPath" size="sm" :options="scopeOptions" @change="changeScope" />
           <SButton type="outline" size="sm" :loading="jobsLoading" @click="loadJobs">{{ t('common.refresh') }}</SButton>
         </div>
 

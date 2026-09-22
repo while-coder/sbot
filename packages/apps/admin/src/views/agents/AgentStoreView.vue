@@ -4,11 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, toast, confirm } from '@sbot/ui-kit'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 interface AgentPackageVersion {
   version: string
@@ -79,7 +77,7 @@ async function loadSources() {
     const res = await apiFetch('/api/agent-store/list')
     sources.value = Array.isArray(res) ? res : (res.data ?? [])
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -115,7 +113,7 @@ async function loadAgents() {
       agents.value = results
     }
   } catch {
-    show(t('agentStore.fetch_error'), 'error')
+    toast.show('error', t('agentStore.fetch_error'))
   } finally {
     loading.value = false
   }
@@ -146,24 +144,24 @@ async function addSource() {
       url,
       name: sourceName.value.trim() || undefined,
     })
-    show(t('agentStore.source_added'))
+    toast.show('success', t('agentStore.source_added'))
     showSourceModal.value = false
     await reload()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     sourceAdding.value = false
   }
 }
 
 async function removeSource(index: number) {
-  if (!await confirm(t('agentStore.source_removed') + '?', { danger: true })) return
+  if (!await confirm.show({ title: t('agentStore.source_removed') + '?', danger: true , content: ''})) return
   try {
     await apiFetch('/api/agent-store/remove', 'POST', { index })
-    show(t('agentStore.source_removed'))
+    toast.show('success', t('agentStore.source_removed'))
     await reload()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -212,7 +210,7 @@ async function confirmInstall() {
 
     const { resolved, missing } = resolveSubAgents(ver)
     if (missing.length) {
-      show(`Missing sub-agents: ${missing.join(', ')}`, 'error')
+      toast.show('error', `Missing sub-agents: ${missing.join(', ')}`)
     }
 
     for (const sub of resolved) {
@@ -222,15 +220,15 @@ async function confirmInstall() {
     }
 
     await installOne(pkg, ver.version, installOverwrite.value)
-    show(t('agentStore.install_success'))
+    toast.show('success', t('agentStore.install_success'))
     showInstallModal.value = false
     await loadAgents()
   } catch (e: any) {
     if (e.message && e.message.includes('exist')) {
       installOverwrite.value = true
-      show(t('agentStore.confirm_overwrite', { id: installTarget.value.pkg.id }), 'error')
+      toast.show('error', t('agentStore.confirm_overwrite', { id: installTarget.value.pkg.id }))
     } else {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   } finally {
     installing.value = false
@@ -255,7 +253,7 @@ function onFileSelected(ev: Event) {
       const data = JSON.parse(reader.result as string)
       const sourceAgents: AgentPackage[] = Array.isArray(data.agents) ? data.agents : []
       if (!sourceAgents.length) {
-        show(t('agentStore.no_agents'), 'error')
+        toast.show('error', t('agentStore.no_agents'))
         return
       }
       const sourceName = data.name || file.name.replace(/\.json$/, '')
@@ -270,7 +268,7 @@ function onFileSelected(ev: Event) {
       agents.value = [...agents.value.filter(a => !a.sourceUrl.startsWith('__file__:')), ...tempSourceAgents.value]
       selectedSource.value = sourceUrl
     } catch {
-      show('Invalid JSON file', 'error')
+      toast.show('error', 'Invalid JSON file')
     }
   }
   reader.readAsText(file)
@@ -333,7 +331,7 @@ onMounted(reload)
         <span class="src-tab-close src-tab-close-temp" @click.stop="closeTempSource" title="Close">&times;</span>
       </button>
       <div class="src-tab-spacer" />
-      <SInput v-model="searchQuery" size="sm" :placeholder="t('agentStore.search_placeholder')" class="src-search-input" />
+      <SInput v-model:value="searchQuery" size="sm" :placeholder="t('agentStore.search_placeholder')" class="src-search-input" />
     </div>
 
     <SPageContent>
@@ -389,12 +387,12 @@ onMounted(reload)
     </SPageContent>
 
     <!-- Add Source Modal -->
-    <SModal v-model:visible="showSourceModal" :title="t('agentStore.add_source')" width="md">
+    <SModal v-model:show="showSourceModal" :title="t('agentStore.add_source')" width="md">
       <SFormItem :label="t('agentStore.source_url')">
-        <SInput v-model="sourceUrl" placeholder="https://example.com/agents.json" @keydown.enter="addSource" />
+        <SInput v-model:value="sourceUrl" placeholder="https://example.com/agents.json" @keydown.enter="addSource" />
       </SFormItem>
       <SFormItem :label="t('agentStore.source_name')">
-        <SInput v-model="sourceName" :placeholder="t('agentStore.source_name')" @keydown.enter="addSource" />
+        <SInput v-model:value="sourceName" :placeholder="t('agentStore.source_name')" @keydown.enter="addSource" />
       </SFormItem>
       <div v-if="sources.length > 0" class="src-list-wrap">
         <div class="src-list-label">{{ t('agentStore.source_all') }}</div>
@@ -415,7 +413,7 @@ onMounted(reload)
     </SModal>
 
     <!-- Install Confirm Modal -->
-    <SModal v-if="installTarget" v-model:visible="showInstallModal" :title="t('agentStore.install')" width="md">
+    <SModal v-if="installTarget" v-model:show="showInstallModal" :title="t('agentStore.install')" width="md">
       <div class="install-head">
         <div class="install-head-row">
           <span class="install-pkg-name">{{ installTarget.pkg.name }}</span>
@@ -424,11 +422,7 @@ onMounted(reload)
         <div class="install-pkg-id">{{ installTarget.pkg.id }} v{{ installTarget.pkg.versions[selectedVersionIndex]?.version }}</div>
       </div>
       <SFormItem v-if="installTarget.pkg.versions.length > 1" :label="t('agentStore.select_version')">
-        <SSelect v-model.number="selectedVersionIndex">
-          <option v-for="(ver, idx) in installTarget.pkg.versions" :key="idx" :value="idx">
-            v{{ ver.version }}{{ idx === 0 ? ' (latest)' : '' }}
-          </option>
-        </SSelect>
+        <SSelect v-model:value.number="selectedVersionIndex" :options="installTarget.pkg.versions.map((ver, idx) => ({ value: idx, label: `v${ver.version}${idx === 0 ? ' (latest)' : ''}` }))" />
       </SFormItem>
       <div v-if="installTarget.pkg.description" class="install-desc">{{ installTarget.pkg.description }}</div>
       <div v-if="installTarget.pkg.versions[selectedVersionIndex] && depsTotal(installTarget.pkg.versions[selectedVersionIndex].agent) > 0" class="install-info-panel">

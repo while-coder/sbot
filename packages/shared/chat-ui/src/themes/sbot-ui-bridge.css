@@ -8,10 +8,10 @@
  *   import '@sbot/chat-ui/themes/theme-XXX.css'
  *   import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
  *
- * admin 不需要加载本文件 —— 它已经直接加载 @sbot/ui-kit/tokens/index.css。
+ * admin 不需要加载本文件 —— 它已经直接加载 @sbot/ui-kit/style.css。
  */
 
-@import '../../../ui-kit/src/tokens/base.css';
+@import '../../../ui-kit/src/styles/index.css';
 
 :root {
   /* ── 中性背景 ─────────────────────────────────────────── */

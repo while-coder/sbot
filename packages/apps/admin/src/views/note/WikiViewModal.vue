@@ -2,8 +2,8 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useToast, useConfirm } from '@sbot/ui-kit'
-import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, STable, type STableColumn } from '@sbot/ui-kit'
+import { toast, confirm } from '@sbot/ui-kit'
+import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
 import type { WikiConfig } from '@/shared/types'
 
 interface WikiPageItem {
@@ -17,8 +17,6 @@ interface WikiPageItem {
 }
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const visible    = ref(false)
 const wikiId     = ref('')
@@ -38,7 +36,7 @@ const expandedPage      = ref<string | null>(null)
 const pageContents      = ref<Record<string, string>>({})
 const pageLoading       = ref<Record<string, boolean>>({})
 
-const wikiColumns = computed<STableColumn[]>(() => [
+const wikiColumns = computed<EntityTableColumn[]>(() => [
   { key: 'title',     label: t('wikis.page_title'),   primary: true, ellipsis: true },
   { key: 'tags',      label: t('wikis.page_tags'),    width: '160px' },
   { key: 'updatedAt', label: t('wikis.page_updated'), width: '150px', ellipsis: true },
@@ -61,7 +59,7 @@ async function load() {
     const res = await apiFetch(wikiUrl())
     pages.value = res.data || []
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     loading.value = false
   }
@@ -79,7 +77,7 @@ async function togglePage(id: string) {
     const res = await apiFetch(wikiUrl(`/pages/${encodeURIComponent(id)}`))
     pageContents.value[id] = res.data?.content || ''
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
     pageContents.value[id] = ''
   } finally {
     pageLoading.value[id] = false
@@ -87,27 +85,27 @@ async function togglePage(id: string) {
 }
 
 async function removePage(id: string, title: string) {
-  if (!await confirm(t('wikis.confirm_delete_page', { name: title }), { danger: true })) return
+  if (!await confirm.show({ title: t('wikis.confirm_delete_page', { name: title }), danger: true , content: ''})) return
   try {
     await apiFetch(wikiUrl(`/pages/${encodeURIComponent(id)}`), 'DELETE')
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function clearAll() {
-  if (!await confirm(t('wikis.confirm_clear', { name: wikiConfig.value.name || wikiId.value }), { danger: true })) return
+  if (!await confirm.show({ title: t('wikis.confirm_clear', { name: wikiConfig.value.name || wikiId.value }), danger: true , content: ''})) return
   try {
     for (const p of pages.value) {
       await apiFetch(wikiUrl(`/pages/${encodeURIComponent(p.id)}`), 'DELETE')
     }
     pages.value = []
     pageContents.value = {}
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -135,14 +133,14 @@ async function openEdit(id: string) {
       pageContents.value[id] = content
       editContent.value = content
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 }
 
 async function confirmSave() {
-  if (!editTitle.value.trim()) { show(t('wikis.error_title'), 'error'); return }
-  if (!editContent.value.trim()) { show(t('wikis.error_content'), 'error'); return }
+  if (!editTitle.value.trim()) { toast.show('error', t('wikis.error_title')); return }
+  if (!editContent.value.trim()) { toast.show('error', t('wikis.error_content')); return }
   saving.value = true
   try {
     const tags = editTags.value.trim() ? editTags.value.split(',').map(s => s.trim()).filter(Boolean) : undefined
@@ -153,11 +151,11 @@ async function confirmSave() {
     } else {
       await apiFetch(wikiUrl('/pages'), 'POST', body)
     }
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showEditModal.value = false
     await load()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   } finally {
     saving.value = false
   }
@@ -178,16 +176,13 @@ defineExpose({ open })
 </script>
 
 <template>
-  <SModal v-model:visible="visible" width="xl">
-    <template #header>
-      <div style="display:flex;align-items:center;gap:10px">
-        <h3 class="s-modal-title">{{ t('wikis.content_title') }}</h3>
-        <SBadge variant="neutral" size="sm">{{ wikiConfig.name || wikiId }}</SBadge>
-        <span v-if="!loading" class="wiki-count-badge">{{ t('wikis.count', { count: pages.length }) }}</span>
-      </div>
-    </template>
+  <SModal v-model:show="visible" :title="t('wikis.content_title')" width="xl">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <SBadge variant="neutral" size="sm">{{ wikiConfig.name || wikiId }}</SBadge>
+      <span v-if="!loading" class="wiki-count-badge">{{ t('wikis.count', { count: pages.length }) }}</span>
+    </div>
 
-    <template #toolbar>
+    <div class="modal-toolbar">
       <SButton type="outline" size="sm" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
@@ -196,9 +191,9 @@ defineExpose({ open })
         {{ t('wikis.clear_all') }}
       </SButton>
       <SBadge v-if="readOnly" variant="neutral" size="sm" style="margin-left:auto">{{ t('wikis.readonly_source') }}</SBadge>
-    </template>
+    </div>
 
-    <STable
+    <SEntityTable
       :columns="wikiColumns"
       :rows="pages"
       row-key="id"
@@ -226,25 +221,25 @@ defineExpose({ open })
         </div>
         <span v-else class="cell-secondary">-</span>
       </template>
-      <template #_expanded="{ row }">
+      <template #expanded="{ row }">
         <div v-if="pageLoading[row.id]" class="cell-secondary" style="font-style:italic">{{ t('common.loading') }}</div>
         <pre v-else class="page-content-pre">{{ pageContents[row.id] || '' }}</pre>
       </template>
-    </STable>
+    </SEntityTable>
   </SModal>
 
   <!-- Add/Edit page modal (nested) -->
-  <SModal v-model:visible="showEditModal" width="lg" nested :title="editingPageId ? t('wikis.edit_page_title') : t('wikis.add_page_title')">
+  <SModal v-model:show="showEditModal" width="lg" nested :title="editingPageId ? t('wikis.edit_page_title') : t('wikis.add_page_title')">
     <div class="edit-meta-row" @keydown.ctrl.s.prevent="confirmSave" @keydown.meta.s.prevent="confirmSave">
       <SFormItem :label="t('wikis.page_title_label') + ' *'" style="flex:1">
-        <SInput v-model="editTitle" :placeholder="t('wikis.page_title_placeholder')" />
+        <SInput v-model:value="editTitle" :placeholder="t('wikis.page_title_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('wikis.page_tags_label')" style="width:200px">
-        <SInput v-model="editTags" :placeholder="t('wikis.page_tags_placeholder')" />
+        <SInput v-model:value="editTags" :placeholder="t('wikis.page_tags_placeholder')" />
       </SFormItem>
     </div>
     <SFormItem :label="t('wikis.page_content_label') + ' *'" class="edit-content-group">
-      <STextarea v-model="editContent" class="edit-textarea" :placeholder="t('wikis.page_content_placeholder')" :rows="14" resize="none" />
+      <STextarea v-model:value="editContent" class="edit-textarea" :placeholder="t('wikis.page_content_placeholder')" :rows="14" resize="none" />
     </SFormItem>
     <template #footer>
       <span class="edit-hint">Ctrl+S {{ t('common.save') }}</span>
@@ -257,6 +252,16 @@ defineExpose({ open })
 </template>
 
 <style scoped>
+/* 新 SModal 无 toolbar 插槽：工具行内联到默认插槽顶部 */
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sui-sp-3);
+  padding-bottom: var(--sui-sp-3);
+  margin-bottom: var(--sui-sp-3);
+  border-bottom: 1px solid var(--sui-border);
+}
+
 .wiki-count-badge {
   font-size: var(--sui-fs-sm);
   color: var(--sui-fg-disabled);

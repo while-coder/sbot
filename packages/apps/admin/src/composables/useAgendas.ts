@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { useConfirm, useToast } from '@sbot/ui-kit'
+import { toast, confirm } from '@sbot/ui-kit'
 
 export type AgendaStatus = 'pending' | 'done' | 'cancelled' | 'expired'
 export type AgendaPriority = 'low' | 'normal' | 'high'
@@ -97,8 +97,6 @@ export function sortAgendas(rows: AgendaRow[]): AgendaRow[] {
 
 export function useAgendas(opts: UseAgendasOptions) {
   const { t } = useI18n()
-  const { show } = useToast()
-  const { confirm } = useConfirm()
 
   const agendas = ref<AgendaRow[]>([])
   const loading = ref(false)
@@ -125,42 +123,42 @@ export function useAgendas(opts: UseAgendasOptions) {
       const res = await apiFetch(`/api/agendas?${parts.join('&')}`)
       agendas.value = res.data || []
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     } finally {
       loading.value = false
     }
   }
 
   async function complete(row: AgendaRow) {
-    if (!await confirm(t('agenda.confirm_complete', { id: row.item.id }))) return
+    if (!await confirm.show({ title: t('agenda.confirm_complete', { id: row.item.id }) , content: ''})) return
     try {
       await apiFetch(`/api/agendas/${row.item.id}/complete`, 'POST', { agendaId: row.agendaId })
-      show(t('common.saved'))
+      toast.show('success', t('common.saved'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
   async function cancel(row: AgendaRow) {
-    if (!await confirm(t('agenda.confirm_cancel', { id: row.item.id }), { danger: true })) return
+    if (!await confirm.show({ title: t('agenda.confirm_cancel', { id: row.item.id }), danger: true , content: ''})) return
     try {
       await apiFetch(`/api/agendas/${row.item.id}/cancel`, 'POST', { agendaId: row.agendaId })
-      show(t('common.saved'))
+      toast.show('success', t('common.saved'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
   async function reopen(row: AgendaRow) {
-    if (!await confirm(t('agenda.confirm_reopen', { id: row.item.id }))) return
+    if (!await confirm.show({ title: t('agenda.confirm_reopen', { id: row.item.id }) , content: ''})) return
     try {
       await apiFetch(`/api/agendas/${row.item.id}/reopen`, 'POST', { agendaId: row.agendaId })
-      show(t('common.saved'))
+      toast.show('success', t('common.saved'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
@@ -168,69 +166,69 @@ export function useAgendas(opts: UseAgendasOptions) {
     const { row, patch } = payload
     try {
       await apiFetch(`/api/agendas/${row.item.id}`, 'PATCH', { agendaId: row.agendaId, ...patch })
-      show(t('common.saved'))
+      toast.show('success', t('common.saved'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
   async function fireTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
     const { row, trigger } = payload
-    if (!await confirm(t('agenda.confirm_fire_trigger', { id: trigger.id }))) return
+    if (!await confirm.show({ title: t('agenda.confirm_fire_trigger', { id: trigger.id }) , content: ''})) return
     try {
       const res = await apiFetch(`/api/agendas/triggers/${trigger.id}/fire`, 'POST', { agendaId: row.agendaId })
-      if (res.data?.ok) show(t('agenda.fire_trigger_ok'))
-      else show(t('agenda.fire_trigger_no_delivery'), 'error')
+      if (res.data?.ok) toast.show('success', t('agenda.fire_trigger_ok'))
+      else toast.show('error', t('agenda.fire_trigger_no_delivery'))
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
   async function remove(row: AgendaRow) {
-    if (!await confirm(t('agenda.confirm_delete', { id: row.item.id }), { danger: true })) return
+    if (!await confirm.show({ title: t('agenda.confirm_delete', { id: row.item.id }), danger: true , content: ''})) return
     try {
       await apiFetch(`/api/agendas/${row.item.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
-      show(t('common.deleted'))
+      toast.show('success', t('common.deleted'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
   async function cancelTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
     const { row, trigger } = payload
-    if (!await confirm(t('agenda.confirm_cancel_trigger', { id: trigger.id }))) return
+    if (!await confirm.show({ title: t('agenda.confirm_cancel_trigger', { id: trigger.id }) , content: ''})) return
     try {
       await apiFetch(`/api/agendas/triggers/${trigger.id}/disable`, 'POST', { agendaId: row.agendaId })
-      show(t('common.saved'))
+      toast.show('success', t('common.saved'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
   async function reopenTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
     const { row, trigger } = payload
-    if (!await confirm(t('agenda.confirm_reopen_trigger', { id: trigger.id }))) return
+    if (!await confirm.show({ title: t('agenda.confirm_reopen_trigger', { id: trigger.id }) , content: ''})) return
     try {
       await apiFetch(`/api/agendas/triggers/${trigger.id}/reopen`, 'POST', { agendaId: row.agendaId })
-      show(t('common.saved'))
+      toast.show('success', t('common.saved'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
   async function removeTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
     const { row, trigger } = payload
-    if (!await confirm(t('agenda.confirm_delete_trigger', { id: trigger.id }), { danger: true })) return
+    if (!await confirm.show({ title: t('agenda.confirm_delete_trigger', { id: trigger.id }), danger: true , content: ''})) return
     try {
       await apiFetch(`/api/agendas/triggers/${trigger.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
-      show(t('common.deleted'))
+      toast.show('success', t('common.deleted'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
@@ -239,10 +237,10 @@ export function useAgendas(opts: UseAgendasOptions) {
     const { row, spec } = payload
     try {
       await apiFetch(`/api/agendas/${row.item.id}/triggers`, 'POST', { agendaId: row.agendaId, spec })
-      show(t('common.saved'))
+      toast.show('success', t('common.saved'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 
@@ -251,10 +249,10 @@ export function useAgendas(opts: UseAgendasOptions) {
     const { row, trigger, spec } = payload
     try {
       await apiFetch(`/api/agendas/triggers/${trigger.id}`, 'PATCH', { agendaId: row.agendaId, spec })
-      show(t('common.saved'))
+      toast.show('success', t('common.saved'))
       await load()
     } catch (e: any) {
-      show(e.message, 'error')
+      toast.show('error', e.message)
     }
   }
 

@@ -6,7 +6,7 @@ import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
 import { promptFileManager } from '@/managers/promptFileManager'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import ResourceRefs from '@/components/ResourceRefs.vue'
 import { useResourceRefs } from '@/composables/useResourceRefs'
@@ -19,8 +19,6 @@ interface AgendaProfileForm {
 }
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const profiles = computed(() => store.settings.agendaProfiles || {})
 const profileList = computed(() =>
@@ -38,7 +36,7 @@ const refs = makeResourceRefs({
 const expandedIds = ref<string[]>([])
 onMounted(loadProfiles)
 
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'name',      label: t('common.name'),               primary: true },
   { key: 'enabled',   label: t('common.enabled'),            width: '100px', align: 'center' },
   { key: 'syncModel', label: t('agenda_profiles.sync_model'), width: '200px' },
@@ -83,7 +81,7 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) { show(t('common.name_required'), 'error'); return }
+  if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
   try {
     const body: any = {
       name: form.value.name.trim(),
@@ -96,23 +94,23 @@ async function save() {
       ? await apiFetch(`/api/settings/agendaProfiles/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/agendaProfiles', 'POST', body)
     settingsManager.apply(res.data)
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function remove(id: string) {
   const p: any = profiles.value[id]
   const label = p?.name || id
-  if (!await confirm(t('agenda_profiles.confirm_delete', { name: label }), { danger: true })) return
+  if (!await confirm.show({ title: t('agenda_profiles.confirm_delete', { name: label }), danger: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/agendaProfiles/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -121,7 +119,7 @@ async function refresh() {
     await settingsManager.refresh()
     await loadProfiles()
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -133,7 +131,7 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('agenda_profiles.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable
+      <SEntityTable
         :columns="columns"
         :rows="profileList"
         row-key="id"
@@ -164,35 +162,29 @@ async function refresh() {
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
-        <template #_expanded="{ row }">
+        <template #expanded="{ row }">
           <div class="refs-expanded">
             <ResourceRefs mode="card" :refs="refs(row.id)" />
           </div>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
-    <SModal v-model:visible="showModal" :title="editingId !== null ? t('agenda_profiles.edit_title') : t('agenda_profiles.add_title')" width="md">
+    <SModal v-model:show="showModal" :title="editingId !== null ? t('agenda_profiles.edit_title') : t('agenda_profiles.add_title')" width="md">
       <SFormItem :label="t('common.name') + ' *'">
-        <SInput v-model="form.name" :placeholder="t('agenda_profiles.name_placeholder')" />
+        <SInput v-model:value="form.name" :placeholder="t('agenda_profiles.name_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('common.enabled')">
-        <SSelect :model-value="form.enabled ? 'true' : 'false'" @update:model-value="(v: any) => (form.enabled = v === 'true')">
-          <option value="true">{{ t('common.enabled') }}</option>
-          <option value="false">{{ t('common.disabled') }}</option>
-        </SSelect>
+        <SSelect :value="form.enabled ? 'true' : 'false'" @update:value="(v: any) => (form.enabled = v === 'true')" :options="[
+          { value: 'true', label: t('common.enabled') },
+          { value: 'false', label: t('common.disabled') },
+        ]" />
       </SFormItem>
       <SFormItem :label="t('agenda_profiles.sync_model')">
-        <SSelect v-model="form.syncModel">
-          <option value="">{{ t('agenda_profiles.sync_disabled') }}</option>
-          <option v-for="m in modelOptions" :key="m.id" :value="m.id">{{ m.label }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.syncModel" :options="[{ value: '', label: t('agenda_profiles.sync_disabled') }, ...modelOptions.map(m => ({ value: m.id, label: m.label }))]" />
       </SFormItem>
       <SFormItem :label="t('agenda_profiles.prompt')">
-        <SSelect v-model="form.syncPromptFile">
-          <option value="">{{ t('common.default') }}</option>
-          <option v-for="p in promptFiles" :key="p.path" :value="p.path">{{ p.path }}</option>
-        </SSelect>
+        <SSelect v-model:value="form.syncPromptFile" :options="[{ value: '', label: t('common.default') }, ...promptFiles.map(p => ({ value: p.path, label: p.path }))]" />
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>

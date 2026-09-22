@@ -1,51 +1,23 @@
 <script setup lang="ts">
-defineProps<{
-  modelValue?: boolean
-  label?: string
-  disabled?: boolean
-}>()
+import { useAttrs } from "vue"
 
-const emit = defineEmits<{
-  'update:modelValue': [value: boolean]
-}>()
-
-function onChange(e: Event) {
-  emit('update:modelValue', (e.target as HTMLInputElement).checked)
-}
+defineOptions({ name: "SCheckCard", inheritAttrs: false })
+const props = defineProps<{ checked?: boolean; label?: string; disabled?: boolean }>()
+const emit = defineEmits<{ "update:checked": [checked: boolean]; change: [checked: boolean] }>()
+const attrs = useAttrs()
 </script>
 
 <template>
-  <label class="s-check-card" :class="{ 's-check-card--disabled': disabled }">
-    <input
-      type="checkbox"
-      :checked="modelValue"
-      :disabled="disabled"
-      @change="onChange"
-    />
-    <slot>{{ label }}</slot>
+  <label v-bind="attrs" :class="['s-check-card', { disabled: props.disabled }]">
+    <input type="checkbox" :checked="props.checked" :disabled="props.disabled" @change="emit('update:checked', ($event.target as HTMLInputElement).checked); emit('change', ($event.target as HTMLInputElement).checked)" />
+    <slot>{{ props.label }}</slot>
   </label>
 </template>
 
 <style scoped>
-.s-check-card {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: var(--sui-sp-1) var(--sui-sp-4);
-  border: 1px solid var(--sui-border);
-  border-radius: var(--sui-radius-md);
-  cursor: pointer;
-  font-size: var(--sui-fs-md);
-  background: var(--sui-bg-subtle);
-  user-select: none;
-  color: var(--sui-fg-secondary);
-  transition: background var(--sui-transition-base);
-}
+.s-check-card { display: flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid var(--sui-border); border-radius: var(--sui-radius-md); cursor: pointer; font-size: 13px; background: var(--sui-bg-subtle); user-select: none; color: var(--sui-fg-secondary); transition: background var(--sui-transition); }
 .s-check-card:hover { background: var(--sui-bg-hover); }
-.s-check-card input[type=checkbox] { cursor: pointer; }
-.s-check-card--disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.s-check-card--disabled:hover { background: var(--sui-bg-subtle); }
+.s-check-card input[type="checkbox"] { cursor: pointer; accent-color: var(--sui-primary); }
+.s-check-card.disabled { opacity: .5; cursor: not-allowed; }
+.s-check-card.disabled:hover { background: var(--sui-bg-subtle); }
 </style>

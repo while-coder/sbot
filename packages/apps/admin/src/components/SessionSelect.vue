@@ -65,14 +65,19 @@ function onUpdate(v: string | number) {
   const s = String(v)
   emit('update:modelValue', s === '' ? null : Number(s))
 }
+
+// 新 SSelect 无 optgroup 支持：每个频道组拍平成一条禁用的频道名头项 + 该组会话项。
+// 头项值带 __group_ 前缀，不会与会话 id 冲突。
+const options = computed(() => [
+  ...(props.includeEmpty ? [{ value: '', label: props.emptyLabel || '--', disabled: props.emptyDisabled }] : []),
+  ...(orphan.value ? [{ value: String(orphan.value.id), label: sessionText(orphan.value) }] : []),
+  ...groups.value.flatMap(g => [
+    { value: `__group_${g.channelName}`, label: g.channelName, disabled: true },
+    ...g.sessions.map(s => ({ value: String(s.id), label: sessionText(s) })),
+  ]),
+])
 </script>
 
 <template>
-  <SSelect :model-value="selectValue" :size="size" @update:model-value="onUpdate">
-    <option v-if="includeEmpty" value="" :disabled="emptyDisabled">{{ emptyLabel || '--' }}</option>
-    <option v-if="orphan" :value="String(orphan.id)">{{ sessionText(orphan) }}</option>
-    <optgroup v-for="g in groups" :key="g.channelName" :label="g.channelName">
-      <option v-for="s in g.sessions" :key="s.id" :value="String(s.id)">{{ sessionText(s) }}</option>
-    </optgroup>
-  </SSelect>
+  <SSelect :value="selectValue" :size="size" :options="options" @update:value="onUpdate" />
 </template>

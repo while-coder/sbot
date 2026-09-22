@@ -5,21 +5,19 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { embeddingManager } from '@/managers/embeddingManager'
-import { useToast, useConfirm, SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, STable, type STableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
 import type { NoteConfig } from '@/shared/types'
 import NoteViewModal from './NoteViewModal.vue'
 import ResourceRefs from '@/components/ResourceRefs.vue'
 import { useResourceRefs, parseList } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
-const { show } = useToast()
-const { confirm } = useConfirm()
 
 const notes         = computed(() => store.settings.notes || {})
 const noteList      = computed(() =>
   Object.entries(notes.value).map(([id, n]) => ({ id, ...n })),
 )
-const columns = computed<STableColumn[]>(() => [
+const columns = computed<EntityTableColumn[]>(() => [
   { key: 'name',      label: t('common.name'),         primary: true },
   { key: 'embedding', label: t('notes.embedding_col'), width: '180px' },
   { key: 'count',     label: t('notes.count_col'),     width: '70px',  align: 'center' },
@@ -78,7 +76,7 @@ function openEdit(id: string) {
 }
 
 async function save() {
-  if (!form.value.name.trim())  { show(t('common.name_required'),     'error'); return }
+  if (!form.value.name.trim())  { toast.show('error', t('common.name_required')); return }
   try {
     const { name, embedding } = form.value
     const body: NoteConfig = embedding ? { name, embedding } : { name }
@@ -87,24 +85,24 @@ async function save() {
       ? await apiFetch(`/api/settings/notes/${encodeURIComponent(id)}`, 'PUT', body)
       : await apiFetch('/api/settings/notes', 'POST', body)
     settingsManager.apply(res.data)
-    show(t('common.saved'))
+    toast.show('success', t('common.saved'))
     showModal.value = false
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
 async function remove(id: string) {
   const n = notes.value[id]
   const label = n.name || id
-  if (!await confirm(t('notes.confirm_delete', { name: label }), { danger: true })) return
+  if (!await confirm.show({ title: t('notes.confirm_delete', { name: label }), danger: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/notes/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
     delete noteCounts.value[id]
-    show(t('common.deleted'))
+    toast.show('success', t('common.deleted'))
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 
@@ -114,7 +112,7 @@ async function refresh() {
     noteCounts.value = {}
     await Promise.all([loadCounts(), loadProfiles()])
   } catch (e: any) {
-    show(e.message, 'error')
+    toast.show('error', e.message)
   }
 }
 </script>
@@ -126,7 +124,7 @@ async function refresh() {
       <SButton type="primary" size="sm" @click="openAdd">{{ t('notes.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
-      <STable
+      <SEntityTable
         :columns="columns"
         :rows="noteList"
         row-key="id"
@@ -164,23 +162,20 @@ async function refresh() {
             <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
-        <template #_expanded="{ row }">
+        <template #expanded="{ row }">
           <div class="refs-expanded">
             <ResourceRefs mode="card" :refs="refs(row.id)" />
           </div>
         </template>
-      </STable>
+      </SEntityTable>
     </SPageContent>
 
-    <SModal v-model:visible="showModal" :title="editingName !== null ? t('notes.edit_title') : t('notes.add_title')" width="md">
+    <SModal v-model:show="showModal" :title="editingName !== null ? t('notes.edit_title') : t('notes.add_title')" width="md">
       <SFormItem :label="t('common.name') + ' *'">
-        <SInput v-model="form.name" :placeholder="t('notes.name_placeholder')" />
+        <SInput v-model:value="form.name" :placeholder="t('notes.name_placeholder')" />
       </SFormItem>
       <SFormItem :label="t('notes.embedding_model')">
-        <SSelect v-model="form.embedding">
-          <option value="">{{ t('notes.embedding_none') }}</option>
-          <option v-for="e in embeddingOptions" :key="e.id" :value="e.id">{{ e.label }} ({{ e.detail }})</option>
-        </SSelect>
+        <SSelect v-model:value="form.embedding" :options="[{ value: '', label: t('notes.embedding_none') }, ...embeddingOptions.map(e => ({ value: e.id, label: `${e.label} (${e.detail})` }))]" />
       </SFormItem>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
