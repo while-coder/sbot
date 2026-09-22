@@ -113,8 +113,8 @@ const onRowClick = (event: MouseEvent, row: T, key: string | number) => {
     </table>
 
     <div class="s-entity-table-cards">
-      <div v-if="props.loading" class="s-entity-table-status"><slot name="_loading">{{ props.loadingText }}</slot></div>
-      <div v-else-if="props.rows.length === 0" class="s-entity-table-status"><slot name="_empty">{{ props.emptyText }}</slot></div>
+      <div v-if="props.loading" class="s-empty"><slot name="_loading">{{ props.loadingText }}</slot></div>
+      <div v-else-if="props.rows.length === 0" class="s-empty"><slot name="_empty">{{ props.emptyText }}</slot></div>
       <template v-else>
         <div v-for="(row, index) in props.rows" :key="getRowKey(row, index)" class="s-entity-table-card" :class="{ expanded: props.expandable && isExpanded(getRowKey(row, index)) }">
           <div v-if="primaryCol || props.expandable" class="s-entity-table-card-header" :class="{ clickable: props.expandable }" @click="toggleExpand(row, getRowKey(row, index))">
@@ -155,7 +155,8 @@ const onRowClick = (event: MouseEvent, row: T, key: string | number) => {
 .s-entity-table-expanded-row > td { background: var(--sui-bg-soft); border-bottom: 1px solid var(--sui-border); }
 .s-entity-table-expanded-spacer { width: 32px; padding: 0; }
 .s-entity-table-expanded-cell { padding: 8px 12px; }
-.s-entity-table-status { padding: 20px; color: var(--sui-fg-disabled); font-size: 13px; text-align: center; }
+/*空态 td：与 shared.css 的 .s-empty 同视觉，但不能套 .s-empty（grid 会破坏 table-cell 布局）*/
+.s-entity-table-status { padding: 20px 12px; color: var(--sui-fg-muted); font-size: 13px; text-align: center; }
 .s-entity-table-cards { display: none; flex-direction: column; gap: 8px; }
 .s-entity-table-card { overflow: hidden; border: 1px solid var(--sui-border); border-radius: var(--sui-radius-lg); background: var(--sui-bg); padding: 12px; transition: box-shadow var(--sui-transition), border-color var(--sui-transition); }
 .s-entity-table-card:hover { box-shadow: var(--sui-shadow-sm); }

@@ -16,8 +16,8 @@
     "vue": "^3.5.38"
   },
   "devDependencies": {
-    "typescript": "^5.8.3",
+    "typescript": "catalog:",
     "vue": "^3.5.38",
-    "vue-tsc": "^2.2.10"
+    "vue-tsc": "^3.3.5"
   }
 }

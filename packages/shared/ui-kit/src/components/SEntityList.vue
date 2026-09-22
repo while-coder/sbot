@@ -60,10 +60,10 @@ const toggleExpand = (item: T, key: string | number) => {
 
 <template>
   <div v-bind="attrs" class="s-entity-list" :class="{ sub: props.variant === 'sub' }">
-    <div v-if="props.loading" class="s-entity-list-status">
+    <div v-if="props.loading" class="s-empty">
       <slot name="_loading">{{ props.loadingText }}</slot>
     </div>
-    <div v-else-if="props.items.length === 0" class="s-entity-list-status empty">
+    <div v-else-if="props.items.length === 0" class="s-empty">
       <slot name="_empty">{{ props.emptyText }}</slot>
     </div>
     <template v-else>
@@ -108,7 +108,6 @@ const toggleExpand = (item: T, key: string | number) => {
 .s-entity-list-meta { display: flex; align-items: center; flex-wrap: wrap; padding: 0 14px 12px 14px; gap: 4px 8px; font-size: 11px; }
 .s-entity-list.sub .s-entity-list-meta { padding: 0 12px 8px 12px; }
 .s-entity-list-expanded { border-top: 1px solid var(--sui-border); }
-.s-entity-list-status { padding: 20px; color: var(--sui-fg-disabled); font-size: 13px; text-align: center; }
 @media (max-width: 768px) {
   .s-entity-list { gap: 8px; }
   .s-entity-list-header { padding: 8px 12px; }

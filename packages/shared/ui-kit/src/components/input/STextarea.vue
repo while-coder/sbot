@@ -3,7 +3,7 @@ import { useAttrs } from "vue"
 
 defineOptions({ name: "STextarea", inheritAttrs: false })
 const props = withDefaults(defineProps<{
-  value?: string | null
+  value?: string | number | null
   size?: "sm" | "md"
   placeholder?: string
   disabled?: boolean
