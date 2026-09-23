@@ -101,7 +101,7 @@ const toggleExpand = (item: T, key: string | number) => {
 .s-entity-list-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; gap: 8px; }
 .s-entity-list.sub .s-entity-list-header { padding: 8px 12px; }
 .s-entity-list-header.clickable { cursor: pointer; }
-.s-entity-list-header.clickable:hover { background: var(--sui-bg-subtle); }
+.s-entity-list-header.clickable:hover { background: var(--sui-bg-soft); }
 .s-entity-list-header-left { display: flex; flex: 1; min-width: 0; align-items: center; flex-wrap: wrap; gap: 8px; }
 .s-entity-list-header-right { display: flex; flex: 0 0 auto; align-items: center; flex-wrap: wrap; gap: 8px; }
 .s-entity-list-expand-icon { flex: 0 0 auto; color: var(--sui-fg-muted); font-size: 10px; }

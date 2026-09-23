@@ -388,7 +388,7 @@ body {
   padding: 0 var(--sui-sp-8);
   height: 52px;
   border-bottom: 1px solid var(--sui-border);
-  background: var(--sui-bg-page);
+  background: var(--sui-bg);
   flex-shrink: 0;
 }
 .topbar-left {
@@ -414,7 +414,7 @@ body {
   transition: background var(--sui-transition-base), color var(--sui-transition-base);
 }
 .topbar-link:hover {
-  background: var(--sui-bg-soft);
+  background: var(--sui-bg-hover);
   color: var(--sui-fg);
 }
 .topbar-right {
@@ -434,7 +434,7 @@ body {
   transition: background var(--sui-transition-base), color var(--sui-transition-base);
 }
 .topbar-icon-btn:hover {
-  background: var(--sui-bg-soft);
+  background: var(--sui-bg-hover);
   color: var(--sui-fg);
 }
 .topbar-title {
@@ -479,7 +479,7 @@ body {
 .sidebar {
   width: 168px;
   border-right: 1px solid var(--sui-border);
-  background: var(--sui-bg-page);
+  background: var(--sui-bg);
   padding: var(--sui-sp-3);
   flex-shrink: 0;
   overflow-y: auto;
@@ -515,7 +515,7 @@ body {
   transition: background var(--sui-transition-base), color var(--sui-transition-base);
 }
 .sidebar-toggle-btn:hover {
-  background: var(--sui-bg-soft);
+  background: var(--sui-bg-hover);
   color: var(--sui-fg);
 }
 .sidebar-group-label {
@@ -564,8 +564,8 @@ body {
   align-items: center;
   gap: var(--sui-sp-2);
 }
-.sidebar-item:hover { background: var(--sui-bg-soft); color: var(--sui-fg); }
-.sidebar-item.active { background: var(--sui-bg-subtle); color: var(--sui-fg); font-weight: 600; }
+.sidebar-item:hover { background: var(--sui-bg-hover); color: var(--sui-fg); }
+.sidebar-item.active { background: var(--sui-bg-active); color: var(--sui-fg); font-weight: 600; }
 .update-dot {
   width: 7px;
   height: 7px;
@@ -579,6 +579,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--sui-bg);
 }
 
 /* ===== Tables (used by view-level data tables) ===== */
@@ -788,7 +789,7 @@ table tr:hover td { background: var(--sui-bg-subtle); }
     bottom: 0;
     width: 200px;
     z-index: 100;
-    background: var(--sui-bg-page);
+    background: var(--sui-bg);
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     box-shadow: 2px 0 8px rgba(0,0,0,0.1);
