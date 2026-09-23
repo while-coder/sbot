@@ -217,7 +217,7 @@ fn spawn_backend(app: &AppHandle, port: u16) -> Result<(Child, Arc<Mutex<Vec<Str
     let (mut cmd, cwd) = if cfg!(debug_assertions) {
         // dev：系统 node + monorepo debug 产物（tsconfig.debug.json 直接映射 src → debug/index.js）
         let debug_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../packages/backend/sbot/debug");
+            .join("../../../../packages/backend/sbot/debug");
         if !debug_dir.join("index.js").is_file() {
             return Err("未找到 sbot debug 产物，请先运行 pnpm run debug:sbot".into());
         }

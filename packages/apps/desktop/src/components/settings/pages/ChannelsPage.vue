@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent,
+  SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SPageToolbar, SPageContent,
   SEntityTable, toast, confirm,
 } from '@sbot/ui-kit'
 import type { EntityTableColumn } from '@sbot/ui-kit'
@@ -32,6 +32,7 @@ const plugins = ref<PluginDefinition[]>([])
 const agents = ref<Record<string, { name?: string }>>({})
 const savers = ref<Record<string, { name?: string }>>({})
 const loading = ref(false)
+const httpUrl = ref('')
 
 const rows = computed(() => Object.entries(channels.value).map(([id, c]) => ({ id, ...c })))
 const columns: EntityTableColumn[] = [
@@ -63,6 +64,7 @@ async function refresh(): Promise<void> {
     channels.value = settings.channels ?? {}
     agents.value = settings.agents ?? {}
     savers.value = settings.savers ?? {}
+    httpUrl.value = (settings as { httpUrl?: string }).httpUrl ?? ''
     plugins.value = pluginList
   } catch (e: any) {
     toast.show('error', e.message)
@@ -72,6 +74,16 @@ async function refresh(): Promise<void> {
 }
 
 onMounted(refresh)
+
+/** 失焦/回车触发（SInput change）：接口按字段合并，只提交本字段 */
+async function saveHttpUrl(): Promise<void> {
+  try {
+    //空串（而非省略字段）才能触发后端的 httpUrl || undefined 清除分支
+    await api.put('/api/settings/general', { httpUrl: httpUrl.value.trim() })
+  } catch (e: any) {
+    toast.show('error', e.message)
+  }
+}
 
 function pluginOf(type: string): PluginDefinition | undefined {
   return plugins.value.find(p => p.type === type)
@@ -195,6 +207,12 @@ async function remove(id: string): Promise<void> {
       <SButton type="outline" size="sm" :loading="loading" @click="refresh">刷新</SButton>
       <SButton type="primary" size="sm" @click="openAdd">添加渠道</SButton>
     </SPageToolbar>
+    <SFormSection class="http-url" title="外网访问">
+      <SFormItem label="外网访问 URL">
+        <SInput v-model:value="httpUrl" placeholder="https://example.com（留空禁用）" @change="saveHttpUrl" />
+        <template #hint>对外展示的服务地址，渠道回调链接据此生成</template>
+      </SFormItem>
+    </SFormSection>
     <SPageContent>
       <SEntityTable :columns="columns" :rows="rows" row-key="id" empty-text="还没有渠道，点击右上角添加">
         <template #name="{ row }">
@@ -241,6 +259,10 @@ async function remove(id: string): Promise<void> {
   flex-direction: column;
   overflow: hidden;
   width: 100%;
+}
+.http-url {
+  padding: 4px 20px 0;
+  flex-shrink: 0;
 }
 .builtin-tag {
   margin-left: 6px;

@@ -1,19 +1,37 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { SButton, SInfoRow, SInfoTable, toast } from '@sbot/ui-kit'
+import { SButton, SFormItem, SFormSection, SInfoRow, SInfoTable, SSwitch, toast } from '@sbot/ui-kit'
 import { backend } from '../../../lib/backend'
 import { api } from '../../../lib/api'
 
 const about = ref<{ name?: string; version?: string; description?: string }>({})
+const autoCheckUpdate = ref(true)
 
 onMounted(async () => {
   try {
-    about.value = await api.get<{ name?: string; version?: string; description?: string }>('/api/about')
+    const [info, settings] = await Promise.all([
+      api.get<{ name?: string; version?: string; description?: string }>('/api/about'),
+      api.get<{ autoCheckUpdate?: boolean }>('/api/settings'),
+    ])
+    about.value = info
+    autoCheckUpdate.value = settings.autoCheckUpdate ?? true
   } catch (e: any) {
     toast.show('error', e.message)
   }
 })
+
+/** 切换即存：接口按字段合并，只提交本字段 */
+async function setAutoCheckUpdate(v: boolean): Promise<void> {
+  const prev = autoCheckUpdate.value
+  autoCheckUpdate.value = v
+  try {
+    await api.put('/api/settings/general', { autoCheckUpdate: v })
+  } catch (e: any) {
+    autoCheckUpdate.value = prev
+    toast.show('error', e.message)
+  }
+}
 
 function openAdmin(): void {
   if (!backend.baseUrl) { toast.show('error', 'sbot 服务尚未就绪'); return }
@@ -45,6 +63,12 @@ function openLogs(): void {
     <p class="hint">
       Agent 与 MCP 的高级配置可在 Admin Web UI 中管理。
     </p>
+
+    <SFormSection title="更新">
+      <SFormItem label="自动检查更新">
+        <SSwitch :value="autoCheckUpdate" @update:value="setAutoCheckUpdate" />
+      </SFormItem>
+    </SFormSection>
   </div>
 </template>
 

@@ -147,8 +147,10 @@ onUnmounted(() => {
 </style>
 
 <style>
-/* SModal teleport 到 body，需用全局样式定制设置 modal：撑高 + 去掉 body 默认内边距 */
-.settings-modal {
+/* SModal teleport 到 body，需用全局样式定制设置 modal：撑高 + 去掉 body 默认内边距。
+   注意透传 class 落在遮罩层 .s-modal-overlay 上，高度必须选中其内的 .s-modal-box；
+   若直接设在遮罩上，fixed+inset:0 的遮罩会变成顶部 780px 的一条，底部漏出未遮暗的背景 */
+.settings-modal .s-modal-box {
   height: min(86vh, 780px);
 }
 .settings-modal .s-modal-body {

@@ -11,11 +11,9 @@ import type { ThemeMode } from '../../../theme/theme'
 
 interface GeneralSettings {
   httpPort?: number
-  httpUrl?: string
   autoApproveTools?: string[]
   autoApproveAllTools?: boolean
   startupCommands?: string[]
-  autoCheckUpdate?: boolean
   maxImageSize?: number
   contextFileNames?: string[]
   models?: Record<string, { name?: string }>
@@ -33,12 +31,10 @@ const modelOptions = computed(() =>
   Object.entries(models.value).map(([id, m]) => ({ value: id, label: m.name || id })),
 )
 
-const form = ref<Required<Pick<GeneralSettings, 'autoApproveAllTools' | 'autoCheckUpdate'>> & GeneralSettings>({
-  httpUrl: '',
+const form = ref<Required<Pick<GeneralSettings, 'autoApproveAllTools' | 'autoApproveTools' | 'startupCommands' | 'contextFileNames'>> & GeneralSettings>({
   autoApproveTools: [],
   autoApproveAllTools: false,
   startupCommands: [],
-  autoCheckUpdate: true,
   maxImageSize: undefined,
   contextFileNames: [],
 })
@@ -48,11 +44,9 @@ onMounted(async () => {
     const settings = await api.get<GeneralSettings>('/api/settings')
     form.value = {
       httpPort: settings.httpPort,
-      httpUrl: settings.httpUrl ?? '',
       autoApproveTools: settings.autoApproveTools ?? [],
       autoApproveAllTools: settings.autoApproveAllTools ?? false,
       startupCommands: settings.startupCommands ?? [],
-      autoCheckUpdate: settings.autoCheckUpdate ?? true,
       maxImageSize: settings.maxImageSize,
       contextFileNames: settings.contextFileNames ?? [],
     }
@@ -76,11 +70,9 @@ async function save(): Promise<void> {
   saving.value = true
   try {
     await api.put('/api/settings/general', {
-      httpUrl: form.value.httpUrl,
       autoApproveTools: form.value.autoApproveTools,
       autoApproveAllTools: form.value.autoApproveAllTools,
       startupCommands: form.value.startupCommands,
-      autoCheckUpdate: form.value.autoCheckUpdate,
       maxImageSize: form.value.maxImageSize,
       contextFileNames: form.value.contextFileNames,
     })
@@ -156,14 +148,7 @@ const themeModeValue = computed<ThemeMode>({
       </SFormItem>
     </SFormSection>
 
-    <SFormSection title="通用">
-      <SFormItem label="自动检查更新">
-        <SSwitch v-model:value="form.autoCheckUpdate" />
-      </SFormItem>
-      <SFormItem label="外网访问 URL">
-        <SInput v-model:value="form.httpUrl" placeholder="https://example.com（留空禁用）" />
-        <template #hint>对外展示的服务地址，用于生成回调链接</template>
-      </SFormItem>
+    <SFormSection title="消息与上下文">
       <SFormItem label="图片最大尺寸 (px)">
         <SInput v-model:value.number="form.maxImageSize" type="number" placeholder="不设置则不压缩" class="narrow" />
       </SFormItem>

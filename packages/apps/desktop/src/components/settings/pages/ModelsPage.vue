@@ -209,7 +209,7 @@ async function remove(id: string): Promise<void> {
   if (!await confirm.show({ title: '删除模型', content: `确定删除模型「${label}」？`, danger: true })) return
   try {
     await api.del(`/api/settings/models/${encodeURIComponent(id)}`)
-    toast.success('已删除')
+    toast.show('success', '已删除')
     await refresh()
     emitSettingsChanged()
   } catch (e: any) {

@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 import * as fs from "fs";
 if (fs.existsSync(__filename + ".map")) process.setSourceMapsEnabled?.(true);
+import { enableCompileCache } from "node:module";
 import { Command } from "commander";
 import { spawn, execSync } from "child_process";
 import { fetchLatestRelease, compareSemver } from "@sbot/shared";
 import { config } from "./Core/Config";
 import { registerCommands, applyPort } from "./Cli/commands";
 import { initializeProcessLog, setProcessExitReason } from "./Cli/ProcessLog";
+
+// V8 编译缓存（node >= 22.1）：二次启动免重复解析编译模块，显著缩短冷启动；
+// 缓存按文件内容与 node 版本自动失效。放最前，让后续所有动态 import 都吃到缓存
+try {
+    enableCompileCache(config.getConfigPath("cache/compile", true));
+} catch {}
 
 const program = new Command();
 program
@@ -104,8 +111,10 @@ async function main() {
         await database.init()
         initGlobalAgentToolService()
         initGlobalSkillService()
-        await channelManager.init()
+        // 先开 HTTP 端口（桌面启动器/webui 以端口就绪为启动完成信号），
+        // channel/agenda/memory 等重初始化放到之后，缩短启动等待
         await httpServer.start()
+        await channelManager.init()
         await agendaTriggerEnginePool.startAll()
         memoryStartupExtractAll()
         agendaStartupExtractAll()
