@@ -34,6 +34,8 @@ const props = withDefaults(defineProps<{
   agentOptions?: { value: string; label: string }[]
   saver?: string
   saverOptions?: { value: string; label: string }[]
+  /** 隐藏「存储」选择项（存储由渠道默认值决定） */
+  hideSaverSelect?: boolean
   workPath?: string
   workPathReadonly?: boolean
 }>(), {
@@ -46,6 +48,7 @@ const props = withDefaults(defineProps<{
   agentOptions: () => [],
   saver: '',
   saverOptions: () => [],
+  hideSaverSelect: false,
   workPath: '',
   workPathReadonly: false,
 })
@@ -293,7 +296,7 @@ defineExpose({ scrollToBottom })
 
       <!-- Below-card session config row -->
       <div v-if="hasSaver" class="chatui-input-config">
-        <div class="chatui-input-config-item">
+        <div v-if="!hideSaverSelect" class="chatui-input-config-item">
           <span class="chatui-input-config-label">{{ L.storage }}</span>
           <SSelect
             class="chatui-config-select"

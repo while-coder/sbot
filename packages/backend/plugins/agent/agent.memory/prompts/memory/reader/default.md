@@ -23,7 +23,8 @@ when you need exact wording, reasoning, edge cases, or an entry not selected abo
   create a file, choose a format, run a build — check whether an entry constrains it.
   A recorded preference the user has to restate is a failed memory.
 - **Workspace beats global** when both cover the same subject, and only within its own
-  workPath; never apply a workspace entry to another workPath.
+  workspace (the git repository or directory it was recorded for); never apply a
+  workspace entry to another workspace.
 - **Say it when memory is in play.** When you follow an entry, say so in one short
   phrase. When an entry contradicts the user, the conversation wins and you name the
   dropped value — that sentence is the only path by which a stale entry gets fixed.

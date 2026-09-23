@@ -13,9 +13,9 @@ export const WORKSPACE_MEMORY_DIR = 'workspaces';
 export const WORKSPACE_MEMORY_META_FILE = 'scope.json';
 
 /**
- * 按规范化 workPath 缓存的工作区记忆服务。它持有该工作区唯一的 Store 与 reconcile
- * Promise；模型、任务队列和引用计数仍由按 memoryId 唯一的 MemoryService owner 管理。
- * release 与 pool.acquire 的 owner ref 配对，dispose 仅由 owner teardown 调用。
+ * 按工作区身份（git 仓库根或目录路径）缓存的工作区记忆服务。它持有该工作区唯一的 Store
+ * 与 reconcile Promise；模型、任务队列和引用计数仍由按 memoryId 唯一的 MemoryService owner
+ * 管理。release 与 pool.acquire 的 owner ref 配对，dispose 仅由 owner teardown 调用。
  */
 export class ScopedMemoryService extends MemoryServiceView {
     readonly store: IMemoryStore;

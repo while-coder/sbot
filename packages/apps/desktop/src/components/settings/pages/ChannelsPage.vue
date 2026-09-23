@@ -9,13 +9,13 @@ import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { pickVisibleConfig } from '../../../lib/configField'
 import type { ConfigField } from '../../../lib/configField'
+import { findDesktopSaverId, type SaverEntry } from '../../../lib/defaultSaver'
 import SchemaForm from '../SchemaForm.vue'
 
 interface ChannelConfigForm {
   name: string
   type: string
   agent: string
-  saver: string
   config: Record<string, any>
   [key: string]: any
 }
@@ -30,7 +30,7 @@ interface PluginDefinition {
 const channels = ref<Record<string, ChannelConfigForm>>({})
 const plugins = ref<PluginDefinition[]>([])
 const agents = ref<Record<string, { name?: string }>>({})
-const savers = ref<Record<string, { name?: string }>>({})
+const savers = ref<Record<string, SaverEntry>>({})
 const loading = ref(false)
 const httpUrl = ref('')
 
@@ -39,16 +39,15 @@ const columns: EntityTableColumn[] = [
   { key: 'name', label: '名称', primary: true },
   { key: 'type', label: '类型' },
   { key: 'agent', label: 'Agent' },
-  { key: 'saver', label: '存储' },
   { key: 'ops', label: '操作', ops: true },
 ]
 
 function agentLabel(id: string): string {
   return agents.value[id]?.name || id
 }
-function saverLabel(id: string): string {
-  return savers.value[id]?.name || id
-}
+
+/** 桌面专用存储（ensureBuiltinSaver 启动时创建）；新渠道默认落到它 */
+const desktopSaverId = computed(() => findDesktopSaverId(savers.value))
 
 async function refresh(): Promise<void> {
   loading.value = true
@@ -57,7 +56,7 @@ async function refresh(): Promise<void> {
       api.get<{
         channels?: Record<string, ChannelConfigForm>
         agents?: Record<string, { name?: string }>
-        savers?: Record<string, { name?: string }>
+        savers?: Record<string, SaverEntry>
       }>('/api/settings'),
       api.get<PluginDefinition[]>('/api/channel-plugins'),
     ])
@@ -108,8 +107,6 @@ const typeOptions = computed(() =>
   plugins.value.map(p => ({ label: p.label || p.type, value: p.type })))
 const agentOptions = computed(() =>
   Object.entries(agents.value).map(([id, a]) => ({ label: a.name || id, value: id })))
-const saverOptions = computed(() =>
-  Object.entries(savers.value).map(([id, s]) => ({ label: s.name || id, value: id })))
 
 function openAdd(): void {
   editingId.value = null
@@ -119,7 +116,6 @@ function openAdd(): void {
     name: '',
     type,
     agent: agentOptions.value[0]?.value ?? '',
-    saver: saverOptions.value[0]?.value ?? '',
     config: {},
   }
   showModal.value = true
@@ -134,7 +130,6 @@ function openEdit(id: string): void {
     name: c.name ?? '',
     type: c.type,
     agent: c.agent ?? '',
-    saver: c.saver ?? '',
     config: { ...(c.config ?? {}) },
   }
   showModal.value = true
@@ -143,7 +138,6 @@ function openEdit(id: string): void {
 function validate(): string | null {
   if (!form.value.name.trim()) return '请填写名称'
   if (!form.value.agent) return '请选择 Agent'
-  if (!form.value.saver) return '请选择存储'
   for (const [key, field] of Object.entries(currentSchema.value)) {
     if (!field.required) continue
     const value = form.value.config[key]
@@ -161,14 +155,15 @@ async function save(): Promise<void> {
   try {
     const config = pickVisibleConfig(currentSchema.value, form.value.config)
     if (editingId.value && baseChannel) {
-      const payload = { ...baseChannel, name: form.value.name.trim(), agent: form.value.agent, saver: form.value.saver, config }
+      // saver 不在表单里：编辑时沿用原值，避免覆盖桌面专用存储
+      const payload = { ...baseChannel, name: form.value.name.trim(), agent: form.value.agent, config }
       await api.put(`/api/settings/channels/${encodeURIComponent(editingId.value)}`, payload)
     } else {
       const payload = {
         name: form.value.name.trim(),
         type: form.value.type,
         agent: form.value.agent,
-        saver: form.value.saver,
+        saver: desktopSaverId.value ?? '',
         notes: [],
         wikis: [],
         config,
@@ -220,7 +215,6 @@ async function remove(id: string): Promise<void> {
           <span v-if="isBuiltin(row.id)" class="builtin-tag">内置</span>
         </template>
         <template #agent="{ row }">{{ agentLabel(row.agent) }}</template>
-        <template #saver="{ row }">{{ saverLabel(row.saver) }}</template>
         <template #ops="{ row }">
           <SButton type="outline" size="sm" @click="openEdit(row.id)">编辑</SButton>
           <SButton v-if="!isBuiltin(row.id)" type="danger" size="sm" @click="remove(row.id)">删除</SButton>
@@ -237,9 +231,6 @@ async function remove(id: string): Promise<void> {
       </SFormItem>
       <SFormItem label="Agent *">
         <SSelect v-model:value="form.agent" :options="agentOptions" />
-      </SFormItem>
-      <SFormItem label="存储 *">
-        <SSelect v-model:value="form.saver" :options="saverOptions" />
       </SFormItem>
 
       <SchemaForm :schema="currentSchema" :config="form.config" />

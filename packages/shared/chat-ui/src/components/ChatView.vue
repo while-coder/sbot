@@ -29,6 +29,8 @@ const props = withDefaults(defineProps<{
   workPathLocked?: boolean
   /** 内置 agent 白名单：仅允许在这些 agent 间切换，非法值一律对齐到第一项；不传则保持原有行为 */
   builtinAgentIds?: string[]
+  /** 隐藏输入区下方的「存储」选择器（存储由渠道默认值决定，如桌面专用存储） */
+  hideSaverSelect?: boolean
 }>(), {
   showAttachments: true,
   alwaysCompact: false,
@@ -36,6 +38,7 @@ const props = withDefaults(defineProps<{
   fixedWorkPath: '',
   workPathLocked: false,
   builtinAgentIds: () => [],
+  hideSaverSelect: false,
 })
 
 const L = computed(() => resolveLabels(props.labels))
@@ -1019,6 +1022,7 @@ function saveRightPanelOpenState(open: boolean): void {
           :agent-options="agentOptions"
           :saver="activeSession?.saver || ''"
           :saver-options="saverOptions"
+          :hide-saver-select="hideSaverSelect"
           :work-path="effectiveWorkPath"
           :work-path-readonly="workPathLocked"
           @send="onSend"

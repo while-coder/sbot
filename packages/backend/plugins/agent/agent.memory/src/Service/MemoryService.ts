@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { inject } from "scorpio.di";
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import {
     T_MemoryReadTemplate,
@@ -41,6 +40,7 @@ import {
 } from "../Storage/IMemoryStore";
 import { memoryServicePool } from "./MemoryServicePool";
 import { GlobalMemoryService } from "./GlobalMemoryService";
+import { resolveWorkspaceIdentity } from "./GitWorkspaceIdentity";
 import {
     ScopedMemoryService,
     WORKSPACE_MEMORY_DIR,
@@ -214,7 +214,7 @@ const MEMORY_SCOPE_WRITER_INSTRUCTION = [
 
 /**
  * Memory 系统的运行时协调器。每个 memoryProfile 一个实例（由 MemoryServicePool 管理），
- * 内部同时管理全局 Store 与按 workPath 惰性创建的工作区 Store。
+ * 内部同时管理全局 Store 与按工作区身份（git 仓库根或目录路径）惰性创建的工作区 Store。
  *
  * 三个职责：
  * - 渲染注入用的 menu prompt（替换 {{ memory_menu }}）
@@ -272,8 +272,9 @@ export class MemoryService {
     }
 
     /**
-     * 获取绑定规范化 workPath 的工作区服务。同一 owner + workPath 复用同一实例，
-     * owner 仍按 memoryId 全局唯一，工作区 Store 与 reconcile 状态互不串扰。
+     * 获取绑定 workPath 所在工作区（git 仓库根，非 repo 目录则为路径本身）的服务。
+     * 同一 owner + workspace 复用同一实例，owner 仍按 memoryId 全局唯一，
+     * 工作区 Store 与 reconcile 状态互不串扰。
      */
     bind(workPath: string): ScopedMemoryService {
         const normalized = workPath.trim();
@@ -339,15 +340,8 @@ export class MemoryService {
     }
 
     private resolveWorkspace(workPath: string): MemoryWorkspaceScope {
-        const resolved = path.resolve(workPath);
-        let canonical = resolved;
-        try { canonical = realpathSync.native(resolved); } catch { /* AgentRunner 会创建目录；不可解析时仍用绝对路径 */ }
-        canonical = path.normalize(canonical).replace(/[\\/]+$/, '') || path.parse(canonical).root;
-        const identity = process.platform === 'win32' ? canonical.toLocaleLowerCase('en-US') : canonical;
-        return {
-            key: createHash('sha256').update(identity).digest('hex').slice(0, 24),
-            path: canonical,
-        };
+        // 身份是 workPath 所在项目：git 仓库根（worktree 折叠到主仓库根），非 repo 目录退回路径本身。
+        return resolveWorkspaceIdentity(path.resolve(workPath));
     }
 
     private getWorkspaceService(workspace: MemoryWorkspaceScope): ScopedMemoryService {

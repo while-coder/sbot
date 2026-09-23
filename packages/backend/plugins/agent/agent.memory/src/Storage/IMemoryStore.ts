@@ -27,7 +27,11 @@ export enum MemoryScope {
     Workspace = 'workspace',
 }
 
-/** 一个规范化后的工作目录作用域；key 用于磁盘目录，path 只用于展示与 prompt。 */
+/**
+ * 一个工作区作用域。key 是归一化 identity 的 sha256 前 24 hex，identity 为 workPath
+ * 所在 git 仓库根（worktree 折叠到主仓库根）或目录本身（非 repo），用于磁盘目录与缓存；
+ * path 是仓库根或规范化 workPath，用于展示与 prompt——回传给 resolve 后会得到同一 key（幂等）。
+ */
 export interface MemoryWorkspaceScope {
     key: string;
     path: string;

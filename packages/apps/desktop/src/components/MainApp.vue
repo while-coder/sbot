@@ -10,6 +10,7 @@ import SettingsApp from './settings/SettingsApp.vue'
 import { backend } from '../lib/backend'
 import { api } from '../lib/api'
 import { BUILTIN_AGENT_IDS, ensureBuiltinAgents } from '../lib/defaultAgent'
+import { ensureBuiltinSaver } from '../lib/defaultSaver'
 
 const ready = computed(() => backend.phase === 'ready' && !!backend.baseUrl)
 
@@ -49,6 +50,7 @@ watch(ready, (isReady) => {
   if (isReady) {
     void refreshModelsEmpty()
     void ensureBuiltinAgents()
+    void ensureBuiltinSaver()
   }
 }, { immediate: true })
 
@@ -122,6 +124,7 @@ onUnmounted(() => {
       :show-attachments="true"
       layout-mode="auto"
       :builtin-agent-ids="BUILTIN_AGENT_IDS"
+      :hide-saver-select="true"
     />
 
     <SModal

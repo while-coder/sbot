@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rimraf dist && tsc -b --force && node scripts/copy-assets.cjs"
+    "build": "rimraf dist && tsc -b --force && node scripts/copy-assets.cjs",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "catalog:",
