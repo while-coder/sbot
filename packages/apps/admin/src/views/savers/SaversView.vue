@@ -6,8 +6,8 @@ import { store } from '@/shared/store'
 import { channelManager } from '@/managers/channelManager'
 import { saverManager } from '@/managers/saverManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
-import type { EntityTableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@qingfeng346/ui-kit'
+import type { EntityTableColumn } from '@qingfeng346/ui-kit'
 import { SaverType } from '@/shared/types'
 import type { SaverConfig } from '@/shared/types'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
@@ -137,7 +137,7 @@ async function save() {
 async function remove(id: string) {
   const s = savers.value[id]
   const label = (s as any).name || id
-  if (!await confirm.show({ title: t('savers.confirm_delete', { name: label }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('savers.confirm_delete', { name: label }), error: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/savers/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
@@ -148,7 +148,7 @@ async function remove(id: string) {
 }
 
 async function clearThread(saverId: string, thread: string) {
-  if (!await confirm.show({ title: t('savers.cleanup_confirm', { name: thread }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('savers.cleanup_confirm', { name: thread }), error: true , content: ''})) return
   const key = `${saverId}::${thread}`
   threadClearing.value[key] = true
   try {
@@ -180,8 +180,8 @@ async function refresh() {
 <template>
   <div style="width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('savers.add') }}</SButton>
+      <SButton type="outline" size="small" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('savers.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
       <SEntityTable
@@ -198,8 +198,8 @@ async function refresh() {
           <ResourceRefs mode="badge" :refs="refs(row.id)" />
         </template>
         <template #ops="{ row }">
-          <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
-          <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+          <SButton type="outline" size="small" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+          <SButton type="error" size="small" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
         </template>
         <template #expanded="{ row }">
           <ResourceRefs mode="card" :refs="refs(row.id)" class="saver-refs" />
@@ -220,8 +220,8 @@ async function refresh() {
                 <span v-else class="thread-id" :title="t('savers.no_session_bound')">{{ thread }}</span>
               </div>
               <div class="thread-ops">
-                <SButton type="outline" size="sm" @click="saverViewModal?.open(row.id, row.name, thread)">{{ t('common.view') }}</SButton>
-                <SButton type="danger" size="sm" :disabled="threadClearing[`${row.id}::${thread}`]" @click="clearThread(row.id, thread)">{{ t('savers.cleanup') }}</SButton>
+                <SButton type="outline" size="small" @click="saverViewModal?.open(row.id, row.name, thread)">{{ t('common.view') }}</SButton>
+                <SButton type="error" size="small" :disabled="threadClearing[`${row.id}::${thread}`]" @click="clearThread(row.id, thread)">{{ t('savers.cleanup') }}</SButton>
               </div>
             </div>
           </div>

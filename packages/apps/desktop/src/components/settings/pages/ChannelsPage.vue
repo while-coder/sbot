@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import {
   SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SPageToolbar, SPageContent,
   SEntityTable, toast, confirm,
-} from '@sbot/ui-kit'
-import type { EntityTableColumn } from '@sbot/ui-kit'
+} from '@qingfeng346/ui-kit'
+import type { EntityTableColumn } from '@qingfeng346/ui-kit'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { pickVisibleConfig } from '../../../lib/configField'
@@ -184,7 +184,7 @@ async function save(): Promise<void> {
 async function remove(id: string): Promise<void> {
   if (isBuiltin(id)) { toast.show('error', '内置渠道不可删除'); return }
   const label = channels.value[id]?.name || id
-  if (!await confirm.show({ title: '删除渠道', content: `确定删除渠道「${label}」？`, danger: true })) return
+  if (!await confirm.show({ title: '删除渠道', content: `确定删除渠道「${label}」？`, error: true })) return
   try {
     await api.del(`/api/settings/channels/${encodeURIComponent(id)}`)
     toast.show('success', '已删除')
@@ -199,8 +199,8 @@ async function remove(id: string): Promise<void> {
 <template>
   <div class="page">
     <SPageToolbar>
-      <SButton type="outline" size="sm" :loading="loading" @click="refresh">刷新</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">添加渠道</SButton>
+      <SButton type="outline" size="small" :loading="loading" @click="refresh">刷新</SButton>
+      <SButton type="primary" size="small" @click="openAdd">添加渠道</SButton>
     </SPageToolbar>
     <SFormSection class="http-url" title="外网访问">
       <SFormItem label="外网访问 URL">
@@ -216,8 +216,8 @@ async function remove(id: string): Promise<void> {
         </template>
         <template #agent="{ row }">{{ agentLabel(row.agent) }}</template>
         <template #ops="{ row }">
-          <SButton type="outline" size="sm" @click="openEdit(row.id)">编辑</SButton>
-          <SButton v-if="!isBuiltin(row.id)" type="danger" size="sm" @click="remove(row.id)">删除</SButton>
+          <SButton type="outline" size="small" @click="openEdit(row.id)">编辑</SButton>
+          <SButton v-if="!isBuiltin(row.id)" type="error" size="small" @click="remove(row.id)">删除</SButton>
         </template>
       </SEntityTable>
     </SPageContent>

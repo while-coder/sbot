@@ -4,8 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import { SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
-import type { EntityTableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@qingfeng346/ui-kit'
+import type { EntityTableColumn } from '@qingfeng346/ui-kit'
 import { EmbeddingProvider } from '@/shared/types'
 import type { EmbeddingConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
@@ -221,7 +221,7 @@ async function save() {
 async function remove(id: string) {
   const e = embeddings.value[id]
   const label = e.name || id
-  if (!await confirm.show({ title: t('embeddings.confirm_delete', { name: label }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('embeddings.confirm_delete', { name: label }), error: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/embeddings/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
@@ -243,8 +243,8 @@ async function refresh() {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('embeddings.add') }}</SButton>
+      <SButton type="outline" size="small" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('embeddings.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
       <SEntityTable
@@ -260,8 +260,8 @@ async function refresh() {
           <ResourceRefs mode="badge" :refs="refs(row.id)" />
         </template>
         <template #ops="{ row }">
-          <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
-          <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+          <SButton type="outline" size="small" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+          <SButton type="error" size="small" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
         </template>
         <template #expanded="{ row }">
           <div class="refs-expanded">
@@ -284,7 +284,7 @@ async function refresh() {
       <SFormItem v-if="apiKeyEnabled" :label="t('common.api_key') + (apiKeyRequired ? ' *' : '')">
         <div class="apikey-field">
           <SInput v-model:value="form.apiKey" :type="showApiKey ? 'text' : 'password'" placeholder="API Key" class="apikey-input" />
-          <SButton type="outline" size="sm" class="apikey-toggle" @click="showApiKey = !showApiKey">
+          <SButton type="outline" size="small" class="apikey-toggle" @click="showApiKey = !showApiKey">
             {{ showApiKey ? t('common.hide') : t('common.show') }}
           </SButton>
         </div>
@@ -292,7 +292,7 @@ async function refresh() {
       <SFormItem :label="t('common.model') + ' *'">
         <div class="model-field">
           <SInput v-model:value="form.model" :placeholder="providerModel" class="model-input" />
-          <SButton type="outline" size="sm" class="model-pick-btn" @click="openPicker">{{ t('models.pick') }}</SButton>
+          <SButton type="outline" size="small" class="model-pick-btn" @click="openPicker">{{ t('models.pick') }}</SButton>
         </div>
       </SFormItem>
       <template v-for="[key, field] in visibleSchemaEntries" :key="key">
@@ -305,7 +305,7 @@ async function refresh() {
           <SInput v-else-if="field.type === 'number'" v-model:value.number="providerConfig[key]" type="number" :placeholder="field.description || ''" />
           <div v-else-if="field.type === 'password'" class="apikey-field">
             <SInput v-model:value="providerConfig[key]" :type="privateFieldVisible[key] ? 'text' : 'password'" :placeholder="field.description || ''" class="apikey-input" />
-            <SButton type="outline" size="sm" @click="privateFieldVisible[key] = !privateFieldVisible[key]">
+            <SButton type="outline" size="small" @click="privateFieldVisible[key] = !privateFieldVisible[key]">
               {{ privateFieldVisible[key] ? t('common.hide') : t('common.show') }}
             </SButton>
           </div>

@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { skillsManager } from '@/managers/skillsManager'
-import { SButton, SInput, STab, STabs, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, STab, STabs, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@qingfeng346/ui-kit'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
@@ -54,7 +54,7 @@ function openView(row: SkillItem) {
 }
 
 async function remove(name: string) {
-  if (!await confirm.show({ title: t('skills.confirm_delete', { name }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('skills.confirm_delete', { name }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/skills/${encodeURIComponent(name)}`, 'DELETE')
     toast.show('success', t('common.deleted'))
@@ -76,8 +76,8 @@ onMounted(load)
 <template>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('skills.add') }}</SButton>
+      <SButton type="outline" size="small" @click="load">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('skills.add') }}</SButton>
     </SPageToolbar>
     <div class="tab-bar-row">
       <STabs v-model:value="activeTab" class="tab-bar-tabs">
@@ -90,7 +90,7 @@ onMounted(load)
           :tab="src"
         />
       </STabs>
-      <SInput v-model:value="searchQuery" size="sm" :placeholder="t('skills.search_placeholder')" class="skills-search" />
+      <SInput v-model:value="searchQuery" size="small" :placeholder="t('skills.search_placeholder')" class="skills-search" />
     </div>
     <SPageContent>
       <div class="dir-hint-panel">
@@ -109,8 +109,8 @@ onMounted(load)
         <template #description="{ row }">{{ row.description || '-' }}</template>
         <template #ops="{ row }">
           <div class="ops-cell">
-            <SButton type="outline" size="sm" @click="openView(row)">{{ t('common.view') }}</SButton>
-            <SButton v-if="row.source === '全局'" type="danger" size="sm" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
+            <SButton type="outline" size="small" @click="openView(row)">{{ t('common.view') }}</SButton>
+            <SButton v-if="row.source === '全局'" type="error" size="small" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
       </SEntityTable>

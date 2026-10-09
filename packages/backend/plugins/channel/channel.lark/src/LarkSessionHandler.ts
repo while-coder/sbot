@@ -75,7 +75,7 @@ export class LarkSessionHandler extends ChannelSessionHandler<LarkChatProvider> 
     this.provider?.insertElement(undefined, {
       tag: "button",
       text: { tag: "plain_text", content: "■ 中断" },
-      type: "danger",
+      type: "error",
       width: "default",
       size: "small",
       confirm: {

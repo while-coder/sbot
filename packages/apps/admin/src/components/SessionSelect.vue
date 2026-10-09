@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { SSelect } from '@sbot/ui-kit'
+import { SSelect } from '@qingfeng346/ui-kit'
 import { channelManager, type ChannelSession } from '@/managers/channelManager'
 
 const props = withDefaults(defineProps<{
@@ -14,11 +14,11 @@ const props = withDefaults(defineProps<{
   emptyLabel?: string
   /** 空选项是否禁用（必选场景下作占位符）。 */
   emptyDisabled?: boolean
-  size?: 'sm' | 'md'
+  size?: 'small' | 'medium'
 }>(), {
   includeEmpty: true,
   emptyDisabled: false,
-  size: 'md',
+  size: 'medium',
 })
 
 const emit = defineEmits<{ 'update:modelValue': [value: number | null] }>()

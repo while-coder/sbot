@@ -17,7 +17,7 @@ import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
 import WorkbenchPanel from './WorkbenchPanel.vue'
-import { SButton, SInput, SModal, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, SModal, confirm } from '@qingfeng346/ui-kit'
 
 const props = withDefaults(defineProps<{
   transport: IChatTransport
@@ -392,7 +392,7 @@ async function deleteActiveSessionFromMenu() {
   if (await confirm.show({
     title: L.value.deleteSession,
     content: tpl(L.value.confirmDeleteSession, { name: label }),
-    danger: true,
+    error: true,
     cancelText: L.value.cancel,
   })) {
     await onDeleteSession(session.id)
@@ -703,7 +703,7 @@ async function onClearHistory() {
   if (!id || !await confirm.show({
     title: L.value.clearHistory,
     content: L.value.confirmClearHistory,
-    danger: true,
+    error: true,
     cancelText: L.value.cancel,
   })) return
   try {

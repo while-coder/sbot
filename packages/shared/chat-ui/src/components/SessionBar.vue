@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import { SButton, SInput, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, confirm } from '@qingfeng346/ui-kit'
 import type { SessionItem, ChatLabels } from '../types'
 import { resolveLabels, tpl } from '../labels'
 
@@ -80,7 +80,7 @@ async function onDelete(id: string) {
   if (await confirm.show({
     title: L.value.deleteSession,
     content: tpl(L.value.confirmDeleteSession, { name: label }),
-    danger: true,
+    error: true,
     cancelText: L.value.cancel,
   })) {
     emit('delete', id)
@@ -104,7 +104,7 @@ function formatSessionCreatedAt(value?: number): string {
 <template>
   <div class="chatui-session-bar" :style="barStyle">
     <div v-if="showHeader" class="chatui-session-bar-header">
-      <SButton type="outline" size="sm" block @click="emit('newSession')">{{ L.newSession }}</SButton>
+      <SButton type="outline" size="small" block @click="emit('newSession')">{{ L.newSession }}</SButton>
     </div>
     <div v-if="searchable" class="chatui-session-bar-search">
       <svg class="chatui-session-bar-search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -138,7 +138,7 @@ function formatSessionCreatedAt(value?: number): string {
               v-if="editingId === s.id"
               ref="nameInputEl"
               v-model:value="editingName"
-              size="sm"
+              size="small"
               class="chatui-session-name-input"
               @click.stop
               @blur="commitEdit"

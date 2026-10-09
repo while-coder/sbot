@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ServerChatShell, isLocalBaseUrl, type ChatLayoutMode, useServerSelection } from '@sbot/chat-ui'
-import { SMessageHost } from '@sbot/ui-kit'
+import { SMessageHost } from '@qingfeng346/ui-kit'
 import '@sbot/chat-ui/themes/variables.css'
 import '@sbot/chat-ui/themes/theme-vscode.css'
 import '@sbot/chat-ui/themes/sbot-ui-bridge.css'

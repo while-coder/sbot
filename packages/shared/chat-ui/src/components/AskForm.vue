@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { SRadio, SCheckbox, SCheckboxGroup, SInput, SButton } from '@sbot/ui-kit'
+import { SRadio, SCheckbox, SCheckboxGroup, SInput, SButton } from '@qingfeng346/ui-kit'
 import type { AskEvent, AskAnswerPayload, ChatLabels } from '../types'
 import { AskQuestionType } from '../types'
 import { resolveLabels } from '../labels'
@@ -75,20 +75,22 @@ onUnmounted(stopTimer)
           v-for="opt in q.options"
           :key="opt"
           :name="`ask_${askEvent.id}_${i}`"
-          :labelValue="opt"
+          :value="opt"
           :label="opt"
-          v-model:value="(answers[i] as string)"
+          :checked="answers[i] === opt"
+          @change="answers[i] = opt"
         />
         <SRadio
           :name="`ask_${askEvent.id}_${i}`"
-          :labelValue="CUSTOM_SENTINEL"
+          :value="CUSTOM_SENTINEL"
           :label="L.askOther"
-          v-model:value="(answers[i] as string)"
+          :checked="answers[i] === CUSTOM_SENTINEL"
+          @change="answers[i] = CUSTOM_SENTINEL"
         />
         <SInput
           v-if="answers[i] === CUSTOM_SENTINEL"
           class="chatui-ask-custom-input"
-          size="sm"
+          size="small"
           v-model:value="customInputs[i]"
           :placeholder="L.askOtherPlaceholder"
         />
@@ -109,20 +111,20 @@ onUnmounted(stopTimer)
         <SInput
           v-if="(answers[i] as string[])?.includes(CUSTOM_SENTINEL)"
           class="chatui-ask-custom-input"
-          size="sm"
+          size="small"
           v-model:value="customInputs[i]"
           :placeholder="L.askOtherPlaceholder"
         />
       </div>
       <SInput
         v-else
-        size="sm"
+        size="small"
         v-model:value="(answers[i] as string)"
         :placeholder="q.placeholder ?? ''"
       />
     </div>
     <div class="chatui-ask-footer">
-      <SButton size="sm" @click="submitAsk">{{ L.askSubmit }}<span v-if="hasCountdown"> ({{ countdown }}s)</span></SButton>
+      <SButton size="small" @click="submitAsk">{{ L.askSubmit }}<span v-if="hasCountdown"> ({{ countdown }}s)</span></SButton>
     </div>
   </div>
 </template>

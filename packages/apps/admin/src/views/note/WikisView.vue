@@ -5,7 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { embeddingManager } from '@/managers/embeddingManager'
-import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SBadge, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SBadge, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@qingfeng346/ui-kit'
 import type { WikiConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import WikiViewModal from './WikiViewModal.vue'
@@ -161,7 +161,7 @@ async function save() {
 async function remove(id: string) {
   const w = wikis.value[id]
   const label = w.name || id
-  if (!await confirm.show({ title: t('wikis.confirm_delete', { name: label }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('wikis.confirm_delete', { name: label }), error: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/wikis/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
@@ -187,8 +187,8 @@ async function refresh() {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('wikis.add') }}</SButton>
+      <SButton type="outline" size="small" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('wikis.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
       <SEntityTable
@@ -224,9 +224,9 @@ async function refresh() {
         </template>
         <template #ops="{ row }">
           <div class="ops-row">
-            <SButton type="outline" size="sm" @click="wikiViewModal?.open(row.id, row, isReadOnly(row))">{{ t('common.view') }}</SButton>
-            <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
-            <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+            <SButton type="outline" size="small" @click="wikiViewModal?.open(row.id, row, isReadOnly(row))">{{ t('common.view') }}</SButton>
+            <SButton type="outline" size="small" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+            <SButton type="error" size="small" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
         <template #expanded="{ row }">

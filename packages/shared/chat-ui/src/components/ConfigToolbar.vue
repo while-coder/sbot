@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { SSelect } from '@sbot/ui-kit'
+import { SSelect } from '@qingfeng346/ui-kit'
 import type { SessionItem, AppSettings, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'

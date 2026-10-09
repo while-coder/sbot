@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  SButton, SInput, SSelect, SModal, SFormItem, SCollapse, SCollapseItem, SPageToolbar,
+  SButton, SInput, SSelect, SModal, SFormItem, SFormSection, SCollapse, SCollapseItem, SPageToolbar,
   SPageContent, SEntityTable, toast, confirm,
-} from '@sbot/ui-kit'
-import type { EntityTableColumn } from '@sbot/ui-kit'
+} from '@qingfeng346/ui-kit'
+import type { EntityTableColumn } from '@qingfeng346/ui-kit'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { pickVisibleConfig } from '../../../lib/configField'
 import type { ConfigField } from '../../../lib/configField'
+import { setBuiltinAgentsModel } from '../../../lib/defaultAgent'
+import { setBuiltinProfilesModel, DESKTOP_MEMORY_NAME } from '../../../lib/defaultProfiles'
 import SchemaForm from '../SchemaForm.vue'
 
 interface ModelConfigForm {
@@ -38,24 +40,43 @@ const models = ref<Record<string, ModelConfigForm>>({})
 const providers = ref<ProviderDefinition[]>([])
 const loading = ref(false)
 
-const rows = computed(() => Object.entries(models.value).map(([id, m]) => ({ id, ...m })))
-const columns: EntityTableColumn[] = [
-  { key: 'name', label: '名称', primary: true },
-  { key: 'provider', label: '提供商' },
-  { key: 'baseURL', label: 'Base URL', ellipsis: true },
-  { key: 'model', label: '模型' },
-  { key: 'ops', label: '操作', ops: true },
-]
+// ── 默认模型：整端唯一的模型选项 ──
+// 切换时同步更新 通用/编程/日常 内置助手与 桌面记忆/日程 的 model；
+// 当前值从 通用助手（sbot-default）的 model 推导，依次回退 桌面记忆 → 第一个模型
+
+const defaultModelId = ref('')
+const applyingModel = ref(false)
+
+const defaultModelOptions = computed(() =>
+  Object.entries(models.value).map(([id, m]) => ({
+    value: id,
+    label: m.name ? `${m.name}（${m.model}）` : (m.model || id),
+  })))
 
 async function refresh(): Promise<void> {
   loading.value = true
   try {
     const [settings, providerList] = await Promise.all([
-      api.get<{ models?: Record<string, ModelConfigForm> }>('/api/settings'),
+      api.get<{
+        models?: Record<string, ModelConfigForm>
+        agents?: Record<string, { model?: string }>
+        memoryProfiles?: Record<string, { name?: string; writerModel?: string }>
+      }>('/api/settings'),
       api.get<ProviderDefinition[]>('/api/llm-providers'),
     ])
     models.value = settings.models ?? {}
     providers.value = providerList
+    if (!defaultModelId.value) {
+      defaultModelId.value =
+        settings.agents?.['sbot-default']?.model
+        || Object.values(settings.memoryProfiles ?? {}).find(p => p.name === DESKTOP_MEMORY_NAME)?.writerModel
+        || Object.keys(models.value)[0]
+        || ''
+    }
+    // 所选模型被删除时回退到第一个
+    if (defaultModelId.value && !models.value[defaultModelId.value]) {
+      defaultModelId.value = Object.keys(models.value)[0] ?? ''
+    }
   } catch (e: any) {
     toast.show('error', e.message)
   } finally {
@@ -64,6 +85,31 @@ async function refresh(): Promise<void> {
 }
 
 onMounted(refresh)
+
+/** 切换默认模型：同步更新内置助手与桌面记忆/日程的 model */
+async function applyDefaultModel(): Promise<void> {
+  const modelId = defaultModelId.value
+  if (!modelId) return
+  applyingModel.value = true
+  try {
+    await Promise.all([setBuiltinAgentsModel(modelId), setBuiltinProfilesModel(modelId)])
+    toast.show('success', '默认模型已更新，助手与记忆/日程已同步')
+    emitSettingsChanged()
+  } catch (e: any) {
+    toast.show('error', e.message)
+  } finally {
+    applyingModel.value = false
+  }
+}
+
+const rows = computed(() => Object.entries(models.value).map(([id, m]) => ({ id, ...m })))
+const columns: EntityTableColumn[] = [
+  { key: 'name', label: '名称', primary: true },
+  { key: 'provider', label: '提供商' },
+  { key: 'baseURL', label: 'Base URL', ellipsis: true },
+  { key: 'model', label: '模型' },
+  { key: 'ops', label: '操作', ops: true },
+]
 
 // ── 编辑弹窗 ──
 
@@ -206,7 +252,7 @@ async function testConnection(): Promise<void> {
 
 async function remove(id: string): Promise<void> {
   const label = models.value[id]?.name || id
-  if (!await confirm.show({ title: '删除模型', content: `确定删除模型「${label}」？`, danger: true })) return
+  if (!await confirm.show({ title: '删除模型', content: `确定删除模型「${label}」？`, error: true })) return
   try {
     await api.del(`/api/settings/models/${encodeURIComponent(id)}`)
     toast.show('success', '已删除')
@@ -224,15 +270,27 @@ const providerOptions = computed(() =>
 <template>
   <div class="page">
     <SPageToolbar>
-      <SButton type="outline" size="sm" :loading="loading" @click="refresh">刷新</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">添加模型</SButton>
+      <SButton type="outline" size="small" :loading="loading" @click="refresh">刷新</SButton>
+      <SButton type="primary" size="small" @click="openAdd">添加模型</SButton>
     </SPageToolbar>
+    <SFormSection class="default-model" title="默认模型">
+      <SFormItem label="模型">
+        <SSelect
+          v-model:value="defaultModelId"
+          :options="defaultModelOptions"
+          placeholder="请先添加模型"
+          :disabled="applyingModel || defaultModelOptions.length === 0"
+          @change="applyDefaultModel"
+        />
+        <template #hint>整端统一的模型：切换时同步更新 通用/编程/日常 助手与 桌面记忆/日程</template>
+      </SFormItem>
+    </SFormSection>
     <SPageContent>
       <SEntityTable :columns="columns" :rows="rows" row-key="id" empty-text="还没有模型，点击右上角添加">
         <template #name="{ row }">{{ row.name || row.id }}</template>
         <template #ops="{ row }">
-          <SButton type="outline" size="sm" @click="openEdit(row.id)">编辑</SButton>
-          <SButton type="danger" size="sm" @click="remove(row.id)">删除</SButton>
+          <SButton type="outline" size="small" @click="openEdit(row.id)">编辑</SButton>
+          <SButton type="error" size="small" @click="remove(row.id)">删除</SButton>
         </template>
       </SEntityTable>
     </SPageContent>
@@ -290,6 +348,10 @@ const providerOptions = computed(() =>
   flex-direction: column;
   overflow: hidden;
   width: 100%;
+}
+.default-model {
+  padding: 4px 20px 0;
+  flex-shrink: 0;
 }
 .spacer {
   flex: 1;

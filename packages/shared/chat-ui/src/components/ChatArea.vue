@@ -6,7 +6,7 @@ import type {
   DisplayContent,
 } from '../types'
 import type { CommandInfo } from '../transport'
-import { SSelect } from '@sbot/ui-kit'
+import { SSelect } from '@qingfeng346/ui-kit'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'
 import { useAttachments } from '../composables/useAttachments'

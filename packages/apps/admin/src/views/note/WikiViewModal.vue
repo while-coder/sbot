@@ -2,8 +2,8 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { toast, confirm } from '@sbot/ui-kit'
-import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
+import { toast, confirm } from '@qingfeng346/ui-kit'
+import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SEntityTable, type EntityTableColumn } from '@qingfeng346/ui-kit'
 import type { WikiConfig } from '@/shared/types'
 
 interface WikiPageItem {
@@ -85,7 +85,7 @@ async function togglePage(id: string) {
 }
 
 async function removePage(id: string, title: string) {
-  if (!await confirm.show({ title: t('wikis.confirm_delete_page', { name: title }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('wikis.confirm_delete_page', { name: title }), error: true , content: ''})) return
   try {
     await apiFetch(wikiUrl(`/pages/${encodeURIComponent(id)}`), 'DELETE')
     toast.show('success', t('common.deleted'))
@@ -96,7 +96,7 @@ async function removePage(id: string, title: string) {
 }
 
 async function clearAll() {
-  if (!await confirm.show({ title: t('wikis.confirm_clear', { name: wikiConfig.value.name || wikiId.value }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('wikis.confirm_clear', { name: wikiConfig.value.name || wikiId.value }), error: true , content: ''})) return
   try {
     for (const p of pages.value) {
       await apiFetch(wikiUrl(`/pages/${encodeURIComponent(p.id)}`), 'DELETE')
@@ -178,19 +178,19 @@ defineExpose({ open })
 <template>
   <SModal v-model:show="visible" :title="t('wikis.content_title')" width="xl">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <SBadge variant="neutral" size="sm">{{ wikiConfig.name || wikiId }}</SBadge>
+      <SBadge variant="neutral" size="medium">{{ wikiConfig.name || wikiId }}</SBadge>
       <span v-if="!loading" class="wiki-count-badge">{{ t('wikis.count', { count: pages.length }) }}</span>
     </div>
 
     <div class="modal-toolbar">
-      <SButton type="outline" size="sm" :disabled="loading" @click="load">
+      <SButton type="outline" size="small" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
-      <SButton v-if="!readOnly" type="primary" size="sm" @click="openAdd">{{ t('wikis.add_page') }}</SButton>
-      <SButton v-if="!readOnly" type="danger" size="sm" style="margin-left:auto" :disabled="pages.length === 0" @click="clearAll">
+      <SButton v-if="!readOnly" type="primary" size="small" @click="openAdd">{{ t('wikis.add_page') }}</SButton>
+      <SButton v-if="!readOnly" type="error" size="small" style="margin-left:auto" :disabled="pages.length === 0" @click="clearAll">
         {{ t('wikis.clear_all') }}
       </SButton>
-      <SBadge v-if="readOnly" variant="neutral" size="sm" style="margin-left:auto">{{ t('wikis.readonly_source') }}</SBadge>
+      <SBadge v-if="readOnly" variant="neutral" size="medium" style="margin-left:auto">{{ t('wikis.readonly_source') }}</SBadge>
     </div>
 
     <SEntityTable
@@ -216,8 +216,8 @@ defineExpose({ open })
       </template>
       <template #ops="{ row }">
         <div class="ops-row" v-if="!readOnly">
-          <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
-          <SButton type="danger" size="sm" @click="removePage(row.id, row.title)">{{ t('common.delete') }}</SButton>
+          <SButton type="outline" size="small" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+          <SButton type="error" size="small" @click="removePage(row.id, row.title)">{{ t('common.delete') }}</SButton>
         </div>
         <span v-else class="cell-secondary">-</span>
       </template>

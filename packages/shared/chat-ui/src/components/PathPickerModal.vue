@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, computed, watch } from 'vue'
-import { SModal, SButton, SInput, SChip } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, SChip } from '@qingfeng346/ui-kit'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, DriveEntry, QuickDir } from '../types'
 import { resolveLabels } from '../labels'
@@ -162,7 +162,7 @@ defineExpose({ open })
   >
     <SInput
       v-model:value="pathInput"
-      size="sm"
+      size="small"
       class="chatui-picker-path-bar"
       :placeholder="L.myComputer"
       @keydown.enter="navigate(String(pathInput).trim())"
@@ -199,14 +199,14 @@ defineExpose({ open })
           <SInput
             ref="newNameInput"
             v-model:value="pickerNewName"
-            size="sm"
+            size="small"
             class="chatui-picker-create-input"
             :placeholder="L.newFolderPlaceholder"
             @keydown.enter="confirmCreate"
             @keydown.escape="cancelCreate"
           />
-          <SButton type="outline" size="sm" @click="confirmCreate">✓</SButton>
-          <SButton type="outline" size="sm" @click="cancelCreate">✕</SButton>
+          <SButton type="outline" size="small" @click="confirmCreate">✓</SButton>
+          <SButton type="outline" size="small" @click="cancelCreate">✕</SButton>
         </div>
         <div v-if="pickerItems.length === 0 && !pickerCreating && !pickerError" class="chatui-picker-empty">{{ L.noSubdirs }}</div>
         <div v-for="item in pickerItems" :key="item" class="chatui-picker-item" @click="navigate(item)">
@@ -216,7 +216,7 @@ defineExpose({ open })
     </div>
 
     <template #footer>
-      <SButton type="outline" size="sm" style="margin-right:auto" :disabled="!pickerPath || pickerCreating" @click="startCreate">{{ L.newFolder }}</SButton>
+      <SButton type="outline" size="small" style="margin-right:auto" :disabled="!pickerPath || pickerCreating" @click="startCreate">{{ L.newFolder }}</SButton>
       <SButton type="outline" @click="pickerOpen = false">{{ L.cancel }}</SButton>
       <SButton :disabled="!pickerPath" @click="confirmPicker">{{ L.selectThis }}</SButton>
     </template>

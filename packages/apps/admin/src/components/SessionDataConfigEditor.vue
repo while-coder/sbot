@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SInput, STextarea, SSelect, SFormItem, SButton, SCollapse, SCollapseItem } from '@sbot/ui-kit'
+import { SInput, STextarea, SSelect, SFormItem, SButton, SCollapse, SCollapseItem } from '@qingfeng346/ui-kit'
 import { ApprovalTimeoutValue, IntentFilterMode } from '@sbot/shared'
 
 export interface DataConfigValue {
@@ -305,7 +305,7 @@ function showIntentModelConfig(): boolean {
     <SFormItem :label="t('directory.path_label')" :hint="inheritLabel('workPath')">
       <div class="path-row">
         <SInput :value="modelValue.workPath ?? ''" type="text" class="path-input" @update:value="v => update('workPath', String(v).trim() ? String(v) : null)" />
-        <SButton type="outline" size="sm" @click="emit('browse-path')">{{ t('directory.browse') }}</SButton>
+        <SButton type="outline" size="small" @click="emit('browse-path')">{{ t('directory.browse') }}</SButton>
       </div>
     </SFormItem>
 

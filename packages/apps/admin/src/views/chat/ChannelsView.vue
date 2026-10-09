@@ -7,7 +7,7 @@ import { profileManager } from '@/managers/profileManager'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
 import { saverManager } from '@/managers/saverManager'
-import { SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SCollapse, SCollapseItem, SPageToolbar, SPageContent, SEntityList, STab, STabs, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SModal, SInput, STextarea, SSelect, SFormItem, SFormSection, SCollapse, SCollapseItem, SPageToolbar, SPageContent, SEntityList, STab, STabs, toast, confirm } from '@qingfeng346/ui-kit'
 import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, IntentFilterMode, type ChannelConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
@@ -400,7 +400,7 @@ async function saveSession() {
 
   // 共享 profile 且确有变更时才弹警告
   if (profileChanged && isCurrentProfileShared.value) {
-    const ok = await confirm.show({ title: t('channels.profile_shared_warn', { n: p.sessionCount }), danger: true , content: ''})
+    const ok = await confirm.show({ title: t('channels.profile_shared_warn', { n: p.sessionCount }), error: true , content: ''})
     if (!ok) return
   }
 
@@ -565,7 +565,7 @@ async function refreshSessions(ids: string[]) {
 }
 
 async function removeSession(channelId: string, session: ChannelSessionRow) {
-  if (!await confirm.show({ title: t('channels.confirm_delete_session', { name: session.sessionId }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('channels.confirm_delete_session', { name: session.sessionId }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/channel-sessions/${session.id}`, 'DELETE')
     const list = sessionMap.value[channelId]
@@ -577,7 +577,7 @@ async function removeSession(channelId: string, session: ChannelSessionRow) {
 }
 
 async function removeUser(channelId: string, user: UserRow) {
-  if (!await confirm.show({ title: t('users.confirm_delete', { name: user.userName || user.userId }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('users.confirm_delete', { name: user.userName || user.userId }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/channel-users/${user.id}`, 'DELETE')
     const list = userMap.value[channelId]
@@ -764,7 +764,7 @@ function isBuiltin(id: string): boolean {
 async function remove(id: string) {
   const c = channels.value[id]
   const label = c?.name || id
-  if (!await confirm.show({ title: t('channels.confirm_delete', { name: label }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('channels.confirm_delete', { name: label }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/settings/channels/${id}`, 'DELETE')
     if (c?.saver) {
@@ -792,8 +792,8 @@ async function refresh() {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('channels.add') }}</SButton>
+      <SButton type="outline" size="small" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('channels.add') }}</SButton>
     </SPageToolbar>
 
     <SPageContent>
@@ -814,8 +814,8 @@ async function refresh() {
           <span class="channel-card-agent">{{ agentOptions.find(a => a.id === c.agent)?.label || c.agent || '-' }}</span>
         </template>
         <template #ops="{ item: c }">
-          <SButton type="outline" size="sm" @click="openEdit(c.id)">{{ t('common.edit') }}</SButton>
-          <SButton v-if="!isBuiltin(c.id)" type="danger" size="sm" @click="remove(c.id)">{{ t('common.delete') }}</SButton>
+          <SButton type="outline" size="small" @click="openEdit(c.id)">{{ t('common.edit') }}</SButton>
+          <SButton v-if="!isBuiltin(c.id)" type="error" size="small" @click="remove(c.id)">{{ t('common.delete') }}</SButton>
         </template>
         <template #meta="{ item: c }">
           <span class="session-meta-id">{{ c.id }}</span>
@@ -860,10 +860,10 @@ async function refresh() {
                   <span v-if="s.totalTokens > 0" class="session-item-tokens" :title="`${t('usage.total')}: ${formatTokens(s.totalTokens)} tokens\n  ${t('usage.input_tokens')}: ${formatTokens(s.inputTokens)} / ${t('usage.output_tokens')}: ${formatTokens(s.outputTokens)}` + (s.lastTotalTokens > 0 ? `\n${t('usage.last')}: ${formatTokens(s.lastTotalTokens)} tokens` : '')">{{ formatTokens(s.totalTokens) }} tok</span>
                 </template>
                 <template #ops="{ item: s }">
-                  <SButton v-if="s.saver || c.saver" type="outline" size="sm" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
-                  <SButton v-if="s.agenda || c.agenda" type="outline" size="sm" @click="agendaListModal?.openByAgendaId(s.agenda || c.agenda, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('agenda.title') }}</SButton>
-                  <SButton type="outline" size="sm" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
-                  <SButton type="danger" size="sm" @click="removeSession(c.id, s)">{{ t('common.delete') }}</SButton>
+                  <SButton v-if="s.saver || c.saver" type="outline" size="small" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
+                  <SButton v-if="s.agenda || c.agenda" type="outline" size="small" @click="agendaListModal?.openByAgendaId(s.agenda || c.agenda, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('agenda.title') }}</SButton>
+                  <SButton type="outline" size="small" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
+                  <SButton type="error" size="small" @click="removeSession(c.id, s)">{{ t('common.delete') }}</SButton>
                 </template>
                 <template #meta="{ item: s }">
                   <span class="session-meta-id">{{ s.sessionId }}</span>
@@ -894,8 +894,8 @@ async function refresh() {
                   <span class="session-meta-id">{{ u.userId }}</span>
                 </template>
                 <template #ops="{ item: u }">
-                  <SButton type="outline" size="sm" @click="viewUser = u">{{ t('common.view') }}</SButton>
-                  <SButton type="danger" size="sm" @click="removeUser(c.id, u)">{{ t('common.delete') }}</SButton>
+                  <SButton type="outline" size="small" @click="viewUser = u">{{ t('common.view') }}</SButton>
+                  <SButton type="error" size="small" @click="removeUser(c.id, u)">{{ t('common.delete') }}</SButton>
                 </template>
               </SEntityList>
             </template>
@@ -1038,8 +1038,8 @@ async function refresh() {
               :options="[{ value: 'default', label: t('channels.profile_none') }, ...visibleProfiles.map(p => ({ value: String(p.id), label: `${p.name}${p.sessionCount && p.sessionCount > 1 ? ` (${p.sessionCount})` : ''}` }))]"
             />
             <div class="profile-actions">
-              <SButton v-if="isCurrentProfileAuto" type="outline" size="sm" @click="cloneProfileFromCurrent">{{ t('channels.profile_clone') }}</SButton>
-              <SButton v-else type="outline" size="sm" @click="selectProfile('default')">{{ t('channels.profile_detach') }}</SButton>
+              <SButton v-if="isCurrentProfileAuto" type="outline" size="small" @click="cloneProfileFromCurrent">{{ t('channels.profile_clone') }}</SButton>
+              <SButton v-else type="outline" size="small" @click="selectProfile('default')">{{ t('channels.profile_detach') }}</SButton>
             </div>
             <div v-if="isCurrentProfileShared && editingProfile" class="profile-shared-hint">
               ⓘ {{ t('channels.profile_shared_with', { n: (editingProfile.sessionCount ?? 1) - 1 }) }}
@@ -1148,7 +1148,7 @@ async function refresh() {
 .qr-msg-warn { color: var(--sui-warning); }
 .qr-msg-muted { color: var(--sui-fg-muted); }
 .qr-msg-success { color: var(--sui-success); }
-.qr-msg-error { color: var(--sui-danger); }
+.qr-msg-error { color: var(--sui-error); }
 
 .session-avatar {
   width: 28px;

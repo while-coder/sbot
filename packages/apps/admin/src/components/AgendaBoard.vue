@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
-import { SBadge, SButton, SEntityList, SFormItem, SModal, SSelect, STextarea } from '@sbot/ui-kit'
+import { SBadge, SButton, SEntityList, SFormItem, SModal, SSelect, STextarea } from '@qingfeng346/ui-kit'
 import AgendaTriggerFields from '@/components/AgendaTriggerFields.vue'
 import {
   firstNextFire,
@@ -74,16 +74,16 @@ const priorityOptions = computed(() => [
 const visibleCount = computed(() => props.items.length)
 const profileCount = computed(() => new Set(props.items.map(row => row.agendaId)).size)
 
-function priorityVariant(p: AgendaPriority): 'danger' | 'info' | 'neutral' {
-  if (p === 'high') return 'danger'
+function priorityVariant(p: AgendaPriority): 'error' | 'info' | 'neutral' {
+  if (p === 'high') return 'error'
   if (p === 'normal') return 'info'
   return 'neutral'
 }
 
-function statusVariant(s: AgendaStatus): 'success' | 'warning' | 'danger' | 'neutral' {
+function statusVariant(s: AgendaStatus): 'success' | 'warning' | 'error' | 'neutral' {
   if (s === 'done') return 'success'
   if (s === 'pending') return 'warning'
-  if (s === 'expired') return 'danger'
+  if (s === 'expired') return 'error'
   return 'neutral'
 }
 
@@ -215,8 +215,8 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
 
     <section class="agenda-controls" aria-label="Agenda controls">
       <div class="agenda-filters">
-        <SSelect :value="statusFilter" size="sm" class="agenda-status-select" :options="statusFilterOptions" @update:value="v => emit('update:statusFilter', v as AgendaStatusFilter)" />
-        <SButton type="outline" size="sm" :loading="loading" @click="emit('refresh')">{{ t('common.refresh') }}</SButton>
+        <SSelect :value="statusFilter" size="small" class="agenda-status-select" :options="statusFilterOptions" @update:value="v => emit('update:statusFilter', v as AgendaStatusFilter)" />
+        <SButton type="outline" size="small" :loading="loading" @click="emit('refresh')">{{ t('common.refresh') }}</SButton>
       </div>
     </section>
 
@@ -234,9 +234,9 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
           class="agenda-row__content"
           :class="{ 'agenda-row__content--done': row.item.status !== 'pending' }"
         >{{ row.item.content }}</span>
-        <SBadge :variant="statusVariant(row.item.status)" size="xs">{{ statusLabel(row.item.status) }}</SBadge>
-        <SBadge v-if="row.item.priority !== 'normal'" :variant="priorityVariant(row.item.priority)" size="xs">{{ priorityLabel(row.item.priority) }}</SBadge>
-        <SBadge v-if="isOverdue(row)" variant="danger" size="xs">{{ t('agenda.overdue') }}</SBadge>
+        <SBadge :variant="statusVariant(row.item.status)" size="small">{{ statusLabel(row.item.status) }}</SBadge>
+        <SBadge v-if="row.item.priority !== 'normal'" :variant="priorityVariant(row.item.priority)" size="small">{{ priorityLabel(row.item.priority) }}</SBadge>
+        <SBadge v-if="isOverdue(row)" variant="error" size="small">{{ t('agenda.overdue') }}</SBadge>
       </template>
 
       <template #aside="{ item: row }">
@@ -249,11 +249,11 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
       </template>
 
       <template #ops="{ item: row }">
-        <SButton v-if="row.item.status === 'pending'" type="primary" size="sm" @click="emit('complete', row)">{{ t('agenda.complete') }}</SButton>
-        <SButton v-if="row.item.status === 'pending'" type="outline" size="sm" @click="openEdit(row)">{{ t('agenda.edit') }}</SButton>
-        <SButton v-if="row.item.status === 'pending'" type="outline" size="sm" @click="emit('cancel', row)">{{ t('agenda.cancel') }}</SButton>
-        <SButton v-if="row.item.status !== 'pending'" type="primary" size="sm" @click="emit('reopen', row)">{{ t('agenda.reopen') }}</SButton>
-        <SButton type="danger" size="sm" @click="emit('remove', row)">{{ t('common.delete') }}</SButton>
+        <SButton v-if="row.item.status === 'pending'" type="primary" size="small" @click="emit('complete', row)">{{ t('agenda.complete') }}</SButton>
+        <SButton v-if="row.item.status === 'pending'" type="outline" size="small" @click="openEdit(row)">{{ t('agenda.edit') }}</SButton>
+        <SButton v-if="row.item.status === 'pending'" type="outline" size="small" @click="emit('cancel', row)">{{ t('agenda.cancel') }}</SButton>
+        <SButton v-if="row.item.status !== 'pending'" type="primary" size="small" @click="emit('reopen', row)">{{ t('agenda.reopen') }}</SButton>
+        <SButton type="error" size="small" @click="emit('remove', row)">{{ t('common.delete') }}</SButton>
       </template>
 
       <template #meta="{ item: row }">
@@ -291,18 +291,18 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
           <section class="agenda-sub-section">
             <div class="agenda-sub-title">
               <h4>{{ t('agenda.trigger_details') }}</h4>
-              <SBadge variant="success" size="xs">{{ activeTriggers(row) }} / {{ row.triggers.length }}</SBadge>
+              <SBadge variant="success" size="small">{{ activeTriggers(row) }} / {{ row.triggers.length }}</SBadge>
               <SButton
                 v-if="row.item.status === 'pending'"
                 type="outline"
-                size="sm"
+                size="small"
                 class="agenda-sub-add"
                 @click="emit('add-trigger', { row })"
               >+ {{ t('agenda.edit_add_trigger') }}</SButton>
               <SButton
                 v-if="row.triggers.length"
                 type="outline"
-                size="sm"
+                size="small"
                 :title="t('agenda.view_item_fires_hint')"
                 @click="emit('view-item-fires', { row })"
               >📜 {{ t('agenda.view_item_fires') }}</SButton>
@@ -317,47 +317,47 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
                 :class="{ 'agenda-trigger-row--disabled': !trigger.enabled }"
               >
                 <div class="agenda-trigger-main">
-                  <SBadge :variant="trigger.enabled ? 'success' : 'neutral'" size="xs">{{ triggerKindLabel(trigger) }}</SBadge>
-                  <SBadge v-if="trigger.enabled" variant="info" size="xs">{{ triggerActionLabel(trigger) }}</SBadge>
-                  <SBadge v-if="!trigger.enabled" variant="neutral" size="xs">{{ t('agenda.trigger_disabled') }}</SBadge>
+                  <SBadge :variant="trigger.enabled ? 'success' : 'neutral'" size="small">{{ triggerKindLabel(trigger) }}</SBadge>
+                  <SBadge v-if="trigger.enabled" variant="info" size="small">{{ triggerActionLabel(trigger) }}</SBadge>
+                  <SBadge v-if="!trigger.enabled" variant="neutral" size="small">{{ t('agenda.trigger_disabled') }}</SBadge>
                   <code class="agenda-trigger-expr">{{ trigger.expr }}</code>
                   <div class="agenda-trigger-ops">
                     <SButton
                       v-if="row.item.status === 'pending' && !trigger.enabled"
                       type="primary"
-                      size="sm"
+                      size="small"
                       :title="t('agenda.reopen_trigger_hint')"
                       @click="emit('reopen-trigger', { row, trigger })"
                     >↻ {{ t('agenda.reopen_trigger') }}</SButton>
                     <SButton
                       type="outline"
-                      size="sm"
+                      size="small"
                       :title="t('agenda.fire_trigger_hint')"
                       @click="emit('fire-trigger', { row, trigger })"
                     >⚡ {{ t('agenda.fire_trigger') }}</SButton>
                     <SButton
                       type="outline"
-                      size="sm"
+                      size="small"
                       :title="t('agenda.view_fires_hint')"
                       @click="emit('view-fires', { row, trigger })"
                     >📜 {{ t('agenda.view_fires') }}</SButton>
                     <SButton
                       v-if="row.item.status === 'pending' && trigger.enabled"
                       type="outline"
-                      size="sm"
+                      size="small"
                       :title="t('agenda.edit_trigger_hint')"
                       @click="openTriggerEdit(row, trigger)"
                     >✎ {{ t('agenda.edit') }}</SButton>
                     <SButton
                       v-if="trigger.enabled"
                       type="outline"
-                      size="sm"
+                      size="small"
                       :title="t('agenda.cancel_trigger_hint')"
                       @click="emit('cancel-trigger', { row, trigger })"
                     >⏸ {{ t('agenda.cancel_trigger') }}</SButton>
                     <SButton
-                      type="danger"
-                      size="sm"
+                      type="error"
+                      size="small"
                       :title="t('agenda.delete_trigger_hint')"
                       @click="emit('remove-trigger', { row, trigger })"
                     >🗑 {{ t('common.delete') }}</SButton>
@@ -398,7 +398,7 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
       <SFormItem :label="t('agenda.edit_due_at')" :hint="t('agenda.edit_due_at_hint')">
         <div class="agenda-edit-due">
           <input v-model="editForm.dueAt" type="datetime-local" class="agenda-edit-datetime" />
-          <SButton v-if="editForm.dueAt" type="outline" size="sm" @click="clearDueAt">{{ t('agenda.edit_clear_due') }}</SButton>
+          <SButton v-if="editForm.dueAt" type="outline" size="small" @click="clearDueAt">{{ t('agenda.edit_clear_due') }}</SButton>
         </div>
       </SFormItem>
 
@@ -451,11 +451,11 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
 .agenda-stat--strong .agenda-stat__label,
 .agenda-stat--strong .agenda-stat__value { color: var(--sui-on-info-soft); }
 .agenda-stat--danger {
-  border-color: var(--sui-danger);
-  background: var(--sui-danger-soft);
+  border-color: var(--sui-error);
+  background: var(--sui-error-soft);
 }
 .agenda-stat--danger .agenda-stat__label,
-.agenda-stat--danger .agenda-stat__value { color: var(--sui-on-danger-soft); }
+.agenda-stat--danger .agenda-stat__value { color: var(--sui-on-error-soft); }
 .agenda-stat--clickable {
   cursor: pointer;
   font: inherit;
@@ -540,7 +540,7 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
   color: var(--sui-fg-secondary);
   white-space: nowrap;
 }
-.agenda-row__next--overdue { color: var(--sui-danger); font-weight: 600; }
+.agenda-row__next--overdue { color: var(--sui-error); font-weight: 600; }
 
 .agenda-meta-chip {
   display: inline-flex;
@@ -569,8 +569,8 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
   color: var(--sui-on-success-soft);
 }
 .agenda-meta-chip.overdue {
-  background: var(--sui-danger-soft);
-  color: var(--sui-on-danger-soft);
+  background: var(--sui-error-soft);
+  color: var(--sui-on-error-soft);
   font-weight: 600;
 }
 
@@ -853,7 +853,7 @@ function sortedTriggers(triggers: AgendaTrigger[]): AgendaTrigger[] {
 }
 .agenda-edit-trigger-error {
   margin: var(--sui-sp-2) 0 0;
-  color: var(--sui-danger);
+  color: var(--sui-error);
   font-size: var(--sui-fs-sm);
 }
 

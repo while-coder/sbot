@@ -5,12 +5,12 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { toast, confirm } from '@sbot/ui-kit'
+import { toast, confirm } from '@qingfeng346/ui-kit'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
 import SkillHubModal from '@/components/modals/SkillHubModal.vue'
 import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
-import { SModal, SButton, SInput, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@qingfeng346/ui-kit'
 
 const { t } = useI18n()
 
@@ -156,7 +156,7 @@ function openView(row: SkillItem, badge = row.source || '') {
 }
 
 async function remove(name: string) {
-  if (!await confirm.show({ title: t('skills.confirm_delete', { name }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('skills.confirm_delete', { name }), error: true , content: ''})) return
   try {
     await apiFetch(`${apiBase()}/${encodeURIComponent(name)}`, 'DELETE')
     toast.show('success', t('common.deleted'))
@@ -207,7 +207,7 @@ defineExpose({ open })
           />
           <STab :name="t('agents.skills_exclusive_tab')" :count="skills.length" :tab="t('agents.skills_exclusive_tab')" />
         </STabs>
-        <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+        <SButton type="outline" size="small" @click="load">{{ t('common.refresh') }}</SButton>
       </div>
 
       <div style="height:62vh;overflow:auto">
@@ -215,8 +215,8 @@ defineExpose({ open })
         <template v-if="activeTab !== t('agents.skills_exclusive_tab')">
           <div class="picker-toolbar">
             <SCheckCard v-model:checked="useAllSkills">{{ t('agents.use_all') }}</SCheckCard>
-            <SInput v-model:value="skillSearch" :placeholder="t('skills.search_placeholder')" size="sm" style="flex:1" />
-            <SButton type="primary" size="sm" :disabled="!skillsChanged" @click="saveGlobalSkills">{{ t('common.save') }}</SButton>
+            <SInput v-model:value="skillSearch" :placeholder="t('skills.search_placeholder')" size="small" style="flex:1" />
+            <SButton type="primary" size="small" :disabled="!skillsChanged" @click="saveGlobalSkills">{{ t('common.save') }}</SButton>
             <span v-if="skillsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
           </div>
           <div v-if="useAllSkills" class="picker-hint">{{ t('agents.skills_exclude_hint') }}</div>
@@ -244,7 +244,7 @@ defineExpose({ open })
               <span style="color:var(--sui-fg-muted);font-size:var(--sui-fs-sm)">{{ row.description || '-' }}</span>
             </template>
             <template #ops="{ row }">
-              <SButton type="outline" size="sm" @click="openView(row, row.source)">{{ t('common.view') }}</SButton>
+              <SButton type="outline" size="small" @click="openView(row, row.source)">{{ t('common.view') }}</SButton>
             </template>
           </SEntityTable>
         </template>
@@ -252,7 +252,7 @@ defineExpose({ open })
         <!-- Agent-specific skills tab -->
         <template v-else>
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-            <SButton type="primary" size="sm" @click="openAdd">{{ t('skills.add') }}</SButton>
+            <SButton type="primary" size="small" @click="openAdd">{{ t('skills.add') }}</SButton>
           </div>
           <div class="dir-hint-panel">
             {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/agents/{{ agentName }}/skills/</code>
@@ -269,8 +269,8 @@ defineExpose({ open })
             <template #description="{ row }">{{ row.description || '-' }}</template>
             <template #ops="{ row }">
               <div class="ops-cell">
-                <SButton type="outline" size="sm" @click="openView(row, t('agents.skills_exclusive_tab'))">{{ t('common.view') }}</SButton>
-                <SButton type="danger" size="sm" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
+                <SButton type="outline" size="small" @click="openView(row, t('agents.skills_exclusive_tab'))">{{ t('common.view') }}</SButton>
+                <SButton type="error" size="small" @click="remove(row.name)">{{ t('common.delete') }}</SButton>
               </div>
             </template>
           </SEntityTable>

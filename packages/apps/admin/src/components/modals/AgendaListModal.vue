@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SButton, SModal, STab, STabs, toast } from '@sbot/ui-kit'
+import { SBadge, SButton, SModal, STab, STabs, toast } from '@qingfeng346/ui-kit'
 import AgendaBoard from '@/components/AgendaBoard.vue'
 import AgendaTriggerEditModal from '@/components/modals/AgendaTriggerEditModal.vue'
 import AgendaFiresModal from '@/components/modals/AgendaFiresModal.vue'
@@ -97,8 +97,8 @@ function jobStatusLabel(status: AgendaJob['status']): string {
   return t(status === 'failed' ? 'agenda.job_status_failed' : 'agenda.job_status_pending')
 }
 
-function jobVariant(status: AgendaJob['status']): 'warning' | 'danger' {
-  return status === 'failed' ? 'danger' : 'warning'
+function jobVariant(status: AgendaJob['status']): 'warning' | 'error' {
+  return status === 'failed' ? 'error' : 'warning'
 }
 
 async function openByAgendaId(agendaId: string | null | undefined, label?: string) {
@@ -128,7 +128,7 @@ defineExpose({ openByAgendaId })
         <STab name="items" :tab="t('agenda.viewer_items')" />
         <STab name="jobs" :tab="t('agenda.viewer_jobs')" />
       </STabs>
-      <SButton v-if="tab === 'jobs'" type="outline" size="sm" :loading="jobsLoading" @click="loadJobs">
+      <SButton v-if="tab === 'jobs'" type="outline" size="small" :loading="jobsLoading" @click="loadJobs">
         {{ t('common.refresh') }}
       </SButton>
     </div>
@@ -164,7 +164,7 @@ defineExpose({ openByAgendaId })
       <article v-for="job in jobs" v-else :key="job.id" class="agenda-job">
         <div class="agenda-job-head">
           <strong>#{{ job.id }}</strong>
-          <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
+          <SBadge :variant="jobVariant(job.status)" size="medium">{{ jobStatusLabel(job.status) }}</SBadge>
         </div>
         <dl class="agenda-job-grid">
           <dt>{{ t('agenda.job_type') }}</dt><dd>{{ t('agenda.job_type_sync') }}</dd>

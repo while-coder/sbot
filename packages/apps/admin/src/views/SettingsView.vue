@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import { SButton, SInput, STextarea, SCard, SFormItem, SCheckCard, SPageToolbar, SPageContent, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, STextarea, SCard, SFormItem, SCheckCard, SPageToolbar, SPageContent, toast, confirm } from '@qingfeng346/ui-kit'
 const { t } = useI18n()
 
 
@@ -107,7 +107,7 @@ async function save() {
 }
 
 async function shutdown() {
-  if (!await confirm.show({ title: t('settings.shutdown_confirm'), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('settings.shutdown_confirm'), error: true , content: ''})) return
   shutdownLoading.value = true
   try {
     await apiFetch('/api/shutdown', 'POST')
@@ -193,7 +193,7 @@ async function scanCleanup() {
 
 async function applyCleanup() {
   if (cleanableCount.value === 0) return
-  if (!await confirm.show({ title: t('settings.cleanup_confirm', { n: cleanableCount.value }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('settings.cleanup_confirm', { n: cleanableCount.value }), error: true , content: ''})) return
   cleanupLoading.value = true
   try {
     const res = await apiFetch('/api/admin/cleanup-orphans?apply=1', 'POST', {})
@@ -238,7 +238,7 @@ function fmtItem(category: string, item: any): string {
       {{ t('settings.port_changed') }}
     </div>
     <SPageToolbar>
-      <SButton type="primary" size="sm" @click="save">{{ t('common.save') }}</SButton>
+      <SButton type="primary" size="small" @click="save">{{ t('common.save') }}</SButton>
     </SPageToolbar>
     <SPageContent>
       <SCard :title="t('settings.service')">
@@ -255,7 +255,7 @@ function fmtItem(category: string, item: any): string {
         </div>
         <div class="service-actions">
           <div class="form-hint">{{ t('settings.shutdown_hint') }}</div>
-          <SButton type="danger" size="sm" :disabled="shutdownLoading" @click="shutdown">
+          <SButton type="error" size="small" :disabled="shutdownLoading" @click="shutdown">
             {{ t('settings.shutdown') }}
           </SButton>
         </div>
@@ -282,9 +282,9 @@ function fmtItem(category: string, item: any): string {
         >
           <span class="drag-handle" :title="t('settings.startup_commands_drag')">⠿</span>
           <SInput v-model:value="contextFileNames[index]" type="text" :placeholder="t('settings.context_file_names_placeholder')" class="draggable-row-input" />
-          <SButton type="text" size="sm" :title="t('common.delete')" class="draggable-row-remove" @click="removeContextFileName(index)">✕</SButton>
+          <SButton type="text" size="small" :title="t('common.delete')" class="draggable-row-remove" @click="removeContextFileName(index)">✕</SButton>
         </div>
-        <SButton type="outline" size="sm" @click="addContextFileName">{{ t('settings.context_file_names_add') }}</SButton>
+        <SButton type="outline" size="small" @click="addContextFileName">{{ t('settings.context_file_names_add') }}</SButton>
       </SCard>
       <SCard :title="t('settings.tool_approval')">
         <SCheckCard v-model:checked="autoApproveAllTools">
@@ -308,20 +308,20 @@ function fmtItem(category: string, item: any): string {
         >
           <span class="drag-handle" :title="t('settings.startup_commands_drag')">⠿</span>
           <STextarea v-model:value="startupCommands[index]" :rows="3" :placeholder="t('settings.startup_commands_placeholder')" class="draggable-row-input draggable-row-textarea" />
-          <SButton type="text" size="sm" :title="t('common.delete')" class="draggable-row-remove" @click="removeStartupCommand(index)">✕</SButton>
+          <SButton type="text" size="small" :title="t('common.delete')" class="draggable-row-remove" @click="removeStartupCommand(index)">✕</SButton>
         </div>
-        <SButton type="outline" size="sm" @click="addStartupCommand">{{ t('settings.startup_commands_add') }}</SButton>
+        <SButton type="outline" size="small" @click="addStartupCommand">{{ t('settings.startup_commands_add') }}</SButton>
       </SCard>
       <SCard :title="t('settings.scan_invalid_data')">
         <div class="form-hint">{{ t('settings.scan_invalid_data_hint') }}</div>
         <div class="cleanup-actions">
-          <SButton type="outline" size="sm" :disabled="cleanupLoading" @click="scanCleanup">
+          <SButton type="outline" size="small" :disabled="cleanupLoading" @click="scanCleanup">
             {{ cleanupReport ? t('settings.cleanup_rescan') : t('settings.cleanup_scan') }}
           </SButton>
           <SButton
             v-if="cleanupReport && cleanableCount > 0"
             type="primary"
-            size="sm"
+            size="small"
             :disabled="cleanupLoading"
             @click="applyCleanup"
           >

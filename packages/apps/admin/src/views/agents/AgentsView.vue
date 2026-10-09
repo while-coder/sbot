@@ -7,7 +7,7 @@ import { mcpManager } from '@/managers/mcpManager'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
-import { SButton, SCard, SPageToolbar, SPageContent, SEntityTable, SInfoTable, SInfoRow, SModal, SInput, SSelect, STagFilter, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SCard, SPageToolbar, SPageContent, SEntityTable, SInfoTable, SInfoRow, SModal, SInput, SSelect, STagFilter, type EntityTableColumn, toast, confirm } from '@qingfeng346/ui-kit'
 import AgentModal from './modals/AgentModal.vue'
 import AgentMcpModal from './modals/AgentMcpModal.vue'
 import AgentSkillsModal from './modals/AgentSkillsModal.vue'
@@ -180,7 +180,7 @@ async function exportAgent(id: string) {
 
 async function removeAgent(id: string) {
   const label = (agents.value[id] as any)?.name || id
-  if (!await confirm.show({ title: t('agents.confirm_delete', { name: label }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('agents.confirm_delete', { name: label }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/agents/${encodeURIComponent(id)}`, 'DELETE')
     await settingsManager.refresh()
@@ -383,11 +383,11 @@ async function saveMcpParams() {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="agentModal?.open()">{{ t('agents.add') }}</SButton>
+      <SButton type="outline" size="small" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="agentModal?.open()">{{ t('agents.add') }}</SButton>
       <div class="agents-sort">
         <span class="agents-sort-label">{{ t('agents.sort_label') }}</span>
-        <SSelect v-model:value="sortBy" size="sm" :options="sortOptions" />
+        <SSelect v-model:value="sortBy" size="small" :options="sortOptions" />
       </div>
       <div v-if="allTags.length" class="agents-tag-filter">
         <span class="agents-tag-filter-label">{{ t('agents.filter_by_tag') }}</span>
@@ -433,11 +433,11 @@ async function saveMcpParams() {
 
         <template #ops="{ row }">
           <div class="ops-cell">
-            <SButton type="outline" size="sm" @click="agentModal?.open(row.id)">{{ t('common.edit') }}</SButton>
-            <SButton v-if="row.type !== 'acp'" type="outline" size="sm" @click="agentMcpModal?.open(row.id)">{{ t('agents.tab_tools') }}</SButton>
-            <SButton v-if="row.type !== 'acp'" type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.tab_skills') }}</SButton>
-            <SButton type="outline" size="sm" @click="exportAgent(row.id)">{{ t('agentStore.export_btn') }}</SButton>
-            <SButton type="danger" size="sm" @click="removeAgent(row.id)">{{ t('common.delete') }}</SButton>
+            <SButton type="outline" size="small" @click="agentModal?.open(row.id)">{{ t('common.edit') }}</SButton>
+            <SButton v-if="row.type !== 'acp'" type="outline" size="small" @click="agentMcpModal?.open(row.id)">{{ t('agents.tab_tools') }}</SButton>
+            <SButton v-if="row.type !== 'acp'" type="outline" size="small" @click="agentSkillsModal?.open(row.id)">{{ t('agents.tab_skills') }}</SButton>
+            <SButton type="outline" size="small" @click="exportAgent(row.id)">{{ t('agentStore.export_btn') }}</SButton>
+            <SButton type="error" size="small" @click="removeAgent(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
 
@@ -532,7 +532,7 @@ async function saveMcpParams() {
 
             <template v-else-if="getTab(row.id) === 'skills'">
               <div class="manage-row">
-                <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.manage_skills') }}</SButton>
+                <SButton type="outline" size="small" @click="agentSkillsModal?.open(row.id)">{{ t('agents.manage_skills') }}</SButton>
                 <div class="manage-hint">{{ t('agents.agent_skills') }}</div>
               </div>
               <SEntityTable :columns="skillCols" :rows="skillRows(row.id)" row-key="_key">
@@ -543,12 +543,12 @@ async function saveMcpParams() {
                 </template>
                 <template #desc="{ row: s }"><span class="cell-desc">{{ s.description || '-' }}</span></template>
                 <template #ops="{ row: s }">
-                  <SButton type="outline" size="sm" @click="openSkillView(s, s._private)">{{ t('common.view') }}</SButton>
+                  <SButton type="outline" size="small" @click="openSkillView(s, s._private)">{{ t('common.view') }}</SButton>
                 </template>
                 <template #_empty>
                   <div>{{ t('agents.no_skills') }}</div>
                   <div class="tab-empty-action">
-                    <SButton type="outline" size="sm" @click="agentSkillsModal?.open(row.id)">{{ t('agents.configure_skills') }}</SButton>
+                    <SButton type="outline" size="small" @click="agentSkillsModal?.open(row.id)">{{ t('agents.configure_skills') }}</SButton>
                   </div>
                 </template>
               </SEntityTable>
@@ -556,7 +556,7 @@ async function saveMcpParams() {
 
             <template v-else-if="getTab(row.id) === 'mcp'">
               <div class="manage-row">
-                <SButton type="outline" size="sm" @click="agentMcpModal?.open(row.id)">{{ t('agents.manage_tools') }}</SButton>
+                <SButton type="outline" size="small" @click="agentMcpModal?.open(row.id)">{{ t('agents.manage_tools') }}</SButton>
                 <div class="manage-hint">{{ t('agents.agent_mcps') }}</div>
               </div>
               <SEntityTable :columns="mcpCols" :rows="mcpRows(row.id)" row-key="_key">
@@ -568,10 +568,10 @@ async function saveMcpParams() {
                 <template #desc="{ row: s }"><span class="cell-desc">{{ s.description || '-' }}</span></template>
                 <template #addr="{ row: s }"><span :class="s._private ? 'cell-addr-priv' : 'cell-addr'">{{ serverAddr(s as any) }}</span></template>
                 <template #ops="{ row: s }">
-                  <SButton v-if="!s._private" type="outline" size="sm" @click="openMcpParams(row.id, s.id)">
+                  <SButton v-if="!s._private" type="outline" size="small" @click="openMcpParams(row.id, s.id)">
                     {{ t('agents.mcp_params') }}<span v-if="paramsCount(row.id, s.id) > 0" class="params-badge">{{ paramsCount(row.id, s.id) }}</span>
                   </SButton>
-                  <SButton type="outline" size="sm" @click="openMcpView(row.id, s.id, s._private)">{{ t('common.view') }}</SButton>
+                  <SButton type="outline" size="small" @click="openMcpView(row.id, s.id, s._private)">{{ t('common.view') }}</SButton>
                 </template>
               </SEntityTable>
             </template>
@@ -606,11 +606,11 @@ async function saveMcpParams() {
     <SModal v-model:show="showParamsModal" :title="t('agents.mcp_params_title', { name: paramsMcpId })" width="md">
       <div class="params-hint">{{ t('agents.mcp_params_hint') }}</div>
       <div v-for="(row, i) in paramsRows" :key="i" class="params-row">
-        <SInput v-model:value="row.key" placeholder="Key" size="sm" style="flex:1" />
-        <SInput v-model:value="row.value" placeholder="Value" size="sm" style="flex:2" />
-        <SButton type="danger" size="sm" @click="paramsRows.splice(i,1)">×</SButton>
+        <SInput v-model:value="row.key" placeholder="Key" size="small" style="flex:1" />
+        <SInput v-model:value="row.value" placeholder="Value" size="small" style="flex:2" />
+        <SButton type="error" size="small" @click="paramsRows.splice(i,1)">×</SButton>
       </div>
-      <SButton type="outline" size="sm" @click="paramsRows.push({key:'',value:''})">{{ t('agents.mcp_params_add') }}</SButton>
+      <SButton type="outline" size="small" @click="paramsRows.push({key:'',value:''})">{{ t('agents.mcp_params_add') }}</SButton>
 
       <template #footer>
         <SButton type="outline" @click="showParamsModal = false">{{ t('common.cancel') }}</SButton>

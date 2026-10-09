@@ -14,6 +14,10 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "moduleResolution": "node",
-    "composite": true
+    "composite": true,
+    // 外部 @qingfeng346/ui-kit 仓库（link: 引入）自带独立 vue 副本：把 vue 统一归一到根 node_modules，避免 Vue 双实例类型冲突（声明在本文件，路径相对本文件）
+    "paths": {
+      "vue": ["./node_modules/vue"]
+    }
   }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { SButton } from '@sbot/ui-kit'
+import { SButton } from '@qingfeng346/ui-kit'
 import type { ToolCallEvent, ToolApprovalPayload, ChatLabels } from '../types'
 import { ApprovalTimeoutValue, ToolApproval } from '../types'
 import { resolveLabels } from '../labels'
@@ -54,10 +54,10 @@ onUnmounted(stopTimer)
     <div class="chatui-tool-approval-top">
       <span class="chatui-tool-approval-label">{{ L.executeTool }}<strong>{{ toolCall.name }}</strong></span>
       <div class="chatui-tool-approval-btns">
-        <SButton size="sm" @click="approve(ToolApproval.Allow)">{{ L.allow }}<span v-if="hasCountdown && timeoutOn === ToolApproval.Allow"> ({{ countdown }}s)</span></SButton>
-        <SButton type="outline" size="sm" @click="approve(ToolApproval.AlwaysArgs)">{{ L.alwaysAllowArgs }}</SButton>
-        <SButton type="outline" size="sm" @click="approve(ToolApproval.AlwaysTool)">{{ L.alwaysAllowAll }}</SButton>
-        <SButton type="error" size="sm" @click="approve(ToolApproval.Deny)">{{ L.deny }}<span v-if="hasCountdown && timeoutOn === ToolApproval.Deny"> ({{ countdown }}s)</span></SButton>
+        <SButton size="small" @click="approve(ToolApproval.Allow)">{{ L.allow }}<span v-if="hasCountdown && timeoutOn === ToolApproval.Allow"> ({{ countdown }}s)</span></SButton>
+        <SButton type="outline" size="small" @click="approve(ToolApproval.AlwaysArgs)">{{ L.alwaysAllowArgs }}</SButton>
+        <SButton type="outline" size="small" @click="approve(ToolApproval.AlwaysTool)">{{ L.alwaysAllowAll }}</SButton>
+        <SButton type="error" size="small" @click="approve(ToolApproval.Deny)">{{ L.deny }}<span v-if="hasCountdown && timeoutOn === ToolApproval.Deny"> ({{ countdown }}s)</span></SButton>
       </div>
     </div>
     <div v-if="Object.keys(toolCall.args).length" class="chatui-tool-approval-args" @click="argsExpanded = !argsExpanded">

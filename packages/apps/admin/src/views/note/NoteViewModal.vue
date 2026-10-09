@@ -2,8 +2,8 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { toast, confirm } from '@sbot/ui-kit'
-import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
+import { toast, confirm } from '@qingfeng346/ui-kit'
+import { SModal, SButton, SBadge, SFormItem, SInput, STextarea, SCheckCard, SEntityTable, type EntityTableColumn } from '@qingfeng346/ui-kit'
 import type { NoteItem, NoteConfig } from '@/shared/types'
 
 const { t } = useI18n()
@@ -60,7 +60,7 @@ async function remove(id: string) {
 }
 
 async function clearAll() {
-  if (!await confirm.show({ title: t('notes.confirm_clear', { name: noteConfig.value.name || noteId.value }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('notes.confirm_clear', { name: noteConfig.value.name || noteId.value }), error: true , content: ''})) return
   try {
     await apiFetch(noteUrl(), 'DELETE')
     notes.value = []
@@ -130,16 +130,16 @@ defineExpose({ open })
 <template>
   <SModal v-model:show="visible" :title="t('notes.content_title')" width="xl">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <SBadge variant="neutral" size="sm">{{ noteConfig.name || noteId }}</SBadge>
+      <SBadge variant="neutral" size="medium">{{ noteConfig.name || noteId }}</SBadge>
       <span v-if="!loading" class="note-count-badge">{{ t('notes.count', { count: notes.length }) }}</span>
     </div>
 
     <div class="modal-toolbar">
-      <SButton type="outline" size="sm" :disabled="loading" @click="load">
+      <SButton type="outline" size="small" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('notes.add_note') }}</SButton>
-      <SButton type="danger" size="sm" style="margin-left:auto" :disabled="notes.length === 0" @click="clearAll">
+      <SButton type="primary" size="small" @click="openAdd">{{ t('notes.add_note') }}</SButton>
+      <SButton type="error" size="small" style="margin-left:auto" :disabled="notes.length === 0" @click="clearAll">
         {{ t('notes.clear_all') }}
       </SButton>
     </div>
@@ -165,8 +165,8 @@ defineExpose({ open })
         <span class="cell-secondary">{{ row.lastAccessed ? new Date(row.lastAccessed).toLocaleString() : '-' }}</span>
       </template>
       <template #ops="{ row }">
-        <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
-        <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+        <SButton type="outline" size="small" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
+        <SButton type="error" size="small" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
       </template>
     </SEntityTable>
   </SModal>

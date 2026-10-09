@@ -10,6 +10,7 @@ import {
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { heartbeatService } from "../Heartbeat/HeartbeatService";
+import { disposeSession as scratchpadDisposeSession } from "agent.scratchpad";
 
 const logger = LoggerService.getLogger("ChannelDataService.ts");
 
@@ -299,6 +300,7 @@ export class ChannelDataService {
      * 删 session 级联：
      * - 该 session 的 auto profile（visible profile 共享，不动）
      * - heartbeat where sessionId = session.id
+     * - scratchpad 会话板文件（同步删，内部吞错；孤儿文件由 TTL 清扫兜底）
      * - heartbeat 服务 reload
      * 注：profile 引用的 agenda/memory 模板数据归 admin 管理，这里不动。
      */
@@ -306,6 +308,7 @@ export class ChannelDataService {
         await database.destroy(database.sessionProfile, { where: { autoForSessionId: id } });
         await database.destroy(database.heartbeat, { where: { sessionId: id } });
         await database.destroy(database.channelSession, { where: { id } });
+        scratchpadDisposeSession(config.getScratchpadDir(), id);
         await heartbeatService.reloadAll();
     }
 

@@ -110,3 +110,17 @@ export async function ensureBuiltinAgents(): Promise<void> {
     console.error('[defaultAgent] ensureBuiltinAgents failed:', e)
   }
 }
+
+/** 把所有内置助手的 model 统一切换为指定模型（整体替换带回原字段，只改 model） */
+export async function setBuiltinAgentsModel(model: string): Promise<void> {
+  try {
+    const agents = await api.get<AgentListItem[]>('/api/agents')
+    for (const def of BUILTIN_AGENTS) {
+      const existing = agents?.find(a => a.id === def.id)
+      if (!existing || existing.model === model) continue
+      await api.put(`/api/agents/${def.id}`, { ...existing, model })
+    }
+  } catch (e) {
+    console.error('[defaultAgent] setBuiltinAgentsModel failed:', e)
+  }
+}

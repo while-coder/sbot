@@ -5,8 +5,8 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { profileManager } from '@/managers/profileManager'
 import { modelManager } from '@/managers/modelManager'
-import { SButton, SInput, SFormItem, SPageToolbar, SPageContent, SEntityTable, SModal, toast, confirm } from '@sbot/ui-kit'
-import type { EntityTableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SFormItem, SPageToolbar, SPageContent, SEntityTable, SModal, toast, confirm } from '@qingfeng346/ui-kit'
+import type { EntityTableColumn } from '@qingfeng346/ui-kit'
 import { ApprovalTimeoutValue, IntentFilterMode } from '@sbot/shared'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides } from '@/components/SessionConfigOverridesEditor.vue'
@@ -201,7 +201,7 @@ async function save() {
   if (!isCreating.value && editing.value) {
     const count = editing.value.sessionCount ?? 0
     if (count > 1) {
-      const ok = await confirm.show({ title: t('channels.profile_shared_warn', { n: count }), danger: true , content: ''})
+      const ok = await confirm.show({ title: t('channels.profile_shared_warn', { n: count }), error: true , content: ''})
       if (!ok) return
     }
   }
@@ -258,7 +258,7 @@ async function remove(p: ProfileRow) {
     toast.show('error', t('session_profiles.delete_in_use', { n: p.sessionCount }))
     return
   }
-  if (!await confirm.show({ title: t('session_profiles.confirm_delete', { name: p.name }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('session_profiles.confirm_delete', { name: p.name }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/session-profiles/${p.id}`, 'DELETE')
     toast.show('success', t('common.deleted'))
@@ -272,8 +272,8 @@ async function remove(p: ProfileRow) {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="loadAll">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('session_profiles.add') }}</SButton>
+      <SButton type="outline" size="small" @click="loadAll">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('session_profiles.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
       <SEntityTable :columns="columns" :rows="profiles" row-key="id" :empty-text="t('session_profiles.empty')">
@@ -292,8 +292,8 @@ async function remove(p: ProfileRow) {
           <span v-else style="color: var(--sui-fg-disabled)">{{ t('session_profiles.used_by_none') }}</span>
         </template>
         <template #ops="{ row }">
-          <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
-          <SButton type="danger" size="sm" :disabled="(row.sessionCount ?? 0) > 0" @click="remove(row)">{{ t('common.delete') }}</SButton>
+          <SButton type="outline" size="small" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
+          <SButton type="error" size="small" :disabled="(row.sessionCount ?? 0) > 0" @click="remove(row)">{{ t('common.delete') }}</SButton>
         </template>
       </SEntityTable>
     </SPageContent>

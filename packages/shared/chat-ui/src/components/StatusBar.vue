@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { SCheckbox } from '@sbot/ui-kit'
+import { SCheckbox } from '@qingfeng346/ui-kit'
 import type { UsageInfo, ChatLabels } from '../types'
 import { resolveLabels } from '../labels'
 import { useCompact } from '../composables/useCompact'

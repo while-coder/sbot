@@ -5,7 +5,7 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { mcpManager } from '@/managers/mcpManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STab, STabs, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STab, STabs, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@qingfeng346/ui-kit'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
@@ -198,7 +198,7 @@ async function save() {
 
 async function remove(id: string) {
   const displayName = mcpManager.nameOf(id)
-  if (!await confirm.show({ title: t('mcp.confirm_delete', { name: displayName }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('mcp.confirm_delete', { name: displayName }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/mcp/${encodeURIComponent(id)}`, 'DELETE')
     toast.show('success', t('common.deleted'))
@@ -214,8 +214,8 @@ onMounted(load)
 <template>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('mcp.add') }}</SButton>
+      <SButton type="outline" size="small" @click="load">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('mcp.add') }}</SButton>
     </SPageToolbar>
 
     <div class="tab-bar-row">
@@ -229,7 +229,7 @@ onMounted(load)
           :tab="src"
         />
       </STabs>
-      <SInput v-model:value="searchQuery" size="sm" :placeholder="t('mcp.search_placeholder')" class="mcp-search" />
+      <SInput v-model:value="searchQuery" size="small" :placeholder="t('mcp.search_placeholder')" class="mcp-search" />
     </div>
 
     <SPageContent>
@@ -251,9 +251,9 @@ onMounted(load)
         </template>
         <template #ops="{ row }">
           <div class="ops-cell">
-            <SButton type="outline" size="sm" @click="viewTools(row.id)">{{ t('common.view') }}</SButton>
-            <SButton v-if="row.source !== '内置'" type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
-            <SButton v-if="row.source !== '内置'" type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+            <SButton type="outline" size="small" @click="viewTools(row.id)">{{ t('common.view') }}</SButton>
+            <SButton v-if="row.source !== '内置'" type="outline" size="small" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+            <SButton v-if="row.source !== '内置'" type="error" size="small" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
       </SEntityTable>
@@ -277,11 +277,11 @@ onMounted(load)
         </SFormItem>
         <SFormSection :title="t('mcp.headers_section')">
           <div v-for="(row, i) in headerRows" :key="i" class="kv-row">
-            <SInput v-model:value="row.key" size="sm" placeholder="Key" class="kv-key" />
-            <SInput v-model:value="row.value" size="sm" placeholder="Value" class="kv-value" />
-            <SButton type="danger" size="sm" @click="headerRows.splice(i,1)">×</SButton>
+            <SInput v-model:value="row.key" size="small" placeholder="Key" class="kv-key" />
+            <SInput v-model:value="row.value" size="small" placeholder="Value" class="kv-value" />
+            <SButton type="error" size="small" @click="headerRows.splice(i,1)">×</SButton>
           </div>
-          <SButton type="outline" size="sm" @click="headerRows.push({key:'',value:''})">+ Header</SButton>
+          <SButton type="outline" size="small" @click="headerRows.push({key:'',value:''})">+ Header</SButton>
         </SFormSection>
       </template>
       <template v-else>
@@ -290,18 +290,18 @@ onMounted(load)
         </SFormItem>
         <SFormSection :title="t('mcp.args_section')">
           <div v-for="(_arg, i) in argsList" :key="i" class="kv-row">
-            <SInput v-model:value="argsList[i]" size="sm" :placeholder="t('mcp.arg_placeholder')" class="kv-flex" />
-            <SButton type="danger" size="sm" @click="argsList.splice(i,1)">×</SButton>
+            <SInput v-model:value="argsList[i]" size="small" :placeholder="t('mcp.arg_placeholder')" class="kv-flex" />
+            <SButton type="error" size="small" @click="argsList.splice(i,1)">×</SButton>
           </div>
-          <SButton type="outline" size="sm" @click="argsList.push('')">{{ t('mcp.add_arg') }}</SButton>
+          <SButton type="outline" size="small" @click="argsList.push('')">{{ t('mcp.add_arg') }}</SButton>
         </SFormSection>
         <SFormSection :title="t('mcp.env_section')">
           <div v-for="(row, i) in envRows" :key="i" class="kv-row">
-            <SInput v-model:value="row.key" size="sm" placeholder="Key" class="kv-key" />
-            <SInput v-model:value="row.value" size="sm" placeholder="Value" class="kv-value" />
-            <SButton type="danger" size="sm" @click="envRows.splice(i,1)">×</SButton>
+            <SInput v-model:value="row.key" size="small" placeholder="Key" class="kv-key" />
+            <SInput v-model:value="row.value" size="small" placeholder="Value" class="kv-value" />
+            <SButton type="error" size="small" @click="envRows.splice(i,1)">×</SButton>
           </div>
-          <SButton type="outline" size="sm" @click="envRows.push({key:'',value:''})">+ Env</SButton>
+          <SButton type="outline" size="small" @click="envRows.push({key:'',value:''})">+ Env</SButton>
         </SFormSection>
         <SFormItem :label="t('mcp.cwd_label')">
           <SInput v-model:value="form.cwd" :placeholder="t('mcp.cwd_placeholder')" />

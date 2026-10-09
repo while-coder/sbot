@@ -2,8 +2,8 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { toast, confirm } from '@sbot/ui-kit'
-import { SModal, SButton, SBadge } from '@sbot/ui-kit'
+import { toast, confirm } from '@qingfeng346/ui-kit'
+import { SModal, SButton, SBadge } from '@qingfeng346/ui-kit'
 import MessageList from '@/components/MessageList.vue'
 import { MessageKind } from '@sbot/chat-ui'
 import type { StoredMessage } from '@sbot/chat-ui'
@@ -55,7 +55,7 @@ async function load() {
 }
 
 async function clear() {
-  if (!await confirm.show({ title: t('savers.clear_confirm'), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('savers.clear_confirm'), error: true , content: ''})) return
   try {
     await apiFetch(historyUrl(), 'DELETE')
     toast.show('success', t('savers.history_cleared'))
@@ -115,7 +115,7 @@ defineExpose({ open, openByDbId })
 <template>
   <SModal v-model:show="visible" :title="t('savers.history_title')" width="xl">
     <div class="modal-toolbar">
-      <SButton type="outline" size="sm" :disabled="loading" @click="load">
+      <SButton type="outline" size="small" :disabled="loading" @click="load">
         {{ loading ? t('common.loading') : t('common.refresh') }}
       </SButton>
       <label v-if="archivedCount > 0" class="show-archived-toggle">
@@ -123,14 +123,14 @@ defineExpose({ open, openByDbId })
         <span>{{ t('savers.show_archived') }}</span>
         <span class="show-archived-count">({{ archivedCount }})</span>
       </label>
-      <SButton type="danger" size="sm" style="margin-left:auto" :disabled="messages.length === 0" @click="clear">
+      <SButton type="error" size="small" style="margin-left:auto" :disabled="messages.length === 0" @click="clear">
         {{ t('savers.clear_history') }}
       </SButton>
     </div>
 
     <div class="saver-view-header">
       <div class="saver-view-header-row">
-        <SBadge variant="neutral" size="sm">{{ saverName }}</SBadge>
+        <SBadge variant="neutral" size="medium">{{ saverName }}</SBadge>
         <span v-if="!loading" class="saver-count-badge">
           {{ archivedCount > 0
             ? t('savers.count_with_archived', { count: messages.length, archived: archivedCount })

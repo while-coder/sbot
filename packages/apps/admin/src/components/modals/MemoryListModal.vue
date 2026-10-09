@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
-import { SButton, SModal, SBadge, SInput, SSelect, STab, STabs, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SModal, SBadge, SInput, SSelect, STab, STabs, toast, confirm } from '@qingfeng346/ui-kit'
 
 interface MemorySummary {
   slug: string
@@ -197,7 +197,7 @@ async function restoreHistoryVersion() {
   const item = selectedHistory.value
   const slug = historySlug.value.trim()
   if (!memoryId.value || !item || !slug || restoring.value) return
-  if (!await confirm.show({ title: t('memory_profiles.confirm_restore_memory', { slug, commit: item.shortHash }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('memory_profiles.confirm_restore_memory', { slug, commit: item.shortHash }), error: true , content: ''})) return
   restoring.value = true
   try {
     await apiFetch(
@@ -285,7 +285,7 @@ async function retryFailedJob(job: MemoryJob) {
 
 async function deleteFailedJob(job: MemoryJob) {
   if (!memoryId.value || job.status !== 'failed' || deletingJobId.value !== null) return
-  if (!await confirm.show({ title: t('memory_profiles.confirm_delete_job', { id: job.id }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('memory_profiles.confirm_delete_job', { id: job.id }), error: true , content: ''})) return
   deletingJobId.value = job.id
   try {
     await apiFetch(`/api/memories/${encodeURIComponent(memoryId.value)}/jobs/${job.id}?${viewQuery.value}`, 'DELETE')
@@ -300,7 +300,7 @@ async function deleteFailedJob(job: MemoryJob) {
 
 async function deleteMemory(memory: MemorySummary) {
   if (!memoryId.value || !memory.slug || deleting.value) return
-  if (!await confirm.show({ title: t('memory_profiles.confirm_delete_memory', { slug: memory.slug }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('memory_profiles.confirm_delete_memory', { slug: memory.slug }), error: true , content: ''})) return
   deleting.value = true
   try {
     const query = [viewQuery.value, `entryScope=${memory.scope}`].join('&')
@@ -323,11 +323,11 @@ function fmtTime(value: number | null | undefined): string {
   return new Date(value).toLocaleString()
 }
 
-function kindVariant(kind: string): 'success' | 'info' | 'warning' | 'danger' | 'neutral' {
+function kindVariant(kind: string): 'success' | 'info' | 'warning' | 'error' | 'neutral' {
   if (kind === 'preference') return 'success'
   if (kind === 'workflow') return 'info'
   if (kind === 'decision') return 'warning'
-  if (kind === 'project') return 'danger'
+  if (kind === 'project') return 'error'
   return 'neutral'
 }
 
@@ -344,8 +344,8 @@ function jobStatusLabel(status: string): string {
   return status
 }
 
-function jobVariant(status: string): 'success' | 'info' | 'warning' | 'danger' | 'neutral' {
-  if (status === 'failed') return 'danger'
+function jobVariant(status: string): 'success' | 'info' | 'warning' | 'error' | 'neutral' {
+  if (status === 'failed') return 'error'
   if (status === 'pending') return 'warning'
   return 'neutral'
 }
@@ -371,14 +371,14 @@ defineExpose({ openByMemoryId })
 
       <div v-if="tab === 'memories'" class="memory-tab-pane">
         <div class="memory-tab-toolbar">
-          <SSelect v-model:value="selectedWorkPath" size="sm" :options="scopeOptions" @change="changeScope" />
+          <SSelect v-model:value="selectedWorkPath" size="small" :options="scopeOptions" @change="changeScope" />
           <div class="memory-actions">
-            <SBadge variant="info" size="sm">
+            <SBadge variant="info" size="medium">
               {{ t(selectedWorkPath ? 'memory_profiles.operation_scope_workspace' : 'memory_profiles.operation_scope_global') }}
             </SBadge>
-            <SButton type="outline" size="sm" :loading="loading" @click="loadMemories">{{ t('common.refresh') }}</SButton>
-            <SButton type="outline" size="sm" :loading="reconciling" @click="runReconcile">{{ t('memory_profiles.run_reconcile') }}</SButton>
-            <SButton type="outline" size="sm" :loading="consolidating" @click="runConsolidate">{{ t('memory_profiles.run_consolidate') }}</SButton>
+            <SButton type="outline" size="small" :loading="loading" @click="loadMemories">{{ t('common.refresh') }}</SButton>
+            <SButton type="outline" size="small" :loading="reconciling" @click="runReconcile">{{ t('memory_profiles.run_reconcile') }}</SButton>
+            <SButton type="outline" size="small" :loading="consolidating" @click="runConsolidate">{{ t('memory_profiles.run_consolidate') }}</SButton>
           </div>
         </div>
 
@@ -396,8 +396,8 @@ defineExpose({ openByMemoryId })
             >
               <div class="memory-row-head">
                 <div class="memory-row-badges">
-                  <SBadge variant="neutral" size="xs">{{ m.scope }}</SBadge>
-                  <SBadge :variant="kindVariant(m.kind)" size="xs">{{ m.kind }}</SBadge>
+                  <SBadge variant="neutral" size="small">{{ m.scope }}</SBadge>
+                  <SBadge :variant="kindVariant(m.kind)" size="small">{{ m.kind }}</SBadge>
                 </div>
                 <span class="memory-row-slug">{{ m.slug }}</span>
               </div>
@@ -416,14 +416,14 @@ defineExpose({ openByMemoryId })
                 <div class="memory-detail-slug">{{ selected.slug }}</div>
               </div>
               <div class="memory-detail-badges">
-                <SBadge variant="neutral" size="sm">{{ selected.scope }}</SBadge>
-                <SBadge :variant="kindVariant(selected.kind)" size="sm">{{ selected.kind }}</SBadge>
-                <SBadge variant="neutral" size="sm">{{ t('memory_profiles.evidence') }} {{ selected.evidenceCount }}</SBadge>
-                <SBadge variant="neutral" size="sm">{{ t('memory_profiles.read_count') }} {{ selected.readCount }}</SBadge>
-                <SButton type="outline" size="sm" @click="openMemoryHistory(selected)">
+                <SBadge variant="neutral" size="medium">{{ selected.scope }}</SBadge>
+                <SBadge :variant="kindVariant(selected.kind)" size="medium">{{ selected.kind }}</SBadge>
+                <SBadge variant="neutral" size="medium">{{ t('memory_profiles.evidence') }} {{ selected.evidenceCount }}</SBadge>
+                <SBadge variant="neutral" size="medium">{{ t('memory_profiles.read_count') }} {{ selected.readCount }}</SBadge>
+                <SButton type="outline" size="small" @click="openMemoryHistory(selected)">
                   {{ t('memory_profiles.view_memory_history') }}
                 </SButton>
-                <SButton type="danger" size="sm" :loading="deleting" @click="deleteMemory(selected)">
+                <SButton type="error" size="small" :loading="deleting" @click="deleteMemory(selected)">
                   {{ t('memory_profiles.delete_memory') }}
                 </SButton>
               </div>
@@ -439,10 +439,10 @@ defineExpose({ openByMemoryId })
 
       <div v-else-if="tab === 'history'" class="memory-tab-pane">
         <div class="memory-tab-toolbar memory-history-toolbar">
-          <SSelect v-model:value="selectedWorkPath" size="sm" :options="scopeOptions" @change="changeScope" />
+          <SSelect v-model:value="selectedWorkPath" size="small" :options="scopeOptions" @change="changeScope" />
           <div class="memory-actions memory-history-filter">
-            <SInput v-model:value="historySlug" size="sm" :placeholder="t('memory_profiles.history_slug_placeholder')" @keyup.enter="loadHistory" />
-            <SButton type="outline" size="sm" :loading="historyLoading" @click="loadHistory">
+            <SInput v-model:value="historySlug" size="small" :placeholder="t('memory_profiles.history_slug_placeholder')" @keyup.enter="loadHistory" />
+            <SButton type="outline" size="small" :loading="historyLoading" @click="loadHistory">
               {{ t('memory_profiles.view_history') }}
             </SButton>
           </div>
@@ -477,7 +477,7 @@ defineExpose({ openByMemoryId })
               <SButton
                 v-if="historySlug.trim() && selectedHistory.restorable"
                 type="outline"
-                size="sm"
+                size="small"
                 :loading="restoring"
                 @click="restoreHistoryVersion"
               >
@@ -496,8 +496,8 @@ defineExpose({ openByMemoryId })
 
       <div v-else class="memory-tab-pane">
         <div class="memory-tab-toolbar">
-          <SSelect v-model:value="selectedWorkPath" size="sm" :options="scopeOptions" @change="changeScope" />
-          <SButton type="outline" size="sm" :loading="jobsLoading" @click="loadJobs">{{ t('common.refresh') }}</SButton>
+          <SSelect v-model:value="selectedWorkPath" size="small" :options="scopeOptions" @change="changeScope" />
+          <SButton type="outline" size="small" :loading="jobsLoading" @click="loadJobs">{{ t('common.refresh') }}</SButton>
         </div>
 
         <div class="memory-jobs">
@@ -510,7 +510,7 @@ defineExpose({ openByMemoryId })
                 <SButton
                   v-if="job.status === 'failed'"
                   type="outline"
-                  size="sm"
+                  size="small"
                   :loading="retryingJobId === job.id"
                   @click="retryFailedJob(job)"
                 >
@@ -518,14 +518,14 @@ defineExpose({ openByMemoryId })
                 </SButton>
                 <SButton
                   v-if="job.status === 'failed'"
-                  type="danger"
-                  size="sm"
+                  type="error"
+                  size="small"
                   :loading="deletingJobId === job.id"
                   @click="deleteFailedJob(job)"
                 >
                   {{ t('memory_profiles.delete_job') }}
                 </SButton>
-                <SBadge :variant="jobVariant(job.status)" size="sm">{{ jobStatusLabel(job.status) }}</SBadge>
+                <SBadge :variant="jobVariant(job.status)" size="medium">{{ jobStatusLabel(job.status) }}</SBadge>
               </div>
             </div>
             <div class="memory-job-grid">

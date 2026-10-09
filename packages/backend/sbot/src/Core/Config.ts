@@ -537,6 +537,10 @@ class Config {
   getAgendaPath(agendaId: string) {
     return this.getConfigPath(`agendas/${agendaId}`, true)
   }
+  /** 会话黑板根目录；文件名 `{channelSessionId}.json` 由 agent.scratchpad 插件负责。 */
+  getScratchpadDir() {
+    return this.getConfigPath('scratchpad', true)
+  }
   getMemoryProfile(id: string): MemoryProfileConfig | undefined {
     return this._settings.memoryProfiles?.[id.trim()];
   }

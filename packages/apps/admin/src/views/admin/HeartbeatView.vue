@@ -2,8 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
-import type { EntityTableColumn } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@qingfeng346/ui-kit'
+import type { EntityTableColumn } from '@qingfeng346/ui-kit'
 import { store } from '@/shared/store'
 import { channelManager } from '@/managers/channelManager'
 import { modelManager } from '@/managers/modelManager'
@@ -247,7 +247,7 @@ async function save() {
 }
 
 async function remove(hb: HeartbeatItem) {
-  if (!await confirm.show({ title: t('heartbeats.confirm_delete', { name: hb.name || hb.id }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('heartbeats.confirm_delete', { name: hb.name || hb.id }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/heartbeats/${hb.id}`, 'DELETE')
     toast.show('success', t('common.deleted'))
@@ -357,8 +357,8 @@ onMounted(async () => {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('heartbeats.add') }}</SButton>
+      <SButton type="outline" size="small" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('heartbeats.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
       <SEntityTable :columns="heartbeatColumns" :rows="heartbeats" row-key="id" :empty-text="t('heartbeats.empty')">
@@ -377,9 +377,9 @@ onMounted(async () => {
         <template #lastRun="{ row }"><span class="hb-time">{{ fmtTime(row.lastRun) }}</span></template>
         <template #nextRun="{ row }"><span class="hb-time">{{ nextRunOf(row) }}</span></template>
         <template #ops="{ row }">
-          <SButton type="outline" size="sm" @click="trigger(row)">{{ t('heartbeats.trigger') }}</SButton>
-          <SButton type="outline" size="sm" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
-          <SButton type="danger" size="sm" @click="remove(row)">{{ t('common.delete') }}</SButton>
+          <SButton type="outline" size="small" @click="trigger(row)">{{ t('heartbeats.trigger') }}</SButton>
+          <SButton type="outline" size="small" @click="openEdit(row)">{{ t('common.edit') }}</SButton>
+          <SButton type="error" size="small" @click="remove(row)">{{ t('common.delete') }}</SButton>
         </template>
       </SEntityTable>
     </SPageContent>
@@ -400,7 +400,7 @@ onMounted(async () => {
       <SFormItem v-if="form.mode === 'fixed'" :label="t('heartbeats.promptFile')" :hint="t('heartbeats.promptFile_hint')">
         <div class="prompt-field">
           <SSelect v-model:value="form.promptFile" class="prompt-select" :options="promptFileOptions" />
-          <SButton type="outline" size="sm" @click="openCreatePrompt('fixed')">+</SButton>
+          <SButton type="outline" size="small" @click="openCreatePrompt('fixed')">+</SButton>
         </div>
       </SFormItem>
 
@@ -425,7 +425,7 @@ onMounted(async () => {
         <SFormItem :label="t('heartbeats.decisionPromptFile')" :hint="t('heartbeats.decisionPromptFile_hint')">
           <div class="prompt-field">
             <SSelect v-model:value="form.decisionPromptFile" class="prompt-select" :options="promptFileOptions" />
-            <SButton type="outline" size="sm" @click="openCreatePrompt('smart')">+</SButton>
+            <SButton type="outline" size="small" @click="openCreatePrompt('smart')">+</SButton>
           </div>
         </SFormItem>
         <SFormItem :label="t('heartbeats.decisionModel') + ' *'" :hint="t('heartbeats.decisionModel_hint')">

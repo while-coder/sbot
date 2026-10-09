@@ -6,7 +6,7 @@ import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
 import { promptFileManager } from '@/managers/promptFileManager'
-import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@qingfeng346/ui-kit'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import ResourceRefs from '@/components/ResourceRefs.vue'
 import { useResourceRefs } from '@/composables/useResourceRefs'
@@ -104,7 +104,7 @@ async function save() {
 async function remove(id: string) {
   const p: any = profiles.value[id]
   const label = p?.name || id
-  if (!await confirm.show({ title: t('agenda_profiles.confirm_delete', { name: label }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('agenda_profiles.confirm_delete', { name: label }), error: true , content: ''})) return
   try {
     const res = await apiFetch(`/api/settings/agendaProfiles/${encodeURIComponent(id)}`, 'DELETE')
     settingsManager.apply(res.data)
@@ -127,8 +127,8 @@ async function refresh() {
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="refresh">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="sm" @click="openAdd">{{ t('agenda_profiles.add') }}</SButton>
+      <SButton type="outline" size="small" @click="refresh">{{ t('common.refresh') }}</SButton>
+      <SButton type="primary" size="small" @click="openAdd">{{ t('agenda_profiles.add') }}</SButton>
     </SPageToolbar>
     <SPageContent>
       <SEntityTable
@@ -157,9 +157,9 @@ async function refresh() {
         </template>
         <template #ops="{ row }">
           <div class="ops-row">
-            <SButton type="primary" size="sm" @click="viewAgendas(row)">{{ t('common.view') }}</SButton>
-            <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
-            <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+            <SButton type="primary" size="small" @click="viewAgendas(row)">{{ t('common.view') }}</SButton>
+            <SButton type="outline" size="small" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+            <SButton type="error" size="small" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
           </div>
         </template>
         <template #expanded="{ row }">

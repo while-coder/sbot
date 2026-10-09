@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, SSelect, SModal, SFormItem, SBadge, SPageToolbar, SPageContent, toast, confirm } from '@qingfeng346/ui-kit'
 
 const { t } = useI18n()
 
@@ -155,7 +155,7 @@ async function addSource() {
 }
 
 async function removeSource(index: number) {
-  if (!await confirm.show({ title: t('agentStore.source_removed') + '?', danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('agentStore.source_removed') + '?', error: true , content: ''})) return
   try {
     await apiFetch('/api/agent-store/remove', 'POST', { index })
     toast.show('success', t('agentStore.source_removed'))
@@ -288,8 +288,8 @@ onMounted(reload)
 <template>
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="openAddSource">{{ t('agentStore.add_source') }}</SButton>
-      <SButton type="primary" size="sm" @click="triggerFileLoad">{{ t('agentStore.import_file') }}</SButton>
+      <SButton type="outline" size="small" @click="openAddSource">{{ t('agentStore.add_source') }}</SButton>
+      <SButton type="primary" size="small" @click="triggerFileLoad">{{ t('agentStore.import_file') }}</SButton>
       <input
         ref="fileInputRef"
         type="file"
@@ -331,7 +331,7 @@ onMounted(reload)
         <span class="src-tab-close src-tab-close-temp" @click.stop="closeTempSource" title="Close">&times;</span>
       </button>
       <div class="src-tab-spacer" />
-      <SInput v-model:value="searchQuery" size="sm" :placeholder="t('agentStore.search_placeholder')" class="src-search-input" />
+      <SInput v-model:value="searchQuery" size="small" :placeholder="t('agentStore.search_placeholder')" class="src-search-input" />
     </div>
 
     <SPageContent>
@@ -340,7 +340,7 @@ onMounted(reload)
       <div v-else-if="sources.length === 0 && agents.length === 0" class="store-empty-hint">
         <div class="store-empty-text">{{ t('agentStore.no_sources') }}</div>
         <div class="store-empty-sub">{{ t('agentStore.add_source_hint') }}</div>
-        <SButton type="primary" size="sm" class="store-empty-action" @click="openAddSource">{{ t('agentStore.add_source') }}</SButton>
+        <SButton type="primary" size="small" class="store-empty-action" @click="openAddSource">{{ t('agentStore.add_source') }}</SButton>
       </div>
 
       <div v-else-if="filteredAgents.length === 0" class="store-loading">
@@ -380,7 +380,7 @@ onMounted(reload)
 
           <div class="store-card-actions">
             <SBadge v-if="a.installed" variant="success">{{ t('agentStore.installed') }}</SBadge>
-            <SButton v-else type="primary" size="sm" @click="openInstall(a)">{{ t('agentStore.install') }}</SButton>
+            <SButton v-else type="primary" size="small" @click="openInstall(a)">{{ t('agentStore.install') }}</SButton>
           </div>
         </div>
       </div>
@@ -401,7 +401,7 @@ onMounted(reload)
             <div class="src-list-item-name">{{ src.name || src.url }}</div>
             <div v-if="src.name" class="src-list-item-url">{{ src.url }}</div>
           </div>
-          <SButton type="danger" size="sm" @click="removeSource(idx)">{{ t('common.delete') }}</SButton>
+          <SButton type="error" size="small" @click="removeSource(idx)">{{ t('common.delete') }}</SButton>
         </div>
       </div>
       <template #footer>

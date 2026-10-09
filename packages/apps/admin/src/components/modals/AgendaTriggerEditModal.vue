@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SButton, SModal } from '@sbot/ui-kit'
+import { SButton, SModal } from '@qingfeng346/ui-kit'
 import AgendaTriggerFields from '@/components/AgendaTriggerFields.vue'
 import type { AgendaRow } from '@/composables/useAgendas'
 import { draftToSpec, emptyDraft, type TriggerDraft } from '@/composables/agendaTriggerDraft'
@@ -56,7 +56,7 @@ defineExpose({ openCreate })
 <style scoped>
 .agenda-trigger-edit-error {
   margin: var(--sui-sp-2) 0 0;
-  color: var(--sui-danger);
+  color: var(--sui-error);
   font-size: var(--sui-fs-sm);
 }
 </style>

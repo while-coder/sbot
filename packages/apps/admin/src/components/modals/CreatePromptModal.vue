@@ -2,8 +2,8 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { toast } from '@sbot/ui-kit'
-import { SModal, SButton, SFormItem, SInput, STextarea } from '@sbot/ui-kit'
+import { toast } from '@qingfeng346/ui-kit'
+import { SModal, SButton, SFormItem, SInput, STextarea } from '@qingfeng346/ui-kit'
 
 const props = defineProps<{
   prefix: string

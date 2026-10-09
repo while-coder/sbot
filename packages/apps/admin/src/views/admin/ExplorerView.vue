@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SButton, SPageToolbar, toast } from '@sbot/ui-kit'
+import { SButton, SPageToolbar, toast } from '@qingfeng346/ui-kit'
 import { WorkbenchPanel, WebSocketTransport, PathPickerModal } from '@sbot/chat-ui'
 
 const { t } = useI18n()
@@ -55,7 +55,7 @@ onMounted(() => {
   <div class="explorer-page">
     <SPageToolbar :title="t('explorer.title')">
       <span v-if="root" class="explorer-root-display">{{ root }}</span>
-      <SButton type="outline" size="sm" @click="openPicker">
+      <SButton type="outline" size="small" @click="openPicker">
         {{ root ? t('explorer.change_root') : t('explorer.pick_root') }}
       </SButton>
     </SPageToolbar>

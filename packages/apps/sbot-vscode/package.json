@@ -103,7 +103,7 @@
   "dependencies": {
     "@sbot/chat-ui": "workspace:*",
     "axios": "catalog:",
-    "@sbot/ui-kit": "workspace:*",
+    "@qingfeng346/ui-kit": "link:../../../../ui-kit/ui-kit",
     "@sbot/shared": "workspace:*",
     "ws": "catalog:"
   },

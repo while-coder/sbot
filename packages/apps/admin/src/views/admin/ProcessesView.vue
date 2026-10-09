@@ -2,8 +2,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { SButton, SBadge, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@sbot/ui-kit'
-import type { EntityTableColumn } from '@sbot/ui-kit'
+import { SButton, SBadge, SPageToolbar, SPageContent, SEntityTable, toast, confirm } from '@qingfeng346/ui-kit'
+import type { EntityTableColumn } from '@qingfeng346/ui-kit'
 
 const { t } = useI18n()
 
@@ -43,7 +43,7 @@ async function load() {
 }
 
 async function stop(item: ProcessInfo) {
-  if (!await confirm.show({ title: t('processes.confirm_stop', { name: item.agentName }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('processes.confirm_stop', { name: item.agentName }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/acp-sessions/${encodeURIComponent(item.key)}`, 'DELETE')
     toast.show('success', t('processes.stopped'))
@@ -55,7 +55,7 @@ async function stop(item: ProcessInfo) {
 
 async function stopAll() {
   if (!items.value.length) return
-  if (!await confirm.show({ title: t('processes.confirm_stop_all'), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('processes.confirm_stop_all'), error: true , content: ''})) return
   try {
     await apiFetch('/api/acp-sessions', 'DELETE')
     toast.show('success', t('processes.stopped'))
@@ -88,8 +88,8 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
-      <SButton type="danger" size="sm" :disabled="!items.length" @click="stopAll">{{ t('processes.stop_all') }}</SButton>
+      <SButton type="outline" size="small" @click="load">{{ t('common.refresh') }}</SButton>
+      <SButton type="error" size="small" :disabled="!items.length" @click="stopAll">{{ t('processes.stop_all') }}</SButton>
     </SPageToolbar>
     <SPageContent>
       <SEntityTable :columns="columns" :rows="items" row-key="key" :empty-text="t('processes.empty')">
@@ -108,10 +108,10 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <span class="cell-time">{{ fmtTime(row.lastAccessed) }}</span>
         </template>
         <template #status="{ row }">
-          <SBadge :variant="row.alive ? 'success' : 'danger'">{{ row.alive ? t('processes.alive') : t('processes.dead') }}</SBadge>
+          <SBadge :variant="row.alive ? 'success' : 'error'">{{ row.alive ? t('processes.alive') : t('processes.dead') }}</SBadge>
         </template>
         <template #ops="{ row }">
-          <SButton type="danger" size="sm" :disabled="!row.alive" @click="stop(row)">{{ t('processes.stop') }}</SButton>
+          <SButton type="error" size="small" :disabled="!row.alive" @click="stop(row)">{{ t('processes.stop') }}</SButton>
         </template>
       </SEntityTable>
     </SPageContent>

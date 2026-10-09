@@ -3,7 +3,7 @@ import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { renderToolParams } from '@/utils/mcpSchema'
-import { SModal, SButton, SBadge, SSwitch, STab, STabs } from '@sbot/ui-kit'
+import { SModal, SButton, SBadge, SSwitch, STab, STabs } from '@qingfeng346/ui-kit'
 
 defineProps<{
   visible: boolean
@@ -71,8 +71,8 @@ function close() {
         <template v-else>
           <div class="tools-approve-bar">
             <span class="tools-approve-label">{{ t('mcp.auto_approve') }}</span>
-            <SButton v-if="!allApproved" type="outline" size="sm" @click="emit('approve-all')">{{ t('mcp.approve_all') }}</SButton>
-            <SButton v-else type="outline" size="sm" @click="emit('revoke-all')">{{ t('mcp.revoke_all') }}</SButton>
+            <SButton v-if="!allApproved" type="outline" size="small" @click="emit('approve-all')">{{ t('mcp.approve_all') }}</SButton>
+            <SButton v-else type="outline" size="small" @click="emit('revoke-all')">{{ t('mcp.revoke_all') }}</SButton>
           </div>
           <ul class="tools-list">
             <li v-for="(tool, i) in tools" :key="tool.name">
@@ -107,7 +107,7 @@ function close() {
                 <div class="prompt-args-title">{{ t('mcp.prompt_args') }}</div>
                 <div v-for="arg in prompt.arguments" :key="arg.name" class="prompt-arg-item">
                   <code>{{ arg.name }}</code>
-                  <SBadge v-if="arg.required" variant="danger" size="xs">{{ t('mcp.prompt_required') }}</SBadge>
+                  <SBadge v-if="arg.required" variant="error" size="small">{{ t('mcp.prompt_required') }}</SBadge>
                   <span v-if="arg.description" class="prompt-arg-desc">{{ arg.description }}</span>
                 </div>
               </div>
@@ -129,7 +129,7 @@ function close() {
               <div class="resource-meta">
                 <span class="resource-label">{{ t('mcp.resource_uri') }}:</span>
                 <code class="resource-uri">{{ res.uri }}</code>
-                <SBadge v-if="res.mimeType" variant="info" size="xs">{{ res.mimeType }}</SBadge>
+                <SBadge v-if="res.mimeType" variant="info" size="small">{{ res.mimeType }}</SBadge>
               </div>
             </div>
           </li>
@@ -137,7 +137,7 @@ function close() {
             <div class="tool-header">
               <div class="tool-name" :class="{ expanded: expandedResources.has(tmpl.uriTemplate) }" style="display:inline-flex; gap:6px; align-items:center" @click="toggleResource(tmpl.uriTemplate)">
                 {{ tmpl.name }}
-                <SBadge variant="warning" size="xs">{{ t('mcp.resource_template') }}</SBadge>
+                <SBadge variant="warning" size="small">{{ t('mcp.resource_template') }}</SBadge>
               </div>
             </div>
             <div v-if="tmpl.description" class="tool-desc">{{ tmpl.description }}</div>
@@ -145,7 +145,7 @@ function close() {
               <div class="resource-meta">
                 <span class="resource-label">{{ t('mcp.resource_uri') }}:</span>
                 <code class="resource-uri">{{ tmpl.uriTemplate }}</code>
-                <SBadge v-if="tmpl.mimeType" variant="info" size="xs">{{ tmpl.mimeType }}</SBadge>
+                <SBadge v-if="tmpl.mimeType" variant="info" size="small">{{ tmpl.mimeType }}</SBadge>
               </div>
             </div>
           </li>

@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { SButton, SSelect, SInput, SPageToolbar, STab, STabs, toast } from '@sbot/ui-kit'
+import { SButton, SSelect, SInput, SPageToolbar, STab, STabs, toast } from '@qingfeng346/ui-kit'
 
 const { t } = useI18n()
 
@@ -149,13 +149,13 @@ onUnmounted(() => stopAutoRefresh())
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar :title="t('logs.title')">
       <template #actions>
-        <SButton type="outline" size="sm" :loading="loading" :disabled="!selectedFile" @click="loadContent()">{{ t('common.refresh') }}</SButton>
-        <SButton type="outline" size="sm" :disabled="!selectedFile" @click="downloadFile()">{{ t('logs.download') }}</SButton>
+        <SButton type="outline" size="small" :loading="loading" :disabled="!selectedFile" @click="loadContent()">{{ t('common.refresh') }}</SButton>
+        <SButton type="outline" size="small" :disabled="!selectedFile" @click="downloadFile()">{{ t('logs.download') }}</SButton>
         <label class="auto-refresh-toggle">
           <input v-model="autoRefresh" type="checkbox" />
           <span>{{ t('logs.auto_refresh') }}</span>
         </label>
-        <SSelect v-if="autoRefresh" v-model:value.number="refreshInterval" size="sm" :options="intervalSelectOptions" />
+        <SSelect v-if="autoRefresh" v-model:value.number="refreshInterval" size="small" :options="intervalSelectOptions" />
       </template>
     </SPageToolbar>
     <div class="logs-tab-bar">
@@ -164,11 +164,11 @@ onUnmounted(() => stopAutoRefresh())
         <STab name="lifecycle" :count="hasLifecycleLog ? 1 : 0" :tab="t('logs.lifecycle')" />
       </STabs>
       <div class="logs-inline-filters">
-        <SSelect v-if="!isLifecycleLog" v-model:value="selectedNormalFile" size="sm" class="logs-file-select" :options="normalFileOptions" />
+        <SSelect v-if="!isLifecycleLog" v-model:value="selectedNormalFile" size="small" class="logs-file-select" :options="normalFileOptions" />
         <span v-else class="logs-current-file">{{ t('logs.lifecycle_file') }}</span>
-        <SSelect v-model:value="levelFilter" size="sm" :options="levelFilterOptions" @change="loadContent()" />
-        <SInput v-model:value="keyword" size="sm" :placeholder="t('logs.search_placeholder')" class="logs-keyword" @keyup.enter="loadContent()" />
-        <SSelect v-model:value.number="tailCount" size="sm" :options="tailCountOptions" @change="loadContent()" />
+        <SSelect v-model:value="levelFilter" size="small" :options="levelFilterOptions" @change="loadContent()" />
+        <SInput v-model:value="keyword" size="small" :placeholder="t('logs.search_placeholder')" class="logs-keyword" @keyup.enter="loadContent()" />
+        <SSelect v-model:value.number="tailCount" size="small" :options="tailCountOptions" @change="loadContent()" />
       </div>
     </div>
     <div ref="logRef" class="log-viewer">

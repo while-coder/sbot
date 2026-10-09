@@ -13,7 +13,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
-import { SButton, SSelect, SCard, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast } from '@sbot/ui-kit'
+import { SButton, SSelect, SCard, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast } from '@qingfeng346/ui-kit'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 
@@ -656,17 +656,17 @@ onMounted(runQuery)
             <input v-model="endDate" type="date" class="date-input" :min="startDate" @change="onDateChange" />
           </div>
 
-          <SSelect v-model:value="granularity" size="sm" class="granularity-select" :options="granularityOptions" @change="runQuery" />
+          <SSelect v-model:value="granularity" size="small" class="granularity-select" :options="granularityOptions" @change="runQuery" />
         </div>
 
         <div class="query-row">
-          <SSelect v-model:value="agentId" size="sm" class="filter-select" :options="agentFilterOptions" @change="runQuery" />
-          <SSelect v-model:value="modelId" size="sm" class="filter-select" :options="modelFilterOptions" @change="runQuery" />
-          <SSelect v-model:value="provider" size="sm" class="filter-select" :options="providerFilterOptions" @change="runQuery" />
-          <SSelect v-model:value="channelId" size="sm" class="filter-select" :options="channelFilterOptions" @change="runQuery" />
+          <SSelect v-model:value="agentId" size="small" class="filter-select" :options="agentFilterOptions" @change="runQuery" />
+          <SSelect v-model:value="modelId" size="small" class="filter-select" :options="modelFilterOptions" @change="runQuery" />
+          <SSelect v-model:value="provider" size="small" class="filter-select" :options="providerFilterOptions" @change="runQuery" />
+          <SSelect v-model:value="channelId" size="small" class="filter-select" :options="channelFilterOptions" @change="runQuery" />
           <div class="query-actions">
-            <SButton size="sm" @click="resetFilters">{{ t('usage.reset') }}</SButton>
-            <SButton type="primary" size="sm" :disabled="loading" @click="runQuery">{{ t('common.refresh') }}</SButton>
+            <SButton size="small" @click="resetFilters">{{ t('usage.reset') }}</SButton>
+            <SButton type="primary" size="small" :disabled="loading" @click="runQuery">{{ t('common.refresh') }}</SButton>
           </div>
         </div>
       </div>
@@ -773,7 +773,7 @@ onMounted(runQuery)
               <span>{{ t('usage.total_tokens') }}</span>
               <strong>{{ formatNumber(selectedBucket.row.totalTokens) }}</strong>
             </div>
-            <SButton size="sm" @click="clearTrendSelection">{{ t('usage.view_all') }}</SButton>
+            <SButton size="small" @click="clearTrendSelection">{{ t('usage.view_all') }}</SButton>
           </div>
         </SCard>
 
@@ -812,10 +812,10 @@ onMounted(runQuery)
               <p>{{ selectedBucket ? t('usage.drilldown_logs_hint') : t('usage.call_logs_hint') }}</p>
             </div>
             <div class="pager">
-              <SSelect v-model:value="pageSize" size="sm" :options="pageSizeOptions" @change="onPageSizeChange" />
+              <SSelect v-model:value="pageSize" size="small" :options="pageSizeOptions" @change="onPageSizeChange" />
               <span>{{ t('usage.page_of', { cur: logPage + 1, total: totalPages }) }}</span>
-              <SButton size="sm" :disabled="logPage === 0 || logsLoading" @click="loadLogPage(logPage - 1)">{{ t('usage.prev_page') }}</SButton>
-              <SButton size="sm" :disabled="logPage >= totalPages - 1 || logsLoading" @click="loadLogPage(logPage + 1)">{{ t('usage.next_page') }}</SButton>
+              <SButton size="small" :disabled="logPage === 0 || logsLoading" @click="loadLogPage(logPage - 1)">{{ t('usage.prev_page') }}</SButton>
+              <SButton size="small" :disabled="logPage >= totalPages - 1 || logsLoading" @click="loadLogPage(logPage + 1)">{{ t('usage.next_page') }}</SButton>
             </div>
           </div>
           <div class="table-scroll log-table">

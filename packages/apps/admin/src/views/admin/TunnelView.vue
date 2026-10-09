@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
-import { SButton, SInput, SCard, SFormItem, SCheckCard, SBadge, SPageToolbar, SPageContent, toast, confirm } from '@sbot/ui-kit'
+import { SButton, SInput, SCard, SFormItem, SCheckCard, SBadge, SPageToolbar, SPageContent, toast, confirm } from '@qingfeng346/ui-kit'
 import { TunnelProviderType, type TunnelStatus, type TunnelConfig } from '@sbot/shared'
 
 const { t } = useI18n()
@@ -65,7 +65,7 @@ function addTunnel(type: TunnelProviderType): void {
 async function removeTunnel(idx: number): Promise<void> {
   const c = tunnels[idx]
   if (!c) return
-  if (!await confirm.show({ title: t('tunnel.delete_confirm', { id: c.id }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('tunnel.delete_confirm', { id: c.id }), error: true , content: ''})) return
   tunnels.splice(idx, 1)
   delete expanded[c.id]
 }
@@ -195,16 +195,16 @@ const PT = TunnelProviderType
 <template>
   <div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
     <SPageToolbar>
-      <SButton type="primary" size="sm" :disabled="busy || !isDirty" @click="saveConfig">
+      <SButton type="primary" size="small" :disabled="busy || !isDirty" @click="saveConfig">
         {{ t('common.save') }}{{ isDirty ? ' *' : '' }}
       </SButton>
-      <SButton type="primary" size="sm" :disabled="busy || tunnels.length === 0" @click="startAll">
+      <SButton type="primary" size="small" :disabled="busy || tunnels.length === 0" @click="startAll">
         {{ t('tunnel.start_all') }}
       </SButton>
-      <SButton type="danger" size="sm" :disabled="busy || runningCount === 0" @click="stopAll">
+      <SButton type="error" size="small" :disabled="busy || runningCount === 0" @click="stopAll">
         {{ t('tunnel.stop_all') }}
       </SButton>
-      <SButton type="outline" size="sm" :disabled="!hasAnyUrl" @click="copyAllUrls">
+      <SButton type="outline" size="small" :disabled="!hasAnyUrl" @click="copyAllUrls">
         {{ t('tunnel.copy_all_urls') }}
       </SButton>
     </SPageToolbar>
@@ -214,9 +214,9 @@ const PT = TunnelProviderType
         <div class="form-hint">{{ t('tunnel.intro_hint') }}</div>
 
         <div class="entries-toolbar">
-          <SButton type="outline" size="sm" @click="addTunnel(PT.CloudflareQuick)">+ {{ t('tunnel.provider_cloudflare_quick') }}</SButton>
-          <SButton type="outline" size="sm" @click="addTunnel(PT.CloudflareToken)">+ {{ t('tunnel.provider_cloudflare_token') }}</SButton>
-          <SButton type="outline" size="sm" @click="addTunnel(PT.Localtunnel)">+ {{ t('tunnel.provider_localtunnel') }}</SButton>
+          <SButton type="outline" size="small" @click="addTunnel(PT.CloudflareQuick)">+ {{ t('tunnel.provider_cloudflare_quick') }}</SButton>
+          <SButton type="outline" size="small" @click="addTunnel(PT.CloudflareToken)">+ {{ t('tunnel.provider_cloudflare_token') }}</SButton>
+          <SButton type="outline" size="small" @click="addTunnel(PT.Localtunnel)">+ {{ t('tunnel.provider_localtunnel') }}</SButton>
         </div>
 
         <div v-if="tunnels.length === 0" class="empty">{{ t('tunnel.empty') }}</div>
@@ -227,9 +227,9 @@ const PT = TunnelProviderType
             <span class="entry-name">{{ tunnel.name || tunnel.id }}</span>
             <span class="entry-type">{{ t(`tunnel.provider_${tunnel.type.replace(/-/g, '_')}`) }}</span>
             <SBadge v-if="statusOf(tunnel.id)?.running" type="success">{{ t('tunnel.running') }}</SBadge>
-            <SBadge v-else-if="statusOf(tunnel.id)?.error" type="danger">{{ t('tunnel.error') }}</SBadge>
-            <SBadge v-else-if="tunnel.enabled === false" type="default">{{ t('tunnel.disabled') }}</SBadge>
-            <SBadge v-else type="default">{{ t('tunnel.stopped_state') }}</SBadge>
+            <SBadge v-else-if="statusOf(tunnel.id)?.error" type="error">{{ t('tunnel.error') }}</SBadge>
+            <SBadge v-else-if="tunnel.enabled === false" type="neutral">{{ t('tunnel.disabled') }}</SBadge>
+            <SBadge v-else type="neutral">{{ t('tunnel.stopped_state') }}</SBadge>
             <span class="entry-url" v-if="statusOf(tunnel.id)?.publicUrl" @click.stop>
               <a :href="statusOf(tunnel.id)?.publicUrl" target="_blank">{{ statusOf(tunnel.id)?.publicUrl }}</a>
             </span>
@@ -237,7 +237,7 @@ const PT = TunnelProviderType
               <SButton
                 v-if="!statusOf(tunnel.id)?.running"
                 type="primary"
-                size="sm"
+                size="small"
                 :disabled="busy || tunnel.enabled === false"
                 @click="startEntry(tunnel.id)"
               >
@@ -245,8 +245,8 @@ const PT = TunnelProviderType
               </SButton>
               <SButton
                 v-else
-                type="danger"
-                size="sm"
+                type="error"
+                size="small"
                 :disabled="busy"
                 @click="stopEntry(tunnel.id)"
               >
@@ -255,12 +255,12 @@ const PT = TunnelProviderType
               <SButton
                 v-if="statusOf(tunnel.id)?.publicUrl"
                 type="text"
-                size="sm"
+                size="small"
                 @click="copyUrl(statusOf(tunnel.id)?.publicUrl)"
               >
                 {{ t('tunnel.copy') }}
               </SButton>
-              <SButton type="text" size="sm" :title="t('common.delete')" @click="removeTunnel(idx)">✕</SButton>
+              <SButton type="text" size="small" :title="t('common.delete')" @click="removeTunnel(idx)">✕</SButton>
             </span>
           </div>
 
@@ -404,7 +404,7 @@ const PT = TunnelProviderType
   color: var(--sui-fg-muted);
 }
 .error-text {
-  color: var(--sui-fg-danger, #dc2626);
+  color: var(--sui-fg-error, #dc2626);
   word-break: break-all;
 }
 .logs-block {

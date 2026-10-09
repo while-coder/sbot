@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Layout from '@/layouts/Layout.vue'
-import { SMessageHost } from '@sbot/ui-kit'
+import { SMessageHost } from '@qingfeng346/ui-kit'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()

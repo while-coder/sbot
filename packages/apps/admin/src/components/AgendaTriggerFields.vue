@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { SButton, SFormItem, SInput, SSelect, STextarea } from '@sbot/ui-kit'
+import { SButton, SFormItem, SInput, SSelect, STextarea } from '@qingfeng346/ui-kit'
 import SessionSelect from '@/components/SessionSelect.vue'
 import type { TriggerDraft } from '@/composables/agendaTriggerDraft'
 
@@ -59,7 +59,7 @@ function onChange(): void { emit('change') }
       <SFormItem :label="t('agenda.edit_trigger_start_at')" :hint="t('agenda.edit_trigger_start_at_hint')">
         <div class="agenda-trigger-due">
           <input v-model="props.draft.startAt" type="datetime-local" class="agenda-trigger-datetime" @change="onChange" />
-          <SButton v-if="props.draft.startAt" type="outline" size="sm" @click="props.draft.startAt = ''; onChange()">{{ t('agenda.edit_clear_due') }}</SButton>
+          <SButton v-if="props.draft.startAt" type="outline" size="small" @click="props.draft.startAt = ''; onChange()">{{ t('agenda.edit_clear_due') }}</SButton>
         </div>
       </SFormItem>
       <SFormItem :label="t('agenda.edit_trigger_count')" :hint="t('agenda.edit_trigger_count_hint')">
@@ -74,7 +74,7 @@ function onChange(): void { emit('change') }
       <SFormItem :label="t('agenda.edit_trigger_start_at')" :hint="t('agenda.edit_trigger_start_at_hint')">
         <div class="agenda-trigger-due">
           <input v-model="props.draft.startAt" type="datetime-local" class="agenda-trigger-datetime" @change="onChange" />
-          <SButton v-if="props.draft.startAt" type="outline" size="sm" @click="props.draft.startAt = ''; onChange()">{{ t('agenda.edit_clear_due') }}</SButton>
+          <SButton v-if="props.draft.startAt" type="outline" size="small" @click="props.draft.startAt = ''; onChange()">{{ t('agenda.edit_clear_due') }}</SButton>
         </div>
       </SFormItem>
       <SFormItem :label="t('agenda.edit_trigger_count')" :hint="t('agenda.edit_trigger_count_hint')">

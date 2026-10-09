@@ -1,17 +1,17 @@
-/* @sbot/ui-kit bridge for chat-ui hosts
+/* @qingfeng346/ui-kit bridge for chat-ui hosts
  *
- * 用于 desktop / pwa / vscode-extension 等不直接消费 @sbot/ui-kit 设计 token 的宿主。
- * 让 @sbot/ui-kit 组件在 chat-ui 上下文中跟随当前 chat-ui 主题（含 vscode 透传）。
+ * 用于 desktop / pwa / vscode-extension 等不直接消费 @qingfeng346/ui-kit 设计 token 的宿主。
+ * 让 @qingfeng346/ui-kit 组件在 chat-ui 上下文中跟随当前 chat-ui 主题（含 vscode 透传）。
  *
  * 加载顺序（host App.vue）：
  *   import '@sbot/chat-ui/themes/variables.css'
  *   import '@sbot/chat-ui/themes/theme-XXX.css'
  *   import '@sbot/chat-ui/themes/sbot-ui-bridge.css'
  *
- * admin 不需要加载本文件 —— 它已经直接加载 @sbot/ui-kit/style.css。
+ * admin 不需要加载本文件 —— 它已经直接加载 @qingfeng346/ui-kit/style.css。
  */
 
-@import '../../../ui-kit/src/styles/index.css';
+@import '@qingfeng346/ui-kit/style.css';
 
 :root {
   /* ── 中性背景 ─────────────────────────────────────────── */
@@ -42,11 +42,11 @@
   --sui-on-primary:     var(--chatui-btn-fg);
 
   /* ── 危险色 ──────────────────────────────────────────── */
-  --sui-danger:         var(--chatui-btn-danger);
-  --sui-danger-hover:   var(--chatui-btn-danger);
-  --sui-danger-soft:    var(--chatui-diff-del-bg);
-  --sui-on-danger-soft: var(--chatui-diff-del-fg);
-  --sui-danger-strong:  var(--chatui-btn-danger);
+  --sui-error:         var(--chatui-btn-danger);
+  --sui-error-hover:   var(--chatui-btn-danger);
+  --sui-error-soft:    var(--chatui-diff-del-bg);
+  --sui-on-error-soft: var(--chatui-diff-del-fg);
+  --sui-error-strong:  var(--chatui-btn-danger);
 
   /* ── 信息 / 状态语义色 ───────────────────────────────── */
   --sui-info:            var(--chatui-accent);

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SBadge, SModal, toast } from '@sbot/ui-kit'
+import { SBadge, SModal, toast } from '@qingfeng346/ui-kit'
 import { apiFetch } from '@/shared/api'
 import type { AgendaRow, AgendaTrigger, AgendaTriggerFire } from '@/composables/useAgendas'
 
@@ -71,11 +71,11 @@ defineExpose({ openFor, openForItem })
       <li v-for="fire in fires" :key="fire.id" class="fires-row">
         <div class="fires-head">
           <span class="fires-time">{{ formatTime(fire.firedAt) }}</span>
-          <SBadge v-if="showTriggerId" variant="neutral" size="xs">#{{ fire.triggerId }}</SBadge>
-          <SBadge :variant="fire.delivered ? 'success' : 'danger'" size="xs">
+          <SBadge v-if="showTriggerId" variant="neutral" size="small">#{{ fire.triggerId }}</SBadge>
+          <SBadge :variant="fire.delivered ? 'success' : 'error'" size="small">
             {{ fire.delivered ? t('agenda.fires_delivered') : t('agenda.fires_failed') }}
           </SBadge>
-          <SBadge variant="info" size="xs">{{ actionLabel(fire.action) }}</SBadge>
+          <SBadge variant="info" size="small">{{ actionLabel(fire.action) }}</SBadge>
           <span
             v-if="fire.scheduledAt && fire.scheduledAt !== fire.firedAt"
             class="fires-scheduled"

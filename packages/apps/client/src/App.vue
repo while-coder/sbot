@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ServerChatShell, WebSocketTransport, useServerSelection } from '@sbot/chat-ui'
 import type { RemoteEntry } from '@sbot/chat-ui'
-import { SMessageHost } from '@sbot/ui-kit'
+import { SMessageHost } from '@qingfeng346/ui-kit'
 import ThemeMenu from './ThemeMenu.vue'
 import { UpdaterDialog } from '@while-coder/tauri-updater-vue'
 import '@sbot/chat-ui/themes/variables.css'

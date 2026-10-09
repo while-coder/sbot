@@ -2,8 +2,8 @@ import { createApp } from 'vue'
 import router from './router'
 import App from './App.vue'
 import { i18n } from './i18n'
-import { createUiKit } from '@sbot/ui-kit'
-import '@sbot/ui-kit/style.css'
+import { createUiKit } from '@qingfeng346/ui-kit'
+import '@qingfeng346/ui-kit/style.css'
 
 const app = createApp(App)
 app.use(router)

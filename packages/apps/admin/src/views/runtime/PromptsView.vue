@@ -2,8 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { toast, confirm } from '@sbot/ui-kit'
-import { SButton, SIconButton, SBadge, SChip, STreePanel, STreeRow } from '@sbot/ui-kit'
+import { toast, confirm } from '@qingfeng346/ui-kit'
+import { SButton, SIconButton, SBadge, SChip, STreePanel, STreeRow } from '@qingfeng346/ui-kit'
 
 const { t } = useI18n()
 
@@ -228,7 +228,7 @@ async function confirmCreate(category: string) {
 }
 
 async function deleteFile(filePath: string) {
-  if (!await confirm.show({ title: t('prompts.confirm_delete', { name: filePath }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('prompts.confirm_delete', { name: filePath }), error: true , content: ''})) return
   try {
     await apiFetch(`/api/prompts/content?path=${encodeURIComponent(filePath)}`, 'DELETE')
     toast.show('success', t('common.deleted'))
@@ -296,7 +296,7 @@ onMounted(async () => {
               <span v-if="node.isUserOnly" class="prompts-user-badge" :title="t('prompts.user_only')">&#9679;</span>
             </template>
             <template v-if="node.isUserOnly && node.type === 'file'" #actions>
-              <SIconButton size="16" variant="plain" danger class="s-tree-node__hover-only" :title="t('common.delete')" @click.stop="deleteFile(node.path)">&times;</SIconButton>
+              <SIconButton size="16" variant="plain" type="error" class="s-tree-node__hover-only" :title="t('common.delete')" @click.stop="deleteFile(node.path)">&times;</SIconButton>
             </template>
           </STreeRow>
         </template>
@@ -311,8 +311,8 @@ onMounted(async () => {
           <SBadge v-if="isOverride" variant="info" pill>{{ t('prompts.badge_custom') }}</SBadge>
           <SBadge v-else variant="neutral" pill>{{ t('prompts.badge_default') }}</SBadge>
           <span style="flex:1" />
-          <SButton type="outline" size="sm" :disabled="!isOverride || isUserOnly" @click="reset">{{ t('prompts.reset') }}</SButton>
-          <SButton type="primary" size="sm" :disabled="saving || !isDirty" :loading="saving" @click="save">
+          <SButton type="outline" size="small" :disabled="!isOverride || isUserOnly" @click="reset">{{ t('prompts.reset') }}</SButton>
+          <SButton type="primary" size="small" :disabled="saving || !isDirty" :loading="saving" @click="save">
             {{ saving ? t('prompts.saving') : t('prompts.save') }}
           </SButton>
         </div>

@@ -7,7 +7,7 @@ import { store } from '@/shared/store'
 import { mcpManager } from '@/managers/mcpManager'
 import { skillsManager } from '@/managers/skillsManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { toast } from '@sbot/ui-kit'
+import { toast } from '@qingfeng346/ui-kit'
 import { fetchLatestRelease, compareSemver, GITHUB_REPO_URL, GITHUB_RELEASES_URL, DOCS_URL, DOCS_ZH_URL } from '@sbot/shared'
 import { useResponsive } from '../composables/useResponsive'
 import { saveLocale } from '@/i18n'
@@ -570,7 +570,7 @@ body {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--sui-danger);
+  background: var(--sui-error);
   flex-shrink: 0;
   margin-left: auto;
 }
@@ -646,7 +646,7 @@ table tr:hover td { background: var(--sui-bg-subtle); }
 .tool-param + .tool-param { border-top: 1px solid var(--sui-bg-soft); }
 .param-name { font-family: var(--sui-font-mono); font-weight: 600; color: var(--sui-fg); }
 .param-type { color: var(--sui-violet); font-size: var(--sui-fs-xs); margin-left: var(--sui-sp-1); }
-.param-required { color: var(--sui-danger); font-size: var(--sui-fs-xxs); font-weight: 600; margin-left: var(--sui-sp-1); }
+.param-required { color: var(--sui-error); font-size: var(--sui-fs-xxs); font-weight: 600; margin-left: var(--sui-sp-1); }
 .param-desc { color: var(--sui-fg-muted); margin-top: 1px; }
 .param-enum { color: var(--sui-cyan); font-size: var(--sui-fs-xs); font-family: var(--sui-font-mono); }
 .param-default { color: var(--sui-fg-disabled); font-size: var(--sui-fs-xs); }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { SBadge, STab, STabs, STreePanel, STreeRow, SSwitch } from '@sbot/ui-kit'
+import { SBadge, STab, STabs, STreePanel, STreeRow, SSwitch } from '@qingfeng346/ui-kit'
 import type { IChatTransport } from '../transport'
 import type { ChatLabels, GitStatusItem } from '../types'
 import type { ExplorerGitViewState } from '../composables/useExplorerViewState'
@@ -77,9 +77,9 @@ function gitStatusKind(item: GitStatusItem): string {
   return gitStatusView(item).kind
 }
 
-function gitStatusBadgeVariant(kind: string): 'info' | 'warning' | 'success' | 'danger' | 'neutral' {
+function gitStatusBadgeVariant(kind: string): 'info' | 'warning' | 'success' | 'error' | 'neutral' {
   if (kind === 'added') return 'success'
-  if (kind === 'deleted') return 'danger'
+  if (kind === 'deleted') return 'error'
   if (kind === 'modified' || kind === 'copied') return 'info'
   if (kind === 'renamed' || kind === 'conflict') return 'warning'
   return 'neutral'
@@ -426,7 +426,7 @@ onMounted(() => {
             <span v-if="item.oldPath" class="chatui-explorer-git-old">{{ item.oldPath }} -> </span>{{ item.path }}
           </span>
           <template #suffix>
-            <SBadge :variant="gitStatusBadgeVariant(gitStatusKind(item))" size="xs">
+            <SBadge :variant="gitStatusBadgeVariant(gitStatusKind(item))" size="small">
               {{ gitStatusLabel(item) }}
             </SBadge>
           </template>
@@ -449,7 +449,7 @@ onMounted(() => {
             <SBadge
               v-if="selectedGitKind"
               :variant="gitStatusBadgeVariant(selectedGitKind)"
-              size="xs"
+              size="small"
               pill
             >
               {{ selectedGitStatus }}

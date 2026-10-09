@@ -5,10 +5,10 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { settingsManager } from '@/managers/settingsManager'
 import { modelManager } from '@/managers/modelManager'
-import { toast, confirm } from '@sbot/ui-kit'
+import { toast, confirm } from '@qingfeng346/ui-kit'
 import { AgentMode, ACPSessionMode } from '@/shared/types'
 import type { AgentConfig, SubAgentRef } from '@/shared/types'
-import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard, STagInput } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, STextarea, SSelect, SFormItem, SFormSection, SHint, SCheckCard, STagInput } from '@qingfeng346/ui-kit'
 
 const { t } = useI18n()
 
@@ -226,7 +226,7 @@ async function generateDesc() {
 }
 
 async function deleteSubAgent(idx: number) {
-  if (!await confirm.show({ title: t('agents.confirm_delete_sub'), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('agents.confirm_delete_sub'), error: true , content: ''})) return
   tempSubAgents.value.splice(idx, 1)
   toast.show('success', t('agents.sub_deleted'))
 }
@@ -287,7 +287,7 @@ defineExpose({ open })
     <template v-if="form.type === AgentMode.ACP">
       <SFormItem :label="t('agents.acp_preset')">
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <SButton v-for="(p, i) in acpPresets" :key="i" type="outline" size="sm" @click="applyPreset(i)">{{ p.label }}</SButton>
+          <SButton v-for="(p, i) in acpPresets" :key="i" type="outline" size="small" @click="applyPreset(i)">{{ p.label }}</SButton>
         </div>
       </SFormItem>
       <SFormItem :label="t('agents.acp_command') + ' *'">
@@ -296,9 +296,9 @@ defineExpose({ open })
       <SFormItem :label="t('agents.acp_args')">
         <div v-for="(_, i) in form.args" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
           <SInput v-model:value="form.args[i]" :placeholder="t('agents.acp_args_placeholder')" style="flex:1" />
-          <SButton type="danger" size="sm" @click="form.args.splice(i, 1)" style="flex-shrink:0">&times;</SButton>
+          <SButton type="error" size="small" @click="form.args.splice(i, 1)" style="flex-shrink:0">&times;</SButton>
         </div>
-        <SButton type="outline" size="sm" @click="form.args.push('')">+ {{ t('agents.acp_args_add') }}</SButton>
+        <SButton type="outline" size="small" @click="form.args.push('')">+ {{ t('agents.acp_args_add') }}</SButton>
       </SFormItem>
       <SFormItem :label="t('agents.acp_session_mode')" :hint="t('agents.acp_session_mode_hint')">
         <SSelect v-model:value="form.sessionMode" :options="[
@@ -313,9 +313,9 @@ defineExpose({ open })
         <div v-for="(item, i) in form.env" :key="i" style="display:flex;gap:6px;margin-bottom:4px">
           <SInput v-model:value="item.key" placeholder="KEY" style="flex:1" />
           <SInput v-model:value="item.value" placeholder="VALUE" style="flex:2" />
-          <SButton type="danger" size="sm" @click="form.env.splice(i, 1)" style="flex-shrink:0">&times;</SButton>
+          <SButton type="error" size="small" @click="form.env.splice(i, 1)" style="flex-shrink:0">&times;</SButton>
         </div>
-        <SButton type="outline" size="sm" @click="form.env.push({ key: '', value: '' })">+ {{ t('agents.acp_env_add') }}</SButton>
+        <SButton type="outline" size="small" @click="form.env.push({ key: '', value: '' })">+ {{ t('agents.acp_env_add') }}</SButton>
       </SFormItem>
     </template>
 
@@ -337,7 +337,7 @@ defineExpose({ open })
       <SFormSection>
         <template #title>
           <span>{{ t('agents.sub_agents') }}</span>
-          <SButton type="outline" size="sm" @click="addSubAgent">{{ t('agents.add_sub') }}</SButton>
+          <SButton type="outline" size="small" @click="addSubAgent">{{ t('agents.add_sub') }}</SButton>
         </template>
         <div v-for="(ref, i) in tempSubAgents" :key="i" class="sub-agent-item">
           <div class="sub-agent-item-header">
@@ -345,8 +345,8 @@ defineExpose({ open })
               <span class="sub-agent-item-name">{{ (agents[ref.id] as any)?.name || ref.id }}</span>
             </div>
             <div class="ops-cell">
-              <SButton type="outline" size="sm" @click="editSubAgent(i)">{{ t('common.edit') }}</SButton>
-              <SButton type="danger" size="sm" @click="deleteSubAgent(i)">{{ t('common.delete') }}</SButton>
+              <SButton type="outline" size="small" @click="editSubAgent(i)">{{ t('common.edit') }}</SButton>
+              <SButton type="error" size="small" @click="deleteSubAgent(i)">{{ t('common.delete') }}</SButton>
             </div>
           </div>
           <div class="sub-agent-item-desc">{{ ref.desc }}</div>
@@ -368,7 +368,7 @@ defineExpose({ open })
     </SFormItem>
     <SFormItem :label="t('agents.sub_desc_label') + ' *'">
       <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-        <SButton type="outline" size="sm" :disabled="!subForm.id || generatingDesc" @click="generateDesc">
+        <SButton type="outline" size="small" :disabled="!subForm.id || generatingDesc" @click="generateDesc">
           {{ generatingDesc ? t('agents.generating_desc') : t('agents.generate_desc') }}
         </SButton>
       </div>

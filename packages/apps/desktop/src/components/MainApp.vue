@@ -3,7 +3,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { ChatView, ChatEventType, WebSocketTransport } from '@sbot/chat-ui'
 import type { ChatEvent, IChatTransport } from '@sbot/chat-ui'
-import { SModal, toast } from '@sbot/ui-kit'
+import { SModal, toast } from '@qingfeng346/ui-kit'
 import SplashGate from './SplashGate.vue'
 import OnboardingCard from './OnboardingCard.vue'
 import SettingsApp from './settings/SettingsApp.vue'
@@ -11,6 +11,7 @@ import { backend } from '../lib/backend'
 import { api } from '../lib/api'
 import { BUILTIN_AGENT_IDS, ensureBuiltinAgents } from '../lib/defaultAgent'
 import { ensureBuiltinSaver } from '../lib/defaultSaver'
+import { ensureBuiltinProfiles } from '../lib/defaultProfiles'
 
 const ready = computed(() => backend.phase === 'ready' && !!backend.baseUrl)
 
@@ -51,12 +52,16 @@ watch(ready, (isReady) => {
     void refreshModelsEmpty()
     void ensureBuiltinAgents()
     void ensureBuiltinSaver()
+    void ensureBuiltinProfiles()
   }
 }, { immediate: true })
 
 // 首次启动 models 为空时跳过创建内置助手，配好模型后补建
 watch(modelsEmpty, (isEmpty) => {
-  if (!isEmpty && backend.baseUrl) void ensureBuiltinAgents()
+  if (!isEmpty && backend.baseUrl) {
+    void ensureBuiltinAgents()
+    void ensureBuiltinProfiles()
+  }
 })
 
 function openModelsSettings(): void {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { STreePanel, STreeRow, SIconButton, SModal, SInput, SButton, confirm } from '@sbot/ui-kit'
+import { STreePanel, STreeRow, SIconButton, SModal, SInput, SButton, confirm } from '@qingfeng346/ui-kit'
 import type { FsUploadProgress, IChatTransport } from '../transport'
 import type { ChatLabels, FsTreeItem } from '../types'
 import type { ExplorerFilesViewState } from '../composables/useExplorerViewState'
@@ -347,7 +347,7 @@ async function handleDelete(item: FsTreeItem): Promise<void> {
     content: tpl(L.value.explorerConfirmDelete, { name: item.name }),
     confirmText: L.value.explorerDelete,
     cancelText: L.value.cancel,
-    danger: true,
+    error: true,
   })
   if (!ok) return
   busy.value = true
@@ -463,7 +463,7 @@ async function confirmDiscardDirty(): Promise<boolean> {
     title: L.value.explorerEditDirty,
     content: L.value.explorerEditDiscardConfirm,
     cancelText: L.value.cancel,
-    danger: true,
+    error: true,
   })
 }
 
@@ -499,7 +499,7 @@ async function saveEdit(): Promise<void> {
         title: L.value.explorerEdit,
         content: L.value.explorerEditStaleConfirm,
         cancelText: L.value.cancel,
-        danger: true,
+        error: true,
       })
       if (reload) {
         const path = selectedPath.value
@@ -795,14 +795,14 @@ onMounted(() => {
       <!-- <div v-if="editable && hasRoot" class="chatui-explorer-tree-toolbar">
         <SIconButton
           variant="outline"
-          size="sm"
+          size="small"
           :title="L.explorerNewFolder"
           :disabled="busy"
           @click="handleNewFolder(rootPath)"
         >＋</SIconButton>
         <SIconButton
           variant="outline"
-          size="sm"
+          size="small"
           :title="L.explorerUpload"
           :disabled="busy"
           @click="handleUpload(rootPath)"
@@ -845,7 +845,7 @@ onMounted(() => {
               <SIconButton
                 v-if="item.type === 'dir'"
                 class="s-tree-node__hover-only"
-                size="xs"
+                size="small"
                 variant="plain"
                 :title="L.explorerNewSubfolder"
                 :disabled="busy"
@@ -854,7 +854,7 @@ onMounted(() => {
               <SIconButton
                 v-if="item.type === 'dir'"
                 class="s-tree-node__hover-only"
-                size="xs"
+                size="small"
                 variant="plain"
                 :title="L.explorerUploadHere"
                 :disabled="busy"
@@ -862,9 +862,9 @@ onMounted(() => {
               >⤒</SIconButton>
               <SIconButton
                 class="s-tree-node__hover-only"
-                size="xs"
+                size="small"
                 variant="plain"
-                danger
+                type="error"
                 :title="L.explorerDelete"
                 :disabled="busy"
                 @click="handleDelete(item)"
@@ -898,14 +898,14 @@ onMounted(() => {
           <SIconButton
             v-if="useHostDownload"
             variant="outline"
-            size="sm"
+            size="small"
             :title="L.explorerDownload || 'Download'"
             @click="onDownload"
           >⤓</SIconButton>
           <SIconButton
             v-else-if="rawDownloadHref"
             variant="outline"
-            size="sm"
+            size="small"
             :href="rawDownloadHref"
             target="_blank"
             :title="L.explorerDownload || 'Download'"
@@ -913,7 +913,7 @@ onMounted(() => {
           <SIconButton
             v-if="canEdit && !editing"
             variant="outline"
-            size="sm"
+            size="small"
             :title="L.explorerEdit"
             @click="startEdit"
           >✎</SIconButton>

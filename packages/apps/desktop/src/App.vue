@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { SMessageHost } from '@sbot/ui-kit'
+import { SMessageHost } from '@qingfeng346/ui-kit'
 import MainApp from './components/MainApp.vue'
 </script>
 

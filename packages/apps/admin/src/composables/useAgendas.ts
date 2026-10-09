@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '@/shared/api'
-import { toast, confirm } from '@sbot/ui-kit'
+import { toast, confirm } from '@qingfeng346/ui-kit'
 
 export type AgendaStatus = 'pending' | 'done' | 'cancelled' | 'expired'
 export type AgendaPriority = 'low' | 'normal' | 'high'
@@ -141,7 +141,7 @@ export function useAgendas(opts: UseAgendasOptions) {
   }
 
   async function cancel(row: AgendaRow) {
-    if (!await confirm.show({ title: t('agenda.confirm_cancel', { id: row.item.id }), danger: true , content: ''})) return
+    if (!await confirm.show({ title: t('agenda.confirm_cancel', { id: row.item.id }), error: true , content: ''})) return
     try {
       await apiFetch(`/api/agendas/${row.item.id}/cancel`, 'POST', { agendaId: row.agendaId })
       toast.show('success', t('common.saved'))
@@ -186,7 +186,7 @@ export function useAgendas(opts: UseAgendasOptions) {
   }
 
   async function remove(row: AgendaRow) {
-    if (!await confirm.show({ title: t('agenda.confirm_delete', { id: row.item.id }), danger: true , content: ''})) return
+    if (!await confirm.show({ title: t('agenda.confirm_delete', { id: row.item.id }), error: true , content: ''})) return
     try {
       await apiFetch(`/api/agendas/${row.item.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
       toast.show('success', t('common.deleted'))
@@ -222,7 +222,7 @@ export function useAgendas(opts: UseAgendasOptions) {
 
   async function removeTrigger(payload: { row: AgendaRow; trigger: AgendaTrigger }) {
     const { row, trigger } = payload
-    if (!await confirm.show({ title: t('agenda.confirm_delete_trigger', { id: trigger.id }), danger: true , content: ''})) return
+    if (!await confirm.show({ title: t('agenda.confirm_delete_trigger', { id: trigger.id }), error: true , content: ''})) return
     try {
       await apiFetch(`/api/agendas/triggers/${trigger.id}?agendaId=${encodeURIComponent(row.agendaId)}`, 'DELETE')
       toast.show('success', t('common.deleted'))

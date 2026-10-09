@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   SButton, SInput, SSelect, SSwitch, STagInput, SFormItem, SFormSection, toast,
-} from '@sbot/ui-kit'
+} from '@qingfeng346/ui-kit'
 import { api } from '../../../lib/api'
 import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { BUILTIN_AGENTS, BUILTIN_AGENT_MCPS } from '../../../lib/defaultAgent'

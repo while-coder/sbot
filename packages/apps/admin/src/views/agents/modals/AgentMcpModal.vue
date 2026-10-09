@@ -5,13 +5,13 @@ import { apiFetch } from '@/shared/api'
 import { store } from '@/shared/store'
 import { mcpManager } from '@/managers/mcpManager'
 import { settingsManager } from '@/managers/settingsManager'
-import { toast, confirm } from '@sbot/ui-kit'
+import { toast, confirm } from '@qingfeng346/ui-kit'
 import { McpTransport } from '@/shared/types'
 import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
 import { sourceBadgeStyle } from '@/utils/badges'
 import McpToolsModal from '@/components/modals/McpToolsModal.vue'
-import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, SSelect, SFormItem, SFormSection, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@qingfeng346/ui-kit'
 
 const { t } = useI18n()
 
@@ -322,7 +322,7 @@ async function save() {
 }
 async function remove(id: string) {
   const displayName = (servers.value[id] as any)?.name || id
-  if (!await confirm.show({ title: t('mcp.confirm_delete', { name: displayName }), danger: true , content: ''})) return
+  if (!await confirm.show({ title: t('mcp.confirm_delete', { name: displayName }), error: true , content: ''})) return
   try {
     await apiFetch(`${apiBase()}/${encodeURIComponent(id)}`, 'DELETE')
     toast.show('success', t('common.deleted'))
@@ -446,7 +446,7 @@ defineExpose({ open })
           />
           <STab :name="t('agents.mcp_exclusive_tab')" :count="Object.keys(servers).length" :tab="t('agents.mcp_exclusive_tab')" />
         </STabs>
-        <SButton type="outline" size="sm" @click="load">{{ t('common.refresh') }}</SButton>
+        <SButton type="outline" size="small" @click="load">{{ t('common.refresh') }}</SButton>
       </div>
 
       <div style="height:62vh;overflow:auto">
@@ -454,8 +454,8 @@ defineExpose({ open })
         <template v-if="activeTab !== t('agents.mcp_exclusive_tab')">
           <div class="picker-toolbar">
             <SCheckCard v-model:checked="useAllMcp">{{ t('agents.use_all') }}</SCheckCard>
-            <SInput v-model:value="mcpSearch" :placeholder="t('mcp.search_placeholder')" size="sm" style="flex:1" />
-            <SButton type="primary" size="sm" :disabled="!globalsChanged" @click="saveGlobals">{{ t('common.save') }}</SButton>
+            <SInput v-model:value="mcpSearch" :placeholder="t('mcp.search_placeholder')" size="small" style="flex:1" />
+            <SButton type="primary" size="small" :disabled="!globalsChanged" @click="saveGlobals">{{ t('common.save') }}</SButton>
             <span v-if="globalsChanged" class="picker-unsaved">{{ t('common.unsaved_changes') }}</span>
           </div>
           <div v-if="useAllMcp" class="picker-hint">{{ t('agents.mcp_exclude_hint') }}</div>
@@ -486,13 +486,13 @@ defineExpose({ open })
               <div class="ops-cell">
                 <SButton
                   type="outline"
-                  size="sm"
+                  size="small"
                   :disabled="!isEnabled(row.id)"
                   @click="openParams(row.id)"
                 >
                   {{ t('agents.mcp_params') }}<span v-if="paramsCount(row.id) > 0" class="params-badge">{{ paramsCount(row.id) }}</span>
                 </SButton>
-                <SButton type="outline" size="sm" @click="viewGlobalTools(row.id)">{{ t('common.view') }}</SButton>
+                <SButton type="outline" size="small" @click="viewGlobalTools(row.id)">{{ t('common.view') }}</SButton>
               </div>
             </template>
           </SEntityTable>
@@ -501,7 +501,7 @@ defineExpose({ open })
         <!-- Private servers tab -->
         <template v-else>
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-            <SButton type="primary" size="sm" @click="openAdd">{{ t('mcp.add') }}</SButton>
+            <SButton type="primary" size="small" @click="openAdd">{{ t('mcp.add') }}</SButton>
           </div>
           <SEntityTable
             :columns="exclusiveColumns"
@@ -520,9 +520,9 @@ defineExpose({ open })
             </template>
             <template #ops="{ row }">
               <div class="ops-cell">
-                <SButton type="outline" size="sm" @click="viewTools(row.id)">{{ t('common.view') }}</SButton>
-                <SButton type="outline" size="sm" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
-                <SButton type="danger" size="sm" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
+                <SButton type="outline" size="small" @click="viewTools(row.id)">{{ t('common.view') }}</SButton>
+                <SButton type="outline" size="small" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
+                <SButton type="error" size="small" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
               </div>
             </template>
           </SEntityTable>
@@ -548,11 +548,11 @@ defineExpose({ open })
         </SFormItem>
         <SFormSection :title="t('mcp.headers_section')">
           <div v-for="(row, i) in headerRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-            <SInput v-model:value="row.key" placeholder="Key" size="sm" style="flex:1" />
-            <SInput v-model:value="row.value" placeholder="Value" size="sm" style="flex:2" />
-            <SButton type="danger" size="sm" @click="headerRows.splice(i,1)">×</SButton>
+            <SInput v-model:value="row.key" placeholder="Key" size="small" style="flex:1" />
+            <SInput v-model:value="row.value" placeholder="Value" size="small" style="flex:2" />
+            <SButton type="error" size="small" @click="headerRows.splice(i,1)">×</SButton>
           </div>
-          <SButton type="outline" size="sm" @click="headerRows.push({key:'',value:''})">+ Header</SButton>
+          <SButton type="outline" size="small" @click="headerRows.push({key:'',value:''})">+ Header</SButton>
         </SFormSection>
       </template>
       <template v-else>
@@ -561,18 +561,18 @@ defineExpose({ open })
         </SFormItem>
         <SFormSection :title="t('mcp.args_section')">
           <div v-for="(_arg, i) in argsList" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-            <SInput v-model:value="argsList[i]" :placeholder="t('mcp.arg_placeholder')" size="sm" style="flex:1" />
-            <SButton type="danger" size="sm" @click="argsList.splice(i,1)">×</SButton>
+            <SInput v-model:value="argsList[i]" :placeholder="t('mcp.arg_placeholder')" size="small" style="flex:1" />
+            <SButton type="error" size="small" @click="argsList.splice(i,1)">×</SButton>
           </div>
-          <SButton type="outline" size="sm" @click="argsList.push('')">{{ t('mcp.add_arg') }}</SButton>
+          <SButton type="outline" size="small" @click="argsList.push('')">{{ t('mcp.add_arg') }}</SButton>
         </SFormSection>
         <SFormSection :title="t('mcp.env_section')">
           <div v-for="(row, i) in envRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-            <SInput v-model:value="row.key" placeholder="Key" size="sm" style="flex:1" />
-            <SInput v-model:value="row.value" placeholder="Value" size="sm" style="flex:2" />
-            <SButton type="danger" size="sm" @click="envRows.splice(i,1)">×</SButton>
+            <SInput v-model:value="row.key" placeholder="Key" size="small" style="flex:1" />
+            <SInput v-model:value="row.value" placeholder="Value" size="small" style="flex:2" />
+            <SButton type="error" size="small" @click="envRows.splice(i,1)">×</SButton>
           </div>
-          <SButton type="outline" size="sm" @click="envRows.push({key:'',value:''})">+ Env</SButton>
+          <SButton type="outline" size="small" @click="envRows.push({key:'',value:''})">+ Env</SButton>
         </SFormSection>
         <SFormItem :label="t('mcp.cwd_label')">
           <SInput v-model:value="form.cwd" :placeholder="t('mcp.cwd_placeholder')" />
@@ -599,11 +599,11 @@ defineExpose({ open })
         {{ t('agents.mcp_params_hint') }}
       </div>
       <div v-for="(row, i) in paramsRows" :key="i" style="display:flex;gap:8px;margin-bottom:6px">
-        <SInput v-model:value="row.key" placeholder="Key" size="sm" style="flex:1" />
-        <SInput v-model:value="row.value" placeholder="Value" size="sm" style="flex:2" />
-        <SButton type="danger" size="sm" @click="paramsRows.splice(i,1)">×</SButton>
+        <SInput v-model:value="row.key" placeholder="Key" size="small" style="flex:1" />
+        <SInput v-model:value="row.value" placeholder="Value" size="small" style="flex:2" />
+        <SButton type="error" size="small" @click="paramsRows.splice(i,1)">×</SButton>
       </div>
-      <SButton type="outline" size="sm" @click="paramsRows.push({key:'',value:''})">{{ t('agents.mcp_params_add') }}</SButton>
+      <SButton type="outline" size="small" @click="paramsRows.push({key:'',value:''})">{{ t('agents.mcp_params_add') }}</SButton>
 
       <template #footer>
         <SButton type="outline" @click="showParamsModal = false">{{ t('common.cancel') }}</SButton>

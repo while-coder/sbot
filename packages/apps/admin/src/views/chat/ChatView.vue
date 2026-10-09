@@ -8,7 +8,7 @@ import '@sbot/chat-ui/themes/variables.css'
 // Admin's <html data-theme="dark"> overrides happen via the rules in the non-scoped
 // <style> block below (and in MessageList.vue), so we avoid a duplicate full dark import here.
 import '@sbot/chat-ui/themes/theme-light.css'
-import { SButton } from '@sbot/ui-kit'
+import { SButton } from '@qingfeng346/ui-kit'
 import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import MemoryListModal from '@/components/modals/MemoryListModal.vue'
 
@@ -31,10 +31,10 @@ function openMemory(session: SessionItem) {
 <template>
   <ChatView :transport="transport" :show-attachments="true">
     <template #status-actions="{ session }">
-      <SButton v-if="session?.agenda" type="outline" size="sm" @click="openAgenda(session)">
+      <SButton v-if="session?.agenda" type="outline" size="small" @click="openAgenda(session)">
         {{ t('agenda.title') }}
       </SButton>
-      <SButton v-if="session?.memory" type="outline" size="sm" @click="openMemory(session)">
+      <SButton v-if="session?.memory" type="outline" size="small" @click="openMemory(session)">
         {{ t('memory.title') }}
       </SButton>
     </template>

@@ -3,9 +3,9 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import axios from 'axios'
 import { apiFetch } from '@/shared/api'
-import { toast } from '@sbot/ui-kit'
+import { toast } from '@qingfeng346/ui-kit'
 import { badgeClawhub, badgeSkillssh } from '@/utils/badges'
-import { SModal, SButton, SInput, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@sbot/ui-kit'
+import { SModal, SButton, SInput, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@qingfeng346/ui-kit'
 
 interface HubSkillResult {
   id: string
@@ -278,7 +278,7 @@ defineExpose({ open })
                 <a :href="row.sourceUrl" target="_blank" rel="noopener" class="hub-link" title="Open">&#x2197;</a>
               </template>
               <template #ops="{ row }">
-                <SButton type="primary" size="sm" @click="openInstall(row)">{{ t('skills.install_title') }}</SButton>
+                <SButton type="primary" size="small" @click="openInstall(row)">{{ t('skills.install_title') }}</SButton>
               </template>
             </SEntityTable>
           </template>
@@ -345,8 +345,8 @@ defineExpose({ open })
   color: var(--sui-on-success-soft);
 }
 .hub-zip-result.err {
-  background: var(--sui-danger-soft);
-  color: var(--sui-on-danger-soft);
+  background: var(--sui-error-soft);
+  color: var(--sui-on-error-soft);
 }
 .hub-install-name {
   font-family: var(--sui-font-mono);

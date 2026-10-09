@@ -72,6 +72,7 @@ async function main() {
     const { initGlobalSkillService } = await import("./Agent/GlobalSkillService");
     const { agendaTriggerEnginePool, agendaStartupExtractAll } = await import("./Agenda");
     const { startupExtractAll: memoryStartupExtractAll } = await import("./Memory/MemoryServicePool");
+    const { sweepStale: scratchpadSweepStale, SCRATCHPAD_TTL_MS } = await import("agent.scratchpad");
     const { heartbeatService } = await import("./Heartbeat/HeartbeatService");
     const { tunnelService } = await import("./Tunnel");
 
@@ -118,6 +119,8 @@ async function main() {
         await agendaTriggerEnginePool.startAll()
         memoryStartupExtractAll()
         agendaStartupExtractAll()
+        // 会话黑板 TTL 清扫：删除钩子竞态产生的孤儿文件由启动时兜底
+        scratchpadSweepStale(config.getScratchpadDir(), SCRATCHPAD_TTL_MS)
         await heartbeatService.start()
         await tunnelService.startAll(config.getHttpPort())
 
