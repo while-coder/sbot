@@ -974,7 +974,7 @@ onMounted(() => {
       :show="uploadConflict.visible"
       :title="L.explorerUploadConflictTitle"
       width="sm"
-      :close-on-overlay="false"
+      :mask-closable="false"
       @close="settleUploadConflict('cancel')"
     >
       <div class="chatui-explorer-conflict-message">{{ uploadConflictMessage }}</div>
@@ -994,7 +994,7 @@ onMounted(() => {
       :show="newFolderVisible"
       :title="L.explorerNewFolder"
       width="sm"
-      :close-on-overlay="false"
+      :mask-closable="false"
       @close="closeNewFolderDialog"
     >
       <div v-if="newFolderParentDir" class="chatui-explorer-newfolder-parent" :title="newFolderParentDir">

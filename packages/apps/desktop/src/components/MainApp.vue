@@ -137,7 +137,7 @@ onUnmounted(() => {
       title="设置"
       width="xl"
       draggable
-      :close-on-overlay="false"
+      :mask-closable="false"
       class="settings-modal"
     >
       <SettingsApp :initial-page="settingsPage" />

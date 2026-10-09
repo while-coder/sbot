@@ -1068,7 +1068,7 @@ function saveRightPanelOpenState(open: boolean): void {
       :title="L.renameSession"
       width="sm"
       class="chatui-rename-dialog"
-      :close-on-overlay="false"
+      :mask-closable="false"
       @close="closeRenameDialog"
     >
       <div class="chatui-rename-hint">{{ L.renameSessionHint }}</div>
