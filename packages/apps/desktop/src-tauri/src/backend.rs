@@ -251,6 +251,7 @@ fn spawn_backend(app: &AppHandle, port: u16) -> Result<(Child, Arc<Mutex<Vec<Str
     }
     #[cfg(unix)]
     {
+        use std::os::unix::process::CommandExt;
         // 独立进程组：硬杀时可 killpg 整组回收（含 node-pty 派生的 shell）
         cmd.process_group(0);
     }
@@ -289,35 +290,15 @@ fn sbot_resource_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|_| "无法定位资源目录".to_string())
 }
 
-/// externalBin 打包后位于主程序同目录，命名 node-<triple>[.exe]
+/// externalBin 打包后位于主程序同目录，Tauri 会移除构建输入文件名中的 -<triple> 后缀。
 fn node_sidecar_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| format!("无法定位主程序：{e}"))?;
-    let name = if cfg!(windows) {
-        format!("node-{}.exe", target_triple())
-    } else {
-        format!("node-{}", target_triple())
-    };
+    let name = if cfg!(windows) { "node.exe" } else { "node" };
     let path = exe.parent().ok_or("无法定位主程序目录")?.join(name);
     if !path.is_file() {
         return Err(format!("未找到捆绑的 Node 运行时：{}", path.display()));
     }
     Ok(path)
-}
-
-fn target_triple() -> &'static str {
-    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-        "x86_64-pc-windows-msvc"
-    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-        "aarch64-apple-darwin"
-    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-        "x86_64-apple-darwin"
-    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        "x86_64-unknown-linux-gnu"
-    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-        "aarch64-unknown-linux-gnu"
-    } else {
-        "unknown"
-    }
 }
 
 #[cfg(windows)]
