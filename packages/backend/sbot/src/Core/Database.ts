@@ -78,7 +78,7 @@ export type ChannelUserRow = {
 
 /**
  * Session 表只保留"标识"信息：
- * - 所有可覆盖配置字段（agent/saver/notes/wikis/...）都在 SessionProfileRow 上
+ * - 所有可覆盖配置字段（agent/saver/...）都在 SessionProfileRow 上
  * - token 统计也在 profile 上（共享 profile 的 session 共享统计）
  * - 每个 session 对应一个 SessionProfile：
  *   - 默认是 auto profile（autoForSessionId == session.id），admin 不可见
@@ -102,7 +102,7 @@ export type ChannelSessionRow = {
  * - autoForSessionId 为 null：visible profile，可被多个 session 共享
  * - thread id = String(profile.id)
  *
- * ⚠️ 三态布尔（useChannelNotes/Wikis/streamVerbose/autoApproveAllTools/disableWorkspace*）运行时是 0/1/null。
+ * ⚠️ 三态布尔（streamVerbose/autoApproveAllTools/disableWorkspace*）运行时是 0/1/null。
  */
 export type SessionProfileRow = {
   id: number;
@@ -114,10 +114,6 @@ export type SessionProfileRow = {
   saver: string | null;
   workPath: string | null;
 
-  useChannelNotes: boolean | null;
-  notes: string | null;              // JSON 字符串
-  useChannelWikis: boolean | null;
-  wikis: string | null;              // JSON 字符串
 
   streamVerbose: boolean | null;
   autoApproveAllTools: boolean | null;
@@ -172,17 +168,6 @@ export type ThreadUsage = {
   inputTokens: number; outputTokens: number; totalTokens: number;
   lastInputTokens: number; lastOutputTokens: number; lastTotalTokens: number;
 };
-
-/** 解析 DB 中存储的 notes 字段（JSON 字符串 → string[]） */
-export function parseNotes(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return [];
-  }
-}
 
 class Database {
   private running = false;
@@ -441,30 +426,6 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "工作目录路径",
-        },
-        useChannelNotes: {
-          type: DataTypes.BOOLEAN,
-          allowNull: true,
-          defaultValue: null,
-          comment: "是否合并渠道级 notes",
-        },
-        notes: {
-          type: DataTypes.TEXT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "Note UUID 列表（JSON 字符串）",
-        },
-        useChannelWikis: {
-          type: DataTypes.BOOLEAN,
-          allowNull: true,
-          defaultValue: null,
-          comment: "是否合并渠道级 wikis",
-        },
-        wikis: {
-          type: DataTypes.TEXT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "Wiki UUID 列表（JSON 字符串）",
         },
         streamVerbose: {
           type: DataTypes.BOOLEAN,

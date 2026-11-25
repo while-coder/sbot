@@ -135,9 +135,6 @@ interface CleanupReport {
   invalidAgentRefs: InvalidRef[]
   invalidSaverRefs: InvalidRef[]
   invalidModelRefs: InvalidRef[]
-  invalidEmbeddingRefs: InvalidRef[]
-  invalidNoteRefs: InvalidRef[]
-  invalidWikiRefs: InvalidRef[]
   invalidMemoryProfileRefs: InvalidRef[]
   invalidAgendaProfileRefs: InvalidRef[]
 }
@@ -161,9 +158,6 @@ const cleanupCategories = computed<Array<{ key: keyof CleanupReport; label: stri
     { key: 'invalidAgentRefs',          label: t('settings.invalid_agent_refs'),          cleaned: false, items: r.invalidAgentRefs },
     { key: 'invalidSaverRefs',          label: t('settings.invalid_saver_refs'),          cleaned: false, items: r.invalidSaverRefs },
     { key: 'invalidModelRefs',          label: t('settings.invalid_model_refs'),          cleaned: false, items: r.invalidModelRefs },
-    { key: 'invalidEmbeddingRefs',      label: t('settings.invalid_embedding_refs'),      cleaned: false, items: r.invalidEmbeddingRefs },
-    { key: 'invalidNoteRefs',           label: t('settings.invalid_note_refs'),           cleaned: false, items: r.invalidNoteRefs },
-    { key: 'invalidWikiRefs',           label: t('settings.invalid_wiki_refs'),           cleaned: false, items: r.invalidWikiRefs },
     { key: 'invalidMemoryProfileRefs', label: t('settings.invalid_memory_profile_refs'),cleaned: false, items: r.invalidMemoryProfileRefs },
     { key: 'invalidAgendaProfileRefs',  label: t('settings.invalid_agenda_profile_refs'), cleaned: false, items: r.invalidAgendaProfileRefs },
   ]
@@ -221,9 +215,6 @@ function fmtItem(category: string, item: any): string {
     case 'invalidAgentRefs':
     case 'invalidSaverRefs':
     case 'invalidModelRefs':
-    case 'invalidEmbeddingRefs':
-    case 'invalidNoteRefs':
-    case 'invalidWikiRefs':
     case 'invalidMemoryProfileRefs':
     case 'invalidAgendaProfileRefs':
       return `${item.source} → ${item.field} = "${item.badValue}"`

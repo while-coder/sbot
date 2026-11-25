@@ -117,25 +117,6 @@ export interface AgendaProfileConfig {
   syncPromptFile?: string
 }
 
-export interface NoteConfig {
-  /** 显示名称 */
-  name: string
-  /** 笔记使用的 embedding UUID（对应 embeddings 中的 key）。
-   *  可选：不配则 NoteService 退化为 BM25 + time decay + access 关键词检索。 */
-  embedding?: string
-}
-
-export interface WikiConfig {
-  /** 显示名称 */
-  name: string
-  /** 可选的 embedding 配置 ID，启用语义搜索 */
-  embedding?: string
-  /** 数据源类型，对应 WikiPlugin.type；缺省 'local'（兼容旧配置） */
-  type?: string
-  /** 插件私有配置，结构由该插件的 configSchema 定义 */
-  config?: Record<string, any>
-}
-
 export interface SaverConfig {
   /** 显示名称 */
   name: string
@@ -244,10 +225,7 @@ export interface SessionConfig {
   agent: string
   /** 使用的 Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
-  /** 使用的笔记配置 UUID 列表（对应 notes 中的 key） */
-  notes: string[]
-  /** 使用的 Wiki 配置 UUID 列表（对应 wikis 中的 key） */
-  wikis?: string[]
+
   /** 工作目录路径（有值时为目录模式，Agent 文件操作限定在此目录） */
   workPath?: string
   /** 自动批准所有工具调用 */
@@ -290,10 +268,7 @@ export interface ChannelConfig {
   agent: string
   /** Saver 配置 UUID（对应 savers 中的 key） */
   saver: string
-  /** 笔记配置 UUID 列表（对应 notes 中的 key） */
-  notes: string[]
-  /** Wiki 配置 UUID 列表（对应 wikis 中的 key） */
-  wikis?: string[]
+
   /** 工作目录路径 */
   workPath?: string
   /** 是否输出中间消息和流式输出 */
@@ -355,8 +330,8 @@ export interface Settings {
   agents?: Record<string, AgentConfig>
   models?: Record<string, ModelConfig>
   embeddings?: Record<string, EmbeddingConfig>
-  notes?: Record<string, NoteConfig>
-  wikis?: Record<string, WikiConfig>
+
+
   savers?: Record<string, SaverConfig>
   /** Memory（skill 风格）配置 */
   memoryProfiles?: Record<string, MemoryProfileConfig>

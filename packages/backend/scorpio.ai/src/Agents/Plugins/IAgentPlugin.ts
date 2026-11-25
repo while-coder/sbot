@@ -5,7 +5,7 @@ import type { ChatMessage, IAgentSaverService } from "scorpio.saver";
 /**
  * Agent 能力插件的运行上下文。每次 stream 构造一份，不跨轮复用。
  *
- * query 供 note 等检索插件构造查询，channelSessionId 供 agenda 等插件关联会话。
+ * query 供检索类插件构造查询，channelSessionId 供 agenda 等插件关联会话。
  */
 export interface AgentPluginContext {
     /** 本轮用户输入的纯文本形式（多模态 content 已拍平），供检索类插件构造查询。 */
@@ -43,9 +43,6 @@ export interface AgentTurn {
  * Agent 能力插件：把一套子系统（system prompt + 工具 + turn 末尾副作用）打包成
  * 可插拔单元，注册进容器即生效，无需再改 SingleAgentService。
  *
- * 与 Wiki 数据源插件（`WikiPlugin`）、Channel 插件不是同一层概念——那两者是「某类
- * 数据源/渠道的具体实现」，本接口是「挂到 agent 生命周期上的扩展点」。
- *
  * **生命周期不在本接口内**：插件由注册方创建并负责释放（memory / agenda 那类走 pool +
  * refCount 的服务，由 acquire 方在 finally 里 release）。agent 只消费插件、不 dispose，
  * 否则 pool 化服务会被双重释放。
@@ -61,7 +58,7 @@ export interface IAgentPlugin {
      * ReAct 派发子 agent 时是否随子容器下传。默认 false。
      *
      * 抽取类插件（memory / agenda 风格）应保持 false：子 agent 的 human 消息是编排者
-     * 合成的 task 指令而非真实用户输入，参与抽取会污染数据。纯检索类（note / wiki 风格）
+     * 合成的 task 指令而非真实用户输入，参与抽取会污染数据。纯检索类
      * 置 true 让子 agent 也能用。
      */
     readonly inheritToSubAgent?: boolean;

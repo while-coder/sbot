@@ -1,7 +1,7 @@
 {
   "name": "plugin.schema",
   "version": "0.0.1",
-  "description": "Shared configuration schema for sbot channel and wiki plugins",
+  "description": "Shared configuration schema for sbot channel plugins",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

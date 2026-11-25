@@ -10,7 +10,6 @@ import { emitSettingsChanged } from '../../../lib/settingsEvents'
 import { pickVisibleConfig } from '../../../lib/configField'
 import type { ConfigField } from '../../../lib/configField'
 import { setBuiltinAgentsModel } from '../../../lib/defaultAgent'
-import { setBuiltinProfilesModel, DESKTOP_MEMORY_NAME } from '../../../lib/defaultProfiles'
 import SchemaForm from '../SchemaForm.vue'
 
 interface ModelConfigForm {
@@ -41,8 +40,6 @@ const providers = ref<ProviderDefinition[]>([])
 const loading = ref(false)
 
 // ── 默认模型：整端唯一的模型选项 ──
-// 切换时同步更新 通用/编程/日常 内置助手与 桌面记忆/日程 的 model；
-// 当前值从 通用助手（sbot-default）的 model 推导，依次回退 桌面记忆 → 第一个模型
 
 const defaultModelId = ref('')
 const applyingModel = ref(false)
@@ -60,7 +57,6 @@ async function refresh(): Promise<void> {
       api.get<{
         models?: Record<string, ModelConfigForm>
         agents?: Record<string, { model?: string }>
-        memoryProfiles?: Record<string, { name?: string; writerModel?: string }>
       }>('/api/settings'),
       api.get<ProviderDefinition[]>('/api/llm-providers'),
     ])
@@ -69,7 +65,6 @@ async function refresh(): Promise<void> {
     if (!defaultModelId.value) {
       defaultModelId.value =
         settings.agents?.['sbot-default']?.model
-        || Object.values(settings.memoryProfiles ?? {}).find(p => p.name === DESKTOP_MEMORY_NAME)?.writerModel
         || Object.keys(models.value)[0]
         || ''
     }
@@ -86,14 +81,13 @@ async function refresh(): Promise<void> {
 
 onMounted(refresh)
 
-/** 切换默认模型：同步更新内置助手与桌面记忆/日程的 model */
 async function applyDefaultModel(): Promise<void> {
   const modelId = defaultModelId.value
   if (!modelId) return
   applyingModel.value = true
   try {
-    await Promise.all([setBuiltinAgentsModel(modelId), setBuiltinProfilesModel(modelId)])
-    toast.show('success', '默认模型已更新，助手与记忆/日程已同步')
+    await setBuiltinAgentsModel(modelId)
+    toast.show('success', '默认模型已更新')
     emitSettingsChanged()
   } catch (e: any) {
     toast.show('error', e.message)
@@ -282,7 +276,7 @@ const providerOptions = computed(() =>
           :disabled="applyingModel || defaultModelOptions.length === 0"
           @change="applyDefaultModel"
         />
-        <template #hint>整端统一的模型：切换时同步更新 通用/编程/日常 助手与 桌面记忆/日程</template>
+        <template #hint>切换后更新所有桌面内置助手的模型</template>
       </SFormItem>
     </SFormSection>
     <SPageContent>

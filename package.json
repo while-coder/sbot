@@ -7,15 +7,14 @@
   "scripts": {
     "test": "pnpm -r --if-present run test",
 
-    "build:base": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.llm run build && pnpm --filter scorpio.command run build && pnpm --filter scorpio.ai run build && pnpm --filter scorpio.tools.filesystem run build && pnpm --filter scorpio.tools.command run build",
+    "build:base": "pnpm --filter scorpio.di run build && pnpm --filter scorpio.llm run build && pnpm --filter scorpio.command run build && pnpm --filter scorpio.ai run build",
     "build:llm": "node scripts/fetch-models-dev.js && pnpm --filter scorpio.llm run build && pnpm --filter scorpio.llm.openai run build && pnpm --filter scorpio.llm.anthropic run build && pnpm --filter scorpio.llm.gemini run build && pnpm --filter scorpio.llm.ollama run build",
     "build:saver": "pnpm --filter scorpio.saver run build && pnpm --filter scorpio.saver.file run build && pnpm --filter scorpio.saver.sqlite run build && pnpm --filter scorpio.saver.postgres run build",
     "build:schema": "pnpm --filter plugin.schema run build && pnpm --filter @sbot/shared run build",
-    "build:agents": "pnpm --filter agent.skill run build && pnpm --filter agent.agenda run build && pnpm --filter agent.memory run build && pnpm --filter agent.note run build && pnpm --filter agent.wiki run build && pnpm --filter agent.scratchpad run build",
-    "build:wiki": "pnpm --filter wiki.base run build && pnpm --filter wiki.local run build && pnpm --filter wiki.gdrive run build",
+    "build:agents": "pnpm --filter agent.skill run build && pnpm --filter agent.agenda run build && pnpm --filter agent.memory run build && pnpm --filter agent.scratchpad run build",
     "build:channel": "pnpm --filter channel.base run build && pnpm --filter channel.lark run build && pnpm --filter channel.slack run build && pnpm --filter channel.wecom run build && pnpm --filter channel.wechat run build && pnpm --filter channel.onebot run build && pnpm --filter channel.xiaoai run build && pnpm --filter channel.dingtalk run build && pnpm --filter channel.qq run build && pnpm --filter channel.yuanbao run build && pnpm --filter channel.remote-agent run build",
     "build:core": "pnpm run build:base && pnpm run build:llm && pnpm run build:saver && pnpm run build:agents && pnpm run build:schema",
-    "build:deps": "pnpm run build:core && pnpm run build:wiki && pnpm run build:channel",
+    "build:deps": "pnpm run build:core && pnpm run build:channel",
 
     "debug:sbot": "pnpm run build:deps && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run debug",
     "build:sbot": "pnpm run build:deps && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run build",
@@ -27,10 +26,6 @@
     "test:remote-agent-client": "pnpm --filter channel.remote-agent run build && pnpm run build:remote-agent-client && pnpm --filter @qingfeng346/remote-agent-client run test",
     "publish:remote-agent-client": "pnpm run build:remote-agent-client && pnpm --filter @qingfeng346/remote-agent-client publish --no-git-checks --access public",
 
-    "debug:cli": "pnpm run build:deps && pnpm --filter sbot-cli run debug",
-    "build:cli": "pnpm run build:deps && pnpm --filter sbot-cli run build",
-    "publish:cli": "pnpm run build:cli && pnpm --filter sbot-cli publish --no-git-checks",
-
     "debug:admin": "pnpm run build:deps && pnpm --filter @sbot/admin run debug",
     "build:admin": "pnpm run build:deps && pnpm --filter @sbot/admin run build",
 
@@ -38,9 +33,6 @@
     "publish:vscode": "pnpm run build:vscode && start https://marketplace.visualstudio.com/manage/publishers/",
 
     "debug:app": "pnpm --filter @sbot/client run dev",
-    "build:app:macos": "pnpm run build:deps && pnpm --filter @sbot/client run macos:build",
-    "build:app:windows": "pnpm run build:deps && pnpm --filter @sbot/client run windows:build",
-    "build:app:linux": "pnpm run build:deps && pnpm --filter @sbot/client run linux:build",
 
     "debug:desktop": "pnpm run build:deps && pnpm --filter @sbot/admin run build && pnpm --filter @qingfeng346/sbot run debug && pnpm --filter @sbot/desktop run dev",
     "build:desktop": "pnpm run build:sbot && pnpm --filter @sbot/desktop run build",
@@ -58,14 +50,10 @@
 
     "release:sbot": "node scripts/release.js sbot",
     "release:app": "node scripts/release.js app",
-    "release:cli": "node scripts/release.js cli",
 
     "sync:versions": "node scripts/sync-versions.js",
     "sync:icons": "node scripts/sync-icons.js",
     "sync:models": "node scripts/fetch-models-dev.js",
-
-    "debug:docs": "pnpm --filter @sbot/docs run dev",
-    "build:docs": "pnpm --filter @sbot/docs run build",
 
     "docker:sbot": "pnpm run build:sbot && node packages/backend/sbot/scripts/docker.js build && node packages/backend/sbot/scripts/docker.js save",
     "docker:sbot:publish": "pnpm run build:sbot && node packages/backend/sbot/scripts/docker.js build && node packages/backend/sbot/scripts/docker.js publish"

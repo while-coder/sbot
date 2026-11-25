@@ -35,7 +35,7 @@ export interface IMemoryService {
      *   - 只注入 title/snippet；完整正文仍由 read_memory 按需读取
      *
      * 无 memory 时仍返回模板（让 agent 知道工具存在，只是当前空），由调用方决定是否注入。
-     * 返回 null 留给将来扩展（与 Note/Wiki/Skill 的 getSystemMessage 签名对齐）。
+     * 返回 null 留给将来扩展。
      */
     getSystemMessage(query: string): Promise<string | null>;
 

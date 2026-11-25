@@ -1,1 +1,0 @@
-Read a wiki page by ID. Use wiki_search to find page IDs first. Pass the wiki attribute from the search result when reading (it disambiguates pages with the same id across wikis).

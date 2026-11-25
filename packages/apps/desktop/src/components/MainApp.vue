@@ -11,7 +11,6 @@ import { backend } from '../lib/backend'
 import { api } from '../lib/api'
 import { BUILTIN_AGENT_IDS, ensureBuiltinAgents } from '../lib/defaultAgent'
 import { ensureBuiltinSaver } from '../lib/defaultSaver'
-import { ensureBuiltinProfiles } from '../lib/defaultProfiles'
 
 const ready = computed(() => backend.phase === 'ready' && !!backend.baseUrl)
 
@@ -52,7 +51,6 @@ watch(ready, (isReady) => {
     void refreshModelsEmpty()
     void ensureBuiltinAgents()
     void ensureBuiltinSaver()
-    void ensureBuiltinProfiles()
   }
 }, { immediate: true })
 
@@ -60,7 +58,6 @@ watch(ready, (isReady) => {
 watch(modelsEmpty, (isEmpty) => {
   if (!isEmpty && backend.baseUrl) {
     void ensureBuiltinAgents()
-    void ensureBuiltinProfiles()
   }
 })
 
@@ -70,7 +67,7 @@ function openModelsSettings(): void {
 
 // ── 设置 modal：菜单/引导卡统一入口（Rust 菜单广播 sbot://open-settings） ──
 
-type SettingsPage = 'general' | 'models' | 'channels' | 'about'
+type SettingsPage = 'general' | 'models' | 'about'
 
 const settingsOpen = ref(false)
 const settingsPage = ref<SettingsPage>('general')
@@ -82,7 +79,7 @@ function openSettings(page: SettingsPage): void {
 
 const unlistenOpenSettings = listen<{ page?: string | null }>('sbot://open-settings', (e) => {
   const page = e.payload?.page
-  openSettings(page === 'models' || page === 'channels' || page === 'about' || page === 'general' ? page : 'general')
+  openSettings(page === 'models' || page === 'about' ? page : 'general')
 })
 
 // ── 设置变更 → 等聊天流空闲后重挂 ChatView（ChatView 仅 mount 时拉一次配置） ──

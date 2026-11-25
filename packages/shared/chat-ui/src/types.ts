@@ -12,8 +12,6 @@ export interface SessionItem {
   createdAt?: number
   agent: string
   saver: string
-  notes: string[]
-  wikis?: string[]
   workPath?: string
   autoApproveAllTools?: boolean
   agenda?: string | null
@@ -24,8 +22,6 @@ export type ChatLayoutMode = 'auto' | 'compact' | 'wide'
 
 export interface AgentOption { id: string; name?: string }
 export interface SaverOption { id: string; name: string }
-export interface NoteOption { id: string; name: string }
-
 // ── Message types ──
 
 /** Multimodal message content: a plain string or a list of content parts (text/image_url/…). */
@@ -167,9 +163,7 @@ export interface ChatLabels {
   storage?: string
   workpath?: string
   workpathPlaceholder?: string
-  note?: string
   memory?: string
-  wiki?: string
   autoApproveAll?: string
   requestApproval?: string
   autoApproved?: string
@@ -202,7 +196,6 @@ export interface ChatLabels {
   selectThis?: string
   noSubdirs?: string
   noSaver?: string
-  selectOrCreate?: string
   /** 已归档消息行右上角的小角标文案 */
   archivedTag?: string
   /** StatusBar 的「显示已归档」复选框文案 */
@@ -315,15 +308,11 @@ export interface ChatLabels {
   explorerOperationFailed?: string
 }
 
-// ── Wiki option ──
-export interface WikiOption { id: string; name: string }
 
 // ── Create session ──
 export interface CreateSessionOpts {
   agent?: string
   saver?: string
-  notes?: string[]
-  wikis?: string[]
   name?: string
   workPath?: string
 }
@@ -479,8 +468,6 @@ export interface GitDiffResult {
 export interface AppSettings {
   agents: Record<string, { name?: string; type?: string; model?: string }>
   savers: Record<string, { name: string }>
-  notes: Record<string, { name: string; share?: boolean }>
-  wikis: Record<string, { name: string }>
   models?: Record<string, { contextWindow?: number }>
 }
 

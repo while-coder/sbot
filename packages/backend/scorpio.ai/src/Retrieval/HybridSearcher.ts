@@ -171,7 +171,7 @@ export class HybridSearcher {
      * 在 items 中 top-k 检索。
      *
      * `toText(item)` 返回该 item 的匹配文本（同时用于 BM25 和 embedding）。
-     * Wiki 推荐返回标题；Memory 推荐返回 `title + body`。返回空串的 item 直接跳过。
+     * Memory 返回 `title + body`。返回空串的 item 直接跳过。
      *
      * 实现：
      * 1. 把所有 text 同步到 docs/docs_fts（去重；删除已不在的 key）

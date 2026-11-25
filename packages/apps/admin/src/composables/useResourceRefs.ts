@@ -12,8 +12,6 @@ interface ProfileLite {
   agentId: string | null
   saver: string | null
   intentModel: string | null
-  notes: string | null   // JSON 字符串
-  wikis: string | null   // JSON 字符串
   memory: string | null
   agenda: string | null
   sessionCount?: number
@@ -21,7 +19,7 @@ interface ProfileLite {
 
 /**
  * 会话列表行（GET /api/channel-sessions），仅取引用计算需要的字段。
- * 字段值已是 profile 自身覆盖值（null = 继承频道默认）；notes/wikis 已解析为 string[]。
+ * 字段值已是 profile 自身覆盖值（null = 继承频道默认）。
  * 用于补全「按会话直接覆盖、存在各自 auto profile 上」的引用 —— 这些 profile 不在
  * /api/session-profiles（只返回 visible profile）里，否则会被漏扫。
  */
@@ -34,8 +32,6 @@ interface SessionLite {
   agentId: string | null
   saver: string | null
   intentModel: string | null
-  notes: string[] | null
-  wikis: string[] | null
   memory: string | null
   agenda: string | null
 }
@@ -51,8 +47,6 @@ export interface ResourceRefsValue {
   agents: RefItem[]
   memoryProfiles: RefItem[]
   agendaProfiles: RefItem[]
-  notes: RefItem[]
-  wikis: RefItem[]
   total: number
 }
 
@@ -68,14 +62,6 @@ export interface RefMatchers {
   agent?: (a: any, id: string) => boolean
   memoryProfile?: (p: any, id: string) => boolean
   agendaProfile?: (p: any, id: string) => boolean
-  note?: (n: any, id: string) => boolean
-  wiki?: (w: any, id: string) => boolean
-}
-
-/** 会话档案的 notes/wikis 是 JSON 字符串，解析为 string[]（同 SessionProfilesView 的 parseList）。 */
-export function parseList(raw: string | null | undefined): string[] {
-  if (!raw) return []
-  try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
 }
 
 // 模块级共享：多个页面实例共用同一份会话档案 / 会话列表（来自全局 Manager，此处只收窄类型）。
@@ -121,20 +107,10 @@ export function useResourceRefs() {
             .filter(([, p]) => matchers.agendaProfile!(p as any, id))
             .map(([pid, p]) => ({ id: pid, name: (p as any).name || pid }))
         : []
-      const notes = matchers.note
-        ? Object.entries(store.settings.notes || {})
-            .filter(([, n]) => matchers.note!(n as any, id))
-            .map(([nid, n]) => ({ id: nid, name: (n as any).name || nid }))
-        : []
-      const wikis = matchers.wiki
-        ? Object.entries(store.settings.wikis || {})
-            .filter(([, w]) => matchers.wiki!(w as any, id))
-            .map(([wid, w]) => ({ id: wid, name: (w as any).name || wid }))
-        : []
       return {
-        channels, profiles, sessions, agents, memoryProfiles, agendaProfiles, notes, wikis,
+        channels, profiles, sessions, agents, memoryProfiles, agendaProfiles,
         total: channels.length + profiles.length + sessions.length + agents.length
-          + memoryProfiles.length + agendaProfiles.length + notes.length + wikis.length,
+          + memoryProfiles.length + agendaProfiles.length,
       }
     }
   }

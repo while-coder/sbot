@@ -12,7 +12,7 @@ const DEFAULT_MAX_HISTORY_ROUNDS = 5;
 
 /**
  * 纯生成式 Agent（图片/音频/视频等）
- * 无工具循环、无 system message 构建、无 note/wiki 保存，单次模型调用后直接返回。
+ * 无工具循环、无 system message 构建，单次模型调用后直接返回。
  * 使用滑动窗口保留最近 N 轮对话，避免二进制数据（图片/音频）撑爆 context window。
  */
 export class GenerativeAgentService extends AgentServiceBase {

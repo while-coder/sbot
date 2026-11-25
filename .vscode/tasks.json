@@ -41,19 +41,6 @@
       }
     },
     {
-      "label": "debug:cli",
-      "type": "shell",
-      "command": "pnpm run debug:cli",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": "$tsc"
-    },
-    {
       "label": "debug:sbot",
       "type": "shell",
       "command": "pnpm run debug:sbot",

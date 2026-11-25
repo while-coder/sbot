@@ -1,6 +1,6 @@
 /**
  * 插件配置项描述。供 admin 端依据 schema 自动渲染配置表单，
- * channel 插件与 wiki 插件共用同一套字段类型。
+ * 渠道插件共用的配置字段类型。
  */
 export enum ConfigFieldType {
   String = 'string',

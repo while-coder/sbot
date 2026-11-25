@@ -24,6 +24,7 @@ const YIELD_MIN_MS = 250;
 const YIELD_MAX_MS = 30_000;
 const GRACE_DRAIN_MS = 150;
 const REAPER_INTERVAL_MS = 60_000;
+let nextProcessId = 1;
 
 export interface ManagedProcessResult {
     processId?: number;
@@ -44,9 +45,9 @@ export function formatProcessResult(result: ManagedProcessResult): CommandToolRe
     if (result.stderr) parts.push(`stderr:\n${result.stderr.trimEnd()}`);
     if (result.truncated) parts.push('Output exceeded the unread buffer limit; some output was discarded.');
     if (result.running) {
-        let note = `Process is still running.\nprocessId: ${result.processId}\nUse read_process with this processId to read more output.`;
-        if (result.stdinOpen) note += '\nUse write_process with this processId to send more stdin.';
-        if (result.note && !result.note.startsWith('[background]')) note = `${result.note}\n\n${note}`;
+        let note = `Process is still running.\nprocessId: ${result.processId}\nCall exec_command with this processId to read more output.`;
+        if (result.stdinOpen) note += '\nPass stdin with this processId to send input.';
+        if (result.note) note = `${result.note}\n\n${note}`;
         parts.push(note);
     } else if (result.note) {
         parts.push(result.note);
@@ -82,7 +83,6 @@ interface ProcSession {
 
 export class ProcessManager {
     private sessions = new Map<number, ProcSession>();
-    private nextProcessId = 1;
     private reaper?: NodeJS.Timeout;
 
     constructor(private readonly onIdle?: () => void) {}
@@ -120,7 +120,6 @@ export class ProcessManager {
             running: true,
             stdinOpen: session.stdinOpen,
             ...collected,
-            note: `[background] processId=${processId} still running`,
         };
     }
 
@@ -153,7 +152,7 @@ export class ProcessManager {
                 running: true,
                 stdout: '',
                 stderr: '',
-                note: `Cannot write stdin to process ${processId}; start it with mode="background" and interactive=true to use write_process.`,
+                note: `Cannot write stdin to process ${processId}. Start a resumable command with interactive=true to keep stdin open.`,
                 isError: true,
             };
         }
@@ -207,7 +206,7 @@ export class ProcessManager {
     ): Promise<ManagedProcessResult> {
         const proc = spawnRuntimeProcess(file, args, { cwd, shell, stdin, keepStdinOpen: interactive });
 
-        const id = this.nextProcessId++;
+        const id = nextProcessId++;
         const session: ProcSession = {
             id, proc,
             stdout: createOutputBuffer(),
@@ -255,7 +254,6 @@ export class ProcessManager {
             running: true,
             stdinOpen: session.stdinOpen,
             ...collected,
-            note: `[background] processId=${id} still running - use read_process to read more output`,
         };
     }
 
@@ -380,5 +378,3 @@ function writeStdin(stdin: Writable, chunk: string): Promise<void> {
         stdin.write(chunk, 'utf8', finish);
     });
 }
-
-export const processManager = new ProcessManager();

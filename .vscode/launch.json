@@ -17,8 +17,7 @@
         "${workspaceFolder}/packages/backend/scorpio.ai/dist/**/*.js",
         "${workspaceFolder}/packages/backend/plugins/plugin.schema/dist/**/*.js",
         "${workspaceFolder}/packages/backend/plugins/agent/*/dist/**/*.js",
-        "${workspaceFolder}/packages/backend/plugins/channel/*/dist/**/*.js",
-        "${workspaceFolder}/packages/backend/plugins/wiki/*/dist/**/*.js"
+        "${workspaceFolder}/packages/backend/plugins/channel/*/dist/**/*.js"
       ],
       "env": { "NODE_ENV": "development" },
       "cwd": "${workspaceFolder}/packages/backend/sbot",
@@ -36,22 +35,6 @@
         "${workspaceFolder}/packages/apps/sbot-vscode/dist/**/*.js"
       ],
       "preLaunchTask": "build:vscode-extension"
-    },
-    {
-      "type": "node",
-      "request": "launch",
-      "name": "Launch cli",
-      "program": "${workspaceFolder}/packages/apps/sbot-cli/debug/main.js",
-      "preLaunchTask": "debug:cli",
-      "console": "externalTerminal",
-      "sourceMaps": true,
-      "outFiles": [
-        "${workspaceFolder}/packages/apps/sbot-cli/debug/**/*.js",
-        "${workspaceFolder}/packages/shared/shared/dist/**/*.js",
-        "${workspaceFolder}/packages/shared/shared/esm/**/*.js"
-      ],
-      "cwd": "${workspaceFolder}/packages/apps/sbot-cli",
-      "skipFiles": ["<node_internals>/**"]
     },
     {
       "type": "node-terminal",

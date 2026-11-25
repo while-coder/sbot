@@ -7,10 +7,6 @@ import { ApprovalTimeoutValue, IntentFilterMode } from '@sbot/shared'
 export interface DataConfigValue {
   agentId: string | null
   saver: string | null
-  notes: string[] | null
-  wikis: string[] | null
-  useChannelNotes: boolean | null
-  useChannelWikis: boolean | null
   workPath: string | null
   streamVerbose: boolean | null
   autoApproveAllTools: boolean | null
@@ -45,8 +41,6 @@ const props = withDefaults(defineProps<{
   resolved?: Partial<Record<keyof DataConfigValue, any>>
   agentOptions: Option[]
   saverOptions: Option[]
-  noteOptions: Option[]
-  wikiOptions: Option[]
   modelOptions: Option[]
   memoryProfileOptions: Option[]
   agendaProfileOptions: Option[]
@@ -107,8 +101,6 @@ const agendaRefOptions = computed(() => [
   { value: '', label: isProfileMode() ? t('channels.use_channel_default') : t('agents.agenda_disabled') },
   ...props.agendaProfileOptions.map(p => ({ value: p.id, label: p.label })),
 ])
-const noteSelectOptions = computed(() => props.noteOptions.map(o => ({ value: o.id, label: o.label })))
-const wikiSelectOptions = computed(() => props.wikiOptions.map(o => ({ value: o.id, label: o.label })))
 
 const resolvedDefaultOpenSections = computed<DataConfigSection[]>(() =>
   props.defaultOpenSections ?? (isProfileMode() ? ['common'] : ['common', 'resources'])
@@ -145,7 +137,6 @@ const fmtAgent = (v: any) => props.agentOptions.find(a => a.id === v)?.label || 
 const fmtSaver = (v: any) => props.saverOptions.find(s => s.id === v)?.label || String(v ?? '')
 const fmtModel = (v: any) => props.modelOptions.find(m => m.id === v)?.label || String(v ?? '')
 const fmtBool = (v: any) => v ? t('common.enabled') : t('common.disabled')
-const fmtList = (v: any) => Array.isArray(v) ? `${v.length} ${t('channels.items_count_suffix')}` : String(v ?? '')
 const fmtApprovalValue = (v: any) => v === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : v === ApprovalTimeoutValue.Deny ? t('channels.approval_timeout_value_deny') : String(v ?? '')
 const fmtMemory = (v: any) => props.memoryProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
 const fmtAgenda = (v: any) => props.agendaProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
@@ -160,10 +151,6 @@ const fmtIntentFilterMode = (v: any) => {
 
 const resourcesBadge = computed(() => {
   let n = 0
-  if ((props.modelValue.notes?.length ?? 0) > 0) n++
-  if ((props.modelValue.wikis?.length ?? 0) > 0) n++
-  if (props.modelValue.useChannelNotes) n++
-  if (props.modelValue.useChannelWikis) n++
   if (props.modelValue.workPath) n++
   if (props.modelValue.disableWorkspaceContext) n++
   if (props.modelValue.disableWorkspaceSkills) n++
@@ -287,20 +274,6 @@ function showIntentModelConfig(): boolean {
 
     <SCollapse :default-expanded-names="isSectionOpen('resources') ? ['resources'] : []">
     <SCollapseItem :title="t('channels.section_resources_workspace')" :badge="resourcesBadge" name="resources">
-
-    <SFormItem :label="t('common.note')" :hint="inheritLabel('notes', fmtList)">
-      <SSelect multiple :value="modelValue.notes ?? []" :options="noteSelectOptions" @update:value="v => update('notes', v as string[])" />
-      <SFormItem v-if="isProfileMode()" :label="t('channels.use_channel_notes')" :hint="t('channels.use_channel_notes_hint')" class="nested-form-item">
-        <SSelect :value="String(!!modelValue.useChannelNotes)" :options="enabledDisabledOptions" @update:value="v => update('useChannelNotes', v === 'true')" />
-      </SFormItem>
-    </SFormItem>
-
-    <SFormItem :label="t('common.wiki')" :hint="inheritLabel('wikis', fmtList)">
-      <SSelect multiple :value="modelValue.wikis ?? []" :options="wikiSelectOptions" @update:value="v => update('wikis', v as string[])" />
-      <SFormItem v-if="isProfileMode()" :label="t('channels.use_channel_wikis')" :hint="t('channels.use_channel_wikis_hint')" class="nested-form-item">
-        <SSelect :value="String(!!modelValue.useChannelWikis)" :options="enabledDisabledOptions" @update:value="v => update('useChannelWikis', v === 'true')" />
-      </SFormItem>
-    </SFormItem>
 
     <SFormItem :label="t('directory.path_label')" :hint="inheritLabel('workPath')">
       <div class="path-row">

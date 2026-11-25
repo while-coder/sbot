@@ -24,7 +24,7 @@ function flattenTree(nodes: TreeNode[], depth = 0): { node: TreeNode; depth: num
   return result
 }
 
-const categoryOrder = ['system', 'agent', 'compact', 'note', 'wiki', 'skills', 'memory', 'tools', 'intent', 'heartbeat', 'todo']
+const categoryOrder = ['system', 'agent', 'compact', 'skills', 'memory', 'tools', 'intent', 'heartbeat', 'todo']
 
 const categories = computed(() => {
   const map = new Map<string, TreeNode>()

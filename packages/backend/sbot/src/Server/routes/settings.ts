@@ -18,7 +18,7 @@ type SharedLLMInfo = NonNullable<SharedModelConfig['llmInfo']>;
 const _llmInfoCompat: { [K in keyof SharedLLMInfo]: K extends keyof LLMInfo ? LLMInfo[K] : never } =
     {} as SharedLLMInfo;
 import { config } from '../../Core/Config';
-import { database, parseNotes, type ChannelSessionRow } from '../../Core/Database';
+import { database, type ChannelSessionRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
 import { channelManager } from '../../Channel/ChannelManager';
 import { WEB_CHANNEL_ID } from '@sbot/shared';
@@ -95,20 +95,6 @@ export class SettingsRoutes {
         settingsCrudHelper.register(app, 'models', { label: 'Model', getSettings });
         settingsCrudHelper.register(app, 'embeddings', { label: 'Embedding', getSettings });
         settingsCrudHelper.register(app, 'savers', { label: 'Saver config', getSettings });
-        settingsCrudHelper.register(app, 'notes', { label: 'Note config', getSettings });
-        settingsCrudHelper.register(app, 'wikis', {
-            label: 'Wiki config',
-            getSettings,
-            // wikiId 由前端创建时指定（slug，创建后不可变）：会进 LLM 上下文与日志，可读性优先。
-            // 严格校验字符集——id 会拼进文件路径（config/wiki/{id}）与 URL。
-            clientId: {
-                validate(id) {
-                    if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(id)) {
-                        throwBad('Wiki ID must match ^[a-z0-9][a-z0-9_-]{0,31}$ (lowercase letters, digits, "-", "_")');
-                    }
-                },
-            },
-        });
         settingsCrudHelper.register(app, 'memoryProfiles', {
             label: 'Memory profile',
             checkOnDelete: true,
@@ -171,8 +157,6 @@ export class SettingsRoutes {
                     createdAt: r.createdAt,
                     agent: profile?.agentId ?? channel?.agent ?? '',
                     saver: profile?.saver ?? channel?.saver ?? '',
-                    notes: parseNotes(profile?.notes ?? null),
-                    wikis: parseNotes(profile?.wikis ?? null),
                     workPath: profile?.workPath || undefined,
                     autoApproveAllTools: profile?.autoApproveAllTools || undefined,
                     disableWorkspaceContext: profile?.disableWorkspaceContext ?? undefined,

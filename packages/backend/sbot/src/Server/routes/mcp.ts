@@ -28,8 +28,9 @@ export class McpRoutes {
         try { agent = config.getAgent(agentName); } catch { /* not found */ }
         const mcp = agent?.mcp;
         const allGlobals = this.listGlobalMcps();
+        const excluded = new Set<string>(agent?.mcpExclude ?? []);
         const globals = mcp === '*'
-            ? allGlobals
+            ? allGlobals.filter(m => !excluded.has(m.id))
             : ((mcp as string[]) || [])
                 .map(id => allGlobals.find(m => m.id === id))
                 .filter((m): m is NonNullable<typeof m> => !!m);

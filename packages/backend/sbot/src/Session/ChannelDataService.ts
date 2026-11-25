@@ -1,7 +1,6 @@
 import { ApprovalTimeoutValue, IntentFilterMode } from "@sbot/shared";
 import {
     database,
-    parseNotes,
     type ChannelSessionRow,
     type SessionProfileRow,
     type ChannelUserRow,
@@ -21,8 +20,6 @@ export interface EffectiveSessionResolved {
     agentId: string;
     saver: string;
     threadKey: string;
-    notes: string[];
-    wikis: string[];
     workPath?: string;
     streamVerbose?: boolean;
     autoApproveAllTools?: boolean;
@@ -135,17 +132,10 @@ export class ChannelDataService {
         if (!profile) throw new Error(`SessionProfile not found: session.id=${session.id}, profileId=${session.profileId}`);
         const channel = config.getChannel(session.channelId);
 
-        const useChannelNotes = profile.notes != null ? !!profile.useChannelNotes : false;
-        const useChannelWikis = profile.wikis != null ? !!profile.useChannelWikis : false;
-        const ownNotes = profile.notes != null ? parseNotes(profile.notes) : [];
-        const ownWikis = profile.wikis != null ? parseNotes(profile.wikis) : [];
-
         const resolved: EffectiveSessionResolved = {
             agentId: profile.agentId ?? channel?.agent ?? "",
             saver: profile.saver ?? channel?.saver ?? "",
             threadKey: String(profile.id),
-            notes: useChannelNotes ? [...(channel?.notes ?? []), ...ownNotes] : ownNotes,
-            wikis: useChannelWikis ? [...(channel?.wikis ?? []), ...ownWikis] : ownWikis,
             workPath: profile.workPath ?? channel?.workPath ?? undefined,
             streamVerbose: profile.streamVerbose ?? channel?.streamVerbose ?? undefined,
             autoApproveAllTools: profile.autoApproveAllTools ?? channel?.autoApproveAllTools ?? undefined,
@@ -227,8 +217,8 @@ export class ChannelDataService {
 
     /**
      * 列出 sessions，并把 session.profileId 指向的 profile 字段（含 token 统计）
-     * 平铺到每条记录上 —— admin UI 显示需要 agentId/saver/notes/tokens 等，
-     * 这些都是 profile 字段。notes/wikis 解析后返回 string[] | null。
+     * 平铺到每条记录上 —— admin UI 显示需要 agentId/saver/tokens 等，
+     * 这些都是 profile 字段。
      *
      * Profile 字段值的语义：null = 沿用 channel 默认；非 null = profile 已覆盖。
      */
@@ -247,10 +237,6 @@ export class ChannelDataService {
                 ...s,
                 agentId: p?.agentId ?? null,
                 saver: p?.saver ?? null,
-                notes: p?.notes != null ? parseNotes(p.notes) : null,
-                wikis: p?.wikis != null ? parseNotes(p.wikis) : null,
-                useChannelNotes: p?.useChannelNotes ?? null,
-                useChannelWikis: p?.useChannelWikis ?? null,
                 workPath: p?.workPath ?? null,
                 streamVerbose: p?.streamVerbose ?? null,
                 autoApproveAllTools: p?.autoApproveAllTools ?? null,
@@ -340,22 +326,16 @@ export class ChannelDataService {
     }
 
     /**
-     * 更新 profile 字段。notes/wikis 调用方传 string[] | null，本方法负责 JSON 序列化。
+     * 更新 profile 字段。
      * undefined = 不动；null = 清空；值 = 写入。
      */
     async updateProfile(id: number, body: Record<string, any>): Promise<void> {
-        const noteSer = body.notes === undefined ? undefined : (body.notes === null ? null : JSON.stringify(body.notes || []));
-        const wikiSer = body.wikis === undefined ? undefined : (body.wikis === null ? null : JSON.stringify(body.wikis || []));
         const memoryRef = body.memory === undefined ? undefined : normalizeRef(body.memory);
         const agendaRef = body.agenda === undefined ? undefined : normalizeRef(body.agenda);
         const update = pickDefined({
             name: body.name,
             agentId: body.agentId === undefined ? undefined : (body.agentId || null),
             saver: body.saver === undefined ? undefined : (body.saver || null),
-            notes: noteSer,
-            wikis: wikiSer,
-            useChannelNotes: body.useChannelNotes === undefined ? undefined : (body.useChannelNotes === null ? null : !!body.useChannelNotes),
-            useChannelWikis: body.useChannelWikis === undefined ? undefined : (body.useChannelWikis === null ? null : !!body.useChannelWikis),
             workPath: body.workPath === undefined ? undefined : (body.workPath || null),
             streamVerbose: body.streamVerbose === undefined ? undefined : (body.streamVerbose ?? null),
             autoApproveAllTools: body.autoApproveAllTools === undefined ? undefined : (body.autoApproveAllTools ?? null),
@@ -399,10 +379,6 @@ export class ChannelDataService {
             autoForSessionId: null,
             agentId: current?.agentId ?? null,
             saver: current?.saver ?? null,
-            notes: current?.notes ?? null,
-            wikis: current?.wikis ?? null,
-            useChannelNotes: current?.useChannelNotes ?? null,
-            useChannelWikis: current?.useChannelWikis ?? null,
             workPath: current?.workPath ?? null,
             streamVerbose: current?.streamVerbose ?? null,
             autoApproveAllTools: current?.autoApproveAllTools ?? null,
@@ -492,8 +468,6 @@ export class ChannelDataService {
         await database.update(database.sessionProfile, {
             agentId: body.agent || null,
             saver: body.saver || null,
-            notes: body.notes ? JSON.stringify(body.notes) : null,
-            wikis: body.wikis ? JSON.stringify(body.wikis) : null,
             workPath: body.workPath ?? null,
             disableWorkspaceContext: body.disableWorkspaceContext ?? null,
             disableWorkspaceSkills: body.disableWorkspaceSkills ?? null,
@@ -518,8 +492,6 @@ export class ChannelDataService {
         const profileUpdate: Record<string, any> = {};
         if (body.agent !== undefined) profileUpdate.agentId = body.agent || null;
         if (body.saver !== undefined) profileUpdate.saver = body.saver || null;
-        if (body.notes !== undefined) profileUpdate.notes = body.notes ? JSON.stringify(body.notes) : null;
-        if (body.wikis !== undefined) profileUpdate.wikis = body.wikis ? JSON.stringify(body.wikis) : null;
         if (body.workPath !== undefined) profileUpdate.workPath = body.workPath;
         if (body.autoApproveAllTools !== undefined) profileUpdate.autoApproveAllTools = !!body.autoApproveAllTools;
         if (body.disableWorkspaceContext !== undefined) profileUpdate.disableWorkspaceContext = body.disableWorkspaceContext ?? null;
@@ -665,27 +637,19 @@ export class ChannelDataService {
  * - agent ID（profile.agentId / channel.agent / agent.agents[].id）
  * - saver UUID（profile.saver / channel.saver）
  * - model UUID（intentModel / agent.model / agent.compactModel / memoryProfile.writerModel / memoryProfile.selectorModel / agendaProfile.syncModel）
- * - embedding UUID（note.embedding / wiki.embedding）
- * - note/wiki UUID（profile.notes[] / channel.notes[]，wikis 同理）
  * - memoryProfile / agendaProfile UUID（profile.memory / channel.memory，agenda 同理）
  */
 function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
     invalidAgentRefs: InvalidRef[];
     invalidSaverRefs: InvalidRef[];
     invalidModelRefs: InvalidRef[];
-    invalidEmbeddingRefs: InvalidRef[];
-    invalidNoteRefs: InvalidRef[];
-    invalidWikiRefs: InvalidRef[];
     invalidMemoryProfileRefs: InvalidRef[];
     invalidAgendaProfileRefs: InvalidRef[];
 } {
     const settings = config.settings;
     const channels = settings.channels ?? {};
     const models = settings.models ?? {};
-    const embeddings = settings.embeddings ?? {};
     const savers = settings.savers ?? {};
-    const notes = settings.notes ?? {};
-    const wikis = settings.wikis ?? {};
     const memoryProfiles = settings.memoryProfiles ?? {};
     const agendaProfiles = settings.agendaProfiles ?? {};
     const agentIds = new Set(config.listAgents().map(a => a.id));
@@ -696,9 +660,6 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
     const invalidAgentRefs: InvalidRef[] = [];
     const invalidSaverRefs: InvalidRef[] = [];
     const invalidModelRefs: InvalidRef[] = [];
-    const invalidEmbeddingRefs: InvalidRef[] = [];
-    const invalidNoteRefs: InvalidRef[] = [];
-    const invalidWikiRefs: InvalidRef[] = [];
     const invalidMemoryProfileRefs: InvalidRef[] = [];
     const invalidAgendaProfileRefs: InvalidRef[] = [];
 
@@ -715,15 +676,6 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         if (p.intentModel && !has(models, p.intentModel)) invalidModelRefs.push({ source: src, field: 'intentModel', badValue: p.intentModel });
         if (p.memory && !has(memoryProfiles, p.memory)) invalidMemoryProfileRefs.push({ source: src, field: 'memory', badValue: p.memory });
         if (p.agenda && !has(agendaProfiles, p.agenda)) invalidAgendaProfileRefs.push({ source: src, field: 'agenda', badValue: p.agenda });
-
-        const noteIds = parseNotes(p.notes);
-        noteIds.forEach((id, i) => {
-            if (!has(notes, id)) invalidNoteRefs.push({ source: src, field: `notes[${i}]`, badValue: id });
-        });
-        const wikiIds = parseNotes(p.wikis);
-        wikiIds.forEach((id, i) => {
-            if (!has(wikis, id)) invalidWikiRefs.push({ source: src, field: `wikis[${i}]`, badValue: id });
-        });
     }
 
     // ── channels ─────────────────────────────────────────────────────────
@@ -734,24 +686,6 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         if (c.intentModel && !has(models, c.intentModel)) invalidModelRefs.push({ source: src, field: 'intentModel', badValue: c.intentModel });
         if (c.memory && !has(memoryProfiles, c.memory)) invalidMemoryProfileRefs.push({ source: src, field: 'memory', badValue: c.memory });
         if (c.agenda && !has(agendaProfiles, c.agenda)) invalidAgendaProfileRefs.push({ source: src, field: 'agenda', badValue: c.agenda });
-        (c.notes ?? []).forEach((id, i) => {
-            if (!has(notes, id)) invalidNoteRefs.push({ source: src, field: `notes[${i}]`, badValue: id });
-        });
-        (c.wikis ?? []).forEach((id, i) => {
-            if (!has(wikis, id)) invalidWikiRefs.push({ source: src, field: `wikis[${i}]`, badValue: id });
-        });
-    }
-
-    // ── notes / wikis 引用 embedding ─────────────────────────────────────
-    for (const [nid, n] of Object.entries(notes)) {
-        if (n.embedding && !has(embeddings, n.embedding)) {
-            invalidEmbeddingRefs.push({ source: `note:${nid}${n.name ? `(${n.name})` : ''}`, field: 'embedding', badValue: n.embedding });
-        }
-    }
-    for (const [wid, w] of Object.entries(wikis)) {
-        if (w.embedding && !has(embeddings, w.embedding)) {
-            invalidEmbeddingRefs.push({ source: `wiki:${wid}${w.name ? `(${w.name})` : ''}`, field: 'embedding', badValue: w.embedding });
-        }
     }
 
     // ── memoryProfiles / agendaProfiles 引用 model ───────────────────────
@@ -786,9 +720,6 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         invalidAgentRefs,
         invalidSaverRefs,
         invalidModelRefs,
-        invalidEmbeddingRefs,
-        invalidNoteRefs,
-        invalidWikiRefs,
         invalidMemoryProfileRefs,
         invalidAgendaProfileRefs,
     };
@@ -797,17 +728,12 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
 // ── listSessions 响应类型 ─────────────────────────────────────────────────────
 
 /**
- * channel_session 行 + 它指向的 profile 字段（admin UI 需要展示 agent/saver/notes/tokens 等）。
+ * channel_session 行 + 它指向的 profile 字段（admin UI 需要展示 agent/saver/tokens 等）。
  * profile 字段：null = 沿用 channel 默认；非 null = profile 已覆盖。
- * notes/wikis 已从 JSON 字符串解析为 string[]，null = 未覆盖。
  */
 export interface ChannelSessionWithProfile extends ChannelSessionRow {
     agentId: string | null;
     saver: string | null;
-    notes: string[] | null;
-    wikis: string[] | null;
-    useChannelNotes: boolean | null;
-    useChannelWikis: boolean | null;
     workPath: string | null;
     streamVerbose: boolean | null;
     autoApproveAllTools: boolean | null;
@@ -855,9 +781,6 @@ export interface CleanupReport {
     invalidAgentRefs: InvalidRef[];
     invalidSaverRefs: InvalidRef[];
     invalidModelRefs: InvalidRef[];
-    invalidEmbeddingRefs: InvalidRef[];
-    invalidNoteRefs: InvalidRef[];
-    invalidWikiRefs: InvalidRef[];
     invalidMemoryProfileRefs: InvalidRef[];
     invalidAgendaProfileRefs: InvalidRef[];
 }

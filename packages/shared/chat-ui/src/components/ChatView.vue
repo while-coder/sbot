@@ -12,7 +12,6 @@ import type { IChatTransport, CommandInfo } from '../transport'
 import { resolveLabels, tpl } from '../labels'
 import { provideCompact, useCompactProvider } from '../composables/useCompact'
 import SessionBar from './SessionBar.vue'
-import ConfigToolbar from './ConfigToolbar.vue'
 import StatusBar from './StatusBar.vue'
 import ChatArea from './ChatArea.vue'
 import PathPickerModal from './PathPickerModal.vue'
@@ -23,6 +22,7 @@ const props = withDefaults(defineProps<{
   transport: IChatTransport
   labels?: ChatLabels
   showAttachments?: boolean
+  showWorkbench?: boolean
   alwaysCompact?: boolean
   layoutMode?: ChatLayoutMode
   fixedWorkPath?: string
@@ -33,6 +33,7 @@ const props = withDefaults(defineProps<{
   hideSaverSelect?: boolean
 }>(), {
   showAttachments: true,
+  showWorkbench: true,
   alwaysCompact: false,
   layoutMode: 'auto',
   fixedWorkPath: '',
@@ -49,7 +50,7 @@ const CHAT_VIEW_STATE_KEY = 'sbot:chatview:state:v1'
 
 const sessions          = ref<SessionItem[]>([])
 const activeProfileId   = ref<string | null>(null)
-const settings          = ref<AppSettings>({ agents: {}, savers: {}, notes: {}, wikis: {} })
+const settings          = ref<AppSettings>({ agents: {}, savers: {} })
 
 const messages          = ref<StoredMessage[]>([])
 const isStreaming       = ref(false)
@@ -903,12 +904,7 @@ function saveRightPanelOpenState(open: boolean): void {
       <Transition name="chatui-drawer">
         <div v-if="settingsOpen" class="chatui-compact-popover-backdrop" @click="settingsOpen = false">
           <div class="chatui-compact-popover chatui-settings-popover" @click.stop>
-            <ConfigToolbar
-              :session="activeSession"
-              :settings="settings"
-              :labels="labels"
-              @update-config="onUpdateConfig"
-            />
+
             <StatusBar
               v-if="activeProfileId"
               :usage="usage"
@@ -923,6 +919,7 @@ function saveRightPanelOpenState(open: boolean): void {
               <template #actions-prepend>
                 <slot name="status-actions" :session="activeSession" />
                 <button
+                  v-if="showWorkbench"
                   class="chatui-right-panel-toggle"
                   :class="{ 'chatui-right-panel-toggle--active': rightPanelOpen }"
                   :title="L.rightPanelToggle"
@@ -963,13 +960,7 @@ function saveRightPanelOpenState(open: boolean): void {
     <!-- Right panel -->
     <div class="chatui-main">
       <!-- Config toolbar -->
-      <ConfigToolbar
-        v-if="!compactMode"
-        :session="activeSession"
-        :settings="settings"
-        :labels="labels"
-        @update-config="onUpdateConfig"
-      />
+
 
       <!-- Status bar -->
       <StatusBar
@@ -986,6 +977,7 @@ function saveRightPanelOpenState(open: boolean): void {
         <template #actions-prepend>
           <slot name="status-actions" :session="activeSession" />
           <button
+            v-if="showWorkbench"
             class="chatui-right-panel-toggle"
             :class="{ 'chatui-right-panel-toggle--active': rightPanelOpen }"
             :title="L.rightPanelToggle"
@@ -1024,7 +1016,7 @@ function saveRightPanelOpenState(open: boolean): void {
           :saver-options="saverOptions"
           :hide-saver-select="hideSaverSelect"
           :work-path="effectiveWorkPath"
-          :work-path-readonly="workPathLocked"
+          :work-path-readonly="workPathLocked || !showWorkbench"
           @send="onSend"
           @approve="onApprove"
           @answer="onAnswer"
@@ -1034,7 +1026,7 @@ function saveRightPanelOpenState(open: boolean): void {
           @update-config="onUpdateConfig"
           @open-path-picker="onOpenPathPicker"
         />
-        <div v-if="rightPanelOpen" class="chatui-right-panel-pane" :style="rightPanelStyle">
+        <div v-if="showWorkbench && rightPanelOpen" class="chatui-right-panel-pane" :style="rightPanelStyle">
           <div
             v-if="!compactMode"
             class="chatui-right-panel-resizer"
@@ -1058,6 +1050,7 @@ function saveRightPanelOpenState(open: boolean): void {
 
     <!-- Modals -->
     <PathPickerModal
+      v-if="showWorkbench && !workPathLocked"
       ref="pathPickerRef"
       :transport="transport"
       :labels="labels"

@@ -80,7 +80,7 @@ export type ProcessAIHandler = (
 ) => Promise<void>;
 
 export interface ChannelPlugin {
-  /** 区分插件种类，供统一加载器分流（与 WikiPlugin 的 kind:'wiki' 区别开）。 */
+  /** 区分插件种类，供统一加载器分流。 */
   kind: "channel";
   type: string;
   label: string;

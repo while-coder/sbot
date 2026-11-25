@@ -14,8 +14,6 @@ defineProps<{
   resolved?: Partial<Record<keyof SessionOverrides, any>>
   agentOptions: Option[]
   saverOptions: Option[]
-  noteOptions: Option[]
-  wikiOptions: Option[]
   modelOptions: Option[]
   memoryProfileOptions: Option[]
   agendaProfileOptions: Option[]
@@ -36,8 +34,6 @@ defineEmits<{
     :resolved="resolved"
     :agent-options="agentOptions"
     :saver-options="saverOptions"
-    :note-options="noteOptions"
-    :wiki-options="wikiOptions"
     :model-options="modelOptions"
     :memory-profile-options="memoryProfileOptions"
     :agenda-profile-options="agendaProfileOptions"

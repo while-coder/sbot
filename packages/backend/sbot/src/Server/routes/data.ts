@@ -2,11 +2,9 @@ import express, { Request } from 'express';
 import { listThreadIds, IAgentSaverService, type StoredMessage } from 'scorpio.ai';
 import { saverProviderRegistry } from 'scorpio.saver';
 import { config } from '../../Core/Config';
-import { AgentRunner } from '../../Agent/AgentRunner';
 import { SaverPool } from '../../Agent/SaverPool';
 import { database, type ChannelSessionRow } from '../../Core/Database';
 import { channelDataService } from '../../Session/ChannelDataService';
-import { wikiPluginRegistry } from '../../Wiki/WikiPluginRegistry';
 import { WEB_CHANNEL_ID } from '@sbot/shared';
 import { api, throwBad } from '../../utils';
 import type { RouteContext } from './types';
@@ -110,105 +108,6 @@ export class DataRoutes {
         this.registerSaverThreadRoutes(app, '/api/profiles/:profileId', async req =>
             await this.resolveSessionSaver(await this.getWebSessionRowByProfileId(req.params.profileId as string))
         );
-
-        // ── Notes ──
-        app.get('/api/notes/:noteName', api(async req => {
-            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
-            const notes = (await svc.getAllNotes()).map(n => ({
-                id: n.id,
-                content: n.content,
-                createdAt: n.createdAt,
-                lastAccessed: n.lastAccessed,
-                accessCount: n.accessCount,
-            }));
-            await svc.dispose();
-            return notes;
-        }));
-
-        app.post('/api/notes/:noteName/add', api(async req => {
-            const { content, autoSplit, chunkSize } = req.body as { content?: string; autoSplit?: boolean; chunkSize?: number };
-            if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
-            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
-            const ids = await svc.addNoteDirect(content.trim(), { autoSplit, chunkSize });
-            await svc.dispose();
-            return { ids };
-        }));
-
-        app.put('/api/notes/:noteName/:noteId', api(async req => {
-            const { content } = req.body as { content?: string };
-            if (!content?.trim()) { const e: any = new Error('content is required'); e.status = 400; throw e; }
-            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
-            await svc.updateNoteDirect(req.params.noteId as string, content.trim());
-            await svc.dispose();
-        }));
-
-        app.delete('/api/notes/:noteName/:noteId', api(async req => {
-            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
-            await svc.deleteNote(req.params.noteId as string);
-            await svc.dispose();
-        }));
-
-        app.delete('/api/notes/:noteName', api(async req => {
-            const svc = await AgentRunner.createNoteService(req.params.noteName as string);
-            const count = await svc.clearAll();
-            await svc.dispose();
-            return { count };
-        }));
-
-
-        // ── Wiki ──
-        // 列出已注册的 wiki 数据源插件（type/label/configSchema/readOnly），供后台渲染数据源下拉与配置表单。
-        app.get('/api/wiki-plugins', api(async () => {
-            return wikiPluginRegistry.list();
-        }));
-
-        app.get('/api/wikis/:wikiName', api(async req => {
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            const pages = await svc.getAllPages();
-            return pages.map((p: any) => ({
-                id: p.id, title: p.title, tags: p.tags,
-                source: p.source, version: p.version,
-                createdAt: p.createdAt, updatedAt: p.updatedAt,
-            }));
-        }));
-
-        app.get('/api/wikis/:wikiName/pages/:pageId', api(async req => {
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            const pageId = req.params.pageId as string;
-            const meta = (await svc.getAllPages()).find(p => p.id === pageId);
-            if (!meta) { const e: any = new Error('Page not found'); e.status = 404; throw e; }
-            const content = await svc.readContent(pageId);
-            return { ...meta, content: content ?? meta.content ?? "" };
-        }));
-
-        app.post('/api/wikis/:wikiName/pages', api(async req => {
-            const { title, content, tags } = req.body as { title?: string; content?: string; tags?: string[] };
-            if (!title?.trim() || !content?.trim()) {
-                const e: any = new Error('title and content are required'); e.status = 400; throw e;
-            }
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            return svc.savePage({ title, content, tags });
-        }));
-
-        app.put('/api/wikis/:wikiName/pages/:pageId', api(async req => {
-            const { title, content, tags } = req.body as { title?: string; content?: string; tags?: string[] };
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            return svc.savePage({ id: req.params.pageId as string, title, content, tags });
-        }));
-
-        app.delete('/api/wikis/:wikiName/pages/:pageId', api(async req => {
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            await svc.deletePage(req.params.pageId as string);
-            return { ok: true };
-        }));
-
-        app.get('/api/wikis/:wikiName/search', api(async req => {
-            const query = req.query.q as string;
-            const limit = parseInt(req.query.limit as string) || 5;
-            if (!query?.trim()) { const e: any = new Error('q parameter is required'); e.status = 400; throw e; }
-            const svc = await AgentRunner.createWikiService(req.params.wikiName as string);
-            return svc.search(query, limit);
-        }));
     }
 }
 

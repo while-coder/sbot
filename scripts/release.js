@@ -5,7 +5,6 @@
  * 目标：
  *   app   打 app-vX.Y.Z tag，触发 "Release App" workflow
  *   sbot  打 sbot-vX.Y.Z tag，触发 "Release sbot" workflow，并把 ReleaseNote 同步进 pkg.json
- *   cli   打 cli-vX.Y.Z tag，触发 "Release CLI" workflow
  *
  * 版本以根 package.json 的 appVersion / sbotVersion（或目标自身 package.json）为准；
  * tauri.conf.json 的 version 指向 "../package.json" 时自动跟随，无需单独写。
@@ -15,7 +14,7 @@
  *   - tag 不存在：回车确认发版，Ctrl+C 取消
  *
  * 用法：
- *   node scripts/release.js <app|sbot|cli> [<version>|patch|minor|major]
+ *   node scripts/release.js <app|sbot> [<version>|patch|minor|major]
  */
 const { execSync } = require('child_process');
 const readline = require('readline');
@@ -28,7 +27,7 @@ const TARGETS = {
     rootField: 'appVersion',
     tauriConf: 'packages/apps/client/src-tauri/tauri.conf.json',
     pkgJson: 'packages/apps/client/package.json',
-    companionPkgJsons: ['packages/apps/sbot-vscode/package.json', 'packages/apps/desktop/package.json'],
+    companionPkgJsons: ['packages/apps/desktop/package.json'],
     overwriteExistingRelease: true,
   },
   sbot: {
@@ -41,14 +40,9 @@ const TARGETS = {
       zh: 'packages/backend/sbot/ReleaseNote.zh.md',
     },
   },
-  cli: {
-    tagPrefix: 'cli-v',
-    pkgJson: 'packages/apps/sbot-cli/package.json',
-    overwriteExistingRelease: true,
-  },
 };
 
-const WORKFLOW_NAMES = { app: 'Release App', sbot: 'Release sbot', cli: 'Release CLI' };
+const WORKFLOW_NAMES = { app: 'Release App', sbot: 'Release sbot' };
 
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 const BUMP_TYPES = ['patch', 'minor', 'major'];
@@ -187,7 +181,7 @@ async function main() {
     (releaseNotes.zh !== undefined && pkg.releasenoteZh !== releaseNotes.zh)
   );
 
-  // companion pkg.json files that should track the main version (e.g. vscode-extension follows app)
+  // Companion packages that share the release version.
   const companions = (cfg.companionPkgJsons || []).map((rel) => {
     const p = path.join(root, rel);
     const json = readJson(p);

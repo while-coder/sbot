@@ -2,17 +2,15 @@
 import { computed, ref } from 'vue'
 import GeneralPage from './pages/GeneralPage.vue'
 import ModelsPage from './pages/ModelsPage.vue'
-import ChannelsPage from './pages/ChannelsPage.vue'
 import AboutPage from './pages/AboutPage.vue'
 
-type PageKey = 'general' | 'models' | 'channels' | 'about'
+type PageKey = 'general' | 'models' | 'about'
 
 const props = defineProps<{ initialPage?: PageKey }>()
 
 const NAV: Array<{ key: PageKey; label: string; desc: string }> = [
   { key: 'general', label: '常规', desc: '外观与基础行为' },
   { key: 'models', label: '模型', desc: 'LLM 模型接入' },
-  { key: 'channels', label: '渠道', desc: '消息渠道接入' },
   { key: 'about', label: '关于', desc: '版本与诊断' },
 ]
 
@@ -43,7 +41,6 @@ const activeInfo = computed(() => NAV.find(n => n.key === active.value) ?? NAV[0
       <div class="pages">
         <GeneralPage v-show="active === 'general'" />
         <ModelsPage v-show="active === 'models'" />
-        <ChannelsPage v-show="active === 'channels'" />
         <AboutPage v-show="active === 'about'" />
       </div>
     </main>

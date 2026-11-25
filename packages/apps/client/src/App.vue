@@ -4,7 +4,6 @@ import { ServerChatShell, WebSocketTransport, useServerSelection } from '@sbot/c
 import type { RemoteEntry } from '@sbot/chat-ui'
 import { SMessageHost } from '@qingfeng346/ui-kit'
 import ThemeMenu from './ThemeMenu.vue'
-import { UpdaterDialog } from '@while-coder/tauri-updater-vue'
 import '@sbot/chat-ui/themes/variables.css'
 import lightThemeCSS from '@sbot/chat-ui/themes/theme-light.css?inline'
 import darkThemeCSS from '@sbot/chat-ui/themes/theme-dark.css?inline'
@@ -115,7 +114,6 @@ onUnmounted(removeSystemThemeListener)
 
 <template>
   <div class="desktop-app">
-    <UpdaterDialog />
     <SMessageHost confirm-text="确定" cancel-text="取消" />
     <ServerChatShell
       :phase="phase"
@@ -125,6 +123,7 @@ onUnmounted(removeSystemThemeListener)
       :connect-error="connectError"
       :connecting="connecting"
       :show-attachments="true"
+      :show-workbench="false"
       @select-local="selectLocal"
       @select-remote="selectRemote"
       @add-remote="addRemote"

@@ -43,7 +43,6 @@ interface PluginInfo {
 
 // 形状对齐 packages/backend/sbot ChannelSessionWithProfile：
 // channel_session 行 + 关联 profile 的字段（profile 字段 null = 沿用 channel 默认）。
-// notes/wikis 后端已从 JSON 字符串解析为 string[]，null = profile 未覆盖。
 interface ChannelSessionRow {
   id: number
   channelId: string
@@ -56,10 +55,6 @@ interface ChannelSessionRow {
   // ── 来自 profile（null = 沿用 channel）──
   agentId: string | null
   saver: string | null
-  notes: string[] | null
-  wikis: string[] | null
-  useChannelNotes: boolean | null
-  useChannelWikis: boolean | null
   workPath: string | null
   streamVerbose: boolean | null
   autoApproveAllTools: boolean | null
@@ -144,8 +139,6 @@ const channelList = computed(() => Object.entries(channels.value).map(([id, c]) 
 type ChannelEntry = ChannelConfig & { id: string }
 const agentOptions  = computed(() => Object.entries(store.settings.agents   || {}).map(([id, a]) => ({ id, label: (a as any).name  || id, type: (a as any).type || '' })))
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
-const noteOptions   = computed(() => Object.entries(store.settings.notes     || {}).map(([id, n]) => ({ id, label: n.name  || id })))
-const wikiOptions   = computed(() => Object.entries(store.settings.wikis    || {}).map(([id, w]) => ({ id, label: (w as any).name  || id })))
 const modelOptions  = modelManager.options
 const memoryProfileOptions = computed(() => Object.entries(store.settings.memoryProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
@@ -169,10 +162,6 @@ const editingSession = ref<ChannelSessionRow | null>(null)
 interface ProfileFull extends ProfileOption {
   agentId?: string | null
   saver?: string | null
-  notes?: string | null
-  wikis?: string | null
-  useChannelNotes?: boolean | null
-  useChannelWikis?: boolean | null
   workPath?: string | null
   streamVerbose?: boolean | null
   autoApproveAllTools?: boolean | null
@@ -204,8 +193,7 @@ const sessionForm = ref<{ name: string; overrides: SessionOverrides }>({
 
 function emptyOverrides(): SessionOverrides {
   return {
-    agentId: null, saver: null, notes: null, wikis: null,
-    useChannelNotes: null, useChannelWikis: null,
+    agentId: null, saver: null,
     workPath: null, streamVerbose: null, autoApproveAllTools: null,
     disableWorkspaceContext: null, disableWorkspaceSkills: null, disableWorkspaceMcp: null,
     approvalTimeout: null, approvalTimeoutValue: null,
@@ -217,20 +205,11 @@ function emptyOverrides(): SessionOverrides {
   }
 }
 
-function parseList(raw: string | null | undefined): string[] {
-  if (!raw) return []
-  try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
-}
-
 function profileToOverrides(p: ProfileFull): SessionOverrides {
   const toTriBool = (v: any): boolean | null => v == null ? null : !!v
   return {
     agentId: p.agentId ?? null,
     saver: p.saver ?? null,
-    notes: p.notes == null ? null : parseList(p.notes),
-    wikis: p.wikis == null ? null : parseList(p.wikis),
-    useChannelNotes: toTriBool(p.useChannelNotes),
-    useChannelWikis: toTriBool(p.useChannelWikis),
     workPath: p.workPath ?? null,
     streamVerbose: toTriBool(p.streamVerbose),
     autoApproveAllTools: toTriBool(p.autoApproveAllTools),
@@ -340,16 +319,10 @@ async function saveSession() {
   const p = editingProfile.value
   if (!s || !p) return
 
-  const validNoteIds = new Set(noteOptions.value.map(n => n.id))
-  const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
   const o = sessionForm.value.overrides
   const profilePayload = {
     agentId: o.agentId,
     saver: o.saver,
-    notes: o.notes == null ? null : o.notes.filter(id => validNoteIds.has(id)),
-    wikis: o.wikis == null ? null : o.wikis.filter(id => validWikiIds.has(id)),
-    useChannelNotes: o.useChannelNotes,
-    useChannelWikis: o.useChannelWikis,
     workPath: o.workPath,
     streamVerbose: o.streamVerbose,
     autoApproveAllTools: o.autoApproveAllTools,
@@ -368,16 +341,11 @@ async function saveSession() {
     agenda: o.agenda,
   }
 
-  // 比较 profile 是否有变化（含清洗：原始 notes/wikis 不过滤，与清洗后的 payload 对比，
-  // 这样一旦原始数据带了已失效 id，就会被识别为"变化"，存盘后顺带洗掉脏数据）
+  // 比较 profile 是否有变化。
   const orig = originalOverrides.value
   const originalEquivalent = orig == null ? null : {
     agentId: orig.agentId,
     saver: orig.saver,
-    notes: orig.notes,
-    wikis: orig.wikis,
-    useChannelNotes: orig.useChannelNotes,
-    useChannelWikis: orig.useChannelWikis,
     workPath: orig.workPath,
     streamVerbose: orig.streamVerbose,
     autoApproveAllTools: orig.autoApproveAllTools,
@@ -449,7 +417,7 @@ function intentFilterModeClass(mode?: IntentFilterMode | null): string {
 const showModal = ref(false)
 const editingId = ref<string | null>(null)
 const form = ref<ChannelConfig>({
-  name: '', type: '', config: {}, agent: '', saver: '', notes: [],
+  name: '', type: '', config: {}, agent: '', saver: '',
   workPath: '', streamVerbose: false, autoApproveAllTools: false,
   disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false,
   approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny,
@@ -463,10 +431,6 @@ const channelDataConfig = computed<DataConfigValue>({
   get: () => ({
     agentId: form.value.agent || null,
     saver: form.value.saver || null,
-    notes: form.value.notes || [],
-    wikis: form.value.wikis || [],
-    useChannelNotes: null,
-    useChannelWikis: null,
     workPath: form.value.workPath || null,
     streamVerbose: form.value.streamVerbose ?? false,
     autoApproveAllTools: form.value.autoApproveAllTools ?? false,
@@ -487,8 +451,6 @@ const channelDataConfig = computed<DataConfigValue>({
   set: (v) => {
     form.value.agent = v.agentId || ''
     form.value.saver = v.saver || ''
-    form.value.notes = v.notes ?? []
-    form.value.wikis = v.wikis ?? []
     form.value.workPath = v.workPath || ''
     form.value.streamVerbose = !!v.streamVerbose
     form.value.autoApproveAllTools = !!v.autoApproveAllTools
@@ -540,7 +502,7 @@ async function loadChannelData(id: string) {
       apiFetch(`/api/channel-users?channelId=${encodeURIComponent(id)}`),
     ])
     sessionMap.value[id] = (sessRes.data || []).map((s: any) => ({
-      ...s, notes: s.notes || [], useChannelNotes: !!s.useChannelNotes, useChannelWikis: !!s.useChannelWikis,
+      ...s,
       streamVerbose: s.streamVerbose == null ? null : !!s.streamVerbose,
       autoApproveAllTools: s.autoApproveAllTools == null ? null : !!s.autoApproveAllTools,
     }))
@@ -667,7 +629,7 @@ function openAdd() {
   editingId.value = null
   clearActionState()
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
-  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', notes: [], wikis: [], workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentFilterMode: IntentFilterMode.Auto, intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
+  form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentFilterMode: IntentFilterMode.Auto, intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
   formTriggerTools.value = []
   formToolsMode.value = 'default'
@@ -679,7 +641,7 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, notes: c.notes || [], wikis: (c as any).wikis || [], workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, disableWorkspaceMcp: !!c.disableWorkspaceMcp, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentFilterMode: c.intentFilterMode ?? IntentFilterMode.Auto, intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, disableWorkspaceMcp: !!c.disableWorkspaceMcp, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentFilterMode: c.intentFilterMode ?? IntentFilterMode.Auto, intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
   formTools.value = [...(c.tools ?? [])]
   formTriggerTools.value = [...(c.triggerTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
@@ -696,8 +658,6 @@ async function save() {
   if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { toast.show('error', t('channels.tools_whitelist_empty')); return }
   if (formTriggerToolsMode.value === 'whitelist' && formTriggerTools.value.length === 0) { toast.show('error', t('channels.tools_whitelist_empty')); return }
   try {
-    const validNoteIds = new Set(noteOptions.value.map(n => n.id))
-    const validWikiIds = new Set(wikiOptions.value.map(w => w.id))
     const processedConfig: Record<string, any> = {}
     const schema = currentSchema.value
     for (const [key, val] of Object.entries(form.value.config)) {
@@ -713,8 +673,6 @@ async function save() {
       type: form.value.type,
       agent: form.value.agent,
       saver: form.value.saver,
-      notes: form.value.notes.filter(id => validNoteIds.has(id)),
-      wikis: (form.value.wikis || []).filter(id => validWikiIds.has(id)),
       config: processedConfig,
       workPath: form.value.workPath?.trim() || undefined,
       streamVerbose: form.value.streamVerbose || undefined,
@@ -820,8 +778,6 @@ async function refresh() {
         <template #meta="{ item: c }">
           <span class="session-meta-id">{{ c.id }}</span>
           <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
-          <span v-if="Array.isArray(c.notes) && c.notes.length" class="session-meta-chip">{{ t('common.note') }}: {{ c.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') }}</span>
-          <span v-if="Array.isArray((c as any).wikis) && (c as any).wikis.length" class="session-meta-chip">{{ t('common.wiki') }}: {{ (c as any).wikis.map((wid: string) => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') }}</span>
           <span v-if="c.memory" class="session-meta-chip">{{ t('channels.memory_label') }}: {{ memoryProfileOptions.find(m => m.id === c.memory)?.label || c.memory }}</span>
           <span v-if="c.agenda" class="session-meta-chip">{{ t('channels.agenda_label') }}: {{ agendaProfileOptions.find(a => a.id === c.agenda)?.label || c.agenda }}</span>
           <span v-if="c.workPath" class="session-meta-chip blue">{{ t('directory.path_label') }}: {{ c.workPath }}</span>
@@ -868,10 +824,6 @@ async function refresh() {
                 <template #meta="{ item: s }">
                   <span class="session-meta-id">{{ s.sessionId }}</span>
                   <span v-if="s.saver" class="session-meta-chip">{{ t('common.storage') }}: {{ saverOptions.find(o => o.id === s.saver)?.label || s.saver }}</span>
-                  <span v-if="Array.isArray(s.notes) && s.notes.length" class="session-meta-chip">{{ t('common.note') }}: {{ s.notes.map(nid => noteOptions.find(n => n.id === nid)?.label || nid).join(', ') }}</span>
-                  <span v-if="Array.isArray(s.wikis) && s.wikis.length" class="session-meta-chip">{{ t('common.wiki') }}: {{ s.wikis.map(wid => wikiOptions.find(w => w.id === wid)?.label || wid).join(', ') }}</span>
-                  <span v-if="s.useChannelNotes" class="session-meta-chip green">{{ t('channels.use_channel_notes') }}</span>
-                  <span v-if="s.useChannelWikis" class="session-meta-chip green">{{ t('channels.use_channel_wikis') }}</span>
                   <span v-if="s.workPath" class="session-meta-chip blue">{{ t('directory.path_label') }}: {{ s.workPath }}</span>
                   <span v-if="s.streamVerbose != null" class="session-meta-chip" :class="s.streamVerbose ? 'green' : 'muted'">{{ t('channels.stream_verbose') }}: {{ s.streamVerbose ? t('common.enabled') : t('common.disabled') }}</span>
                   <span v-if="s.autoApproveAllTools != null" class="session-meta-chip" :class="s.autoApproveAllTools ? 'orange' : 'muted'">{{ t('settings.auto_approve_all') }}: {{ s.autoApproveAllTools ? t('common.enabled') : t('common.disabled') }}</span>
@@ -969,8 +921,6 @@ async function refresh() {
             :default-open-sections="['common', 'resources']"
             :agent-options="agentOptions"
             :saver-options="saverOptions"
-            :note-options="noteOptions"
-            :wiki-options="wikiOptions"
             :model-options="modelOptions"
             :memory-profile-options="memoryProfileOptions"
             :agenda-profile-options="agendaProfileOptions"
@@ -1053,8 +1003,6 @@ async function refresh() {
             :resolved="effectiveResolved"
             :agent-options="agentOptions"
             :saver-options="saverOptions"
-            :note-options="noteOptions"
-            :wiki-options="wikiOptions"
             :model-options="modelOptions"
             :memory-profile-options="memoryProfileOptions"
             :agenda-profile-options="agendaProfileOptions"

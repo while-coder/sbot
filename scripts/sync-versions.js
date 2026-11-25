@@ -2,10 +2,10 @@
 /**
  * 版本号统一：以根目录 package.json 的 appVersion / sbotVersion 为唯一来源，
  * 同步到对应的子项目 package.json：
- *   appVersion  → client（含 vscode 插件，tauri.conf.json 通过 "../package.json" 引用自动跟随）
+ *   appVersion  → client 和 desktop（tauri.conf.json 通过 "../package.json" 引用自动跟随）
  *   sbotVersion → 后端 sbot
  *
- * cli 独立发版，不参与同步。
+ * VS Code 扩展使用独立版本。
  *
  * 用法：
  *   pnpm sync:versions
@@ -17,7 +17,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
 const TARGETS = [
-  { field: 'appVersion', files: ['packages/apps/client/package.json', 'packages/apps/sbot-vscode/package.json', 'packages/apps/desktop/package.json'] },
+  { field: 'appVersion', files: ['packages/apps/client/package.json', 'packages/apps/desktop/package.json'] },
   { field: 'sbotVersion', files: ['packages/backend/sbot/package.json'] },
 ];
 

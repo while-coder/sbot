@@ -4,7 +4,7 @@ import { LoggerService } from "../Core/LoggerService";
 const logger = LoggerService.getLogger("ChannelPluginRegistry");
 
 /**
- * Channel 插件注册表（与 WikiPluginRegistry 对称）。
+ * Channel 插件注册表。
  * 由 PluginLoader 发现插件后 register；ChannelManager 据此查找/列举。
  */
 export class ChannelPluginRegistry {

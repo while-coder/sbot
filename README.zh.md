@@ -9,8 +9,6 @@
 
 **开源、自托管的 AI Agent 框架。** 模块化配置：模型、记忆、工具、渠道均可独立组合，按需搭建 Agent —— 在自己的服务器上运行，支持多渠道接入、MCP 工具协议和内置 Web UI，无供应商绑定。
 
-📖 **[完整文档 →](https://while-coder.github.io/sbot/zh/)**
-
 ---
 
 ## 快速开始
@@ -138,34 +136,18 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **多 LLM 供应商** — OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）；网络抖动自动指数退避重试
 - **多 Agent 编排** — Single、ReAct（递归任务分解）、Generative（多模态生成）三种模式，Agent 可嵌套组合
 - **ACP Agent 支持** — Agent Client Protocol 集成，支持持久化和临时两种 Agent 模式
-- **知识库** — 内置 Wiki 系统，关键词与语义混合检索，Agent 对话中自动引用
-- **长期记忆** — 基于向量 Embedding 的语义检索（OpenAI、Google、Ollama、Cohere、VoyageAI），持久化上下文记忆
 - **对话压缩** — Token 用量超阈值时自动摘要压缩，保持上下文连续性的同时降低消耗
 - **记忆（Memory）** — Agent 级自动长期记忆：会话空闲后由后台 MemoryLLM 提炼持久知识，主 Agent 通过 `search_memory` / `read_memory` 召回，并有 consolidate / reconcile 维护任务
 - **日程（Agenda）** — 由对话驱动的提醒、日程与周期任务，支持 absolute / interval / cron 触发器；可每轮对话后从对话自动同步，并投递到任意会话或渠道
 - **心跳唤醒** — 可配置定时提示词，让 Agent 在任意渠道周期性主动发起任务
 - **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态；支持全局与 Agent 级独立配置，故障自动重启
-- **多渠道接入** — Web UI、CLI、飞书/Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、腾讯元宝、OneBot（v11 反向 WebSocket）、小爱音箱、REST API、WebSocket
-- **内置工具** — Shell 执行、文件系统、归档操作、媒体文件读取、Python/PowerShell 内联执行、Web 抓取/下载、Cron 调度、待办事项
+- **多渠道接入** — Web UI、飞书/Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、腾讯元宝、OneBot（v11 反向 WebSocket）、小爱音箱、REST API、WebSocket
+- **命令执行** — `exec_command` 运行 Shell 命令和脚本，支持继续读取长进程的输出及写入标准输入
 - **技能系统** — 可安装的 Prompt 模块，支持从 Clawhub、skills.sh、skillhub.cn 远程安装
 - **Agent 商店** — 浏览并一键安装预打包 Agent（含模型、Prompt、工具、技能、MCP 服务器配置），支持自定义源
 - **Token 用量追踪** — 按模型统计消耗，模型响应缓存命中率可视化
 - **无人值守安全** — 渠道支持审批超时与提问超时配置，长时间运行更可靠
 - **灵活配置** — 单个 `settings.json`，支持全局和会话两级覆盖；提示词热更新无需重启
-
----
-
-## 文档
-
-完整使用指南（含分步配置与各功能详解）见
-**[while-coder.github.io/sbot](https://while-coder.github.io/sbot/zh/)**：
-
-- **快速上手** — [快速开始](https://while-coder.github.io/sbot/zh/guide/getting-started) · [核心特性](https://while-coder.github.io/sbot/zh/guide/features)
-- **模型与 Agent** — [模型](https://while-coder.github.io/sbot/zh/guide/models) · [Agent](https://while-coder.github.io/sbot/zh/guide/agents) · [Agent 商店](https://while-coder.github.io/sbot/zh/guide/agent-store)
-- **存储与知识** — [存储](https://while-coder.github.io/sbot/zh/guide/savers) · [笔记](https://while-coder.github.io/sbot/zh/guide/note) · [知识库](https://while-coder.github.io/sbot/zh/guide/wiki)
-- **自动化** — [记忆](https://while-coder.github.io/sbot/zh/guide/memory) · [日程](https://while-coder.github.io/sbot/zh/guide/agenda) · [心跳唤醒](https://while-coder.github.io/sbot/zh/guide/heartbeat)
-- **工具与技能** — [内置工具](https://while-coder.github.io/sbot/zh/guide/tools) · [MCP 工具](https://while-coder.github.io/sbot/zh/guide/mcp) · [技能](https://while-coder.github.io/sbot/zh/guide/skills)
-- **渠道** — [渠道配置](https://while-coder.github.io/sbot/zh/guide/channels)（飞书/Lark · Slack · 企业微信 · 微信 · 钉钉 · QQ · 元宝 · OneBot · 小爱）
 
 ---
 

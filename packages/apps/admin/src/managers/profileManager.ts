@@ -8,8 +8,6 @@ export interface SessionProfileItem {
   agentId?: string | null
   saver?: string | null
   intentModel?: string | null
-  notes?: string | null   // JSON 字符串
-  wikis?: string | null   // JSON 字符串
   memory?: string | null
   agenda?: string | null
   sessionCount?: number

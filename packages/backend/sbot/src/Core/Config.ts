@@ -6,8 +6,8 @@ import { ModelProvider, EmbeddingProvider, ModelServiceFactory, EmbeddingService
 import { registerBuiltInLlmProviders } from "./LlmProviders";
 import { registerBuiltInSaverProviders } from "./SaverProviders";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "@sbot/shared";
-export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, NoteConfig, WikiConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "@sbot/shared";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "@sbot/shared";
+export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "@sbot/shared";
 export type { TunnelConfig } from "@sbot/shared";
 
 export const isDev = process.env.NODE_ENV === 'development';
@@ -116,8 +116,6 @@ export interface Settings {
   models?: Record<string, NamedModelConfig>;
   embeddings?: Record<string, NamedEmbeddingConfig>;
   savers?: Record<string, SaverConfig>;
-  notes?: Record<string, NoteConfig>;
-  wikis?: Record<string, WikiConfig>;
   /** Memory（skill 风格）配置 */
   memoryProfiles?: Record<string, MemoryProfileConfig>;
   agendaProfiles?: Record<string, AgendaProfileConfig>;
@@ -131,7 +129,7 @@ export interface Settings {
 const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
   startupCommands: true, autoCheckUpdate: true, checkUpdateTime: true, maxImageSize: true, contextFileNames: true,
-  models: true, embeddings: true, savers: true, notes: true, wikis: true,
+  models: true, embeddings: true, savers: true,
   memoryProfiles: true, agendaProfiles: true, channels: true,
   plugins: true, agentSources: true, tunnel: true,
 } satisfies Record<keyof Settings, true>));
@@ -306,11 +304,6 @@ class Config {
     return this._settings.savers[id.trim()];
   }
 
-  getNote(id: string): NoteConfig | undefined {
-    if (!this._settings.notes) return undefined;
-    return this._settings.notes[id.trim()];
-  }
-
   getChannel(id: string): ChannelConfig | undefined {
     if (!this._settings.channels) return undefined;
     return this._settings.channels[id.trim()];
@@ -352,6 +345,11 @@ class Config {
         for (const key of Object.keys(raw)) {
           if (!SETTINGS_KEYS.has(key)) { delete raw[key]; dirty = true; }
         }
+        for (const channel of Object.values(raw.channels ?? {})) {
+          if (!channel || typeof channel !== "object") continue;
+          if ("notes" in channel) { delete channel.notes; dirty = true; }
+          if ("wikis" in channel) { delete channel.wikis; dirty = true; }
+        }
         this._settings = raw;
         if (dirty) this.saveSettings();
       } else {
@@ -373,7 +371,6 @@ class Config {
         config: {},
         agent: '',
         saver: '',
-        notes: [],
       };
       this.saveSettings();
     }
@@ -422,15 +419,11 @@ class Config {
     const M2 = "10000000-0000-0000-0000-000000000002";
     const E1 = "20000000-0000-0000-0000-000000000001";
     const S1 = "30000000-0000-0000-0000-000000000001";
-    const ME1 = "40000000-0000-0000-0000-000000000001";
 
     const example: Settings = {
       startupCommands: ["echo 'sbot initializing...'"],
       savers: {
         [S1]: { name: "default", type: SaverType.Sqlite },
-      },
-      notes: {
-        [ME1]: { name: "default", embedding: E1 },
       },
       models: {
         [M1]: { name: "openai-gpt4",   provider: ModelProvider.OpenAI,     apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "gpt-4" },
@@ -581,21 +574,6 @@ class Config {
     if (saverThreadId) return this.getConfigPath(`savers/${saverId}/${saverThreadId}${ext}`)
     return this.getConfigPath(`savers/${saverId}`, true)
   }
-  getNoteDBPath(noteId: string) {
-    return this.getConfigPath(`notes/${noteId}.db`)
-  }
-  /** HybridSearcher 的 cachePath：与 `<noteId>.db` 同级的目录 `notes/<noteId>/`，互不冲突。 */
-  getNoteCachePath(noteId: string) {
-    return this.getConfigPath(`notes/${noteId}`, true)
-  }
-
-  getWiki(id: string): WikiConfig | undefined {
-    return this._settings.wikis?.[id.trim()];
-  }
-  getWikiDBPath(wikiId: string) {
-    return this.getConfigPath(`wiki/${wikiId}`, true)
-  }
-
 }
 
 export const config = new Config();

@@ -26,9 +26,6 @@ import {
 } from "agent.skill";
 import path from "path";
 import { type AgentTool } from "scorpio.ai";
-import { createSessionSearchTool, type SearchableSaver } from "../Tools/SessionSearch/index";
-import { createChannelTools } from "../Tools/Channel/index";
-import { channelDataService } from "../Session/ChannelDataService";
 import { config, AgentMode, ACPSessionMode, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { createBuiltinCommandTools, globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
@@ -75,7 +72,7 @@ export class AgentFactory {
             const workspaceSkillPath = options.disableWorkspaceSkills ? undefined : options.workPath;
             const workspaceMcpPath = options.disableWorkspaceMcp ? undefined : options.workPath;
             await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath, toolEntry.skillsExclude);
-            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude, workspaceMcpPath);
+            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude, workspaceMcpPath, options.workPath);
         }
 
         if (agentType === AgentMode.ACP) {
@@ -166,24 +163,6 @@ export class AgentFactory {
         ]);
     }
 
-    private static readonly SESSION_TOOL_CREATORS: Record<string, (ctx: { dbSessionId: string; container: ServiceContainer }) => Promise<AgentTool[]>> = {
-        [BuiltinProvider.Command]: async ({ dbSessionId }) => {
-            return createBuiltinCommandTools(`session:${dbSessionId}`);
-        },
-        [BuiltinProvider.SessionSearch]: async ({ container }) => {
-            if (!container.isRegistered(IAgentSaverService)) return [];
-            const saver = container.resolve<IAgentSaverService>(IAgentSaverService);
-            if (typeof saver.searchArchive !== 'function') return [];
-            return [createSessionSearchTool(saver as SearchableSaver)];
-        },
-        [BuiltinProvider.Channel]: async ({ dbSessionId }) => {
-            const id = parseInt(dbSessionId, 10);
-            if (!id) return createChannelTools();
-            const session = await channelDataService.getSession(id);
-            return createChannelTools(session?.channelId);
-        },
-    };
-
     private static async registerToolService(
         container: ServiceContainer,
         agentName: string,
@@ -193,41 +172,28 @@ export class AgentFactory {
         agentTools?: AgentTool[],
         mcpExclude?: string[],
         workspaceMcpPath?: string,
+        workPath?: string,
     ): Promise<void> {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = container.resolve<AgentToolService>(IAgentToolService);
 
-        const sessionNames = new Set(Object.keys(this.SESSION_TOOL_CREATORS));
-        const excludeSet = new Set(mcpExclude ?? []);
+        const command = BuiltinProvider.Command;
+        const excluded = new Set(mcpExclude ?? []);
+        if (mcp === '*' ? !excluded.has(command) : mcp?.includes(command)) {
+            toolService.registerToolFactory(command, () => createBuiltinCommandTools(
+                `session:${dbSessionId}`, workPath,
+            ));
+        }
 
-        if (mcp === '*') {
-            for (const [name, creator] of Object.entries(this.SESSION_TOOL_CREATORS)) {
-                if (excludeSet.has(name)) continue;
-                toolService.registerToolFactory(name, () => creator({ dbSessionId, container }));
-            }
-            // 跳过 sessionNames：它们已用真 dbSessionId 单独注册，避免 admin 展示用的 preview 实例同名冲突
+        if (mcp === '*' || mcp?.length) {
             toolService.registerToolFactory('__global_mcp__', async () => {
-                const allNames = globalAgentToolService.getProviderNames().filter(n => !sessionNames.has(n) && !excludeSet.has(n));
-                const entries = allNames.map(name => ({ name, params: mcpParams?.[name] }));
+                const names = mcp === '*'
+                    ? globalAgentToolService.getProviderNames().filter(name => !excluded.has(name))
+                    : mcp;
+                const entries = names.filter(name => name !== command).map(name => ({ name, params: mcpParams?.[name] }));
                 const results = await globalAgentToolService.resolveProviders(entries);
-                return [...results.values()].flatMap(r => r.tools);
+                return [...results.values()].flatMap(result => result.tools);
             });
-        } else if (mcp && mcp.length > 0) {
-            for (const name of mcp) {
-                const creator = this.SESSION_TOOL_CREATORS[name];
-                if (creator) {
-                    toolService.registerToolFactory(name, () => creator({ dbSessionId, container }));
-                }
-            }
-            const globalEntries = mcp
-                .filter(n => !sessionNames.has(n))
-                .map(name => ({ name, params: mcpParams?.[name] }));
-            if (globalEntries.length > 0) {
-                toolService.registerToolFactory('__global_mcp__', async () => {
-                    const results = await globalAgentToolService.resolveProviders(globalEntries);
-                    return [...results.values()].flatMap(r => r.tools);
-                });
-            }
         }
 
         if (agentTools?.length) {

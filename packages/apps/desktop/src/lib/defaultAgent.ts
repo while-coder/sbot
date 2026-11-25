@@ -54,9 +54,6 @@ export const BUILTIN_AGENT_IDS = BUILTIN_AGENTS.map(a => a.id)
 /** 内置助手固定挂载的 MCP 工具（每次启动强制，覆盖用户改动） */
 export const BUILTIN_AGENT_MCPS = [
   'builtin_command',
-  'builtin_filesystem',
-  'builtin_exa',
-  'builtin_webfetch',
 ]
 
 interface AgentListItem {

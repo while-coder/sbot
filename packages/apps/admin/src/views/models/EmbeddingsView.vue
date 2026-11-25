@@ -9,8 +9,6 @@ import type { EntityTableColumn } from '@qingfeng346/ui-kit'
 import { EmbeddingProvider } from '@/shared/types'
 import type { EmbeddingConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
-import ResourceRefs from '@/components/ResourceRefs.vue'
-import { useResourceRefs } from '@/composables/useResourceRefs'
 
 const { t } = useI18n()
 
@@ -25,15 +23,6 @@ const embeddingColumns = computed<EntityTableColumn[]>(() => [
   { key: 'model',    label: t('common.model') },
   { key: 'ops',      label: t('common.ops'), ops: true },
 ])
-
-const { makeResourceRefs } = useResourceRefs()
-const refs = makeResourceRefs({
-  channel: () => false,
-  profile: () => false,
-  note: (n, id) => n.embedding === id,
-  wiki: (w, id) => w.embedding === id,
-})
-const expandedIds = ref<string[]>([])
 
 interface ProviderField {
   label: string
@@ -251,22 +240,14 @@ async function refresh() {
         :columns="embeddingColumns"
         :rows="embeddingRows"
         row-key="id"
-        expandable
-        v-model:expandedKeys="expandedIds"
         :empty-text="t('embeddings.empty')"
       >
         <template #name="{ row }">
           {{ row.name || row.id }}
-          <ResourceRefs mode="badge" :refs="refs(row.id)" />
         </template>
         <template #ops="{ row }">
           <SButton type="outline" size="small" @click="openEdit(row.id)">{{ t('common.edit') }}</SButton>
           <SButton type="error" size="small" @click="remove(row.id)">{{ t('common.delete') }}</SButton>
-        </template>
-        <template #expanded="{ row }">
-          <div class="refs-expanded">
-            <ResourceRefs mode="card" :refs="refs(row.id)" />
-          </div>
         </template>
       </SEntityTable>
     </SPageContent>
@@ -339,10 +320,6 @@ async function refresh() {
 </template>
 
 <style scoped>
-.refs-expanded {
-  padding: var(--sui-sp-4) var(--sui-sp-6);
-  background: var(--sui-bg-subtle);
-}
 .apikey-field, .model-field {
   display: flex;
   gap: var(--sui-sp-2);

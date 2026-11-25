@@ -86,11 +86,3 @@ export interface StoredMessage {
   createdAt?: number
   thinkId?: string
 }
-
-export interface NoteItem {
-  id: string
-  content: string
-  createdAt: number
-  accessCount: number
-  lastAccessed: number
-}

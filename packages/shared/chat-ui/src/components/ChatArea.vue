@@ -67,7 +67,7 @@ const emit = defineEmits<{
 const L = computed(() => resolveLabels(props.labels))
 const isCompact = useCompact()
 
-// 下拉选择器复用 SSelect multiple + single 的单选形态（与「笔记」/「Wiki」同一套下拉样式）
+// 下拉选择器复用 SSelect multiple + single 的单选形态
 const agentMsOptions = computed(() => props.agentOptions.map(o => ({ value: o.value, label: o.label })))
 const saverMsOptions = computed(() => props.saverOptions.map(o => ({ value: o.value, label: o.label })))
 const agentMsValue = computed(() => (props.agent ? [props.agent] : []))

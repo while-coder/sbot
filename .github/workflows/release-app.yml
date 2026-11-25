@@ -41,29 +41,17 @@ jobs:
           title: app v${{ needs.check.outputs.version }}
           notes: ${{ needs.check.outputs.notes }}
 
-  release-desktop:
-    needs: [check, prepare-release]
-    uses: while-coder/workflows/.github/workflows/tauri-desktop-release.yml@main
-    with:
-      project-path: packages/apps/client
-      cargo-lock-path: packages/apps/client/src-tauri/Cargo.lock
-      cargo-target-path: packages/apps/client/src-tauri/target
-      tag-name: ${{ needs.check.outputs.tag }}
-      release-name: app v${{ needs.check.outputs.version }}
-      release-body: ${{ needs.check.outputs.notes }}
-    secrets: inherit
-
   # 桌面启动器（捆绑 Node + sbot 后端）：不能复用外部 reusable workflow——
   # 它没有 build-command 钩子且 macOS 固定 universal target，与单架构 node sidecar 冲突
-  release-desktop-launcher:
+  release-desktop:
     needs: [check, prepare-release]
     strategy:
       fail-fast: false
       matrix:
         include:
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
-          - { os: macos-14, target: aarch64-apple-darwin }
-          - { os: macos-13, target: x86_64-apple-darwin }
+          - { os: macos-15, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
           - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
     runs-on: ${{ matrix.os }}
     steps:
@@ -117,8 +105,7 @@ jobs:
           [ -n "$FILES" ] && gh release upload "$TAG" $FILES -R "$REPO" --clobber
 
   release-android:
-    needs: [check, release-desktop]
-    if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
+    needs: [check, prepare-release]
     uses: while-coder/workflows/.github/workflows/tauri-android-release.yml@main
     with:
       project-path: packages/apps/client
@@ -131,8 +118,7 @@ jobs:
     secrets: inherit
 
   release-ios:
-    needs: [check, release-desktop]
-    if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
+    needs: [check, prepare-release]
     uses: while-coder/workflows/.github/workflows/tauri-ios-unsigned.yml@main
     with:
       project-path: packages/apps/client
@@ -143,55 +129,4 @@ jobs:
       asset-prefix: sbot-client
       init-command: pnpm ios:init
       build-command: pnpm ios:build --target aarch64 --no-sign --ci
-    secrets: inherit
-
-  publish-vscode:
-    needs: [check, release-desktop]
-    if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: while-coder/workflows/.github/actions/setup-pnpm@main
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Build extension
-        run: pnpm run build:vscode
-
-      - name: Verify VS Code extension version
-        id: vscode
-        shell: bash
-        run: |
-          VERSION=$(node -p "require('./packages/apps/sbot-vscode/package.json').version")
-          if [ "$VERSION" != "${{ needs.check.outputs.version }}" ]; then
-            echo "::error::App version (${{ needs.check.outputs.version }}) does not match packages/apps/sbot-vscode/package.json version ($VERSION). Run pnpm run release:app to keep them in sync."
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Package VSIX
-        working-directory: packages/apps/sbot-vscode
-        run: npx --yes @vscode/vsce package --no-dependencies --out "sbot-vscode-${{ steps.vscode.outputs.version }}.vsix"
-
-      - name: Upload VSIX to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.check.outputs.tag }}
-          VERSION: ${{ steps.vscode.outputs.version }}
-        run: gh release upload "$TAG" "packages/apps/sbot-vscode/sbot-vscode-${VERSION}.vsix" -R "$REPO" --clobber
-
-  publish-manifest:
-    needs: [check, release-desktop]
-    if: ${{ !cancelled() && needs.release-desktop.result == 'success' }}
-    uses: while-coder/workflows/.github/workflows/tauri-updater-manifest.yml@main
-    with:
-      product-prefix: sbot-client
-      source-product-name: SBot
-      tag-name: ${{ needs.check.outputs.tag }}
-      version: ${{ needs.check.outputs.version }}
-      release-notes: ${{ needs.check.outputs.notes }}
-      output-name: latest-app.json
-      updater-title: Updater Manifests
     secrets: inherit

@@ -17,10 +17,6 @@ interface ProfileRow {
   autoForSessionId: number | null
   agentId: string | null
   saver: string | null
-  notes: string | null
-  wikis: string | null
-  useChannelNotes: boolean | null
-  useChannelWikis: boolean | null
   workPath: string | null
   streamVerbose: boolean | null
   autoApproveAllTools: boolean | null
@@ -97,8 +93,6 @@ async function openSessions(p: ProfileRow) {
 
 const agentOptions = computed(() => Object.entries(store.settings.agents || {}).map(([id, a]) => ({ id, label: (a as any).name || id, type: (a as any).type || '' })))
 const saverOptions = computed(() => Object.entries(store.settings.savers || {}).map(([id, s]) => ({ id, label: (s as any).name || id })))
-const noteOptions = computed(() => Object.entries(store.settings.notes || {}).map(([id, n]: [string, any]) => ({ id, label: n.name || id })))
-const wikiOptions = computed(() => Object.entries(store.settings.wikis || {}).map(([id, w]) => ({ id, label: (w as any).name || id })))
 const modelOptions = modelManager.options
 const memoryProfileOptions = computed(() => Object.entries(store.settings.memoryProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
@@ -131,8 +125,7 @@ interface ProfileForm {
 
 function emptyOverrides(): SessionOverrides {
   return {
-    agentId: null, saver: null, notes: null, wikis: null,
-    useChannelNotes: null, useChannelWikis: null,
+    agentId: null, saver: null,
     workPath: null, streamVerbose: null, autoApproveAllTools: null,
     disableWorkspaceContext: null, disableWorkspaceSkills: null, disableWorkspaceMcp: null,
     approvalTimeout: null, approvalTimeoutValue: null,
@@ -150,11 +143,6 @@ function emptyForm(): ProfileForm {
 
 const form = ref<ProfileForm>(emptyForm())
 
-function parseList(raw: string | null): string[] {
-  if (!raw) return []
-  try { const v = JSON.parse(raw); return Array.isArray(v) ? v : [] } catch { return [] }
-}
-
 function openAdd() {
   isCreating.value = true
   editing.value = { id: 0, name: '' } as ProfileRow
@@ -170,10 +158,6 @@ function openEdit(p: ProfileRow) {
     overrides: {
       agentId: p.agentId,
       saver: p.saver,
-      notes: p.notes == null ? null : parseList(p.notes),
-      wikis: p.wikis == null ? null : parseList(p.wikis),
-      useChannelNotes: toTriBool(p.useChannelNotes),
-      useChannelWikis: toTriBool(p.useChannelWikis),
       workPath: p.workPath,
       streamVerbose: toTriBool(p.streamVerbose),
       autoApproveAllTools: toTriBool(p.autoApproveAllTools),
@@ -224,16 +208,10 @@ async function save() {
 
 function buildPayload(f: ProfileForm): Record<string, any> {
   const o = f.overrides
-  const validNote = new Set(noteOptions.value.map(n => n.id))
-  const validWiki = new Set(wikiOptions.value.map(w => w.id))
   return {
     name: f.name.trim(),
     agentId: o.agentId,
     saver: o.saver,
-    notes: o.notes == null ? null : o.notes.filter(id => validNote.has(id)),
-    wikis: o.wikis == null ? null : o.wikis.filter(id => validWiki.has(id)),
-    useChannelNotes: o.useChannelNotes,
-    useChannelWikis: o.useChannelWikis,
     workPath: o.workPath,
     streamVerbose: o.streamVerbose,
     autoApproveAllTools: o.autoApproveAllTools,
@@ -317,8 +295,6 @@ async function remove(p: ProfileRow) {
             :default-open-sections="['common']"
             :agent-options="agentOptions"
             :saver-options="saverOptions"
-            :note-options="noteOptions"
-            :wiki-options="wikiOptions"
             :model-options="modelOptions"
             :memory-profile-options="memoryProfileOptions"
             :agenda-profile-options="agendaProfileOptions"

@@ -28,8 +28,6 @@ export function createProcessAIHandler(): ProcessAIHandler {
 
         const agentId = resolved.agentId;
         const saverId = resolved.saver;
-        const notes = resolved.notes;
-        const wikis = resolved.wikis;
         const workPath = args.workPath || resolved.workPath;
         const autoApproveAllTools = resolved.autoApproveAllTools ?? false;
         const streamVerbose = resolved.streamVerbose ?? (channelId === WEB_CHANNEL_ID);
@@ -108,8 +106,6 @@ export function createProcessAIHandler(): ProcessAIHandler {
             dbSessionId: String(dbSessionId),
             extraInfo: args?.extraInfo ?? '',
             channelPrompt: channelManager.getPlugin(channel.type)?.channelPrompt ?? '',
-            notes,
-            wikis,
             workPath,
             disableWorkspaceContext,
             disableWorkspaceSkills,

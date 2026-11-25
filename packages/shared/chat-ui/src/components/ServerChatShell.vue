@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<{
   connecting?: boolean
   labels?: ChatLabels
   showAttachments?: boolean
+  showWorkbench?: boolean
   alwaysCompact?: boolean
   layoutMode?: ChatLayoutMode
   fixedWorkPath?: string
@@ -24,6 +25,7 @@ const props = withDefaults(defineProps<{
   connectError: '',
   connecting: false,
   showAttachments: true,
+  showWorkbench: true,
   alwaysCompact: false,
   layoutMode: 'auto',
   fixedWorkPath: '',
@@ -72,6 +74,7 @@ const L = computed(() => resolveLabels(props.labels))
         :transport="transport"
         :labels="labels"
         :show-attachments="showAttachments"
+        :show-workbench="showWorkbench"
         :always-compact="alwaysCompact"
         :layout-mode="layoutMode"
         :fixed-work-path="fixedWorkPath"

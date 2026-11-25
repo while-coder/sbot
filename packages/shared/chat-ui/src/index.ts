@@ -3,7 +3,6 @@ export type {
   SessionItem,
   AgentOption,
   SaverOption,
-  NoteOption,
   StoredMessage,
   ContentPart,
   MessageContent,
@@ -13,7 +12,6 @@ export type {
   DisplayPart,
   ToolCall,
   ChatMessage,
-  WikiOption,
   CreateSessionOpts,
   UsageInfo,
   UsageData,
@@ -68,7 +66,6 @@ export type {
 export { default as ChatView } from './components/ChatView.vue';
 export { default as ChatArea } from './components/ChatArea.vue';
 export { default as SessionBar } from './components/SessionBar.vue';
-export { default as ConfigToolbar } from './components/ConfigToolbar.vue';
 export { default as StatusBar } from './components/StatusBar.vue';
 export { default as ToolApprovalBar } from './components/ToolApprovalBar.vue';
 export { default as AskForm } from './components/AskForm.vue';

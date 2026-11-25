@@ -2,9 +2,7 @@ import express from 'express';
 import fs from 'fs';
 import { getAgendaPromptsDir } from 'agent.agenda';
 import { getMemoryPromptsDir } from 'agent.memory';
-import { getNotePromptsDir } from 'agent.note';
 import { getSkillPromptsDir } from 'agent.skill';
-import { getWikiPromptsDir } from 'agent.wiki';
 import { config } from '../../Core/Config';
 import { refreshBuiltinTools } from '../../Agent/GlobalAgentToolService';
 import { loadPromptMeta, type PromptVarMeta } from '../../Core/PromptLoader';
@@ -18,8 +16,6 @@ export class PromptRoutes {
             promptTreeHelper.PROMPTS_DIR,
             getSkillPromptsDir(),
             getMemoryPromptsDir(),
-            getNotePromptsDir(),
-            getWikiPromptsDir(),
             getAgendaPromptsDir(),
         ];
         app.get('/api/prompts/tree', api(() => {

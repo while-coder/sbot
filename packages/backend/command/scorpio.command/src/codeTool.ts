@@ -1,212 +1,79 @@
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import crypto from 'crypto';
 import { z } from 'zod';
-import { createAgentTool, type AgentTool } from "scorpio.llm";
-import { formatCommandError } from './errors';
-import { createErrorResult, type CommandToolResult } from './result';
-import { runProgram, runShellCommand } from './runtime/foreground';
-import { isCommandAvailable, resolveWorkingDir } from './runtime/process';
-import { ProcessManager, processManager as defaultProcessManager, formatProcessResult } from './runtime/processManager';
+import { createAgentTool, type AgentTool } from 'scorpio.llm';
+import { createErrorResult, createTextContent, type CommandToolResult } from './result';
+import { runShellCommand } from './runtime/foreground';
+import { resolveWorkingDir } from './runtime/process';
+import { formatProcessResult, ProcessManager } from './runtime/processManager';
 
-export enum CodeRuntime {
-    Shell = 'shell',
-    PowerShell = 'powershell',
-    Python = 'python',
-    NodeJs = 'nodejs',
-}
-
-export enum CodeToolMode {
-    Sync = 'sync',
-    Background = 'background',
-}
-
-export { CodeToolMode as ShellToolMode, CodeToolMode as ScriptCodeMode };
-
-function normalizeStdin(stdin: unknown): string | undefined {
-    if (stdin == null) return undefined;
-    return typeof stdin === 'string' ? stdin : JSON.stringify(stdin);
-}
-
-function withExecutionMode<T extends z.ZodRawShape>(base: z.ZodObject<T>) {
-    return base.extend({
-        mode: z.enum(CodeToolMode).describe('sync = run synchronously and return final output; background = start a process and use read_process for later output'),
-        timeout: z.number().optional().describe('For mode=sync: timeout in milliseconds, default 60000 (60 s)'),
-        yieldMs: z.number().optional().describe('For mode=background: how long to wait for immediate completion before returning a processId, default 1000 ms'),
-        interactive: z.boolean().optional().describe('For mode=background: keep stdin open so write_process can send more input later. Use only for programs that prompt for stdin; this is pipe-based, not a full TTY.'),
-    });
-}
-
-const shellCodeBaseSchema = z.object({
-    code:       z.string().min(1).describe('Command or multi-line shell script to run, e.g. "git status", "npm install && npm run build", or a newline-separated script'),
-    workingDir: z.string().describe('Absolute path of the working directory'),
-    stdin:      z.any().optional().describe('Data to pipe into the command via stdin. Prefer a string; objects/arrays are auto-serialized to JSON.'),
+const execCommandSchema = z.object({
+    cmd: z.string().regex(/\S/).optional().describe('Shell command or multiline script to start. Omit when using processId.'),
+    workdir: z.string().min(1).optional().describe('Absolute directory for a new command. Defaults to the session workspace.'),
+    timeoutMs: z.number().int().positive().max(2_147_483_647).optional().describe('Wait for a new command to finish and terminate it on timeout. Omit for resumable execution.'),
+    yieldMs: z.number().int().min(0).optional().describe('Time in milliseconds to wait for output before returning a running processId. Defaults to 1000.'),
+    interactive: z.boolean().optional().describe('Keep stdin open for a new resumable command. Defaults to false.'),
+    processId: z.number().int().positive().optional().describe('Read output from this running process, or send input with stdin. Omit cmd.'),
+    stdin: z.string().optional().describe('Input for a new command or an existing interactive process. Include a newline for line-oriented prompts.'),
+    closeStdin: z.boolean().optional().describe('Send EOF to an existing interactive process.'),
+    terminate: z.boolean().optional().describe('Stop the existing process and its child processes.'),
 });
 
-const scriptCodeBaseSchema = z.object({
-    code:       z.string().min(1).describe('Script source code to execute; written to a temp file automatically'),
-    workingDir: z.string().describe('Absolute path of the working directory for the script'),
-    stdin:      z.any().optional().describe('Data to pipe into the script via stdin. Prefer a string; objects/arrays are auto-serialized to JSON.'),
-});
+type ExecCommandInput = z.infer<typeof execCommandSchema>;
 
-export const shellToolSchema = withExecutionMode(shellCodeBaseSchema);
-export const scriptCodeSchema = withExecutionMode(scriptCodeBaseSchema);
-
-export const readProcessToolSchema = z.object({
-    processId: z.number().int().positive().describe('The numeric processId returned by shell/script mode="background"'),
-    yieldMs: z.number().optional().describe('How long to wait for new output, default 1000 ms'),
-});
-
-export const writeProcessToolSchema = z.object({
-    processId: z.number().int().positive().describe('The numeric processId returned by shell/script mode="background" with interactive=true'),
-    stdin:     z.any().optional().describe('Data to write to the background process stdin. Prefer a string and include a trailing newline for line prompts; objects/arrays are auto-serialized to JSON.'),
-    close:     z.boolean().optional().describe('Whether to close stdin after writing. Use true when the process needs EOF to continue or finish.'),
-});
-
-type ShellToolInput = z.infer<typeof shellToolSchema>;
-type ScriptCodeInput = z.infer<typeof scriptCodeSchema>;
-type ReadProcessToolInput = z.infer<typeof readProcessToolSchema>;
-type WriteProcessToolInput = z.infer<typeof writeProcessToolSchema>;
-type CodeToolInput = ShellToolInput | ScriptCodeInput;
-
-export interface ShellToolOptions {
-    name?: string;
+interface ExecCommandOptions {
     description: string;
-    processManager?: ProcessManager;
+    workdir?: string;
+    processOwner?: string;
 }
 
-export interface ReadProcessToolOptions {
-    name?: string;
-    description: string;
-    processManager?: ProcessManager;
+const processManagers = new Map<string, ProcessManager>();
+
+function getProcessManager(owner: string): ProcessManager {
+    const existing = processManagers.get(owner);
+    if (existing) return existing;
+    const manager = new ProcessManager(() => processManagers.delete(owner));
+    processManagers.set(owner, manager);
+    return manager;
 }
 
-export interface WriteProcessToolOptions {
-    name?: string;
-    description: string;
-    processManager?: ProcessManager;
-}
-
-export interface ScriptCodeToolOptions {
-    name:        string;
-    description: string;
-    runtime:     CodeRuntime;
-    interpreter: string;
-    preArgs?:    string[];
-    ext:         string;
-    processManager?: ProcessManager;
-}
-
-interface ExecuteCodeOptions {
-    runtime:     CodeRuntime;
-    label:       string;
-    interpreter?: string;
-    preArgs?:    string[];
-    ext?:        string;
-    processManager: ProcessManager;
-}
-
-async function executeCode(input: CodeToolInput, opts: ExecuteCodeOptions): Promise<CommandToolResult> {
-    const { cwd, error: cwdError } = await resolveWorkingDir(input.workingDir);
-    if (cwdError) return createErrorResult(cwdError);
-
-    const stdin = normalizeStdin(input.stdin);
-    if (opts.runtime === CodeRuntime.Shell) {
-        if (input.mode === CodeToolMode.Background) {
-            const result = await opts.processManager.exec(input.code, cwd!, input.yieldMs ?? 1000, stdin, input.interactive ?? false);
-            return formatProcessResult(result);
-        }
-        return runShellCommand(input.code, cwd!, input.timeout ?? 60000, `command "${input.code}"`, stdin);
-    }
-
-    if (!opts.interpreter || !opts.ext) {
-        return createErrorResult(`Missing interpreter configuration for ${opts.runtime}`);
-    }
-
-    const tmpFile = path.join(os.tmpdir(), `sbot_script_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${opts.ext}`);
-    try {
-        await fs.promises.writeFile(tmpFile, input.code, 'utf8');
-    } catch (e: any) {
-        return createErrorResult(`Failed to write temp script: ${formatCommandError(e)}`);
-    }
-
-    let cleanupByBackgroundManager = false;
-    const cleanupTempFile = async () => {
-        try { await fs.promises.unlink(tmpFile); } catch { /* ignore */ }
-    };
-
-    try {
-        const runArgs = [...(opts.preArgs ?? []), tmpFile];
-        if (input.mode === CodeToolMode.Background) {
-            cleanupByBackgroundManager = true;
-            const result = await opts.processManager.runProgram(
-                opts.interpreter,
-                runArgs,
-                cwd!,
-                input.yieldMs ?? 1000,
-                stdin,
-                cleanupTempFile,
-                input.interactive ?? false,
-            );
-            return formatProcessResult(result);
-        }
-        return runProgram(opts.interpreter, runArgs, cwd!, input.timeout ?? 60000, opts.label, stdin);
-    } finally {
-        if (!cleanupByBackgroundManager) await cleanupTempFile();
-    }
-}
-
-export function createShellTool({ name = 'shell', description, processManager = defaultProcessManager }: ShellToolOptions): AgentTool {
+export function createExecCommandTool({ description, workdir, processOwner = 'default' }: ExecCommandOptions): AgentTool {
     return createAgentTool({
-        name,
+        name: 'exec_command',
         description,
-        schema: shellToolSchema as any,
-        func: async (input: ShellToolInput): Promise<CommandToolResult> => executeCode(input, {
-            runtime: CodeRuntime.Shell,
-            label:   name,
-            processManager,
-        }),
-    });
-}
+        schema: execCommandSchema,
+        async func(input: ExecCommandInput): Promise<CommandToolResult> {
+            if (input.processId !== undefined) {
+                if (input.cmd !== undefined || input.workdir !== undefined || input.timeoutMs !== undefined || input.interactive !== undefined) {
+                    return createErrorResult('Use processId by itself to read output. Command startup options require cmd.');
+                }
+                const manager = processManagers.get(processOwner);
+                if (!manager) return createErrorResult('No such process in this session.');
+                if (input.terminate) {
+                    if (input.stdin !== undefined || input.closeStdin) {
+                        return createErrorResult('Terminate the process separately from sending input.');
+                    }
+                    const stopped = await manager.kill(input.processId);
+                    if (!stopped) return createErrorResult('No such process in this session.');
+                    return { content: [createTextContent('Process terminated.')] };
+                }
+                if (input.stdin !== undefined || input.closeStdin) {
+                    return formatProcessResult(await manager.writeProcess(input.processId, input.stdin ?? '', input.closeStdin ?? false));
+                }
+                return formatProcessResult(await manager.readProcess(input.processId, input.yieldMs ?? 1000));
+            }
 
-export function createScriptCodeTool({ name, description, runtime, interpreter, preArgs = [], ext, processManager = defaultProcessManager }: ScriptCodeToolOptions): AgentTool | null {
-    if (!isCommandAvailable(interpreter)) return null;
-    return createAgentTool({
-        name,
-        description,
-        schema: scriptCodeSchema as any,
-        func: async (input: ScriptCodeInput): Promise<CommandToolResult> => executeCode(input, {
-            runtime,
-            label: name,
-            interpreter,
-            preArgs,
-            ext,
-            processManager,
-        }),
-    });
-}
-
-export function createReadProcessTool({ name = 'read_process', description, processManager = defaultProcessManager }: ReadProcessToolOptions): AgentTool {
-    return createAgentTool({
-        name,
-        description,
-        schema: readProcessToolSchema as any,
-        func: async ({ processId, yieldMs = 1000 }: ReadProcessToolInput): Promise<CommandToolResult> => {
-            const result = await processManager.readProcess(processId, yieldMs);
-            return formatProcessResult(result);
-        },
-    });
-}
-
-export function createWriteProcessTool({ name = 'write_process', description, processManager = defaultProcessManager }: WriteProcessToolOptions): AgentTool {
-    return createAgentTool({
-        name,
-        description,
-        schema: writeProcessToolSchema as any,
-        func: async ({ processId, stdin, close = false }: WriteProcessToolInput): Promise<CommandToolResult> => {
-            const result = await processManager.writeProcess(processId, normalizeStdin(stdin) ?? '', close);
-            return formatProcessResult(result);
+            if (!input.cmd || input.closeStdin || input.terminate) {
+                return createErrorResult('Provide cmd to start a command, or processId to manage an existing process.');
+            }
+            if (input.timeoutMs !== undefined && (input.interactive || input.yieldMs !== undefined)) {
+                return createErrorResult('Use timeoutMs for a non-interactive command that must finish before returning, or yieldMs for resumable execution.');
+            }
+            const { cwd, error } = await resolveWorkingDir(input.workdir ?? workdir);
+            if (!cwd) return createErrorResult(error ?? 'Could not resolve working directory.');
+            if (input.timeoutMs !== undefined) {
+                return runShellCommand(input.cmd, cwd, input.timeoutMs, 'exec_command', input.stdin);
+            }
+            const manager = getProcessManager(processOwner);
+            return formatProcessResult(await manager.exec(input.cmd, cwd, input.yieldMs ?? 1000, input.stdin, input.interactive));
         },
     });
 }

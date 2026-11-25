@@ -40,12 +40,6 @@ const { t } = useI18n()
       <SInfoRow v-if="refs.agendaProfiles.length" :label="t('common.ref_agenda_profiles')">
         <span v-for="p in refs.agendaProfiles" :key="p.id" class="ref-chip">{{ p.name }}</span>
       </SInfoRow>
-      <SInfoRow v-if="refs.notes.length" :label="t('common.ref_notes')">
-        <span v-for="n in refs.notes" :key="n.id" class="ref-chip">{{ n.name }}</span>
-      </SInfoRow>
-      <SInfoRow v-if="refs.wikis.length" :label="t('common.ref_wikis')">
-        <span v-for="w in refs.wikis" :key="w.id" class="ref-chip">{{ w.name }}</span>
-      </SInfoRow>
     </SInfoTable>
   </SCard>
 </template>

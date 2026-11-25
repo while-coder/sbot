@@ -9,8 +9,6 @@
 
 **Open-source, self-hosted AI agent framework.** Modular by design: models, memory, tools, and channels are independent building blocks you mix and match to assemble agents — run on your own server with multi-channel integrations, MCP tool support, and a built-in web UI, no vendor lock-in.
 
-📖 **[Full documentation →](https://while-coder.github.io/sbot/)**
-
 ---
 
 ## Quick Start
@@ -139,34 +137,18 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 - **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.); automatic retry with exponential backoff on transient failures
 - **Multi-agent orchestration** — Single, ReAct (recursive task decomposition), and Generative (multimodal) modes; agents can be nested and composed
 - **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
-- **Knowledge base** — Built-in wiki system with hybrid keyword + semantic search, referenced by agents during conversations
-- **Long-term memory** — Vector-embedding semantic search for persistent context recall (OpenAI, Google, Ollama, Cohere, VoyageAI)
 - **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
 - **Memory** — Per-agent automatic long-term memory: a background MemoryLLM distills durable knowledge after each conversation idles, read back via `search_memory` / `read_memory` with consolidate/reconcile maintenance
 - **Agenda** — Conversation-driven reminders, schedules, and routines with absolute / interval / cron triggers; optionally synced from the conversation after every turn and delivered to any session or channel
 - **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
-- **Multiple channels** — Web UI, CLI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), Tencent Yuanbao, OneBot (v11 reverse WebSocket), XiaoAI, REST API, WebSocket
-- **Built-in tools** — Shell execution, file system, archive operations, media file read, Python/PowerShell inline execution, web fetch/download, cron scheduler, todo, ask
+- **Multiple channels** — Web UI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), Tencent Yuanbao, OneBot (v11 reverse WebSocket), XiaoAI, REST API, WebSocket
+- **Command execution** — `exec_command` runs shell commands and scripts, with resumable output and stdin for long-running processes
 - **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
 - **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources
 - **Token usage tracking** — Per-model consumption statistics, model response caching with hit/miss metrics
 - **Unattended-session safety** — Configurable approval and ask timeouts on channels for autonomous operation
 - **Flexible config** — Global and per-session overrides from a single `settings.json`; customizable prompts with hot reload
-
----
-
-## Documentation
-
-Full guide, with step-by-step setup and per-feature reference, lives at
-**[while-coder.github.io/sbot](https://while-coder.github.io/sbot/)**:
-
-- **Get started** — [Getting Started](https://while-coder.github.io/sbot/guide/getting-started) · [Features](https://while-coder.github.io/sbot/guide/features)
-- **Models & agents** — [Models](https://while-coder.github.io/sbot/guide/models) · [Agents](https://while-coder.github.io/sbot/guide/agents) · [Agent Store](https://while-coder.github.io/sbot/guide/agent-store)
-- **Storage & knowledge** — [Savers](https://while-coder.github.io/sbot/guide/savers) · [Notes](https://while-coder.github.io/sbot/guide/note) · [Wiki](https://while-coder.github.io/sbot/guide/wiki)
-- **Automation** — [Memory](https://while-coder.github.io/sbot/guide/memory) · [Agenda](https://while-coder.github.io/sbot/guide/agenda) · [Heartbeat](https://while-coder.github.io/sbot/guide/heartbeat)
-- **Tools & skills** — [Built-in Tools](https://while-coder.github.io/sbot/guide/tools) · [MCP Tools](https://while-coder.github.io/sbot/guide/mcp) · [Skills](https://while-coder.github.io/sbot/guide/skills)
-- **Channels** — [Channels](https://while-coder.github.io/sbot/guide/channels) (Lark/Feishu · Slack · WeCom · WeChat · DingTalk · QQ · Yuanbao · OneBot · XiaoAI)
 
 ---
 

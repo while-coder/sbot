@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import { Command, Arg, Option, Parsers, CommandContext, ICommand, ConversationCompactor, GlobalLoggerService, MessageRole, formatError, type StoredMessage, type MessageContent } from "scorpio.ai"
 import { SessionService } from "channel.base"
 import { channelDataService, type EffectiveSession } from "./ChannelDataService"
-import { database, parseNotes } from "../Core/Database"
+import { database } from "../Core/Database"
 import { SaverPool } from "../Agent/SaverPool"
 import { config, AgentMode, type ToolAgentEntry } from "../Core/Config"
 import { loadPrompt } from "../Core/PromptLoader"
@@ -11,8 +11,6 @@ import { loadPrompt } from "../Core/PromptLoader"
 const BUILTIN_ARG_LIST = 'list';
 const BUILTIN_ARG_RESET = 'reset';
 const BUILTIN_ARG_CLEAR = 'clear';
-const BUILTIN_ARG_ADD = 'add';
-const BUILTIN_ARG_REMOVE = 'remove';
 
 type SbotService = SessionService & {
     resolveSessionConfig(args: any): Promise<EffectiveSession | undefined>;
@@ -65,12 +63,6 @@ function mdModelName(id: string | null | undefined): string {
 
 function mdConfiguredRef(id: string, name?: string): string {
     return name ? mdNamedRef(id, name) : `${mdCode(id)}（配置不存在）`;
-}
-
-function mdRefList(ids: string[], resolveName: (id: string) => string | undefined): string {
-    return ids.length > 0
-        ? ids.map(id => mdConfiguredRef(id, resolveName(id))).join('、')
-        : '(无)';
 }
 
 function mdOptionalRef(id: string | null | undefined, name: string | undefined, exists: boolean, suffix = ''): string {
@@ -279,8 +271,6 @@ export class StatusCommand implements ICommand {
         const saver = resolved.saver ? config.getSaver(resolved.saver) : undefined;
         const memory = resolved.memory ? config.getMemoryProfile(resolved.memory) : undefined;
         const agenda = resolved.agenda ? config.getAgendaProfile(resolved.agenda) : undefined;
-        const noteName = (id: string) => config.getNote(id)?.name;
-        const wikiName = (id: string) => config.getWiki(id)?.name;
 
         lines.push(mdTitle('当前会话'));
         lines.push(mdItem('Agent', mdWithChannelDefaultUsage(agentLine, profile.agentId, channel?.agent)));
@@ -288,8 +278,6 @@ export class StatusCommand implements ICommand {
         lines.push(mdItem('Saver', mdWithChannelDefaultUsage(mdOptionalRef(resolved.saver, saver?.name, !!saver, saver ? ` · ${mdCode(saver.type)}` : ''), profile.saver, channel?.saver)));
         lines.push(mdItem('Memory Profile', mdWithChannelDefaultUsage(mdOptionalRef(resolved.memory, memory?.name, !!memory, memory ? ` · ${mdEnabled(memory.enabled)}` : ''), profile.memory, channel?.memory)));
         lines.push(mdItem('Agenda Profile', mdWithChannelDefaultUsage(mdOptionalRef(resolved.agenda, agenda?.name, !!agenda, agenda ? ` · ${mdEnabled(agenda.enabled)}` : ''), profile.agenda, channel?.agenda)));
-        lines.push(mdItem('Notes', mdRefList(resolved.notes, noteName)));
-        lines.push(mdItem('Wikis', mdRefList(resolved.wikis, wikiName)));
         lines.push(mdItem('工作目录', mdMaybeCode(resolved.workPath, '(未设置)')));
         lines.push(mdItem('自动批准全部工具', resolved.autoApproveAllTools ? '开' : '关'));
         lines.push(mdItem('Token', `累计 ${profile.totalTokens}，上轮 ${profile.lastTotalTokens}`));
@@ -456,186 +444,6 @@ export class SaverCommand implements ICommand {
         }
         await channelDataService.updateProfile(profile.id, { saver: this.id });
         return `${mdTitle('Saver 已切换', mdCode(this.id))}\n${mdItem('使用渠道默认', '否（当前 Profile）')}${await shareHint(profile.id)}`;
-    }
-}
-
-/**
- * /note 命令 - 查看 / 列出 / 调整当前会话的 Note 列表
- */
-@Command('note', '查看、列出或调整当前会话的 Note 列表')
-export class NoteCommand implements ICommand {
-    _context!: CommandContext;
-
-    @Arg('action', {
-        description: `${BUILTIN_ARG_LIST} 列出全部；${BUILTIN_ARG_ADD} <id> 添加；${BUILTIN_ARG_REMOVE} <id> 移除；不传则查看当前`,
-        required: false,
-    })
-    action?: string;
-
-    @Arg('id', {
-        description: 'Note ID',
-        required: false,
-    })
-    id?: string;
-
-    async execute(): Promise<string> {
-        const eff = await resolveEff(this._context);
-        if (!eff) return mdTitle('无法识别当前会话上下文');
-        const { resolved, profile } = eff;
-
-        const ownNotes = parseNotes(profile.notes);
-        const noteName = (id: string) => config.getNote(id)?.name;
-
-        // 列出可用配置
-        if (this.action === BUILTIN_ARG_LIST) {
-            const notes = Object.entries(config.settings.notes ?? {})
-                .sort(([a], [b]) => a.localeCompare(b));
-            if (notes.length === 0) return mdTitle('没有可用的 Note');
-            return `${mdTitle('可用 Note')}\n` + notes
-                .map(([id, note]) => {
-                    const embedding = note.embedding ? `embedding ${mdCode(note.embedding)}` : 'BM25';
-                    return `- ${mdNamedRef(id, note.name)} · ${embedding}`;
-                })
-                .join('\n');
-        }
-
-        // 查看当前列表
-        if (!this.action) {
-            return [
-                mdTitle('当前 Note 列表'),
-                mdItem('Profile 列表', mdRefList(ownNotes, noteName)),
-                mdItem('生效列表', mdRefList(resolved.notes, noteName)),
-                mdItem('合并渠道默认', profile.useChannelNotes ? '是' : '否'),
-                '',
-                `使用 ${mdCode(`/note ${BUILTIN_ARG_LIST}`)} 查看全部，${mdCode(`/note ${BUILTIN_ARG_ADD} <id>`)} 添加，${mdCode(`/note ${BUILTIN_ARG_REMOVE} <id>`)} 移除。`,
-            ].join('\n');
-        }
-
-        if (this.action !== BUILTIN_ARG_ADD && this.action !== BUILTIN_ARG_REMOVE) {
-            return `${mdTitle('不支持的 Note 操作', mdCode(this.action))}\n可用操作：${mdCode(BUILTIN_ARG_LIST)} / ${mdCode(BUILTIN_ARG_ADD)} / ${mdCode(BUILTIN_ARG_REMOVE)}`;
-        }
-        if (!this.id) {
-            return `${mdTitle('缺少 Note ID')}\n用法：${mdCode(`/note ${this.action} <id>`)}`;
-        }
-
-        // 添加
-        if (this.action === BUILTIN_ARG_ADD) {
-            if (!config.getNote(this.id)) {
-                return `${mdTitle('Note 不存在', mdCode(this.id))}\n使用 ${mdCode(`/note ${BUILTIN_ARG_LIST}`)} 查看可用项。`;
-            }
-            if (ownNotes.includes(this.id)) {
-                return mdTitle('Note 已在当前 Profile 列表中', mdCode(this.id));
-            }
-            const next = [...ownNotes, this.id];
-            await channelDataService.updateProfile(profile.id, { notes: next });
-            return [
-                mdTitle('Note 已添加', mdCode(this.id)),
-                mdItem('Profile 列表', mdRefList(next, noteName)),
-                await shareHint(profile.id),
-            ].filter(Boolean).join('\n');
-        }
-
-        // 移除
-        if (!ownNotes.includes(this.id)) {
-            return `${mdTitle('Note 不在当前 Profile 列表中', mdCode(this.id))}\n如果它来自渠道默认，请在渠道配置中调整，或关闭合并渠道默认。`;
-        }
-        const next = ownNotes.filter(id => id !== this.id);
-        await channelDataService.updateProfile(profile.id, { notes: next });
-        return [
-            mdTitle('Note 已移除', mdCode(this.id)),
-            mdItem('Profile 列表', mdRefList(next, noteName)),
-            await shareHint(profile.id),
-        ].filter(Boolean).join('\n');
-    }
-}
-
-/**
- * /wiki 命令 - 查看 / 列出 / 调整当前会话的 Wiki 列表
- */
-@Command('wiki', '查看、列出或调整当前会话的 Wiki 列表')
-export class WikiCommand implements ICommand {
-    _context!: CommandContext;
-
-    @Arg('action', {
-        description: `${BUILTIN_ARG_LIST} 列出全部；${BUILTIN_ARG_ADD} <id> 添加；${BUILTIN_ARG_REMOVE} <id> 移除；不传则查看当前`,
-        required: false,
-    })
-    action?: string;
-
-    @Arg('id', {
-        description: 'Wiki ID',
-        required: false,
-    })
-    id?: string;
-
-    async execute(): Promise<string> {
-        const eff = await resolveEff(this._context);
-        if (!eff) return mdTitle('无法识别当前会话上下文');
-        const { resolved, profile } = eff;
-
-        const ownWikis = parseNotes(profile.wikis);
-        const wikiName = (id: string) => config.getWiki(id)?.name;
-
-        // 列出可用配置
-        if (this.action === BUILTIN_ARG_LIST) {
-            const wikis = Object.entries(config.settings.wikis ?? {})
-                .sort(([a], [b]) => a.localeCompare(b));
-            if (wikis.length === 0) return mdTitle('没有可用的 Wiki');
-            return `${mdTitle('可用 Wiki')}\n` + wikis
-                .map(([id, wiki]) => {
-                    const embedding = wiki.embedding ? `embedding ${mdCode(wiki.embedding)}` : 'BM25';
-                    return `- ${mdNamedRef(id, wiki.name)} · ${embedding}`;
-                })
-                .join('\n');
-        }
-
-        // 查看当前列表
-        if (!this.action) {
-            return [
-                mdTitle('当前 Wiki 列表'),
-                mdItem('Profile 列表', mdRefList(ownWikis, wikiName)),
-                mdItem('生效列表', mdRefList(resolved.wikis, wikiName)),
-                mdItem('合并渠道默认', profile.useChannelWikis ? '是' : '否'),
-                '',
-                `使用 ${mdCode(`/wiki ${BUILTIN_ARG_LIST}`)} 查看全部，${mdCode(`/wiki ${BUILTIN_ARG_ADD} <id>`)} 添加，${mdCode(`/wiki ${BUILTIN_ARG_REMOVE} <id>`)} 移除。`,
-            ].join('\n');
-        }
-
-        if (this.action !== BUILTIN_ARG_ADD && this.action !== BUILTIN_ARG_REMOVE) {
-            return `${mdTitle('不支持的 Wiki 操作', mdCode(this.action))}\n可用操作：${mdCode(BUILTIN_ARG_LIST)} / ${mdCode(BUILTIN_ARG_ADD)} / ${mdCode(BUILTIN_ARG_REMOVE)}`;
-        }
-        if (!this.id) {
-            return `${mdTitle('缺少 Wiki ID')}\n用法：${mdCode(`/wiki ${this.action} <id>`)}`;
-        }
-
-        // 添加
-        if (this.action === BUILTIN_ARG_ADD) {
-            if (!config.getWiki(this.id)) {
-                return `${mdTitle('Wiki 不存在', mdCode(this.id))}\n使用 ${mdCode(`/wiki ${BUILTIN_ARG_LIST}`)} 查看可用项。`;
-            }
-            if (ownWikis.includes(this.id)) {
-                return mdTitle('Wiki 已在当前 Profile 列表中', mdCode(this.id));
-            }
-            const next = [...ownWikis, this.id];
-            await channelDataService.updateProfile(profile.id, { wikis: next });
-            return [
-                mdTitle('Wiki 已添加', mdCode(this.id)),
-                mdItem('Profile 列表', mdRefList(next, wikiName)),
-                await shareHint(profile.id),
-            ].filter(Boolean).join('\n');
-        }
-
-        // 移除
-        if (!ownWikis.includes(this.id)) {
-            return `${mdTitle('Wiki 不在当前 Profile 列表中', mdCode(this.id))}\n如果它来自渠道默认，请在渠道配置中调整，或关闭合并渠道默认。`;
-        }
-        const next = ownWikis.filter(id => id !== this.id);
-        await channelDataService.updateProfile(profile.id, { wikis: next });
-        return [
-            mdTitle('Wiki 已移除', mdCode(this.id)),
-            mdItem('Profile 列表', mdRefList(next, wikiName)),
-            await shareHint(profile.id),
-        ].filter(Boolean).join('\n');
     }
 }
 
@@ -920,8 +728,6 @@ export function getBuiltInCommands(): ICommand[] {
         new WorkpathCommand(),
         new AgentCommand(),
         new SaverCommand(),
-        new NoteCommand(),
-        new WikiCommand(),
         new MemoryCommand(),
         new AgendaCommand(),
         new AutoApproveCommand(),

@@ -6,7 +6,6 @@ import {
     ServiceContainer,
     IAgentCallback,
     ILoggerService,
-    IEmbeddingService,
     IAgentSaverService,
     IAgentPlugin,
     T_ChannelSessionId,
@@ -16,28 +15,7 @@ import {
 } from "scorpio.ai";
 import { AgendaPluginLease } from "agent.agenda";
 import { ScratchpadPlugin } from "agent.scratchpad";
-import {
-    INoteService,
-    INoteDatabase,
-    NoteService,
-    NotePluginLease,
-    T_NoteSystemPromptTemplate,
-    T_NoteToolDescs,
-    T_NoteCachePath,
-    loadNotePrompt,
-} from "agent.note";
 import { MemoryPluginLease } from "agent.memory";
-import {
-    IWikiService,
-    IWikiDatabase,
-    WikiService,
-    WikiPluginLease,
-    T_WikiSystemPromptTemplate,
-    T_WikiToolDescs,
-    T_WikiCachePath,
-    T_WikiId,
-    loadWikiPrompt,
-} from "agent.wiki";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config } from "../Core/Config";
 import { loadWorkspaceContext } from "../Core/WorkspaceContext";
@@ -45,9 +23,7 @@ import { loadWorkspaceContext } from "../Core/WorkspaceContext";
 import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "../Session/SessionManager";
-import { NoteDatabaseManager } from "./NoteDatabaseManager";
 import { SaverPool } from "./SaverPool";
-import { wikiPluginRegistry } from "../Wiki/WikiPluginRegistry";
 import { agendaServicePool } from "../Agenda";
 import { memoryServicePool } from "../Memory/MemoryServicePool";
 
@@ -66,10 +42,6 @@ export interface AgentRunOptions {
     extraInfo: string;
     /** Channel 维度静态 prompt（输出介质/格式硬约束）；同一 channel type 每条消息一致，可走 system prompt 缓存 */
     channelPrompt?: string;
-    /** 笔记服务配置 ID 列表，不传则不启用笔记 */
-    notes?: string[];
-    /** Wiki 知识库配置 ID 列表 */
-    wikis?: string[];
     /** Agent 文件操作根目录，不传则默认为 assets/{threadId} */
     workPath?: string;
     /** 关闭工作目录上下文文件（SBOT.md / AGENTS.md 等）的自动注入 */
@@ -97,7 +69,7 @@ export class AgentRunner {
     }
 
     private static async runInternal(options: AgentRunOptions): Promise<void> {
-        const { query, callbacks, agentId, saverId, threadId, dbSessionId, extraInfo, channelPrompt, notes, wikis, agentTools } = options;
+        const { query, callbacks, agentId, saverId, threadId, dbSessionId, extraInfo, channelPrompt, agentTools } = options;
         if (!agentId.trim())   throw new Error("agent not specified");
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
@@ -157,15 +129,11 @@ export class AgentRunner {
         const channelSessionId = parseInt(dbSessionId, 10) || 0;
         container.registerInstance(T_ChannelSessionId, channelSessionId);
 
-        let noteLease: NotePluginLease | null = null;
-        let wikiLease: WikiPluginLease | null = null;
         let memoryLease: MemoryPluginLease | null = null;
         let agendaLease: AgendaPluginLease | null = null;
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
         let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
         try {
-            noteLease = await AgentRunner.registerNotePlugin(container, notes ?? []);
-            wikiLease = await AgentRunner.registerWikiPlugin(container, wikis ?? []);
             memoryLease = AgentRunner.registerMemoryPlugin(container, options.memoryId, memoryWorkPath);
             agendaLease = AgentRunner.registerAgendaPlugin(container, options.agendaId);
             // 会话黑板：纯同步文件读写、无句柄无 pool，per-run 构造即可，无需 lease/release；
@@ -195,8 +163,6 @@ export class AgentRunner {
             await agent.stream(query, callbacks, signal);
         } finally {
             await agent?.dispose();
-            await noteLease?.release();
-            await wikiLease?.release();
             memoryLease?.release();
             agendaLease?.release();
             await saverHandle?.release();
@@ -209,121 +175,6 @@ export class AgentRunner {
             `Current local time: ${TimeUtils.formatLocalDateTime(timezone)}`,
             '</current-time>',
         ].join('\n');
-    }
-
-    static async createNoteService(noteId: string): Promise<INoteService> {
-        const service = await AgentRunner.buildNoteService(noteId);
-        if (!service) throw new Error(`Note config "${noteId}" not found or missing embedding`);
-        return service;
-    }
-
-    private static async buildNoteService(noteId: string, loggerService?: LoggerService): Promise<INoteService | null> {
-        const noteConfig = config.getNote(noteId);
-        if (!noteConfig) return null;
-
-        // embedding 可选：没配则 NoteService 退化为 BM25 + time decay + access。
-        const embedding = noteConfig.embedding
-            ? config.getEmbeddingService(noteConfig.embedding, true)
-            : undefined;
-
-        const sub = new ServiceContainer();
-        if (loggerService) sub.registerInstance(ILoggerService, loggerService);
-        const dbPath = config.getNoteDBPath(noteId);
-        const promptOverrides = config.getConfigPath('prompts', true);
-        sub.registerInstance(INoteDatabase, NoteDatabaseManager.getInstance().acquire(dbPath));
-
-        const args: Record<string | symbol, any> = {
-            [T_NoteCachePath]: config.getNoteCachePath(noteId),
-            [T_NoteSystemPromptTemplate]: loadNotePrompt('note/system.txt', promptOverrides),
-            [T_NoteToolDescs]: { search: loadNotePrompt('tools/note/search.txt', promptOverrides) },
-        };
-        if (embedding) args[IEmbeddingService] = embedding;
-
-        sub.registerWithArgs(INoteService, NoteService, args);
-        return sub.resolve<INoteService>(INoteService);
-    }
-
-    /**
-     * 将所有 Note 数据源聚合成一个 Agent capability plugin。
-     * 返回的 lease 持有数据源；子 Agent 只继承插件引用，不获得释放权。
-     */
-    private static async registerNotePlugin(
-        container: ServiceContainer,
-        notes: string[],
-    ): Promise<NotePluginLease | null> {
-        const loggerService = container.isRegistered(ILoggerService) ? container.resolve<LoggerService>(ILoggerService) : undefined
-        const results = await Promise.all(notes.map(noteId => AgentRunner.buildNoteService(noteId, loggerService)));
-        const services = results.filter((s): s is INoteService => s !== null);
-        if (services.length === 0) return null;
-        const lease = new NotePluginLease(services);
-        AgentRunner.registerAgentPlugin(container, lease.plugin);
-        return lease;
-    }
-
-    static async createWikiService(wikiId: string): Promise<IWikiService> {
-        const service = await AgentRunner.buildWikiService(wikiId);
-        if (!service) throw new Error(`Wiki config "${wikiId}" not found`);
-        return service;
-    }
-
-    private static async buildWikiService(wikiId: string): Promise<IWikiService | null> {
-        const wikiConfig = config.getWiki(wikiId);
-        if (!wikiConfig) return null;
-
-        // embedding 可选：没配则 HybridSearcher 退化为 BM25-only。
-        const embedding = wikiConfig.embedding
-            ? config.getEmbeddingService(wikiConfig.embedding, true)
-            : undefined;
-
-        const wikiDir = config.getWikiDBPath(wikiId);
-        const sourceType = wikiConfig.type ?? 'local';
-        const plugin = wikiPluginRegistry.get(sourceType);
-        if (!plugin) {
-            LoggerService.getLogger('AgentRunner').warn(`Unknown wiki source type "${sourceType}" for wiki "${wikiId}", skipping`);
-            return null;
-        }
-        const db = await plugin.init({
-            config: wikiConfig.config ?? {},
-            logger: LoggerService.getLogger(`wiki:${wikiId}`),
-            cachePath: wikiDir,
-            embedding,
-        });
-
-        const sub = new ServiceContainer();
-        sub.registerInstance(IWikiDatabase, db);
-        const promptOverrides = config.getConfigPath('prompts', true);
-
-        const args: Record<string | symbol, any> = {
-            [T_WikiCachePath]: wikiDir,
-            [T_WikiId]: wikiId,
-            [T_WikiSystemPromptTemplate]: loadWikiPrompt('wiki/system.txt', promptOverrides),
-            [T_WikiToolDescs]: {
-                search: loadWikiPrompt('tools/wiki/search.txt', promptOverrides),
-                read: loadWikiPrompt('tools/wiki/read.txt', promptOverrides),
-            },
-        };
-        if (embedding) args[IEmbeddingService] = embedding;
-
-        sub.registerWithArgs(IWikiService, WikiService, args);
-        return sub.resolve<IWikiService>(IWikiService);
-    }
-
-    /**
-     * 将所有 Wiki 数据源聚合成一个 Agent capability plugin。
-     * 返回的 lease 持有数据源；子 Agent 只继承插件引用，不获得释放权。
-     */
-    private static async registerWikiPlugin(
-        container: ServiceContainer,
-        wikis: string[],
-    ): Promise<WikiPluginLease | null> {
-        if (wikis.length === 0) return null;
-        // 去重：同一 wiki 被重复挂载时，搜索结果与工具扇出会成倍重复
-        const results = await Promise.all([...new Set(wikis)].map(wikiId => AgentRunner.buildWikiService(wikiId)));
-        const services = results.filter((s): s is IWikiService => s !== null);
-        if (services.length === 0) return null;
-        const lease = new WikiPluginLease(services);
-        AgentRunner.registerAgentPlugin(container, lease.plugin);
-        return lease;
     }
 
     /** Memory capability plugin 注册；lease 与 pool acquire 的 scoped 引用配对。 */
