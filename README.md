@@ -144,7 +144,7 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
 - **Multiple channels** — Web UI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), Tencent Yuanbao, OneBot (v11 reverse WebSocket), XiaoAI, REST API, WebSocket
 - **Command execution** — `exec_command` runs shell commands and scripts, with resumable output and stdin for long-running processes
-- **Skills** — Installable prompt modules with remote install from Clawhub, skills.sh, and skillhub.cn
+- **Skills** — Prompt modules loaded from built-in, local, and agent-specific skill directories
 - **Agent Store** — Browse and install pre-packaged agents (model + prompt + tools + skills + MCP servers) from configurable sources
 - **Token usage tracking** — Per-model consumption statistics, model response caching with hit/miss metrics
 - **Unattended-session safety** — Configurable approval and ask timeouts on channels for autonomous operation
@@ -154,4 +154,4 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 
 ## Keywords
 
-`ai agent` `self-hosted` `llm server` `open source` `mcp` `acp` `model context protocol` `multi-agent` `react agent` `openai` `claude` `anthropic` `gemini` `ollama` `chatbot` `lark` `feishu` `onebot` `qq` `long-term memory` `vector search` `typescript` `node.js`
+`ai agent` `self-hosted` `llm server` `open source` `mcp` `acp` `model context protocol` `multi-agent` `react agent` `openai` `claude` `anthropic` `gemini` `ollama` `chatbot` `lark` `feishu` `onebot` `qq` `long-term memory` `typescript` `node.js`

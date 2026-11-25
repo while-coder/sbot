@@ -3,7 +3,6 @@ import http from 'http';
 import path from 'path';
 import { config, isDev, envHttpPort } from '../Core/Config';
 import { ACPAgentPool } from '../Agent/ACPAgentPool';
-import { SkillHubService } from '../SkillHub';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database } from '../Core/Database';
@@ -11,7 +10,6 @@ import { agendaStorePool, agendaTriggerEnginePool } from '../Agenda';
 import { heartbeatService } from '../Heartbeat/HeartbeatService';
 import { runtimeActivity } from 'scorpio.ai';
 import { channelManager } from '../Channel/ChannelManager';
-import { tunnelService } from '../Tunnel';
 import { WEB_CHANNEL_ID } from '@sbot/shared';
 import { webService } from '../Channel/web/WebService';
 import { ptyService, listShells } from '../Channel/web/PtyService';
@@ -23,7 +21,6 @@ import { settingsRoutes } from './routes/settings';
 import { filesystemRoutes } from './routes/filesystem';
 import { mcpRoutes } from './routes/mcp';
 import { skillRoutes } from './routes/skills';
-import { skillHubRoutes } from './routes/skillHub';
 import { agentStoreRoutes } from './routes/agentStore';
 import { promptRoutes } from './routes/prompts';
 import { dataRoutes } from './routes/data';
@@ -33,12 +30,10 @@ import { heartbeatRoutes } from './routes/heartbeats';
 import { userRoutes } from './routes/users';
 import { logRoutes } from './routes/logs';
 import { chatRoutes } from './routes/chat';
-import { tunnelRoutes } from './routes/tunnel';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
 class HttpServer {
-    private readonly skillHubService = new SkillHubService();
     private readonly agentStoreService = new AgentStoreService();
     private server?: http.Server;
     private shutdownPromise?: Promise<void>;
@@ -63,9 +58,6 @@ class HttpServer {
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
             ptyService.dispose();
-            try { await tunnelService.stopAll(); } catch (e: any) {
-                logger.warn(`tunnel stop error: ${e?.message ?? e}`);
-            }
             await closeServer;
             await database.sequelize.close();
             logger.info('All services stopped');
@@ -109,7 +101,6 @@ class HttpServer {
         const outgoingDir = config.getConfigPath('outgoing', true);
 
         const ctx: RouteContext = {
-            skillHubService: this.skillHubService,
             agentStoreService: this.agentStoreService,
             settingsWithAgents: () => this.settingsWithAgents(),
             shutdown: () => this.shutdown(),
@@ -122,7 +113,6 @@ class HttpServer {
         filesystemRoutes.register(app, ctx);
         mcpRoutes.register(app, ctx);
         skillRoutes.register(app, ctx);
-        skillHubRoutes.register(app, ctx);
         agentStoreRoutes.register(app, ctx);
         promptRoutes.register(app, ctx);
         dataRoutes.register(app, ctx);
@@ -132,7 +122,6 @@ class HttpServer {
         logRoutes.register(app, ctx);
         userRoutes.register(app, ctx);
         chatRoutes.register(app, ctx);
-        tunnelRoutes.register(app, ctx);
 
         app.get('/api/pty/shells', api(() => listShells()));
 

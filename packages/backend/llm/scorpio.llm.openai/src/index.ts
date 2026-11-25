@@ -1,15 +1,13 @@
 import {
   ApiKeyMode,
-  EmbeddingProvider,
   type LlmProviderRegistry,
   ModelProvider,
   llmProviderRegistry,
 } from "scorpio.llm";
-import { OpenAIEmbeddingService } from "./OpenAIEmbeddingService";
 import { OpenAIModelService } from "./OpenAIModelService";
 import { OpenAIResponseModelService } from "./OpenAIResponseModelService";
 
-export { OpenAIModelService, OpenAIResponseModelService, OpenAIEmbeddingService };
+export { OpenAIModelService, OpenAIResponseModelService };
 
 export function registerOpenAIProvider(registry: LlmProviderRegistry = llmProviderRegistry): void {
   registry.registerModel({
@@ -43,27 +41,6 @@ export function registerOpenAIProvider(registry: LlmProviderRegistry = llmProvid
     apiKeyMode: ApiKeyMode.Required,
     createModel: config => {
       const service = new OpenAIResponseModelService(config);
-      service.initialize();
-      return service;
-    },
-  });
-  registry.registerEmbedding({
-    type: EmbeddingProvider.OpenAI,
-    label: "OpenAI Compatible",
-    configSchema: {
-      dimensions: {
-        label: "向量维度",
-        type: "number",
-        description: "仅 text-embedding-3 及后续模型支持",
-      },
-    },
-    defaults: {
-      baseURL: "https://api.openai.com/v1",
-      model: "text-embedding-ada-002",
-    },
-    apiKeyMode: ApiKeyMode.Required,
-    createEmbedding: config => {
-      const service = new OpenAIEmbeddingService(config);
       service.initialize();
       return service;
     },

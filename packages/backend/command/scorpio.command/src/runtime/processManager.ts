@@ -8,11 +8,9 @@ import {
     createOutputBuffer,
     drainOutputBuffer,
     formatProcessExit,
-    getCurrentShell,
     hasBufferedOutput,
     killProcessTree,
     LimitedOutputBuffer,
-    ProcessShell,
     spawnRuntimeProcess,
 } from './process';
 
@@ -65,8 +63,6 @@ export function formatProcessResult(result: ManagedProcessResult): CommandToolRe
     return { content: [createTextContent(parts.join('\n\n'))], isError: isError || undefined };
 }
 
-type CleanupFn = () => void | Promise<void>;
-
 interface ProcSession {
     id:         number;
     proc:       ChildProcess;
@@ -78,7 +74,6 @@ interface ProcSession {
     stdinOpen:  boolean;
     lastUsed:   number;
     waiters:    Array<() => void>;
-    cleanup?:   CleanupFn;
 }
 
 export class ProcessManager {
@@ -86,14 +81,6 @@ export class ProcessManager {
     private reaper?: NodeJS.Timeout;
 
     constructor(private readonly onIdle?: () => void) {}
-
-    async exec(command: string, cwd: string, yieldMs: number | undefined, stdin?: string, interactive = false): Promise<ManagedProcessResult> {
-        return this.start(command, [], cwd, yieldMs, getCurrentShell(), stdin, undefined, interactive);
-    }
-
-    async runProgram(file: string, args: string[], cwd: string, yieldMs: number | undefined, stdin?: string, cleanup?: CleanupFn, interactive = false): Promise<ManagedProcessResult> {
-        return this.start(file, args, cwd, yieldMs, false, stdin, cleanup, interactive);
-    }
 
     async readProcess(processId: number, yieldMs: number | undefined): Promise<ManagedProcessResult> {
         const session = this.sessions.get(processId);
@@ -106,7 +93,6 @@ export class ProcessManager {
 
         if (session.exited) {
             this.sessions.delete(processId);
-            this.cleanup(session);
             return {
                 running: false,
                 exitCode: session.exitCode,
@@ -132,7 +118,6 @@ export class ProcessManager {
 
         if (session.exited) {
             this.sessions.delete(processId);
-            this.cleanup(session);
             const collected = drainBoth(session, true);
             return {
                 running: false,
@@ -190,22 +175,11 @@ export class ProcessManager {
         if (!session) return false;
         await killProcessTree(session.proc, () => session.exited);
         this.sessions.delete(processId);
-        this.cleanup(session);
         return true;
     }
 
-    private async start(
-        file: string,
-        args: string[],
-        cwd: string,
-        yieldMs: number | undefined,
-        shell: ProcessShell,
-        stdin?: string,
-        cleanup?: CleanupFn,
-        interactive = false,
-    ): Promise<ManagedProcessResult> {
-        const proc = spawnRuntimeProcess(file, args, { cwd, shell, stdin, keepStdinOpen: interactive });
-
+    async exec(command: string, cwd: string, yieldMs: number | undefined, stdin?: string, interactive = false): Promise<ManagedProcessResult> {
+        const proc = spawnRuntimeProcess(command, { cwd, stdin, keepStdinOpen: interactive });
         const id = nextProcessId++;
         const session: ProcSession = {
             id, proc,
@@ -215,7 +189,6 @@ export class ProcessManager {
             stdinOpen: interactive,
             lastUsed: Date.now(),
             waiters: [],
-            cleanup,
         };
 
         let spawnError: string | null = null;
@@ -223,7 +196,6 @@ export class ProcessManager {
             spawnError = formatCommandError(err);
             session.exited = true;
             session.stdinOpen = false;
-            this.cleanup(session);
             this.wake(session);
         });
 
@@ -234,13 +206,11 @@ export class ProcessManager {
 
         if (spawnError) {
             this.sessions.delete(id);
-            this.cleanup(session);
             return { running: false, exitCode: -1, stdout: '', stderr: '', note: `Error: ${spawnError}` };
         }
 
         if (session.exited) {
             this.sessions.delete(id);
-            this.cleanup(session);
             return {
                 running: false,
                 exitCode: session.exitCode,
@@ -263,15 +233,6 @@ export class ProcessManager {
         for (const w of waiters) w();
     }
 
-    private cleanup(session: ProcSession): void {
-        const cleanup = session.cleanup;
-        if (!cleanup) return;
-        session.cleanup = undefined;
-        Promise.resolve()
-            .then(cleanup)
-            .catch((e) => getLogger()?.error?.(`background session cleanup failed: ${formatCommandError(e, true)}`));
-    }
-
     private wireStreams(session: ProcSession): void {
         session.proc.stdout?.on('data', (chunk: Buffer) => { appendOutputBuffer(session.stdout, chunk); this.wake(session); });
         session.proc.stderr?.on('data', (chunk: Buffer) => { appendOutputBuffer(session.stderr, chunk); this.wake(session); });
@@ -280,7 +241,6 @@ export class ProcessManager {
             session.exitCode = code;
             session.exitSignal = signal;
             session.stdinOpen = false;
-            this.cleanup(session);
             this.wake(session);
         });
     }
@@ -294,7 +254,7 @@ export class ProcessManager {
             const victim = victims[0];
             if (victim) {
                 this.sessions.delete(victim.id);
-                void killProcessTree(victim.proc, () => victim.exited).finally(() => this.cleanup(victim));
+                void killProcessTree(victim.proc, () => victim.exited);
                 getLogger()?.info?.(`pruned background session ${victim.id} to stay under ${MAX_SESSIONS}`);
             }
         }
@@ -338,8 +298,7 @@ export class ProcessManager {
                 const idle = now - s.lastUsed > IDLE_TIMEOUT_MS;
                 if (idle) {
                     this.sessions.delete(id);
-                    if (!s.exited) void killProcessTree(s.proc, () => s.exited).finally(() => this.cleanup(s));
-                    else this.cleanup(s);
+                    if (!s.exited) void killProcessTree(s.proc, () => s.exited);
                 }
             }
             if (this.sessions.size === 0 && this.reaper) {

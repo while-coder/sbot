@@ -62,16 +62,6 @@ export function badgePrivate(): string {
     ? `background:#333;color:#aaa;${PILL_8}`
     : `background:#f0efed;color:#6b6b6b;${PILL_8}`
 }
-export function badgeClawhub(): string {
-  return isDark.value
-    ? `background:#312e81;color:#a5b4fc;${PILL_10}`
-    : `background:#e0e7ff;color:#4f46e5;${PILL_10}`
-}
-export function badgeSkillssh(): string {
-  return isDark.value
-    ? `background:#134e4a;color:#5eead4;${PILL_10}`
-    : `background:#ecfeff;color:#0e7490;${PILL_10}`
-}
 export function badgeGlobalPill(): string {
   return isDark.value
     ? `background:#2a2a2a;color:#aaa;${PILL_10}`
@@ -93,8 +83,6 @@ export function badgeInstalled(): string {
 export const BADGE_BUILTIN       = `background:#e0e7ff;color:#4f46e5;${PILL_8}`
 export const BADGE_GLOBAL        = `background:#f5f4f2;color:#6b6b6b;${PILL_8}`
 export const BADGE_PRIVATE       = `background:#f0efed;color:#6b6b6b;${PILL_8}`
-export const BADGE_CLAWHUB       = `background:#e0e7ff;color:#4f46e5;${PILL_10}`
-export const BADGE_SKILLSSH      = `background:#ecfeff;color:#0e7490;${PILL_10}`
 export const BADGE_GLOBAL_PILL   = `background:#f5f4f2;color:#6b6b6b;${PILL_10}`
 export const BADGE_PRIVATE_PILL  = `background:#f0efed;color:#6b6b6b;${PILL_10}`
 export const BADGE_INSTALLED     = 'background:#dcfce7;color:#16a34a;font-size:10px;padding:2px 8px;border-radius:6px;font-weight:600'

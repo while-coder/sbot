@@ -1,7 +1,7 @@
 {
   "name": "scorpio.llm.gemini",
   "version": "0.0.1",
-  "description": "Gemini model and embedding provider for scorpio.llm",
+  "description": "Gemini model provider for scorpio.llm",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": { "build": "rimraf dist && tsc -b --force" },

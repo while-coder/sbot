@@ -1,7 +1,7 @@
 {
   "name": "scorpio.llm.openai",
   "version": "0.0.1",
-  "description": "OpenAI model and embedding provider for scorpio.llm",
+  "description": "OpenAI model provider for scorpio.llm",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": { "build": "rimraf dist && tsc -b --force" },

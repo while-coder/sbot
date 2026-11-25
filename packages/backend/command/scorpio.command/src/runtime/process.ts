@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { spawn, spawnSync, type ChildProcess } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { setTimeout as sleep } from 'timers/promises';
 import { StringDecoder } from 'string_decoder';
 import { formatCommandError } from '../errors';
@@ -14,7 +14,6 @@ const SIGKILL_TIMEOUT_MS = 800;
 const SHELL_BLACKLIST = new Set(['fish', 'nu']);
 const PROBE_TIMEOUT_MS = 2_000;
 
-export type ProcessShell = string | false;
 
 export interface LimitedOutputBuffer {
     chunks:   Buffer[];
@@ -46,21 +45,6 @@ const SECRET_ENV_RE = /KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|AUTH|SESSION/
 
 let safeEnv: NodeJS.ProcessEnv | undefined;
 let currentShell: string | undefined;
-
-export function isCommandAvailable(interpreter: string): boolean {
-    if (typeof interpreter !== 'string' || !interpreter.trim()) return false;
-
-    try {
-        const result = spawnSync(process.platform === 'win32' ? 'where.exe' : 'which', [interpreter], {
-            stdio:       'ignore',
-            timeout:     PROBE_TIMEOUT_MS,
-            windowsHide: true,
-        });
-        return !result.error && result.status === 0;
-    } catch {
-        return false;
-    }
-}
 
 export function getCurrentShell(): string {
     if (currentShell !== undefined) return currentShell;
@@ -117,12 +101,11 @@ export function getChildProcessEnv(): NodeJS.ProcessEnv {
 }
 
 export function spawnRuntimeProcess(
-    file: string,
-    args: string[],
-    opts: { cwd: string; shell: ProcessShell; stdin?: string; keepStdinOpen?: boolean },
+    command: string,
+    opts: { cwd: string; stdin?: string; keepStdinOpen?: boolean },
 ): ChildProcess {
-    const proc = spawn(file, args, {
-        shell:       opts.shell,
+    const proc = spawn(command, [], {
+        shell:       getCurrentShell(),
         cwd:         opts.cwd,
         env:         getChildProcessEnv(),
         stdio:       [opts.stdin !== undefined || opts.keepStdinOpen ? 'pipe' : 'ignore', 'pipe', 'pipe'],

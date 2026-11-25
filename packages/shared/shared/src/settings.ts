@@ -62,23 +62,6 @@ export interface ModelConfig {
   config?: Record<string, any>
 }
 
-export enum EmbeddingProvider {
-  OpenAI   = "openai",
-  Ollama   = "ollama",
-  Gemini   = "gemini",
-  Cohere   = "cohere",
-}
-
-export interface EmbeddingConfig {
-  name: string
-  provider: EmbeddingProvider | string
-  baseURL?: string
-  apiKey: string
-  model: string
-  /** Provider 私有参数，由对应 provider 的 configSchema 定义。 */
-  config?: Record<string, any>
-}
-
 /**
  * Memory（skill 风格记忆系统）配置。
  *
@@ -329,9 +312,6 @@ export interface Settings {
   /** 由 ~/.sbot/agents/ 目录管理，API 响应中由服务端动态注入；不写入 settings.json */
   agents?: Record<string, AgentConfig>
   models?: Record<string, ModelConfig>
-  embeddings?: Record<string, EmbeddingConfig>
-
-
   savers?: Record<string, SaverConfig>
   /** Memory（skill 风格）配置 */
   memoryProfiles?: Record<string, MemoryProfileConfig>
@@ -339,38 +319,4 @@ export interface Settings {
   channels?: Record<string, ChannelConfig>
 
   agentSources?: AgentSourceEntry[]
-
-  /**
-   * 内网穿透配置列表。可同时配置多个，每个独立运行、独立暴露公网 URL——
-   * 适合"多个外网地址供用户选择，哪个能用用哪个"的场景。
-   */
-  tunnel?: TunnelConfig[]
-}
-
-// ── Tunnel 配置 ─────────────────────────────────────────────────
-
-export enum TunnelProviderType {
-  CloudflareQuick = 'cloudflare-quick',
-  CloudflareToken = 'cloudflare-token',
-  Localtunnel    = 'localtunnel',
-}
-
-/** 单个 tunnel 配置；Settings.tunnel 是一个数组 */
-export interface TunnelConfig {
-  /** 唯一标识，UI 操作和 API 调用都按此 id；不允许重复 */
-  id: string
-  /** 显示名（admin UI 展示用，可选） */
-  name?: string
-  /** 是否参与启动；false 时跳过 */
-  enabled?: boolean
-  type: TunnelProviderType
-  /** Cloudflare Zero Trust tunnel token（type=cloudflare-token 时必填） */
-  cloudflareToken?: string
-  /**
-   * Cloudflare Token Tunnel 的公网 URL。token 模式下 cloudflared 不在日志里输出 URL，
-   * 由用户在 Cloudflare 后台 Public Hostname 配置后填到这里展示。
-   */
-  cloudflareTokenPublicUrl?: string
-  /** Localtunnel 子域名（可选；不设置则随机分配） */
-  localtunnelSubdomain?: string
 }

@@ -46,7 +46,7 @@ export interface MemoryHistoryDiff extends MemoryHistoryEntry {
 /**
  * 每个 Memory Profile 一个本地 Git 仓库。
  *
- * Git 只跟踪 Markdown 真源与 scope.json；SQLite、FTS/embedding 缓存和 WAL 都是
+ * Git 只跟踪 Markdown 真源与 scope.json；SQLite、全文检索索引和 WAL 都是
  * 可重建运行数据，不进入历史。所有 Git 调用都使用 argv，不经过 shell。
  */
 export class MemoryHistory {

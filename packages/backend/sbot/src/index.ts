@@ -74,7 +74,6 @@ async function main() {
     const { startupExtractAll: memoryStartupExtractAll } = await import("./Memory/MemoryServicePool");
     const { sweepStale: scratchpadSweepStale, SCRATCHPAD_TTL_MS } = await import("agent.scratchpad");
     const { heartbeatService } = await import("./Heartbeat/HeartbeatService");
-    const { tunnelService } = await import("./Tunnel");
 
     const logger = LoggerService.getLogger('index.ts');
     logger.info("=========================Starting===========================")
@@ -122,7 +121,6 @@ async function main() {
         // 会话黑板 TTL 清扫：删除钩子竞态产生的孤儿文件由启动时兜底
         scratchpadSweepStale(config.getScratchpadDir(), SCRATCHPAD_TTL_MS)
         await heartbeatService.start()
-        await tunnelService.startAll(config.getHttpPort())
 
         logger.info("=========================Started successfully=============")
     } catch (e) {

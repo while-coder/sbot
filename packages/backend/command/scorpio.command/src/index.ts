@@ -1,5 +1,5 @@
-export { runProgram, runShellCommand, MAX_OUTPUT_BYTES } from './runtime/foreground';
-export { getCurrentShell, isCommandAvailable, validatePath, resolveWorkingDir } from './runtime/process';
+export { runShellCommand, MAX_OUTPUT_BYTES } from './runtime/foreground';
+export { getCurrentShell, validatePath, resolveWorkingDir } from './runtime/process';
 export { createExecCommandTool } from './codeTool';
 export {
     ProcessManager,

@@ -43,10 +43,6 @@ export class TaskBackedSaver implements IAgentSaverService {
         await this.parent.clearTask(this.taskId);
     }
 
-    async searchArchive(_query: string[][], _limit?: number): Promise<StoredMessage[]> {
-        return [];
-    }
-
     // --- Think（透传给父 saver，支持嵌套 ReAct） ---
 
     async getThink(thinkId: string): Promise<StoredMessage[]> {

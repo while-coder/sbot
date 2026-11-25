@@ -1,14 +1,13 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import type { ModelConfig, MCPServers, IModelService, IEmbeddingService, AgentSubNode, EmbeddingConfig } from "scorpio.ai";
-import { ModelProvider, EmbeddingProvider, ModelServiceFactory, EmbeddingServiceFactory } from "scorpio.ai";
+import type { ModelConfig, MCPServers, IModelService, AgentSubNode } from "scorpio.ai";
+import { ModelProvider, ModelServiceFactory } from "scorpio.ai";
 import { registerBuiltInLlmProviders } from "./LlmProviders";
 import { registerBuiltInSaverProviders } from "./SaverProviders";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry, type TunnelConfig } from "@sbot/shared";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry } from "@sbot/shared";
 export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "@sbot/shared";
-export type { TunnelConfig } from "@sbot/shared";
 
 export const isDev = process.env.NODE_ENV === 'development';
 
@@ -25,13 +24,6 @@ export type { AgentSourceEntry } from "@sbot/shared";
  * ModelConfig 的命名扩展（key 为 UUID）
  */
 export interface NamedModelConfig extends ModelConfig {
-  name?: string;               // 显示名称（可选，便于识别）
-}
-
-/**
- * EmbeddingConfig 的命名扩展（key 为 UUID）
- */
-export interface NamedEmbeddingConfig extends EmbeddingConfig {
   name?: string;               // 显示名称（可选，便于识别）
 }
 
@@ -114,7 +106,6 @@ export interface Settings {
   maxImageSize?: number;       // 图片最大尺寸（px），max(width,height) 超过此值时按比例缩小；不设置则不压缩
   contextFileNames?: string[]; // 工作目录上下文文件名列表（按优先级排列），不设置则使用默认 ['SBOT.md','sbot.md','AGENTS.md','agents.md']
   models?: Record<string, NamedModelConfig>;
-  embeddings?: Record<string, NamedEmbeddingConfig>;
   savers?: Record<string, SaverConfig>;
   /** Memory（skill 风格）配置 */
   memoryProfiles?: Record<string, MemoryProfileConfig>;
@@ -122,16 +113,15 @@ export interface Settings {
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
   agentSources?: AgentSourceEntry[];
-  tunnel?: TunnelConfig[];
 }
 
 // Record<keyof Settings, true> 保证与接口同步：漏写或多写都会编译报错
 const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
   startupCommands: true, autoCheckUpdate: true, checkUpdateTime: true, maxImageSize: true, contextFileNames: true,
-  models: true, embeddings: true, savers: true,
+  models: true, savers: true,
   memoryProfiles: true, agendaProfiles: true, channels: true,
-  plugins: true, agentSources: true, tunnel: true,
+  plugins: true, agentSources: true,
 } satisfies Record<keyof Settings, true>));
 
 /**
@@ -180,16 +170,6 @@ class Config {
   getModel(id: string): ModelConfig | undefined {
     if (!this._settings.models) return undefined;
     return this._settings.models[id.trim()];
-  }
-
-  /**
-   * 根据名称获取 embedding 配置
-   * @param name embedding 名称（对应 settings.embeddings 中的 key）
-   * @returns embedding 配置，如果未配置则返回 undefined
-   */
-  getEmbedding(id: string): EmbeddingConfig | undefined {
-    if (!this._settings.embeddings) return undefined;
-    return this._settings.embeddings[id.trim()];
   }
 
   /**
@@ -322,15 +302,6 @@ class Config {
     return ModelServiceFactory.getModelService(modelConfig);
   }
 
-  getEmbeddingService(name: string, throwError = false): IEmbeddingService | undefined {
-    const embeddingConfig = this.getEmbedding(name);
-    if (!embeddingConfig) {
-      if (throwError) throw new Error(`Embedding config "${name}" not found`);
-      return undefined;
-    }
-    return EmbeddingServiceFactory.getEmbeddingService(embeddingConfig);
-  }
-
   /**
    * 加载配置文件
    */
@@ -417,7 +388,6 @@ class Config {
 
     const M1 = "10000000-0000-0000-0000-000000000001";
     const M2 = "10000000-0000-0000-0000-000000000002";
-    const E1 = "20000000-0000-0000-0000-000000000001";
     const S1 = "30000000-0000-0000-0000-000000000001";
 
     const example: Settings = {
@@ -428,9 +398,6 @@ class Config {
       models: {
         [M1]: { name: "openai-gpt4",   provider: ModelProvider.OpenAI,     apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "gpt-4" },
         [M2]: { name: "claude",         provider: ModelProvider.Anthropic,   apiKey: "your-api-key", baseURL: "https://api.anthropic.com",               model: "claude-3-opus-20240229" },
-      },
-      embeddings: {
-        [E1]: { name: "openai-ada",     provider: EmbeddingProvider.OpenAI, apiKey: "your-api-key", baseURL: "https://api.openai.com/v1",               model: "text-embedding-ada-002" },
       },
     };
 

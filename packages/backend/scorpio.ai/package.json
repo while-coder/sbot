@@ -10,7 +10,6 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.26.0",
     "@modelcontextprotocol/sdk": "catalog:",
-    "better-sqlite3": "catalog:",
     "commander": "catalog:",
     "cron": "catalog:",
     "reflect-metadata": "catalog:",
@@ -22,7 +21,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "@types/uuid": "catalog:",
     "rimraf": "catalog:",

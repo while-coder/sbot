@@ -128,17 +128,6 @@ export interface IAgentSaverService {
      */
     setMetadata(key: string, value: string): Promise<void>;
 
-    // --- 会话搜索 ---
-
-    /**
-     * 全文搜索已归档（{@link MessageKind.Archive}）的历史消息。
-     * Normal 消息仍在 LLM 上下文中，无需通过此接口检索。
-     * 查询采用 CNF 形式：外层数组为 AND，内层数组为 OR。
-     * 例如 [["error","fail"],["deploy"]] 表示 (error OR fail) AND deploy。
-     * 任意内层为空数组或外层为空时返回空结果。
-     */
-    searchArchive?(query: string[][], limit?: number): Promise<StoredMessage[]>;
-
     // --- Task scope (subagent persistent sessions) ---
 
     /**

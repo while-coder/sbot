@@ -150,20 +150,6 @@ export class AgentFileSaver implements IAgentSaverService {
         await this.writeThreadFile(file);
     }
 
-    async searchArchive(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
-        if (query.length === 0 || query.some(g => g.length === 0)) return [];
-        const groups = query.map(g => g.map(t => t.toLowerCase()));
-        const file = await this.getFile();
-        return file.messages
-            .filter(m => {
-                if (m.kind !== MessageKind.Archive) return false;
-                const c = m.message.content;
-                const text = (typeof c === 'string' ? c : JSON.stringify(c)).toLowerCase();
-                return groups.every(group => group.some(t => text.includes(t)));
-            })
-            .slice(-limit);
-    }
-
     async clearMessages(): Promise<void> {
         this.cache = undefined;
         if (existsSync(this.filePath)) {

@@ -8,7 +8,6 @@ import { settingsManager } from '@/managers/settingsManager'
 import { toast, confirm } from '@qingfeng346/ui-kit'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
-import SkillHubModal from '@/components/modals/SkillHubModal.vue'
 import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
 import { SModal, SButton, SInput, STab, STabs, SCheckCard, SEntityTable, type EntityTableColumn } from '@qingfeng346/ui-kit'
 
@@ -166,13 +165,6 @@ async function remove(name: string) {
   }
 }
 
-// ── Skill Hub ────────────────────────────────────────────────────
-const hubRef = ref<InstanceType<typeof SkillHubModal>>()
-
-function openAdd() {
-  hubRef.value?.open()
-}
-
 // ── Public API ───────────────────────────────────────────────────
 function open(name: string) {
   agentName.value     = name
@@ -251,9 +243,6 @@ defineExpose({ open })
 
         <!-- Agent-specific skills tab -->
         <template v-else>
-          <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-            <SButton type="primary" size="small" @click="openAdd">{{ t('skills.add') }}</SButton>
-          </div>
           <div class="dir-hint-panel">
             {{ t('skills.skills_dir') }}<code class="dir-hint-code">~/.sbot/agents/{{ agentName }}/skills/</code>
           </div>
@@ -279,13 +268,6 @@ defineExpose({ open })
     </SModal>
 
     <SkillViewerModal ref="skillViewRef" />
-
-    <SkillHubModal
-      ref="hubRef"
-      :install-api-url="'/api/agents/' + encodeURIComponent(agentName) + '/skill-hub/install'"
-      :install-dir="'~/.sbot/agents/' + agentName + '/skills/'"
-      @installed="load"
-    />
   </template>
 </template>
 

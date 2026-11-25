@@ -1,6 +1,6 @@
 ---
 name: config-guide
-description: "用于查看、解释、新增或修改 sbot 运行时配置时使用，覆盖 ~/.sbot 下的 settings、models、embeddings、savers、memoryProfiles、agendaProfiles、channels、agents、MCP、skills、agent store、profiles、tunnel、plugins，以及配置字段归属和安全修改路径。仅在问题涉及 sbot 配置、配置文件、配置 API 或配置目录时触发；单纯查看聊天、会话内容、日志或实现细节时不要触发。"
+description: "用于查看、解释、新增或修改 sbot 运行时配置时使用，覆盖 ~/.sbot 下的 settings、models、savers、memoryProfiles、agendaProfiles、channels、agents、MCP、skills、agent store、profiles、plugins，以及配置字段归属和安全修改路径。仅在问题涉及 sbot 配置、配置文件、配置 API 或配置目录时触发；单纯查看聊天、会话内容、日志或实现细节时不要触发。"
 ---
 
 # sbot 配置指南
@@ -44,7 +44,7 @@ sbot 运行时配置目录是 `~/.sbot/`。处理配置问题时只需要围绕�
 
 `settings.json` 加载时只保留白名单字段；多余字段会被删除并回写。白名单：
 
-`httpPort`, `httpUrl`, `autoApproveTools`, `autoApproveAllTools`, `startupCommands`, `checkUpdateTime`, `maxImageSize`, `contextFileNames`, `models`, `embeddings`, `savers`, `memoryProfiles`, `agendaProfiles`, `channels`, `plugins`, `agentSources`, `tunnel`
+`httpPort`, `httpUrl`, `autoApproveTools`, `autoApproveAllTools`, `startupCommands`, `checkUpdateTime`, `maxImageSize`, `contextFileNames`, `models`, `savers`, `memoryProfiles`, `agendaProfiles`, `channels`, `plugins`, `agentSources`
 
 先用 `GET /api/settings` 读取总览；响应会包含 settings 和从 `agents/` 目录动态注入的 Agent 列表。挑选模型 ID 时用 `POST /api/models/available`，不要只靠记忆填写 provider 的模型名。
 
@@ -58,16 +58,14 @@ sbot 运行时配置目录是 `~/.sbot/`。处理配置问题时只需要围绕�
 | `startupCommands` | 启动后顺序同步执行的命令 | `PUT /api/settings/general` |
 | `contextFileNames` | workPath 向上扫描的上下文文件优先级；为空/未设时默认 `SBOT.md`, `AGENTS.md`，大小写不敏感 | `PUT /api/settings/general` |
 | `models` | `Record<UUID, ModelConfig>`，模型配置 | `/api/settings/models` |
-| `embeddings` | `Record<UUID, EmbeddingConfig>` | `/api/settings/embeddings` |
 | `savers` | `Record<UUID, { name, type }>`，`type=file/sqlite/memory` | `/api/settings/savers` |
 | `memoryProfiles` | 长期记忆模板，含 `enabled`, `writerModel`, 可选 `selectorModel`, prompt 文件 | `/api/settings/memoryProfiles` |
 | `agendaProfiles` | 事项模板，含 `enabled`, `syncModel`, prompt 文件 | `/api/settings/agendaProfiles` |
 | `channels` | channel 默认配置；内置 `web` 固定存在 | `/api/settings/channels` |
 | `agentSources` | AgentStore 源列表 | `/api/agent-store/*` |
-| `tunnel` | 内网穿透配置数组 | `/api/tunnel/config` |
 | `plugins` | 额外 channel plugin 包名或路径；另会扫描 `~/.sbot/plugins/*/index.js` | 通常需改文件或对应 UI |
 
-`models`、`embeddings`、`savers`、`memoryProfiles`、`agendaProfiles` 的 key 应是 UUID。`channels` 是 channelId，`POST /api/settings/channels` 会生成 UUID，内置 Web channel 使用固定 id `web`。
+`models`、`savers`、`memoryProfiles`、`agendaProfiles` 的 key 应是 UUID。`channels` 是 channelId，`POST /api/settings/channels` 会生成 UUID，内置 Web channel 使用固定 id `web`。
 
 ## 标准 Settings CRUD
 
@@ -81,7 +79,7 @@ DELETE /api/settings/<section>/:id
 
 适用 section：
 
-`models`, `embeddings`, `savers`, `memoryProfiles`, `agendaProfiles`, `channels`
+`models`, `savers`, `memoryProfiles`, `agendaProfiles`, `channels`
 
 注意：
 
@@ -174,7 +172,6 @@ MCP entry 常见字段：`type` (`stdio`/`http`/`sse`), `command`, `args`, `env`
 - 内置：随 sbot 安装包提供的内置 skills
 - Agents：`~/.agents/skills`
 - Claude Code：`~/.claude/skills`
-- SkillHub：`~/skills`
 - 全局：`~/.sbot/skills`
 
 Agent 运行时还会注册：
@@ -191,12 +188,9 @@ DELETE /api/skills/:name
 GET    /api/agents/:name/skills
 PUT    /api/agents/:name/skills/:skillName
 DELETE /api/agents/:name/skills/:skillName
-
-POST   /api/agents/:agentName/skill-hub/install
-POST   /api/agents/:agentName/skill-hub/install-zip
 ```
 
-`DELETE /api/skills/:name` 只删除 `~/.sbot/skills/<name>`，不会删内置、Agents、Claude Code 或 SkillHub 目录里的同名 skill。`PUT /api/agents/:name/skills/:skillName` 的 body 必须包含 `content`，写入 Agent 专属 `SKILL.md`。
+`DELETE /api/skills/:name` 只删除 `~/.sbot/skills/<name>`，不会删内置、Agents 或 Claude Code 目录里的同名 skill。`PUT /api/agents/:name/skills/:skillName` 的 body 必须包含 `content`，写入 Agent 专属 `SKILL.md`。
 
 Agent 的 `skills` 字段从全局 skill 集合中筛选：`'*'` 表示全选，数组表示按 skill name 选择。Agent 专属 skills 不依赖这个筛选。
 
@@ -270,20 +264,7 @@ POST   /api/agendas/:id/cancel
 DELETE /api/agendas/:id
 ```
 
-## Tunnel 与 AgentStore
-
-Tunnel 配置用专门 API，body 是完整数组替换：
-
-```http
-GET  /api/tunnel/status
-PUT  /api/tunnel/config
-POST /api/tunnel/start
-POST /api/tunnel/stop
-POST /api/tunnel/entries/:id/start
-POST /api/tunnel/entries/:id/stop
-```
-
-Tunnel `id` 必须匹配 `[A-Za-z0-9_.-]{1,64}`，`type` 是 `cloudflare-quick`、`cloudflare-token` 或 `localtunnel`。不要回显 `cloudflareToken`。
+## AgentStore
 
 AgentStore 源和安装：
 
@@ -304,7 +285,7 @@ GET  /api/agent-store/export?id=<agentId>
 1. 先备份或至少读出原文件。
 2. 保持 JSON 格式化为 2 空格缩进。
 3. 不要新增 `settings.json` 白名单外字段。
-4. 新增跨引用时先确认目标存在：model、embedding、saver、memoryProfile、agendaProfile、agent。
+4. 新增跨引用时先确认目标存在：model、saver、memoryProfile、agendaProfile、agent。
 5. 改 Agent prompt 时写 `system-prompt.md`，不要写回 `agent.json.systemPrompt`。
 6. 改 MCP 后优先调用对应 API 或重启，以刷新工具缓存。
 7. 改 channel 后要 reload channel；API 会做，直接改文件不会做。

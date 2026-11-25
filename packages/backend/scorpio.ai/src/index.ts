@@ -5,8 +5,6 @@
  * - DI: 依赖注入容器
  * - Core: 通用 Token
  * - Model: LLM 模型服务
- * - Embedding: 文本嵌入服务
- * - Note: 笔记/资料库系统（向量检索）
  * - Saver: Agent 状态持久化
  * - Command: 命令系统（装饰器、解析器）
  * - AgentTool: 工具管理
@@ -83,21 +81,6 @@ export {
 } from "./Model";
 
 // ========================================
-// Embedding - 向量化服务
-// ========================================
-export {
-  // 接口 + Symbol Token
-  IEmbeddingService,
-
-  // 工厂和配置
-  EmbeddingServiceFactory,
-
-  // 类型定义
-  EmbeddingConfig,
-  EmbeddingProvider,
-} from "./Embedding";
-
-// ========================================
 // Saver - 状态持久化
 // ========================================
 export {
@@ -127,14 +110,6 @@ export {
   IConversationCompactor,
   METADATA_KEY_INPUT_TOKENS,
 } from "./Conversation";
-
-// ========================================
-// Retrieval - 混合检索（BM25 + jaccard + embedding，自管 SQLite 缓存）
-// ========================================
-export {
-  HybridSearcher,
-  type HybridSearcherOptions,
-} from "./Retrieval";
 
 // ========================================
 // Trigger - 通用 session 投递语义

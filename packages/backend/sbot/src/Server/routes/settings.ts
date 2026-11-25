@@ -60,8 +60,6 @@ export class SettingsRoutes {
         // 模型候选列表：查 models.dev 目录快照（同步、无需 apiKey / baseURL）
         app.post('/api/models/available', api(() => listCatalogModels()));
 
-        app.get('/api/embedding-providers', api(() => llmProviderRegistry.listEmbeddingProviders()));
-
         // 查询模型能力的自动判断结果（不含用户覆盖），admin「自动」模式下展示实际生效值
         app.post('/api/models/llm-info', api(req => {
             const { provider, model } = req.body as { provider?: string; model?: string };
@@ -89,11 +87,8 @@ export class SettingsRoutes {
             }
         }));
 
-        app.post('/api/embeddings/available', api(() => listCatalogModels()));
-
         const getSettings = () => ctx.settingsWithAgents();
         settingsCrudHelper.register(app, 'models', { label: 'Model', getSettings });
-        settingsCrudHelper.register(app, 'embeddings', { label: 'Embedding', getSettings });
         settingsCrudHelper.register(app, 'savers', { label: 'Saver config', getSettings });
         settingsCrudHelper.register(app, 'memoryProfiles', {
             label: 'Memory profile',

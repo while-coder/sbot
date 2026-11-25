@@ -6,7 +6,6 @@ import { skillsManager } from '@/managers/skillsManager'
 import { SButton, SInput, STab, STabs, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@qingfeng346/ui-kit'
 import type { SkillItem } from '@/shared/types'
 import { sourceBadgeStyle } from '@/utils/badges'
-import SkillHubModal from '@/components/modals/SkillHubModal.vue'
 import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
 
 const { t } = useI18n()
@@ -64,12 +63,6 @@ async function remove(name: string) {
   }
 }
 
-const hubRef = ref<InstanceType<typeof SkillHubModal>>()
-
-function openAdd() {
-  hubRef.value?.open()
-}
-
 onMounted(load)
 </script>
 
@@ -77,7 +70,6 @@ onMounted(load)
   <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
     <SPageToolbar>
       <SButton type="outline" size="small" @click="load">{{ t('common.refresh') }}</SButton>
-      <SButton type="primary" size="small" @click="openAdd">{{ t('skills.add') }}</SButton>
     </SPageToolbar>
     <div class="tab-bar-row">
       <STabs v-model:value="activeTab" class="tab-bar-tabs">
@@ -117,15 +109,6 @@ onMounted(load)
     </SPageContent>
 
     <SkillViewerModal ref="skillViewRef" />
-
-    <SkillHubModal
-      ref="hubRef"
-      install-api-url="/api/skill-hub/install"
-      install-dir="~/.sbot/skills/"
-      :title="t('skills.hub_title')"
-      :url-formats="['https://clawhub.ai/{slug}', 'https://skills.sh/{owner}/{repo}/{skill}']"
-      @installed="load"
-    />
   </div>
 </template>
 

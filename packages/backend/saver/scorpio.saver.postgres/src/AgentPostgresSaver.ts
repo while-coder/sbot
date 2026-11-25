@@ -84,9 +84,6 @@ export class AgentPostgresSaver implements IAgentSaverService {
         try {
             await this.pool.query(`ALTER TABLE ${this.table} ADD COLUMN task_id TEXT`);
         } catch { /* column already exists */ }
-        await this.pool.query(
-            `CREATE INDEX IF NOT EXISTS idx_${this.table}_fts ON ${this.table} USING gin(to_tsvector('simple', data))`
-        );
     }
 
     async pushMessage(message: ChatMessage, options?: ChatMessageOptions): Promise<void> {
@@ -153,43 +150,6 @@ export class AgentPostgresSaver implements IAgentSaverService {
         } catch (e) {
             await this.pool.query(`ROLLBACK`);
             throw e;
-        }
-    }
-
-    async searchArchive(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
-        if (query.length === 0 || query.some(g => g.length === 0)) return [];
-        await this.ensureSetup();
-        const params: any[] = [];
-        const groupExprs = query.map(group => {
-            const orExprs = group.map(term => {
-                params.push(term);
-                return `plainto_tsquery('simple', $${params.length})`;
-            });
-            return `(${orExprs.join(' || ')})`;
-        });
-        const tsq = groupExprs.join(' && ');
-        params.push(limit);
-        try {
-            const result = await this.pool.query(
-                `WITH q AS (SELECT (${tsq}) AS query)
-                 SELECT m.id, m.data, m.created_at, m.think_id, m.task_id
-                 FROM ${this.table} m, q
-                 WHERE to_tsvector('simple', m.data) @@ q.query AND m.kind = 'archive'
-                 ORDER BY ts_rank(to_tsvector('simple', m.data), q.query) DESC
-                 LIMIT $${params.length}`,
-                params,
-            );
-            return result.rows.map((r: any) => ({
-                id: parseInt(r.id),
-                message: JSON.parse(r.data) as ChatMessage,
-                createdAt: r.created_at,
-                thinkId: r.think_id ?? undefined,
-                taskId: r.task_id ?? undefined,
-                kind: MessageKind.Archive,
-            }));
-        } catch (error: any) {
-            this.logger?.warn(`Postgres FTS 搜索失败: ${formatSaverError(error, true)}`);
-            return [];
         }
     }
 

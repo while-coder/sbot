@@ -20,7 +20,8 @@ import {
     type MemoryTarget,
     MemoryScope,
 } from "./IMemoryStore";
-import { HybridSearcher, MessageRole, type ChatMessage } from "scorpio.ai";
+import { MessageRole, type ChatMessage } from "scorpio.ai";
+import { MemorySearchIndex } from "./MemorySearchIndex";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MEMORY_KINDS = new Set<string>(Object.values(MemoryKind));
@@ -38,7 +39,7 @@ const DEFAULT_KIND = MemoryKind.Fact;
 export class MemoryStore implements IMemoryStore {
     public readonly memoriesDir: string;
     private _db: Database.Database | undefined;
-    private _searcher: HybridSearcher | undefined;
+    private _searcher: MemorySearchIndex | undefined;
 
     constructor(
         @inject(T_MemoryDir) public readonly rootDir: string,
@@ -51,13 +52,13 @@ export class MemoryStore implements IMemoryStore {
     }
 
     /**
-     * HybridSearcher 自管 SQLite（searcher.sqlite 在 rootDir 下）。
+     * MemorySearchIndex 自管 SQLite（searcher.sqlite 在 rootDir 下）。
      * 与 memory.db 是两个独立文件：memory.db 装元数据 + 待处理 job 队列；
-     * searcher.sqlite 装 FTS5 + embedding 缓存，可以独立重建。
+     * searcher.sqlite 装 FTS5 检索索引，可以独立重建。
      */
-    private get searcher(): HybridSearcher {
+    private get searcher(): MemorySearchIndex {
         if (!this._searcher) {
-            this._searcher = new HybridSearcher({ cachePath: this.rootDir });
+            this._searcher = new MemorySearchIndex(this.rootDir);
         }
         return this._searcher;
     }
@@ -233,7 +234,7 @@ export class MemoryStore implements IMemoryStore {
         }
 
         this.db.prepare(`DELETE FROM memories WHERE slug = ?`).run(slug);
-        // FTS5 由 HybridSearcher 内部 syncCorpus 在下一次 search 时基于 list() 对账清理
+        // FTS5 由 MemorySearchIndex 内部 syncCorpus 在下一次 search 时基于 list() 对账清理
     }
 
     async getBySlug(slug: string): Promise<StoredMemoryRow | null> {
@@ -265,13 +266,13 @@ export class MemoryStore implements IMemoryStore {
     // ── 检索 ──
 
     async search(query: string, limit: number, floorRatio: number): Promise<StoredMemorySearchHit[]> {
-        // 把当前所有 memories 喂进 HybridSearcher（内部 syncCorpus 自动对账 docs / docs_fts）。
+        // 把当前所有 memories 喂进 MemorySearchIndex（内部 syncCorpus 自动对账 docs / docs_fts）。
         // floorRatio 在归一化分数 [0,1] 上做：保留 #1，其余按 top * floorRatio 截断。
         const all = await this.list();
         if (all.length === 0) return [];
 
         const fetchLimit = Math.min(limit * 3, 50);
-        const hits = await this.searcher.search(
+        const hits = this.searcher.search(
             query,
             all,
             // 只喂 body：它已经以 `# title` 开头，再单独拼一次 title 会让标题词在 BM25 里权重翻倍。

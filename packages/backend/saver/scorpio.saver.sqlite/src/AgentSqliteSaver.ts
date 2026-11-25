@@ -80,32 +80,6 @@ export class AgentSqliteSaver implements IAgentSaverService {
             try {
                 this._db.exec(`ALTER TABLE messages ADD COLUMN task_id TEXT`);
             } catch { /* 列已存在，忽略 */ }
-
-            // FTS5 全文搜索索引
-            this._db.exec(`
-                CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-                    content,
-                    content='messages',
-                    content_rowid='id'
-                );
-                CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
-                    INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.data);
-                END;
-                CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
-                    INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.id, old.data);
-                END;
-                CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
-                    INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.id, old.data);
-                    INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.data);
-                END;
-            `);
-
-            // 一次性迁移：为已有消息重建 FTS 索引
-            const ftsInit = this._db.prepare("SELECT value FROM metadata WHERE key = 'fts5_initialized'").get() as { value: string } | undefined;
-            if (!ftsInit) {
-                this._db.exec(`INSERT INTO messages_fts(rowid, content) SELECT id, data FROM messages`);
-                this._db.prepare("INSERT OR REPLACE INTO metadata (key, value) VALUES ('fts5_initialized', '1')").run();
-            }
         }
         return this._db;
     }
@@ -163,33 +137,6 @@ export class AgentSqliteSaver implements IAgentSaverService {
                 );
         });
         txn();
-    }
-
-    async searchArchive(query: string[][], limit: number = 20): Promise<StoredMessage[]> {
-        if (query.length === 0 || query.some(g => g.length === 0)) return [];
-        const escape = (t: string) => `"${t.replace(/"/g, '""')}"`;
-        const fts = query.map(group => `(${group.map(escape).join(' OR ')})`).join(' AND ');
-        try {
-            const rows = this.db.prepare(`
-                SELECT m.id, m.data, m.created_at, m.think_id, m.task_id
-                FROM messages_fts fts
-                JOIN messages m ON m.id = fts.rowid
-                WHERE messages_fts MATCH ? AND m.kind = 'archive'
-                ORDER BY rank
-                LIMIT ?
-            `).all(fts, limit) as { id: number; data: string; created_at: number; think_id: string | null; task_id: string | null }[];
-            return rows.map((r) => ({
-                id: r.id,
-                message: JSON.parse(r.data) as ChatMessage,
-                createdAt: r.created_at,
-                thinkId: r.think_id ?? undefined,
-                taskId: r.task_id ?? undefined,
-                kind: MessageKind.Archive,
-            }));
-        } catch (error: any) {
-            this.logger?.warn(`FTS5 搜索失败: ${formatSaverError(error, true)}`);
-            return [];
-        }
     }
 
     async clearMessages(): Promise<void> {

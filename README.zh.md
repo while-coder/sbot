@@ -143,7 +143,7 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态；支持全局与 Agent 级独立配置，故障自动重启
 - **多渠道接入** — Web UI、飞书/Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、腾讯元宝、OneBot（v11 反向 WebSocket）、小爱音箱、REST API、WebSocket
 - **命令执行** — `exec_command` 运行 Shell 命令和脚本，支持继续读取长进程的输出及写入标准输入
-- **技能系统** — 可安装的 Prompt 模块，支持从 Clawhub、skills.sh、skillhub.cn 远程安装
+- **技能系统** — 支持从内置、本地和 Agent 专属目录加载 Prompt 模块
 - **Agent 商店** — 浏览并一键安装预打包 Agent（含模型、Prompt、工具、技能、MCP 服务器配置），支持自定义源
 - **Token 用量追踪** — 按模型统计消耗，模型响应缓存命中率可视化
 - **无人值守安全** — 渠道支持审批超时与提问超时配置，长时间运行更可靠
@@ -153,4 +153,4 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 
 ## 关键词
 
-`AI Agent` `自托管` `大模型服务` `开源` `MCP` `ACP` `模型上下文协议` `多智能体` `ReAct` `OpenAI` `Claude` `Gemini` `Ollama` `聊天机器人` `飞书` `Lark` `OneBot` `QQ` `长期记忆` `向量检索` `TypeScript` `Node.js`
+`AI Agent` `自托管` `大模型服务` `开源` `MCP` `ACP` `模型上下文协议` `多智能体` `ReAct` `OpenAI` `Claude` `Gemini` `Ollama` `聊天机器人` `飞书` `Lark` `OneBot` `QQ` `长期记忆` `TypeScript` `Node.js`

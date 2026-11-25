@@ -86,7 +86,6 @@ const menuGroups = computed(() => [
     items: [
       { label: t('nav.heartbeats'), key: '/heartbeats' },
       { label: t('nav.processes'), key: '/processes' },
-      { label: t('nav.tunnel'), key: '/tunnel' },
       { label: t('nav.token_usage'), key: '/token-usage' },
     ],
   },
@@ -103,7 +102,6 @@ const menuGroups = computed(() => [
     group: t('nav.group_models'),
     items: [
       { label: t('nav.models'), key: '/models' },
-      { label: t('nav.embeddings'), key: '/embeddings' },
     ],
   },
   {
