@@ -7,7 +7,7 @@ import { mcpManager } from '@/managers/mcpManager'
 import { settingsManager } from '@/managers/settingsManager'
 import { SButton, SInput, SSelect, SModal, SFormItem, SFormSection, STab, STabs, SPageToolbar, SPageContent, SEntityTable, type EntityTableColumn, toast, confirm } from '@qingfeng346/ui-kit'
 import { McpTransport } from '@/shared/types'
-import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
+import type { McpEntry, McpTool } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
 import McpToolsModal from '@/components/modals/McpToolsModal.vue'
 import { sourceBadgeStyle } from '@/utils/badges'
@@ -52,25 +52,16 @@ async function load() {
 const showToolsModal = ref(false)
 const toolsTitle = ref('')
 const toolsList = ref<McpTool[]>([])
-const promptsList = ref<McpPrompt[]>([])
-const resourcesList = ref<McpResource[]>([])
-const resourceTemplatesList = ref<McpResourceTemplate[]>([])
 const toolsLoading = ref(false)
 
 async function viewTools(id: string) {
   toolsTitle.value = mcpManager.nameOf(id)
   toolsList.value = []
-  promptsList.value = []
-  resourcesList.value = []
-  resourceTemplatesList.value = []
   toolsLoading.value = true
   showToolsModal.value = true
   try {
     const res = await apiFetch(`/api/mcp/${encodeURIComponent(id)}/details`, 'GET')
     toolsList.value = res.data?.tools || []
-    promptsList.value = res.data?.prompts || []
-    resourcesList.value = res.data?.resources || []
-    resourceTemplatesList.value = res.data?.resourceTemplates || []
   } catch (e: any) {
     toast.show('error', e.message)
     showToolsModal.value = false
@@ -125,7 +116,6 @@ const form = ref({
   command: '', args: [] as string[],
   env: {} as Record<string, string>,
   cwd: '', toolTimeout: '',
-  enablePromptTools: false, enableResourceTools: false,
 })
 const headerRows = ref<{ key: string; value: string }[]>([])
 const argsList = ref<string[]>([])
@@ -144,7 +134,7 @@ function syncToForm() {
 
 function openAdd() {
   editingId.value = null
-  form.value = { name: '', type: McpTransport.Http, url: '', headers: {}, command: '', args: [], env: {}, cwd: '', toolTimeout: '', enablePromptTools: false, enableResourceTools: false }
+  form.value = { name: '', type: McpTransport.Http, url: '', headers: {}, command: '', args: [], env: {}, cwd: '', toolTimeout: '' }
   syncFromForm()
   showModal.value = true
 }
@@ -157,7 +147,6 @@ function openEdit(id: string) {
     headers: { ...(m?.headers || {}) }, command: m?.command || '',
     args: [...(m?.args || [])], env: { ...(m?.env || {}) },
     cwd: m?.cwd || '', toolTimeout: m?.toolTimeout ? String(m.toolTimeout) : '',
-    enablePromptTools: !!m?.enablePromptTools, enableResourceTools: !!m?.enableResourceTools,
   }
   syncFromForm()
   showModal.value = true
@@ -167,7 +156,7 @@ async function save() {
   if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
   syncToForm()
   try {
-    const { name, type, url, headers, command, args, env, cwd, toolTimeout, enablePromptTools, enableResourceTools } = form.value
+    const { name, type, url, headers, command, args, env, cwd, toolTimeout } = form.value
     const config: McpEntry = { type, name: name.trim() } as any
     if (type === McpTransport.Http || type === McpTransport.Sse) {
       if (!url.trim()) { toast.show('error', t('mcp.error_url')); return }
@@ -181,8 +170,6 @@ async function save() {
       if (cwd.trim()) config.cwd = cwd.trim()
     }
     if (toolTimeout) config.toolTimeout = parseInt(toolTimeout)
-    if (enablePromptTools) config.enablePromptTools = true
-    if (enableResourceTools) config.enableResourceTools = true
     if (editingId.value) {
       await apiFetch(`/api/mcp/${encodeURIComponent(editingId.value)}`, 'PUT', config)
     } else {
@@ -311,20 +298,6 @@ onMounted(load)
         <SFormItem :label="t('mcp.tool_timeout')" :hint="t('mcp.timeout_hint')">
           <SInput v-model:value="form.toolTimeout" type="number" :placeholder="t('mcp.timeout_placeholder')" />
         </SFormItem>
-        <div class="check-row">
-          <label class="checkbox-label">
-            <input v-model="form.enablePromptTools" type="checkbox" />
-            <span>{{ t('mcp.enable_prompt_tools') }}</span>
-          </label>
-          <span class="check-hint">{{ t('mcp.enable_prompt_tools_hint') }}</span>
-        </div>
-        <div class="check-row">
-          <label class="checkbox-label">
-            <input v-model="form.enableResourceTools" type="checkbox" />
-            <span>{{ t('mcp.enable_resource_tools') }}</span>
-          </label>
-          <span class="check-hint">{{ t('mcp.enable_resource_tools_hint') }}</span>
-        </div>
       </SFormSection>
       <template #footer>
         <SButton type="outline" @click="showModal = false">{{ t('common.cancel') }}</SButton>
@@ -336,9 +309,6 @@ onMounted(load)
       :visible="showToolsModal"
       :title="toolsTitle"
       :tools="toolsList"
-      :prompts="promptsList"
-      :resources="resourcesList"
-      :resource-templates="resourceTemplatesList"
       :loading="toolsLoading"
       :auto-approved-tools="store.settings.autoApproveTools ?? []"
       :all-approved="allToolsApproved"
@@ -373,20 +343,4 @@ onMounted(load)
 .kv-value { flex: 2; }
 .kv-flex { flex: 1; }
 
-.check-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sui-sp-4);
-  margin-bottom: var(--sui-sp-3);
-}
-.checkbox-label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sui-sp-2);
-  cursor: pointer;
-}
-.check-hint {
-  font-size: var(--sui-fs-sm);
-  color: var(--sui-fg-muted);
-}
 </style>

@@ -4,7 +4,7 @@ import { MCPServers } from "./MCPServerConfig";
 import { ILoggerService } from "../Logger";
 import { formatError } from "../Core";
 import { inject } from "../Core";
-import type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceTemplate, ProviderResult } from "./MCPTypes";
+import type { ProviderResult } from "./MCPTypes";
 import { RecoverableMcpClient } from "./RecoverableMcpClient";
 
 interface ProviderEntry {
@@ -43,33 +43,8 @@ export class AgentToolService implements IAgentToolService {
             this.providers.set(name, {
                 factory: async () => {
                     const client = new RecoverableMcpClient(name, cfg, this.logger);
-                    const tools = await client.getTools();
-
-                    let prompts: MCPPrompt[] | undefined;
-                    let resources: MCPResource[] | undefined;
-                    let resourceTemplates: MCPResourceTemplate[] | undefined;
-
-                    try {
-                        prompts = await client.runOperation(async (c) => (await c.listPrompts()).prompts as MCPPrompt[]);
-                    } catch {}
-                    try {
-                        resources = await client.runOperation(async (c) => (await c.listResources()).resources as MCPResource[]);
-                    } catch {}
-                    try {
-                        resourceTemplates = await client.runOperation(async (c) => (await c.listResourceTemplates()).resourceTemplates as MCPResourceTemplate[]);
-                    } catch {}
-
                     return {
-                        tools, prompts, resources, resourceTemplates,
-                        getPrompt: async (promptName: string, args?: Record<string, string>) => {
-                            return client.runOperation(async (c) => {
-                                const result = await c.getPrompt({ name: promptName, arguments: args });
-                                return result.messages as MCPPromptMessage[];
-                            });
-                        },
-                        readResource: async (uri: string) => {
-                            return client.runOperation(async (c) => (await c.readResource({ uri })).contents);
-                        },
+                        tools: await client.getTools(),
                         close: async () => { await client.close(); },
                     };
                 },

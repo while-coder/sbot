@@ -54,7 +54,6 @@ export {
   T_PostCompactMessageTemplate,
   T_PostCompactContinuation,
   T_MaxHistoryRounds,
-  T_MCPUtilityToolDescs,
   T_ChannelSessionId,
   parseJson,
   truncate,
@@ -151,9 +150,6 @@ export {
   MCPTransport,
   MCPServerConfig,
   MCPServers,
-  createMCPUtilityTools,
-  type MCPServerCaps,
-  type MCPUtilityToolDescs,
 } from "./AgentTool";
 
 // ========================================

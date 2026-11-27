@@ -163,7 +163,7 @@ GET    /api/agents/:name/mcp/:id/details
 
 全局 MCP 修改会 `refreshGlobalAgentToolService()`。Agent 专属 MCP 只影响该 Agent。Agent 的 `mcp` 字段从全局集合中筛选：`'*'` 表示全选，`mcpExclude` 只在 `'*'` 时生效；专属 `mcp.json` 对该 Agent 始终可见。
 
-MCP entry 常见字段：`type` (`stdio`/`http`/`sse`), `command`, `args`, `env`, `url`, `headers`, `cwd`, `toolTimeout`, `enablePromptTools`, `enableResourceTools`。
+MCP entry 常见字段：`type` (`stdio`/`http`/`sse`), `command`, `args`, `env`, `url`, `headers`, `cwd`, `toolTimeout`。
 
 ## Skills
 

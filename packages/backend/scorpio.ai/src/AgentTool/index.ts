@@ -13,7 +13,6 @@ export { RecoverableMcpClient, isStaleMcpConnectionError } from "./RecoverableMc
 
 // ===== 类型定义 =====
 export { MCPTransport, MCPServerConfig, MCPServers } from "./MCPServerConfig";
-export type { MCPPrompt, MCPPromptMessage, MCPResource, MCPResourceTemplate, MCPResourceContent, ProviderResult } from "./MCPTypes";
+export type { ProviderResult } from "./MCPTypes";
 
 // ===== Utility 工具 =====
-export { createMCPUtilityTools, type MCPServerCaps, type MCPUtilityToolDescs } from "./MCPUtilityTools";

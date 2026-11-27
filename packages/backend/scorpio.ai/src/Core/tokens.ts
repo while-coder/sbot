@@ -19,7 +19,6 @@ export const T_PostCompactContinuation       = Symbol("scorpio:T_PostCompactCont
 export const T_MaxHistoryRounds              = Symbol("scorpio:T_MaxHistoryRounds");
 
 // Tool description tokens（库内工具描述外置注入）
-export const T_MCPUtilityToolDescs        = Symbol("scorpio:T_MCPUtilityToolDescs");
 
 /** 当前 channel session 的 DB 主键。注入给 SingleAgentService 和 capability plugins。 */
 export const T_ChannelSessionId           = Symbol("scorpio:T_ChannelSessionId");

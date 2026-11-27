@@ -13,7 +13,7 @@ import AgentMcpModal from './modals/AgentMcpModal.vue'
 import AgentSkillsModal from './modals/AgentSkillsModal.vue'
 import McpToolsModal from '@/components/modals/McpToolsModal.vue'
 import SkillViewerModal from '@/components/modals/SkillViewerModal.vue'
-import type { SkillItem, McpItem, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
+import type { SkillItem, McpItem, McpTool } from '@/shared/types'
 import { sourceBadgeStyle, badgePrivate } from '@/utils/badges'
 import { serverAddr } from '@/utils/mcpSchema'
 import { useResourceRefs } from '@/composables/useResourceRefs'
@@ -201,9 +201,6 @@ function openSkillView(skill: SkillItem, isPrivate: boolean) {
 const showToolsModal = ref(false)
 const toolsTitle     = ref('')
 const toolsList      = ref<McpTool[]>([])
-const promptsList    = ref<McpPrompt[]>([])
-const resourcesList  = ref<McpResource[]>([])
-const resourceTemplatesList = ref<McpResourceTemplate[]>([])
 const toolsLoading   = ref(false)
 const toolsAgentId   = ref('')
 
@@ -212,9 +209,6 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
     ? (getMcpServers(agentId).find(s => s.id === id)?.name || id)
     : mcpManager.nameOf(id)
   toolsList.value    = []
-  promptsList.value  = []
-  resourcesList.value = []
-  resourceTemplatesList.value = []
   toolsLoading.value = true
   toolsAgentId.value = agentId
   showToolsModal.value = true
@@ -224,9 +218,6 @@ async function openMcpView(agentId: string, id: string, isPrivate: boolean) {
   try {
     const res = await apiFetch(url, 'GET')
     toolsList.value = res.data?.tools || []
-    promptsList.value = res.data?.prompts || []
-    resourcesList.value = res.data?.resources || []
-    resourceTemplatesList.value = res.data?.resourceTemplates || []
   } catch (e: any) {
     toast.show('error', e.message)
     showToolsModal.value = false
@@ -589,9 +580,6 @@ async function saveMcpParams() {
       :visible="showToolsModal"
       :title="toolsTitle"
       :tools="toolsList"
-      :prompts="promptsList"
-      :resources="resourcesList"
-      :resource-templates="resourceTemplatesList"
       :loading="toolsLoading"
       :auto-approved-tools="getAgentAutoApproveTools()"
       :all-approved="allToolsApproved"

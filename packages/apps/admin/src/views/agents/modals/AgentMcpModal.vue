@@ -7,7 +7,7 @@ import { mcpManager } from '@/managers/mcpManager'
 import { settingsManager } from '@/managers/settingsManager'
 import { toast, confirm } from '@qingfeng346/ui-kit'
 import { McpTransport } from '@/shared/types'
-import type { McpEntry, McpTool, McpPrompt, McpResource, McpResourceTemplate } from '@/shared/types'
+import type { McpEntry, McpTool } from '@/shared/types'
 import { serverAddr } from '@/utils/mcpSchema'
 import { sourceBadgeStyle } from '@/utils/badges'
 import McpToolsModal from '@/components/modals/McpToolsModal.vue'
@@ -226,18 +226,12 @@ function saveParams() {
 async function viewGlobalTools(id: string) {
   toolsTitle.value = mcpManager.nameOf(id)
   toolsList.value = []
-  promptsList.value = []
-  resourcesList.value = []
-  resourceTemplatesList.value = []
   toolsLoading.value = true
 
   showToolsModal.value = true
   try {
     const res = await apiFetch(`/api/mcp/${encodeURIComponent(id)}/details`, 'GET')
     toolsList.value = res.data?.tools || []
-    promptsList.value = res.data?.prompts || []
-    resourcesList.value = res.data?.resources || []
-    resourceTemplatesList.value = res.data?.resourceTemplates || []
   } catch (e: any) {
     toast.show('error', e.message)
     showToolsModal.value = false
@@ -384,26 +378,17 @@ async function revokeAll() {
 const showToolsModal = ref(false)
 const toolsTitle     = ref('')
 const toolsList      = ref<McpTool[]>([])
-const promptsList    = ref<McpPrompt[]>([])
-const resourcesList  = ref<McpResource[]>([])
-const resourceTemplatesList = ref<McpResourceTemplate[]>([])
 const toolsLoading   = ref(false)
 
 async function viewTools(id: string) {
   toolsTitle.value = (servers.value[id] as any)?.name || id
   toolsList.value = []
-  promptsList.value = []
-  resourcesList.value = []
-  resourceTemplatesList.value = []
   toolsLoading.value = true
 
   showToolsModal.value = true
   try {
     const res = await apiFetch(`/api/agents/${encodeURIComponent(agentName.value)}/mcp/${encodeURIComponent(id)}/details`, 'GET')
     toolsList.value = res.data?.tools || []
-    promptsList.value = res.data?.prompts || []
-    resourcesList.value = res.data?.resources || []
-    resourceTemplatesList.value = res.data?.resourceTemplates || []
   } catch (e: any) {
     toast.show('error', e.message)
     showToolsModal.value = false
@@ -615,9 +600,6 @@ defineExpose({ open })
       :visible="showToolsModal"
       :title="toolsTitle"
       :tools="toolsList"
-      :prompts="promptsList"
-      :resources="resourcesList"
-      :resource-templates="resourceTemplatesList"
       :loading="toolsLoading"
       :auto-approved-tools="getAgentAutoApproveTools()"
       :all-approved="allToolsApproved"

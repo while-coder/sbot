@@ -82,9 +82,6 @@ export class McpRoutes {
             const r = results.get(id);
             return {
                 tools: (r?.tools ?? []).map((t: any) => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) })),
-                prompts: r?.prompts ?? [],
-                resources: r?.resources ?? [],
-                resourceTemplates: r?.resourceTemplates ?? [],
             };
         }));
 
@@ -135,9 +132,6 @@ export class McpRoutes {
             const r = results.get(id);
             return {
                 tools: (r?.tools ?? []).map((t: any) => ({ name: t.name, description: t.description, parameters: toJsonSchema(t.schema) })),
-                prompts: r?.prompts ?? [],
-                resources: r?.resources ?? [],
-                resourceTemplates: r?.resourceTemplates ?? [],
             };
         }));
     }
