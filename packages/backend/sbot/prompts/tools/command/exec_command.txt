@@ -2,4 +2,4 @@ Run shell commands in the session workspace, or pass an absolute workdir. Use in
 
 Commands that continue running return a processId. Use write_stdin with that processId to read subsequent output, or pass timeoutMs at startup when you need the exit status in a single call.
 
-Set interactive=true at startup only for a program that needs additional stdin. Use write_stdin to send input, close stdin, or terminate the process. Interactive input uses pipes.
+Pass stdin to send text at startup and then close standard input. To stop a running command, call write_stdin with its processId and terminate=true.

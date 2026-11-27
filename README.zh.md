@@ -140,7 +140,7 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **记忆（Memory）** — 会话空闲后由后台模型提炼持久知识，相关记忆会作为上下文提供给 Agent
 - **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态；支持全局与 Agent 级独立配置，故障自动重启
 - **多渠道接入** — Web UI、飞书/Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、腾讯元宝、OneBot（v11 反向 WebSocket）、小爱音箱、REST API、WebSocket
-- **命令执行** — `exec_command` 运行 Shell 命令和脚本，支持继续读取长进程的输出及写入标准输入
+- **命令执行** — `exec_command` 运行 Shell 命令和脚本，可在启动时传入标准输入。使用 `write_stdin` 继续读取输出或停止正在运行的命令。
 - **技能系统** — 支持从内置、本地和 Agent 专属目录加载 Prompt 模块
 - **Agent 商店** — 浏览并一键安装预打包 Agent（含模型、Prompt、工具、技能、MCP 服务器配置），支持自定义源
 - **Token 用量追踪** — 按模型统计消耗，模型响应缓存命中率可视化
