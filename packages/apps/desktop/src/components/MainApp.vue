@@ -67,19 +67,21 @@ function openModelsSettings(): void {
 
 // ── 设置 modal：菜单/引导卡统一入口（Rust 菜单广播 sbot://open-settings） ──
 
-type SettingsPage = 'general' | 'models' | 'about'
+type SettingsPage = 'general' | 'models' | 'about' | 'feature-loops'
 
 const settingsOpen = ref(false)
 const settingsPage = ref<SettingsPage>('general')
+const settingsNavigation = ref(0)
 
 function openSettings(page: SettingsPage): void {
   settingsPage.value = page
+  settingsNavigation.value++
   settingsOpen.value = true
 }
 
 const unlistenOpenSettings = listen<{ page?: string | null }>('sbot://open-settings', (e) => {
   const page = e.payload?.page
-  openSettings(page === 'models' || page === 'about' ? page : 'general')
+  openSettings(page === 'models' || page === 'about' || page === 'feature-loops' ? page : 'general')
 })
 
 // ── 设置变更 → 等聊天流空闲后重挂 ChatView（ChatView 仅 mount 时拉一次配置） ──
@@ -137,7 +139,7 @@ onUnmounted(() => {
       :mask-closable="false"
       class="settings-modal"
     >
-      <SettingsApp :initial-page="settingsPage" />
+      <SettingsApp v-if="settingsOpen" :key="settingsNavigation" :initial-page="settingsPage" />
     </SModal>
   </div>
 </template>

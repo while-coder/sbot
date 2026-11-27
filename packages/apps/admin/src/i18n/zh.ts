@@ -21,6 +21,7 @@ export default {
     processes: 'ACP进程管理',
     group_tasks: '任务',
     memory_profiles: '长期记忆模板',
+    feature_loops: '功能循环',
     group_system: '系统',
     explorer: '资源管理器',
     logs: '日志',

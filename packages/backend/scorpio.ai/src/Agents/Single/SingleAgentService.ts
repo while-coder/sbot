@@ -196,7 +196,7 @@ export class SingleAgentService extends AgentServiceBase {
      * 插件工具追加在最末：同名去重时框架自有工具胜出，maxTools 截断也优先砍插件工具。
      * ctx 统一排在首位（也是必需参数唯一能放的位置——不能跟在可选的 callback / signal 之后）。
      */
-    protected async buildTools(ctx: AgentPluginContext, _callback?: IAgentCallback, _signal?: AbortSignal): Promise<AgentTool[]> {
+    protected async buildTools(ctx: AgentPluginContext, callback?: IAgentCallback, _signal?: AbortSignal): Promise<AgentTool[]> {
         const tools: AgentTool[] = await this.toolService?.getAllTools() ?? [];
         if (this.plugins.length > 0) {
             tools.push(...await this.collectPluginTools(ctx));
@@ -215,7 +215,12 @@ export class SingleAgentService extends AgentServiceBase {
         if (duplicates.size > 0) {
             this.logger?.warn(`检测到同名工具，已去重保留首个: ${[...duplicates].join(', ')}`);
         }
-        const deduped = [...unique.values()];
+        const deduped = callback?.toolNames
+            ? [...new Set(callback.toolNames)].flatMap(name => {
+                const tool = unique.get(name);
+                return tool ? [tool] : [];
+            })
+            : [...unique.values()];
 
         // maxTools：部分端点（豆包、Qwen 等）对工具数量有硬上限，超过即 400 无 body
         const maxTools = this.modelService.config.maxTools;

@@ -24,6 +24,7 @@ pub struct Backend {
     pub port: u16,
     pub owned: bool,
     child: Mutex<Option<Child>>,
+    feature_loop_token: Option<String>,
 }
 
 /// 后端状态快照：事件推送（sbot://status）与查询（get_backend_info）双保险的数据源
@@ -81,6 +82,12 @@ pub fn get_backend_info(app: &AppHandle) -> BackendState {
         .unwrap_or_else(BackendState::starting)
 }
 
+pub fn feature_loop_token(port: Option<u16>) -> Option<String> {
+    INSTANCES.lock().unwrap().iter().find_map(|backend| {
+        (Some(backend.port) == port).then(|| backend.feature_loop_token.clone()).flatten()
+    })
+}
+
 /// setup 阶段调用：起线程完成后端探测/拉起，不阻塞事件循环（前端显示 SplashGate）
 pub fn start_async(app: AppHandle) {
     std::thread::spawn(move || match start_backend(&app) {
@@ -125,6 +132,7 @@ fn start_backend(app: &AppHandle) -> Result<Arc<Backend>, String> {
                 port,
                 owned: false,
                 child: Mutex::new(None),
+                feature_loop_token: None,
             }));
         }
     }
@@ -139,11 +147,16 @@ fn start_backend(app: &AppHandle) -> Result<Arc<Backend>, String> {
         None,
     );
 
-    let (child, stderr_tail) = spawn_backend(app, port)?;
+    let token = std::env::var("SBOT_FEATURE_LOOP_TOKEN")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().simple().to_string());
+    let (child, stderr_tail) = spawn_backend(app, port, &token)?;
     let backend = Arc::new(Backend {
         port,
         owned: true,
         child: Mutex::new(Some(child)),
+        feature_loop_token: Some(token),
     });
     // 先注册再等待就绪：等待期间关闭窗口也能从 INSTANCES 拿到句柄做回收
     INSTANCES.lock().unwrap().push(backend.clone());
@@ -211,7 +224,7 @@ fn free_port() -> std::io::Result<u16> {
     Ok(port)
 }
 
-fn spawn_backend(app: &AppHandle, port: u16) -> Result<(Child, Arc<Mutex<Vec<String>>>), String> {
+fn spawn_backend(app: &AppHandle, port: u16, feature_loop_token: &str) -> Result<(Child, Arc<Mutex<Vec<String>>>), String> {
     let stderr_tail: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 
     let (mut cmd, cwd) = if cfg!(debug_assertions) {
@@ -237,6 +250,7 @@ fn spawn_backend(app: &AppHandle, port: u16) -> Result<(Child, Arc<Mutex<Vec<Str
         .env("SBOT_HTTP_PORT", port.to_string())
         .env("SBOT_HTTP_HOST", "127.0.0.1")
         .env("SBOT_DESKTOP", "1")
+        .env("SBOT_FEATURE_LOOP_TOKEN", feature_loop_token)
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
 

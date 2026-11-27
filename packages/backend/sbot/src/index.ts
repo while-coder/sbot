@@ -68,6 +68,8 @@ async function main() {
     const { database } = await import("./Core/Database");
     const { channelManager } = await import("./Channel/ChannelManager");
     const { httpServer } = await import("./Server/HttpServer");
+    const { featureLoopService } = await import("./Agent/FeatureLoopService");
+    const { featureLoopsEnabled } = await import("./Server/routes/featureLoops");
     const { initGlobalAgentToolService } = await import("./Agent/GlobalAgentToolService");
     const { initGlobalSkillService } = await import("./Agent/GlobalSkillService");
     const { startupExtractAll: memoryStartupExtractAll } = await import("./Memory/MemoryServicePool");
@@ -113,6 +115,7 @@ async function main() {
         // channel/memory 等重初始化放到之后，缩短启动等待
         await httpServer.start()
         await channelManager.init()
+        if (featureLoopsEnabled()) featureLoopService.start();
         memoryStartupExtractAll()
         // 会话黑板 TTL 清扫：删除钩子竞态产生的孤儿文件由启动时兜底
         scratchpadSweepStale(config.getScratchpadDir(), SCRATCHPAD_TTL_MS)

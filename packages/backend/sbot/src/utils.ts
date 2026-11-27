@@ -73,10 +73,11 @@ export function toJsonSchema(schema: any): any {
 }
 
 /** 统一异常包装：捕获异常并返回标准 JSON 响应 */
-export function api(fn: (req: Request, res: Response) => any) {
+export function api(fn: (req: Request, res: Response) => any, options?: { logBody?: boolean }) {
     return async (req: Request, res: Response) => {
         const start = Date.now();
-        logger.debug(`${req.method} ${req.path} body=${JSON.stringify(req.body)} query=${JSON.stringify(req.query)}`);
+        const bodyLog = options?.logBody === false ? '' : ` body=${JSON.stringify(req.body)}`;
+        logger.debug(`${req.method} ${req.path}${bodyLog} query=${JSON.stringify(req.query)}`);
         try {
             const result = await fn(req, res);
             if (!res.headersSent) res.json({ success: true, data: result ?? null });

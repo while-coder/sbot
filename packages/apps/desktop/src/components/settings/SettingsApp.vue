@@ -1,21 +1,34 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import FeatureLoopsPanel from '@sbot/chat-ui/components/FeatureLoopsPanel.vue'
+import { backend } from '../../lib/backend'
 import GeneralPage from './pages/GeneralPage.vue'
 import ModelsPage from './pages/ModelsPage.vue'
 import AboutPage from './pages/AboutPage.vue'
 
-type PageKey = 'general' | 'models' | 'about'
+type PageKey = 'general' | 'models' | 'about' | 'feature-loops'
 
 const props = defineProps<{ initialPage?: PageKey }>()
 
 const NAV: Array<{ key: PageKey; label: string; desc: string }> = [
   { key: 'general', label: '常规', desc: '外观与基础行为' },
   { key: 'models', label: '模型', desc: 'LLM 模型接入' },
+  { key: 'feature-loops', label: '功能循环', desc: '' },
   { key: 'about', label: '关于', desc: '版本与诊断' },
 ]
 
 const active = ref<PageKey>(props.initialPage ?? 'general')
 const activeInfo = computed(() => NAV.find(n => n.key === active.value) ?? NAV[0])
+const loopToken = ref<string>()
+watch(() => [active.value, backend.baseUrl, backend.owned] as const, async ([page, , owned], _, onCleanup) => {
+  if (page !== 'feature-loops') return
+  loopToken.value = undefined
+  let live = true
+  onCleanup(() => { live = false })
+  const value = owned ? await invoke<string | null>('get_feature_loop_token').catch(() => null) : null
+  if (live) loopToken.value = value ?? ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -34,7 +47,7 @@ const activeInfo = computed(() => NAV.find(n => n.key === active.value) ?? NAV[0
     </aside>
 
     <main class="content">
-      <header class="content-head">
+      <header v-if="active !== 'feature-loops'" class="content-head">
         <h3>{{ activeInfo.label }}</h3>
         <p>{{ activeInfo.desc }}</p>
       </header>
@@ -42,6 +55,8 @@ const activeInfo = computed(() => NAV.find(n => n.key === active.value) ?? NAV[0
         <GeneralPage v-show="active === 'general'" />
         <ModelsPage v-show="active === 'models'" />
         <AboutPage v-show="active === 'about'" />
+        <FeatureLoopsPanel v-if="active === 'feature-loops' && loopToken !== undefined"
+          :base-url="backend.baseUrl" :managed-token="loopToken" />
       </div>
     </main>
   </div>

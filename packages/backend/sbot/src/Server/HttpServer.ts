@@ -26,6 +26,8 @@ import { memoryRoutes } from './routes/memories';
 import { userRoutes } from './routes/users';
 import { logRoutes } from './routes/logs';
 import { chatRoutes } from './routes/chat';
+import { registerFeatureLoopRoutes } from './routes/featureLoops';
+import { featureLoopService } from '../Agent/FeatureLoopService';
 
 const logger = LoggerService.getLogger('HttpServer.ts');
 
@@ -47,6 +49,7 @@ class HttpServer {
             const closeServer = this.server
                 ? new Promise<void>((resolve, reject) => this.server!.close(err => err ? reject(err) : resolve()))
                 : Promise.resolve();
+            await featureLoopService.stop();
             await runtimeActivity.waitForIdle();
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
@@ -71,6 +74,7 @@ class HttpServer {
         // 环境变量端口覆盖（桌面启动器注入）优先；其次 dev 固定 5510 避开生产端口
         const port = envHttpPort() ?? (isDev ? 5510 : config.getHttpPort());
         const app = express();
+        app.use('/api/feature-loops', express.json({ limit: '400kb' }));
         app.use(express.json());
 
         // CORS
@@ -112,6 +116,7 @@ class HttpServer {
         logRoutes.register(app, ctx);
         userRoutes.register(app, ctx);
         chatRoutes.register(app, ctx);
+        registerFeatureLoopRoutes(app);
 
         app.get('/api/pty/shells', api(() => listShells()));
 

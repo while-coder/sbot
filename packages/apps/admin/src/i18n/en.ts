@@ -21,6 +21,7 @@ export default {
     processes: 'ACP Processes',
     group_tasks: 'Tasks',
     memory_profiles: 'Memory Profiles',
+    feature_loops: 'Feature Loops',
     group_system: 'System',
     explorer: 'Explorer',
     logs: 'Logs',

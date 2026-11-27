@@ -48,6 +48,9 @@ export type OnCreateThinkFn = (taskId?: string) => Promise<void>;
  * Agent 回调接口 - 统一管理消息、流式、工具确认和图片转换回调
  */
 export interface IAgentCallback {
+    /** Optional ordered list of tools exposed for this turn. */
+    toolNames?: readonly string[];
+
     /**
      * 接收完整的消息（在节点输出完成后触发）
      */

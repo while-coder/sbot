@@ -15,6 +15,7 @@ const routes = [
   { path: '/agent-store', component: () => import('@/views/agents/AgentStoreView.vue') },
   { path: '/savers', component: () => import('@/views/savers/SaversView.vue') },
   { path: '/memory-profiles', component: () => import('@/views/automation/MemoryProfilesView.vue') },
+  { path: '/feature-loops', component: () => import('@/views/automation/FeatureLoopsView.vue') },
   { path: '/mcp', component: () => import('@/views/runtime/McpView.vue') },
   { path: '/skills', component: () => import('@/views/runtime/SkillsView.vue') },
   { path: '/prompts', component: () => import('@/views/runtime/PromptsView.vue') },

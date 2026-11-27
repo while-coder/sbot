@@ -76,6 +76,7 @@ const menuGroups = computed(() => [
     id: 'tasks',
     group: t('nav.group_tasks'),
     items: [
+      { label: t('nav.feature_loops'), key: '/feature-loops' },
       { label: t('nav.memory_profiles'), key: '/memory-profiles' },
     ],
   },

@@ -24,6 +24,12 @@ fn get_backend_info(app: tauri::AppHandle) -> backend::BackendState {
     backend::get_backend_info(&app)
 }
 
+#[tauri::command]
+fn get_feature_loop_token(app: tauri::AppHandle) -> Option<String> {
+    let info = backend::get_backend_info(&app);
+    backend::feature_loop_token(info.port)
+}
+
 // ── 缩放（Tauri 无 predefined zoom 菜单项，自定义实现；单全局档位近似即可） ──
 
 static ZOOM: Mutex<f64> = Mutex::new(1.0);
@@ -103,12 +109,13 @@ fn toggle_devtools(win: &tauri::WebviewWindow) {
 fn build_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // 文件
     let settings = MenuItem::with_id(app, "menu.settings", "设置…", true, Some("CmdOrCtrl+Comma"))?;
+    let feature_loops = MenuItem::with_id(app, "menu.feature-loops", "功能循环…", true, None::<&str>)?;
     let quit = PredefinedMenuItem::quit(app, Some("退出"))?;
     let file = Submenu::with_items(
         app,
         "文件",
         true,
-        &[&settings, &PredefinedMenuItem::separator(app)?, &quit],
+        &[&settings, &feature_loops, &PredefinedMenuItem::separator(app)?, &quit],
     )?;
 
     // 编辑
@@ -192,6 +199,7 @@ fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
     let win = focused_window(app).or_else(|| app.get_webview_window("main"));
     match event.id().as_ref() {
         "menu.settings" => open_settings(app, None),
+        "menu.feature-loops" => open_settings(app, Some("feature-loops")),
         "menu.reload" => {
             if let Some(win) = win {
                 let _ = win.reload();
@@ -243,6 +251,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_backend_info,
+            get_feature_loop_token,
             open_log_dir,
             open_admin_ui,
         ])

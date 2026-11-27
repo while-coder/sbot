@@ -141,6 +141,7 @@ class Database {
   public channelSession!: ModelStatic<any>;
   public sessionProfile!: ModelStatic<any>;
   public usageLogs!: ModelStatic<any>;
+  public featureLoop!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -611,6 +612,14 @@ class Database {
       },
     );
 
+    this.featureLoop = sequelize.define("feature_loop", {
+      id: { type: DataTypes.STRING, primaryKey: true },
+      paused: { type: DataTypes.BOOLEAN, allowNull: false },
+      state: { type: DataTypes.TEXT, allowNull: false },
+      owner: DataTypes.STRING,
+      leaseUntil: DataTypes.BIGINT,
+    }, { tableName: "feature_loops" });
+
     await this.sync();
   }
 
@@ -657,6 +666,7 @@ class Database {
       await this.sessionProfile.sync({ alter });
       await this.channelSession.sync({ alter });
       await this.usageLogs.sync({ alter });
+      await this.featureLoop.sync();
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");

@@ -149,6 +149,32 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 
 ---
 
+## 后台功能循环
+
+在 Admin 的任务分组打开「功能循环」，或在 Desktop 的「文件 → 功能循环」打开同一套界面。Desktop 自带的服务会自动鉴权。要在浏览器里的 Admin 访问该服务，可以在 Desktop 的功能循环页面复制访问令牌。界面支持创建、查看进度、暂停，以及编辑产品文档后直接继续实现。
+
+在启动 sbot 的环境中设置 `SBOT_FEATURE_LOOP_TOKEN`，管理请求携带 `Authorization: Bearer <token>`。使用 `POST /api/feature-loops` 创建任务，指定已有的 saver 和四个 Single 模式的 Agent。例子里的 ID 和工具名需要对应本机配置。
+
+```json
+{
+  "repository": "E:/MyProject",
+  "goal": "为当前项目选择并实现一个能独立验收的小功能",
+  "saverId": "file",
+  "maxFeatures": 1,
+  "roles": {
+    "planner": { "agentId": "planner", "tools": ["exec_command"] },
+    "product": { "agentId": "product", "tools": ["exec_command"] },
+    "engineering": { "agentId": "engineering", "tools": ["exec_command", "apply_patch", "view_image"] },
+    "qa": { "agentId": "qa", "tools": ["exec_command", "view_image"] }
+  }
+}
+```
+
+- `GET /api/feature-loops` 列出任务，`GET /api/feature-loops/:id` 查看阶段、worktree、当前 spec 路径和最近一次验收与提交。省略 `maxFeatures` 时，每次提交后继续选下一个功能。
+- 调用 `POST /api/feature-loops/:id/pause`，等状态显示 `paused: true` 且 `running: false` 后，在返回的 worktree 中修改 `feature.specPath`。向 `POST /api/feature-loops/:id/resume` 发送 `{"useCurrentSpec": true}`，技术 Agent 会按当前文档修改，再交给 QA 复验。普通恢复可发送 `{}`。
+- Agent 需要实际配置对应工具。内置 `exec_command` 需要显式传入 `timeoutMs`。Unity 验收和图片生成使用你为角色配置的工具。
+- 任务从项目当前的 Git HEAD 创建专用 worktree。通过 QA 的快照会提交到返回的 `sbot-loop/…` 分支。运行环境需要配置 Git 提交身份。后台提交使用 Git 已验收的树对象，项目所需的检查可以放在 QA 步骤中运行。
+
 ## 关键词
 
 `AI Agent` `自托管` `大模型服务` `开源` `MCP` `ACP` `模型上下文协议` `多智能体` `ReAct` `OpenAI` `Claude` `Gemini` `Ollama` `聊天机器人` `飞书` `Lark` `OneBot` `QQ` `长期记忆` `TypeScript` `Node.js`

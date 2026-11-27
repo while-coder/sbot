@@ -53,6 +53,8 @@ export interface AgentRunOptions {
     dbSessionId: string;
     /** memoryProfiles 中的 UUID；空表示不启用 memory */
     memoryId?: string | null;
+    /** Standalone background jobs can supply their own cancellation signal. */
+    signal?: AbortSignal;
 }
 
 export class AgentRunner {
@@ -69,7 +71,7 @@ export class AgentRunner {
         if (!saverId.trim())   throw new Error("saver not specified");
         if (!threadId.trim())  throw new Error("threadId not specified");
 
-        const signal = sessionManager.getOrCreate(threadId).signal;
+        const signal = options.signal ?? sessionManager.getOrCreate(threadId).signal;
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const assetsDir = config.getConfigPath('assets', true);
         // assetsDir 整体挂在 /assets 下（见 HttpServer），所以其下任意文件的链接
