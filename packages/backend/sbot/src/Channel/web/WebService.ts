@@ -3,7 +3,7 @@ import path from 'path';
 import http from 'http';
 import { randomUUID } from 'crypto';
 import { WebSocket, WebSocketServer } from 'ws';
-import { appendAttachmentsToMessageContent, isEmptyContent, MessageRole, MessageKind, type AttachmentInput, type ChatMessage, type MessageContent, writeAttachmentInput } from "scorpio.ai";
+import { appendIncomingAttachments, isEmptyContent, MessageRole, MessageKind, type ChatMessage } from "scorpio.ai";
 import { IChannelService, ChannelSessionHandler, SessionService } from "channel.base";
 import { WsCommandType, WebChatEventType, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from '@sbot/shared';
 import { database, type ChannelSessionRow } from "../../Core/Database";
@@ -15,26 +15,13 @@ import { WebSocketSessionHandler } from "./WebSocketSessionHandler";
 const logger = LoggerService.getLogger("WebService.ts");
 
 /**
- * 将标准 MessageContent 与附件构造为实际用户消息。
- * - content 保持客户端传入的 part 顺序
- * - 非内联的文件附件追加在末尾，落盘到 uploadDir 后以 markdown 文件链接的形式插入文本
- */
-async function processMessage(content: MessageContent, attachments: AttachmentInput[] | undefined, uploadDir: string): Promise<MessageContent> {
-    return appendAttachmentsToMessageContent(content, attachments, async (attachment) => {
-        const filePath = path.join(uploadDir, `${randomUUID()}-${attachment.name}`);
-        await writeAttachmentInput(filePath, attachment);
-        return filePath;
-    });
-}
-
-/**
  * Web channel 的 IChannelService 实现：管理 ws 客户端连接、广播事件、为每个 SbotSession 创建 WebSocketSessionHandler。
  * 由 HttpServer 在创建 http.Server 后调用 attach() 完成 WS 升级路径绑定，并通过 channelManager.registerService 注册。
  */
 export class WebService implements IChannelService {
     private readonly wsClients = new Set<WebSocket>();
     private wss?: WebSocketServer;
-    /** sendFile(Buffer) 落盘的服务端外发文件目录。与用户上传的临时 attachments 目录分开，避免被一并清理。 */
+    /** sendFile(Buffer) 落盘的服务端外发文件目录。 */
     private outgoingDir?: string;
 
     private async resolveIncomingSession(msg: Record<string, any>): Promise<{ session: ChannelSessionRow; profileId: string; channelSessionId: string }> {
@@ -49,9 +36,9 @@ export class WebService implements IChannelService {
         return { session, profileId: String(session.profileId), channelSessionId: session.sessionId };
     }
 
-    attach(server: http.Server, uploadDir: string, outgoingDir: string): void {
+    attach(server: http.Server, outgoingDir: string): void {
         this.outgoingDir = outgoingDir;
-        logger.info(`attach: uploadDir=${uploadDir} outgoingDir=${outgoingDir}`);
+        logger.info(`attach: outgoingDir=${outgoingDir}`);
         // noServer + manual upgrade routing: with `{ server, path }`, this WSS would
         // also respond 400 to upgrades for paths it doesn't own (e.g. /ws/pty),
         // corrupting the 101 already sent by the other WSS on the same server.
@@ -82,12 +69,13 @@ export class WebService implements IChannelService {
                             const attCount = msg.attachments?.length ?? 0;
                             // 客户端（如 vscode 插件）可在每次 Query 携带仅对本轮生效的 workPath。
                             const workPath = typeof msg.workPath === 'string' && msg.workPath.trim() ? msg.workPath : undefined;
-                            const enriched = await processMessage(msg.content ?? '', msg.attachments, uploadDir);
+                            const content = typeof msg.content === 'string' || Array.isArray(msg.content) ? msg.content : '';
+                            const enriched = appendIncomingAttachments(content, msg.attachments);
                             if (isEmptyContent(enriched)) {
                                 logger.debug(`ws query empty: profileId=${profileId} content=${contentCount} attachments=${attCount}`);
                                 break;
                             }
-                            sessionManager.onReceiveChannelMessage(enriched, {
+                            await sessionManager.onReceiveChannelMessage(enriched, {
                                 channelType: WEB_CHANNEL_TYPE,
                                 channelId: WEB_CHANNEL_ID,
                                 dbSessionId: session.id,

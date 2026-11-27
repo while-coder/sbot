@@ -1,6 +1,6 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
 import { LarkActionArgs, LarkMessageArgs, LarkSessionHandler } from "./LarkSessionHandler";
-import { IChannelService, ChannelSessionHandler, SessionService, TimeUtils, parseJson, readMediaAsContentPart, formatError, type ILogger, type MessageContent } from "channel.base";
+import { IChannelService, ChannelSessionHandler, SessionService, TimeUtils, parseJson, readMediaAsContentPart, incomingFileAttachment, formatError, type ILogger, type MessageContent } from "channel.base";
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -342,8 +342,12 @@ export class LarkService implements IChannelService {
         downloadType = 'file';
       }
       await this.downloadMessageFile(messageId, fileKey, downloadType, filePath);
-      const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
-      result = mediaAsFilePath ? (part.type === 'text' ? (part.text ?? '') : '') : [part as any];
+      if (mediaAsFilePath || messageType === 'image') {
+        const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
+        result = mediaAsFilePath ? (part.type === 'text' ? (part.text ?? '') : '') : [part];
+      } else {
+        result = [incomingFileAttachment(filePath, msg.file_name)];
+      }
     } else {
       return undefined;
     }
@@ -489,14 +493,12 @@ export class LarkService implements IChannelService {
         } else if (el.tag === 'img') {
           const filePath = path.join(os.tmpdir(), `lark_${el.image_key}.png`);
           await this.downloadMessageFile(messageId, el.image_key, 'image', filePath);
-          const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
-          parts.push(part);
+          parts.push((await readMediaAsContentPart(filePath, mediaAsFilePath)).part);
           if (!mediaAsFilePath) hasMedia = true;
         } else if (el.tag === 'media') {
           const filePath = path.join(os.tmpdir(), `lark_${el.file_key}.mp4`);
           await this.downloadMessageFile(messageId, el.file_key, 'file', filePath);
-          const { part } = await readMediaAsContentPart(filePath, mediaAsFilePath);
-          parts.push(part);
+          parts.push(mediaAsFilePath ? (await readMediaAsContentPart(filePath, true)).part : incomingFileAttachment(filePath, el.file_name));
           if (!mediaAsFilePath) hasMedia = true;
         } else if (el.tag == 'at') {
           

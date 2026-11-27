@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { ICommand, MessageType, MessageRole, MessageKind, type MessageContent, trimContent, isEmptyContent, runtimeActivity } from "scorpio.ai";
+import { ICommand, MessageType, MessageRole, MessageKind, type MessageContent, trimContent, isEmptyContent, runtimeActivity, previewIncomingAttachments } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type AgentTool } from "scorpio.ai";
 import { config } from "../Core/Config";
@@ -44,7 +44,12 @@ class SbotSession extends SessionService {
     }
 
     private argsWithQueue(args: ChannelRouteArgs) {
-        return { ...args, pendingMessages: this.messageQueue.map(m => m.query) };
+        return { ...args, pendingMessages: this.messageQueue.map(m => previewIncomingAttachments(m.query)) };
+    }
+
+    override getInfo() {
+        const info = super.getInfo();
+        return { ...info, pendingMessages: info.pendingMessages.map(query => previewIncomingAttachments(query)) };
     }
 
     protected async onProcessStart(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType): Promise<string | void> {

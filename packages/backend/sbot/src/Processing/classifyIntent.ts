@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MessageRole, truncate, contentToString, type ChatMessage, type MessageContent } from "scorpio.ai";
+import { MessageRole, truncate, contentToString, previewIncomingAttachments, type ChatMessage, type MessageContent } from "scorpio.ai";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
 import { loadPrompt } from "../Core/PromptLoader";
@@ -75,6 +75,7 @@ export async function classifyIntent(
 ): Promise<boolean> {
   const modelService = config.getModelService(intentModelId);
   if (!modelService) return true;
+  query = previewIncomingAttachments(query, !!modelService.getLLMInfo().vision);
   let text = truncate(contentToString(query), 100);
   const modelInfo = `intentModelId=${intentModelId}`;
   const sessionName = await getSessionName(sessionId);

@@ -1,5 +1,6 @@
-import { AgentToolService, GlobalLoggerService, MCPTransport, createAgentTool, createErrorResult, createSuccessResult, formatError, readWorkspaceImage } from "scorpio.ai";
+import { AgentToolService, GlobalLoggerService, MCPTransport, createAgentTool, createErrorResult, createSuccessResult, formatError, readWorkspaceImage, readSavedAttachmentImage, type IAgentSaverService } from "scorpio.ai";
 import { createExecCommandTool, createWriteStdinTool, setCommandLogger } from "scorpio.command";
+import path from "node:path";
 import { z } from "zod";
 import { config } from "../Core/Config.js";
 import { loadPrompt } from "../Core/PromptLoader.js";
@@ -12,7 +13,7 @@ export enum BuiltinProvider {
 
 export const globalAgentToolService = new AgentToolService(GlobalLoggerService.getLoggerService());
 
-export async function createBuiltinCommandTools(processOwner?: string, workdir?: string) {
+export async function createBuiltinCommandTools(processOwner?: string, workdir?: string, saver?: IAgentSaverService) {
     setCommandLogger(GlobalLoggerService.getLogger('Tools/Command'));
     return [
         createExecCommandTool({ description: loadPrompt('tools/command/exec_command.txt'), processOwner, workdir }),
@@ -20,13 +21,16 @@ export async function createBuiltinCommandTools(processOwner?: string, workdir?:
         createApplyPatchTool(workdir),
         createAgentTool({
             name: 'view_image',
-            description: 'Load a local image into the model for visual inspection. Use a path relative to the current session workspace.',
+            description: 'Load an image for visual inspection. Use a workspace-relative path or the exact filePath of an image attached to the current conversation.',
             schema: z.object({ path: z.string().trim().min(1) }),
-            async func({ path }) {
+            async func({ path: imagePath }) {
                 try {
-                    return createSuccessResult(await readWorkspaceImage(workdir, path));
+                    const image = saver && (path.isAbsolute(imagePath) || path.win32.isAbsolute(imagePath))
+                        ? await readSavedAttachmentImage(saver, imagePath)
+                        : await readWorkspaceImage(workdir, imagePath);
+                    return createSuccessResult(image);
                 } catch (error) {
-                    return createErrorResult(`Could not view "${path}": ${formatError(error)}`);
+                    return createErrorResult(`Could not view "${imagePath}": ${formatError(error)}`);
                 }
             },
         }),

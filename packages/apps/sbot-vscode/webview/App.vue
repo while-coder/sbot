@@ -69,6 +69,7 @@ onBeforeUnmount(() => {
       :layout-mode="chatViewLayout"
       :fixed-work-path="fixedWorkPath"
       :work-path-locked="isLocalServer"
+      show-attachments
       @select-local="selectLocal"
       @select-remote="selectRemote"
       @add-remote="addRemote"

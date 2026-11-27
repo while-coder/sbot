@@ -1,7 +1,7 @@
 import path from 'node:path';
 import WebSocket from 'ws';
 import {
-  ChannelSessionHandler, IChannelService, SessionService, isEmptyContent,
+  ChannelSessionHandler, IChannelService, SessionService, incomingBufferAttachment, isEmptyContent,
   type ILogger, type MessageContent,
 } from 'channel.base';
 import {
@@ -408,13 +408,19 @@ export class YuanbaoService implements IChannelService {
         if (AUDIO_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
           try {
             const media = await this.api.downloadMedia(url, fileName);
-            parts.push({ type: 'audio', data: media.data.toString('base64'), mimeType: media.mimeType });
+            parts.push({ type: 'audio', name: fileName, data: media.data.toString('base64'), mimeType: media.mimeType });
           } catch (error: any) {
             this.logger?.warn(`Yuanbao audio download failed: ${error?.message ?? error}`);
             parts.push({ type: 'text', text: '[audio: download failed]' });
           }
         } else {
-          parts.push({ type: 'text', text: `[file: ${fileName}]` });
+          try {
+            const media = await this.api.downloadMedia(url, fileName);
+            parts.push(incomingBufferAttachment(fileName, media.data, media.mimeType));
+          } catch (error: any) {
+            this.logger?.warn(`Yuanbao file download failed: ${error?.message ?? error}`);
+            parts.push({ type: 'text', text: `[file: ${fileName}]` });
+          }
         }
       }
     }

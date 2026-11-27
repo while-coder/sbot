@@ -7,7 +7,7 @@ import type {
 } from '../types'
 import type { CommandInfo } from '../transport'
 import { SSelect } from '@qingfeng346/ui-kit'
-import { resolveLabels } from '../labels'
+import { resolveLabels, tpl } from '../labels'
 import { useCompact } from '../composables/useCompact'
 import { useAttachments } from '../composables/useAttachments'
 import MessageList from './MessageList.vue'
@@ -81,7 +81,20 @@ const shouldStickToBottom = ref(true)
 let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
 let scrollFrame = 0
 
-const { attachments, add: addFiles, remove: removeAttachment, drain: drainAttachments, isImageMime } = useAttachments()
+const {
+  attachments, add: addFiles, remove: removeAttachment, drain: drainAttachments, isImageMime, isReading, failedFiles,
+} = useAttachments()
+const attachmentPreviews = computed(() => {
+  let imageIndex = 0
+  return attachments.value.map(attachment => {
+    const image = isImageMime(attachment.type) ? attachment.dataUrl : undefined
+    return {
+      image,
+      name: attachment.name,
+      label: image ? tpl(L.value.imageAttachment, { index: ++imageIndex }) : attachment.name,
+    }
+  })
+})
 
 // ── Scrolling ──
 
@@ -116,9 +129,9 @@ watch(() => props.streamingContent, async () => {
 
 const pickFile = () => fileInputEl.value?.click()
 
-async function onFileChange(e: Event) {
+function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
-  if (input.files) await addFiles(Array.from(input.files))
+  if (input.files) void addFiles(Array.from(input.files))
   input.value = ''
 }
 
@@ -131,27 +144,24 @@ function onInputBarDragOver(e: DragEvent) {
 }
 
 function onInputBarDragLeave() {
+  if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
   dragLeaveTimer = setTimeout(() => { isDragging.value = false }, 80)
 }
 
 function onInputBarDrop(e: DragEvent) {
-  isDragging.value = false
+  if (!e.dataTransfer?.files.length) return
   e.preventDefault()
-  if (!e.dataTransfer?.files?.length) return
-  // Images dropped on the input bar are handled by the editor's own drop handler; only non-images
-  // are surfaced as attachment chips here.
-  const nonImages = Array.from(e.dataTransfer.files).filter(f => !isImageMime(f.type))
-  if (nonImages.length > 0) addFiles(nonImages)
+  void addFiles(Array.from(e.dataTransfer.files))
 }
 
 // ── Send ──
 
 function send() {
   const input = richInputRef.value
-  if (!input) return
+  if (!input || !props.hasSaver || isReading.value) return
   const { content } = input.getContent()
+  if (content.length === 0 && attachments.value.length === 0) return
   const files = drainAttachments()
-  if (content.length === 0 && files.length === 0) return
   input.clear()
   emit('send', content, files)
 }
@@ -208,15 +218,29 @@ defineExpose({ scrollToBottom })
       >
         <input ref="fileInputEl" type="file" multiple style="display:none" @change="onFileChange" />
 
-        <!-- Attachment chips -->
-        <div v-if="attachments.length > 0" class="chatui-attachments">
-          <div v-for="(att, i) in attachments" :key="att.name" class="chatui-attachment-chip">
-            <img v-if="isImageMime(att.type) && att.dataUrl" :src="att.dataUrl" class="chatui-attachment-thumb" />
-            <span v-else class="chatui-attachment-icon">📄</span>
-            <span class="chatui-attachment-name">{{ att.name }}</span>
-            <button class="chatui-attachment-remove" @click="removeAttachment(i)">×</button>
-          </div>
-        </div>
+        <ul v-if="attachmentPreviews.length" class="chatui-attachments" :aria-label="L.attachment">
+          <li
+            v-for="(att, i) in attachmentPreviews"
+            :key="i"
+            class="chatui-attachment-chip"
+            :class="{ 'chatui-attachment-chip--image': att.image }"
+          >
+            <img v-if="att.image" :src="att.image" :alt="att.name" class="chatui-attachment-thumb" decoding="async" />
+            <span class="chatui-attachment-name" :title="att.name">{{ att.label }}</span>
+            <button
+              type="button"
+              class="chatui-attachment-remove"
+              :aria-label="tpl(L.removeAttachment, { name: att.label })"
+              @click="removeAttachment(i)"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </li>
+        </ul>
+        <p v-if="isReading" class="chatui-attachment-status" role="status">{{ L.loading }}</p>
+        <p v-if="failedFiles.length" class="chatui-attachment-status" role="alert">
+          {{ tpl(L.attachmentReadFailed, { names: failedFiles.join('、') }) }}
+        </p>
 
         <!-- Editor -->
         <RichInput
@@ -281,7 +305,7 @@ defineExpose({ scrollToBottom })
             </button>
             <button
               class="chatui-send-btn"
-              :disabled="!hasSaver"
+              :disabled="!hasSaver || isReading"
               :title="L.send"
               @click="send"
             >
@@ -569,26 +593,86 @@ defineExpose({ scrollToBottom })
   color: var(--chatui-btn-danger, #ef4444);
 }
 .chatui-attachments {
-  display: flex; flex-wrap: wrap; gap: 6px;
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px;
+  max-height: min(28vh, 180px);
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 2px;
 }
 .chatui-attachment-chip {
-  display: flex; align-items: center; gap: 4px;
-  padding: 2px 8px; background: var(--chatui-bg-hover);
+  position: relative;
+  display: flex; align-items: center;
+  padding-inline-start: 8px;
+  background: var(--chatui-bg-hover);
   border: 1px solid var(--chatui-border);
-  border-radius: 12px; font-size: 12px; color: var(--chatui-fg);
-  max-width: 200px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  color: var(--chatui-fg);
+  min-width: 0;
+  max-width: min(200px, 100%);
+}
+.chatui-attachment-chip--image {
+  flex-direction: column;
+  align-items: stretch;
+  width: 5.5rem;
+  padding: 0;
+}
+.chatui-attachment-chip--image .chatui-attachment-name {
+  padding: 3px 6px;
 }
 .chatui-attachment-thumb {
-  width: 18px; height: 18px; object-fit: cover; border-radius: 2px; flex-shrink: 0;
+  display: block;
+  width: 100%;
+  height: 3.5rem;
+  object-fit: contain;
+  border-radius: 7px 7px 0 0;
 }
-.chatui-attachment-icon { font-size: 13px; flex-shrink: 0; }
 .chatui-attachment-name {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .chatui-attachment-remove {
-  background: none; border: none; cursor: pointer;
-  color: var(--chatui-fg-secondary); font-size: 14px;
-  padding: 0; line-height: 1; flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--chatui-fg);
+  font-size: 1rem;
+  cursor: pointer;
 }
-.chatui-attachment-remove:hover { color: var(--chatui-btn-danger); }
+.chatui-attachment-chip--image .chatui-attachment-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  place-items: start end;
+  padding: 4px;
+}
+.chatui-attachment-remove span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--chatui-bg);
+  box-shadow: inset 0 0 0 1px var(--chatui-border);
+}
+.chatui-attachment-remove:hover span,
+.chatui-attachment-remove:active span {
+  color: var(--chatui-btn-danger);
+}
+.chatui-attachment-remove:focus-visible {
+  outline: 2px solid var(--chatui-border-focus, var(--chatui-accent));
+  outline-offset: -2px;
+}
+.chatui-attachment-status {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--chatui-fg-secondary);
+  overflow-wrap: anywhere;
+}
 </style>

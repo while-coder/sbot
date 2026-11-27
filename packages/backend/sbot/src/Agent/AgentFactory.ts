@@ -172,7 +172,7 @@ export class AgentFactory {
         const excluded = new Set(mcpExclude ?? []);
         if (mcp === '*' ? !excluded.has(command) : mcp?.includes(command)) {
             toolService.registerToolFactory(command, () => createBuiltinCommandTools(
-                `session:${dbSessionId}`, workPath,
+                `session:${dbSessionId}`, workPath, container.resolve<IAgentSaverService>(IAgentSaverService),
             ));
         }
 

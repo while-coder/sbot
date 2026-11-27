@@ -113,6 +113,9 @@ export interface ChatLabels {
   stop?: string
   attachment?: string
   addAttachment?: string
+  imageAttachment?: string
+  removeAttachment?: string
+  attachmentReadFailed?: string
   roleUser?: string
   roleAi?: string
   thinking?: string

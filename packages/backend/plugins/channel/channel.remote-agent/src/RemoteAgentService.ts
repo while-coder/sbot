@@ -5,11 +5,10 @@ import {
   type ILogger,
   type MessageContent,
   type SessionService,
-  appendAttachmentsToMessageContent,
+  appendIncomingAttachments,
   isEmptyContent,
 } from "channel.base";
 import { RemoteAgentConnection } from "./RemoteAgentConnection";
-import { saveRemoteAgentAttachment } from "./RemoteAgentAttachmentStore";
 import {
   RemoteAgentSessionHandler,
   type RemoteAgentActionArgs,
@@ -54,7 +53,7 @@ export abstract class RemoteAgentService implements IChannelService {
     if (typeof message.content !== "string" && !Array.isArray(message.content)) return this.sendError(connection, "缺少 content");
     if (typeof message.systemPrompt !== "string") return this.sendError(connection, "缺少 systemPrompt");
     if (!Array.isArray(message.tools)) return this.sendError(connection, "缺少 tools");
-    const content = await appendAttachmentsToMessageContent(message.content, message.attachments, saveRemoteAgentAttachment);
+    const content = appendIncomingAttachments(message.content, message.attachments);
     if (isEmptyContent(content)) return this.sendError(connection, "消息不能为空");
 
     connection.updateFromChat(message);

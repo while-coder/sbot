@@ -3,6 +3,8 @@ import { z } from "zod";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { contentToString } from "../../Utils/contentUtils";
 import { readWorkspaceImage } from "../../Utils/workspaceImage";
+import { readSavedAttachmentImage } from "../../Utils/messageAttachments";
+import path from "node:path";
 import { IAgentSaverService, TaskBackedSaver, ContentPartType, type ContentPart, type MessageContent } from "scorpio.saver";
 import { ConversationCompactor, IConversationCompactor } from "../../Conversation";
 import { ILoggerService } from "../../Logger";
@@ -116,7 +118,7 @@ export class ReActAgentService extends SingleAgentService {
       ? 'spawn_agent returns a taskId immediately. Continue independent work or call wait_agent for results. Use send_input for follow-ups and collect required results before the final answer.'
       : 'Sub-agent tools are unavailable at this depth. Complete the assigned work directly.';
     if (this.canSpawn() && this.workPath) {
-      workflow += ' Use imagePaths with spawn_agent or send_input to attach image files from the workspace.';
+      workflow += ' Use imagePaths with spawn_agent or send_input to attach workspace images or exact image attachment filePaths from this conversation.';
     }
     const reactPrompt = this.systemPromptTemplate.replace('{agents}', agentsDesc) + '\n\n' + workflow;
 
@@ -241,8 +243,10 @@ export class ReActAgentService extends SingleAgentService {
       }
       for (const imagePath of new Set(args.imagePaths)) {
         try {
-          const image = await readWorkspaceImage(this.workPath, imagePath);
-          images.push({ type: ContentPartType.Text, text: `Workspace image: ${imagePath}` }, image);
+          const image = path.isAbsolute(imagePath) || path.win32.isAbsolute(imagePath)
+            ? await readSavedAttachmentImage(this.saverService, imagePath)
+            : await readWorkspaceImage(this.workPath, imagePath);
+          images.push({ type: ContentPartType.Text, text: `Image file: ${imagePath}` }, image);
         } catch (error) {
           return createErrorResult(`Could not attach "${imagePath}": ${formatError(error)}`);
         }

@@ -529,9 +529,16 @@ class Config {
     }
     return {};
   }
-  getSaverDBPath(saverId: string, saverThreadId?: string, ext?: string) {
-    if (saverThreadId) return this.getConfigPath(`savers/${saverId}/${saverThreadId}${ext}`)
+  getSaverDir(saverId: string): string {
     return this.getConfigPath(`savers/${saverId}`, true)
+  }
+
+  getSaverThreadDir(saverId: string, threadId: string): string {
+    return path.join(this.getSaverDir(saverId), threadId)
+  }
+
+  getSaverDBPath(saverId: string, threadId: string, ext: string): string {
+    return path.join(this.getSaverThreadDir(saverId, threadId), `saver${ext}`)
   }
 }
 

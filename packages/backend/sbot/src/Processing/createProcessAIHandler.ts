@@ -1,5 +1,5 @@
 import { ProcessAIHandler } from "channel.base";
-import { MessageRole, ToolApproval, type TokenUsage, type ChatMessage } from "scorpio.ai";
+import { MessageRole, ToolApproval, type TokenUsage, type ChatMessage, saveMessageAttachments, displayMessageAttachments } from "scorpio.ai";
 import { channelDataService } from "../Session/ChannelDataService";
 import { config, AgentMode } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
@@ -22,10 +22,6 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const channel = config.getChannel(channelId);
         if (!channel) throw new Error(`Channel config not found: ${channelId}`);
 
-        if (channelId === WEB_CHANNEL_ID) {
-            webService.broadcast(JSON.stringify({ profileId: String(profile.id), type: WebChatEventType.Human, data: { content: query } }));
-        }
-
         const agentId = resolved.agentId;
         const saverId = resolved.saver;
         const workPath = args.workPath || resolved.workPath;
@@ -39,6 +35,15 @@ export function createProcessAIHandler(): ProcessAIHandler {
         const disableWorkspaceSkills = resolved.disableWorkspaceSkills ?? false;
         const disableWorkspaceMcp = resolved.disableWorkspaceMcp ?? false;
         const threadId = resolved.threadKey;  // = String(profile.id)
+        if (!saverId.trim() || !config.getSaver(saverId)) {
+            throw new Error("saver not specified or not configured");
+        }
+        query = await saveMessageAttachments(query, config.getSaverThreadDir(saverId, threadId));
+
+        if (channelId === WEB_CHANNEL_ID) {
+            const content = await displayMessageAttachments(query);
+            webService.broadcast(JSON.stringify({ profileId: String(profile.id), type: WebChatEventType.Human, data: { content } }));
+        }
 
         sessionHandler.approvalTimeoutMs = approvalTimeout > 0 ? approvalTimeout * 1000 : 0;
         sessionHandler.approvalTimeoutValue = approvalTimeoutValue === ApprovalTimeoutValue.Allow ? ToolApproval.Allow : ToolApproval.Deny;

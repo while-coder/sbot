@@ -90,7 +90,6 @@ class HttpServer {
         app.use('/assets', express.static(config.getConfigPath('assets', true)));
         app.get('/', (_req, res) => res.redirect('/webui/'));
 
-        const uploadDir = config.getConfigPath('upload', true);
         const outgoingDir = config.getConfigPath('outgoing', true);
 
         const ctx: RouteContext = {
@@ -119,7 +118,7 @@ class HttpServer {
         // HTTP + WebSocket 服务：把 ws 升级路径与 web channel 运行时交给 WebService，
         // 然后注册到 channelManager，让消息出路与 dispose 生命周期与其他 channel 对齐
         const server = this.server = http.createServer(app);
-        webService.attach(server, uploadDir, outgoingDir);
+        webService.attach(server, outgoingDir);
         ptyService.attach(server);
         channelManager.registerService(WEB_CHANNEL_ID, webService);
 

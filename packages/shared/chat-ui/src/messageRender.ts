@@ -107,6 +107,16 @@ export function getContentParts(content: DisplayContent | null | undefined): Dis
       case 'image_url':
         if (c.image_url?.url) parts.push({ type: ContentPartType.Image, url: c.image_url.url })
         break
+      case 'attachment':
+        if (typeof c.dataUrl === 'string' && c.dataUrl.startsWith('data:image/')) {
+          parts.push({ type: ContentPartType.Image, url: c.dataUrl })
+        } else if (typeof c.dataUrl === 'string' && c.dataUrl.startsWith('data:audio/')) {
+          parts.push({ type: ContentPartType.Audio, url: c.dataUrl })
+        } else if (typeof c.name === 'string') {
+          const filePath = typeof c.filePath === 'string' ? ` (${c.filePath})` : ''
+          parts.push({ type: ContentPartType.Text, text: `${c.name}${filePath}` })
+        }
+        break
       case 'inlineData': {
         const url = dataUrl(c.inlineData?.mimeType, c.inlineData?.data)
         if (url) parts.push({ type: ContentPartType.Image, url })

@@ -22,5 +22,6 @@ export { GlobalLoggerService, type ILogger } from "scorpio.ai";
 export { MessageRole, parseJson, TimeUtils, formatError } from "scorpio.ai";
 export { ToolApproval, AgentCancelledError } from "scorpio.ai";
 export type { ChatMessage, ChatToolCall, MessageType, MessageContent, AttachmentInput } from "scorpio.ai";
-export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, summarizeMultimodal, appendAttachmentsToMessageContent, writeAttachmentInput } from "scorpio.ai";
+export { contentToString, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, summarizeMultimodal } from "scorpio.ai";
+export { appendIncomingAttachments, incomingFileAttachment, incomingBufferAttachment } from "scorpio.ai";
 export type { MediaCategory, ContentPart } from "scorpio.ai";

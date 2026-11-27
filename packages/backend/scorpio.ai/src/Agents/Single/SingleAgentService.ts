@@ -10,6 +10,7 @@ import { normalizeToMCPResult, truncateMCPToolResult, MCPContentType } from '../
 import { AgentServiceBase, GraphNodeType, ToolApproval, IAgentCallback, AgentCancelledError, DEFAULT_MAX_HISTORY_TOKENS, ChatMessage, ChatToolCall, MessageRole, type TokenUsage, type OnCreateThinkFn } from "../AgentServiceBase";
 import { IAgentPlugin, AgentPluginPromptKind, type AgentPluginContext, type AgentTurn } from "../Plugins";
 import { contentToString, truncateForLog, normalizeMessageForModel } from "../../Utils/contentUtils";
+import { resolveMessageAttachments } from "../../Utils/messageAttachments";
 import { v4 as uuidv4 } from "uuid";
 
 export {
@@ -266,7 +267,10 @@ export class SingleAgentService extends AgentServiceBase {
         // 送模型前归一化，避免 OpenAI 兼容端点 400（content type 类型错误）
         const messages: ChatMessage[] = [
             ...(state.systemMessage ? [state.systemMessage] : []),
-            ...savedHistory.map(normalizeMessageForModel),
+            ...await Promise.all(savedHistory.map(async message => normalizeMessageForModel({
+                ...message,
+                content: await resolveMessageAttachments(message.content, !!caps.vision),
+            }))),
         ];
 
         if (state.signal?.aborted) throw new AgentCancelledError();
@@ -618,7 +622,8 @@ export class SingleAgentService extends AgentServiceBase {
      * 流式处理用户查询
      */
     override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
-        const userImages = Array.isArray(query) ? query.filter(SingleAgentService.isImagePart) : undefined;
+        const modelQuery = await resolveMessageAttachments(query);
+        const userImages = Array.isArray(modelQuery) ? modelQuery.filter(SingleAgentService.isImagePart) : undefined;
         // 将本次用户消息压入历史（模型不支持图片时先降级为文本说明，图片 part 再统一缩放）
         query = await this.degradeUnsupportedImages(query);
         query = await this.resizeImagesInContent(query);
@@ -626,7 +631,7 @@ export class SingleAgentService extends AgentServiceBase {
 
         const outputMessages: ChatMessage[] = [];
         // 本轮插件上下文造一份，贯穿 prompt / 工具 / turn 末尾三个钩子，保证各钩子看到同一份 query。
-        const ctx = this.buildPluginContext(query, userImages);
+        const ctx = this.buildPluginContext(await this.degradeUnsupportedImages(modelQuery), userImages);
 
         try {
             const [systemMessage, tools] = await Promise.all([

@@ -1,5 +1,5 @@
 import express, { Request } from 'express';
-import { listThreadIds, IAgentSaverService, type StoredMessage } from 'scorpio.ai';
+import { listThreadIds, IAgentSaverService, displayMessageAttachments, type StoredMessage } from 'scorpio.ai';
 import { saverProviderRegistry } from 'scorpio.saver';
 import { config } from '../../Core/Config';
 import { SaverPool } from '../../Agent/SaverPool';
@@ -13,14 +13,14 @@ type SaverResolver = (req: Request) => Promise<{ saverId: string; threadId: stri
 
 export class DataRoutes {
     private formatMessages(items: StoredMessage[]) {
-        return items.map(({ id, message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId, taskId, kind }) => ({
+        return Promise.all(items.map(async ({ id, message: { content, role, tool_calls, tool_call_id, name }, createdAt, thinkId, taskId, kind }) => ({
             id,
-            message: { role, content, tool_calls, tool_call_id, name },
+            message: { role, content: await displayMessageAttachments(content), tool_calls, tool_call_id, name },
             createdAt,
             thinkId,
             taskId,
             kind,
-        }));
+        })));
     }
 
     /** 通过 SaverPool 复用同 dbPath 实例 */
@@ -90,7 +90,7 @@ export class DataRoutes {
     register(app: express.Application, _ctx: RouteContext): void {
         // ── Savers / Threads ──
         app.get('/api/savers/:saverId/threads', api(async req =>
-            listThreadIds(config.getSaverDBPath(req.params.saverId as string), ".db", ".json")
+            listThreadIds(config.getSaverDir(req.params.saverId as string), ".db", ".json")
         ));
 
         this.registerSaverThreadRoutes(app, '/api/savers/:saverId/threads/:threadId', req => ({

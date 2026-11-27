@@ -2,18 +2,18 @@ import { readdirSync, statSync } from "fs";
 import { join } from "path";
 
 /**
- * 扫描目录，返回匹配扩展名的文件名（去掉扩展名）列表
+ * 列出包含 saver 文件的会话目录。
  * @param dir 目录路径
  * @param exts 扩展名，如 ".db", ".json"，支持多个
  */
 export function listThreadIds(dir: string, ...exts: string[]): string[] {
     try {
-        const set = new Set<string>();
-        for (const f of readdirSync(dir)) {
-            const ext = exts.find((e) => f.endsWith(e));
-            if (ext) set.add(f.slice(0, -ext.length));
-        }
-        return [...set].sort();
+        return readdirSync(dir, { withFileTypes: true })
+            .filter(entry => entry.isDirectory() && exts.some(ext =>
+                statSync(join(dir, entry.name, `saver${ext}`), { throwIfNoEntry: false })?.isFile()
+            ))
+            .map(entry => entry.name)
+            .sort();
     } catch {
         return [];
     }

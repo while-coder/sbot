@@ -5,6 +5,7 @@ import { T_CompactPromptTemplate, T_PostCompactMessageTemplate, T_PostCompactCon
 import { T_SummaryModelService } from "../Agents/AgentServiceBase";
 import { ChatMessage, ContentPartType, MessageKind, MessageRole, NewStoredMessage, StoredMessage, estimateMessageTokens } from "scorpio.saver";
 import { normalizeMessageForModel } from "../Utils/contentUtils";
+import { resolveMessageAttachments } from "../Utils/messageAttachments";
 
 const COMPACT_THRESHOLD = 0.7;
 
@@ -49,8 +50,12 @@ export class ConversationCompactor {
      */
     async compact(messages: StoredMessage[], continuation = true): Promise<NewStoredMessage> {
         // 摘要模型可能与产生历史的模型不同 provider，同样需要归一化
+        const vision = !!this.summaryModel.getLLMInfo().vision;
         const chatMessages: ChatMessage[] = [
-            ...messages.map(s => normalizeMessageForModel(s.message)),
+            ...await Promise.all(messages.map(async ({ message }) => normalizeMessageForModel({
+                ...message,
+                content: await resolveMessageAttachments(message.content, vision),
+            }))),
             { role: MessageRole.Human, content: this.compactInstruction },
         ];
 

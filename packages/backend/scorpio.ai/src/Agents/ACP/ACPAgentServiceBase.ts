@@ -5,6 +5,7 @@ import type * as schema from "@agentclientprotocol/sdk";
 import { IAgentSaverService, type MessageContent } from "scorpio.saver";
 import { ILoggerService } from "../../Logger";
 import { formatError } from "../../Core";
+import { resolveMessageAttachments } from "../../Utils/messageAttachments";
 import { AgentServiceBase, IAgentCallback, AgentCancelledError, ChatMessage, MessageRole, ToolApproval } from "../AgentServiceBase";
 
 import { v4 as uuidv4 } from "uuid";
@@ -65,7 +66,7 @@ export abstract class ACPAgentServiceBase extends AgentServiceBase {
         }
 
         query = await this.resizeImagesInContent(query);
-        const prompt = await this.preparePrompt(query);
+        const prompt = await this.preparePrompt(await resolveMessageAttachments(query));
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         const state: ACPStreamState = {

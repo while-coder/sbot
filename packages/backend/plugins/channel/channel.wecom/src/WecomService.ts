@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WSClient } from '@wecom/aibot-node-sdk';
 import type { WsFrame, TextMessage, VoiceMessage, FileMessage, ImageMessage, MixedMessage, SendMsgBody, EventMessageWith, TemplateCardEventData } from '@wecom/aibot-node-sdk';
-import { IChannelService, ChannelSessionHandler, SessionService, readImageAsDataUrl, isEmptyContent, type ChannelMessageArgs, type ILogger, type MessageContent } from 'channel.base';
+import { IChannelService, ChannelSessionHandler, SessionService, readImageAsDataUrl, incomingBufferAttachment, isEmptyContent, type ChannelMessageArgs, type ILogger, type MessageContent } from 'channel.base';
 import { WecomSessionHandler } from './WecomSessionHandler';
 
 export interface WecomMessageArgs extends ChannelMessageArgs {
@@ -182,11 +182,7 @@ export class WecomService implements IChannelService {
 
     const { buffer, filename } = await this.wsClient.downloadFile(body.file.url, body.file.aeskey);
     const fileName = filename ?? 'unknown_file';
-    const ext = path.extname(fileName);
-    const filePath = path.join(os.tmpdir(), `wecom_${body.msgid}${ext}`);
-    await fs.writeFile(filePath, buffer);
-
-    const query = `[file: ${fileName}](${filePath})`;
+    const query = [incomingBufferAttachment(fileName, buffer)];
     await this.onReceiveMessage(userId, {
       sessionId: chatid,
       chattype: body.chattype,

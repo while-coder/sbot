@@ -269,8 +269,9 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 // ========================================
 // Utils - 工具函数
 // ========================================
-export { contentToString, truncateForLog, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, detectImageMimeType, setMaxImageSize, appendAttachmentsToMessageContent, writeAttachmentInput } from "./Utils/contentUtils";
+export { contentToString, truncateForLog, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, detectImageMimeType, setMaxImageSize } from "./Utils/contentUtils";
 export { readWorkspaceImage } from "./Utils/workspaceImage";
+export { appendIncomingAttachments, incomingFileAttachment, incomingBufferAttachment, previewIncomingAttachments, saveMessageAttachments, resolveMessageAttachments, displayMessageAttachments, readSavedAttachmentImage } from "./Utils/messageAttachments";
 export type { MediaCategory } from "./Utils/contentUtils";
 export { withRetry } from "./Utils/withRetry";
 export { UsageTracker, UsageState, type UsageData } from "./Utils/UsageTracker";

@@ -4,7 +4,6 @@ import type { ContentPart } from '../types'
 import type { CommandInfo } from '../transport'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 
 const props = withDefaults(defineProps<{
@@ -75,53 +74,6 @@ function applyCommand(cmd?: CommandInfo) {
   closeMenu()
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.readAsDataURL(file)
-  })
-}
-
-function handleImageDrop(_view: any, event: DragEvent, _slice: any, moved: boolean): boolean {
-  if (moved || !event.dataTransfer?.files?.length) return false
-  const allFiles = Array.from(event.dataTransfer.files)
-  const images = allFiles.filter(f => f.type.startsWith('image/'))
-  const others = allFiles.filter(f => !f.type.startsWith('image/'))
-  if (images.length === 0 && others.length === 0) return false
-  event.preventDefault()
-  event.stopPropagation()
-  images.forEach(async (file) => {
-    const dataUrl = await fileToDataUrl(file)
-    editor.value?.chain().focus().setImage({ src: dataUrl, alt: file.name }).run()
-  })
-  if (others.length > 0) emit('files', others)
-  return true
-}
-
-function handleImagePaste(_view: any, event: ClipboardEvent): boolean {
-  const items = Array.from(event.clipboardData?.items ?? [])
-  const fileItems = items.filter(i => i.kind === 'file')
-  if (fileItems.length === 0) return false
-  const imageItems = fileItems.filter(i => i.type.startsWith('image/'))
-  const otherItems = fileItems.filter(i => !i.type.startsWith('image/'))
-  event.preventDefault()
-  imageItems.forEach(async (item) => {
-    const file = item.getAsFile()
-    if (!file) return
-    const name = file.name && file.name !== 'image.png'
-      ? file.name
-      : `paste-${Date.now()}.${file.type.split('/')[1] || 'png'}`
-    const dataUrl = await fileToDataUrl(file)
-    editor.value?.chain().focus().setImage({ src: dataUrl, alt: name }).run()
-  })
-  if (otherItems.length > 0) {
-    const files = otherItems.map(i => i.getAsFile()).filter((f): f is File => f !== null)
-    if (files.length > 0) emit('files', files)
-  }
-  return true
-}
-
 const editor = useEditor({
   extensions: [
     StarterKit.configure({
@@ -134,13 +86,25 @@ const editor = useEditor({
       horizontalRule: false,
       dropcursor: { color: 'var(--chatui-border-focus)', width: 2 },
     }),
-    Image.configure({ inline: true, allowBase64: true }),
     Placeholder.configure({ placeholder: props.placeholder }),
   ],
   editorProps: {
-    handleDrop: handleImageDrop,
-    handlePaste: handleImagePaste,
+    handleDrop: (_view, event, _slice, moved) => {
+      if (moved || !event.dataTransfer?.files.length) return false
+      event.preventDefault()
+      event.stopPropagation()
+      emit('files', Array.from(event.dataTransfer.files))
+      return true
+    },
+    handlePaste: (_view, event) => {
+      const files = Array.from(event.clipboardData?.files ?? [])
+      if (files.length === 0) return false
+      event.preventDefault()
+      emit('files', files)
+      return true
+    },
     handleKeyDown: (_view, event) => {
+      if (event.isComposing) return false
       if (menuOpen.value && menuItems.value.length > 0) {
         if (event.key === 'ArrowDown') { event.preventDefault(); moveMenu(1); return true }
         if (event.key === 'ArrowUp') { event.preventDefault(); moveMenu(-1); return true }
@@ -175,53 +139,14 @@ onBeforeUnmount(() => {
 
 function getContent(): { content: ContentPart[] } {
   if (!editor.value) return { content: [] }
-  const content: ContentPart[] = []
-  let textBuffer = ''
-  let firstBlock = true
-
-  const flushText = () => {
-    if (textBuffer.length > 0) {
-      content.push({ type: 'text', text: textBuffer })
-      textBuffer = ''
-    }
-  }
-
+  const paragraphs: string[] = []
   editor.value.state.doc.forEach((node) => {
-    if (node.type.name === 'paragraph' || node.type.name === 'text') {
-      if (!firstBlock) textBuffer += '\n'
-      firstBlock = false
-      node.forEach((child) => {
-        if (child.type.name === 'image' && child.attrs.src) {
-          flushText()
-          if (child.attrs.src.startsWith('data:')) {
-            content.push({ type: 'image_url', image_url: { url: child.attrs.src } })
-          }
-        } else if (child.type.name === 'hardBreak') {
-          textBuffer += '\n'
-        } else {
-          textBuffer += child.textContent
-        }
-      })
-    } else if (node.type.name === 'image' && node.attrs.src?.startsWith('data:')) {
-      flushText()
-      content.push({ type: 'image_url', image_url: { url: node.attrs.src } })
-      firstBlock = false
+    if (node.type.name === 'paragraph') {
+      paragraphs.push(node.textBetween(0, node.content.size, '', '\n'))
     }
   })
-
-  flushText()
-
-  if (content.length > 0 && content[0].type === 'text') {
-    content[0].text = content[0].text.replace(/^\s+/, '')
-    if (content[0].text === '') content.shift()
-  }
-  if (content.length > 0 && content[content.length - 1].type === 'text') {
-    const last = content[content.length - 1] as { type: 'text'; text: string }
-    last.text = last.text.replace(/\s+$/, '')
-    if (last.text === '') content.pop()
-  }
-
-  return { content }
+  const text = paragraphs.join('\n').trim()
+  return { content: text ? [{ type: 'text', text }] : [] }
 }
 
 function clear() {
@@ -342,17 +267,4 @@ defineExpose({ getContent, clear, focus, isEmpty })
   height: 0;
 }
 
-.rich-input :deep(.tiptap img) {
-  max-height: 100px;
-  max-width: 100%;
-  border-radius: 4px;
-  margin: 4px 0;
-  cursor: default;
-  object-fit: contain;
-}
-
-.rich-input :deep(.tiptap img.ProseMirror-selectednode) {
-  outline: 2px solid var(--chatui-border-focus);
-  outline-offset: 2px;
-}
 </style>

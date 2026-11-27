@@ -40,7 +40,7 @@ export const subAgentImageIndicesSchema = z.array(z.number().int().positive()).o
   .describe("One-based numbers of images to forward from the current user message, in the order you want the sub-agent to see them. Omit to send no images.");
 
 export const subAgentImagePathsSchema = z.array(z.string().trim().min(1)).max(4).optional()
-  .describe("Image files to attach from the current session workspace, specified by relative path.");
+  .describe("Images to attach by workspace-relative path or by the exact filePath of an image attachment recorded in this conversation.");
 
 const DEFAULT_DESC =
   "Start a specialized sub-agent in the background and return its taskId. Use wait_agent to collect the result. " +

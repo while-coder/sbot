@@ -12,7 +12,6 @@ packages:
 catalog:
   '@modelcontextprotocol/sdk': ^1.27.1
   '@tauri-apps/cli': ^2.11.2
-  '@tiptap/extension-image': ^3.26.1
   '@tiptap/extension-placeholder': ^3.26.1
   '@tiptap/starter-kit': ^3.26.1
   '@tiptap/vue-3': ^3.26.1
