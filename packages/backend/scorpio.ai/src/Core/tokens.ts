@@ -16,7 +16,6 @@ export const T_ToolOverflowDir            = Symbol("scorpio:T_ToolOverflowDir");
 export const T_CompactPromptTemplate         = Symbol("scorpio:T_CompactPromptTemplate");
 export const T_PostCompactMessageTemplate    = Symbol("scorpio:T_PostCompactMessageTemplate");
 export const T_PostCompactContinuation       = Symbol("scorpio:T_PostCompactContinuation");
-export const T_MaxHistoryRounds              = Symbol("scorpio:T_MaxHistoryRounds");
 
 // Tool description tokens（库内工具描述外置注入）
 

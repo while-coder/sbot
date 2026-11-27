@@ -108,6 +108,7 @@ async function save() {
   if (!editingId.value && !form.value.id.trim()) { toast.show('error', 'ID is required'); return }
   if (!form.value.name.trim()) { toast.show('error', t('common.name_required')); return }
   const { type } = form.value
+  if (type === 'generative') { toast.show('error', t('agents.generative_removed')); return }
   if (type !== AgentMode.ACP && !form.value.model) { toast.show('error', t('agents.error_model')); return }
   if (type === AgentMode.ACP && !form.value.command.trim()) { toast.show('error', t('agents.error_command')); return }
   if (type === AgentMode.ReAct && tempSubAgents.value.length === 0) {
@@ -141,12 +142,11 @@ async function save() {
     const existing = (editingId.value ? agents.value[editingId.value] : null) as any
     const managedFields = new Set([...Object.keys(form.value), 'agents'])
     const unsupportedFields = new Set<string>()
-    if (type === AgentMode.Generative || type === AgentMode.ACP) {
+    if (type === AgentMode.ACP) {
       for (const key of ['mcp', 'mcpExclude', 'mcpParams', 'skills', 'skillsExclude', 'autoApproveTools']) {
         unsupportedFields.add(key)
       }
     }
-    if (type !== AgentMode.Generative) unsupportedFields.add('maxHistoryRounds')
     for (const [key, value] of Object.entries(existing || {})) {
       if (!managedFields.has(key) && !unsupportedFields.has(key)) {
         (config as any)[key] = value
@@ -255,11 +255,10 @@ defineExpose({ open })
         @invalid="(reason) => reason === 'duplicate' ? toast.show('success', t('agents.tags_duplicate')) : null"
       />
     </SFormItem>
-    <SFormItem :label="t('common.type') + ' *'">
+    <SFormItem :label="t('common.type') + ' *'" :hint="form.type === 'generative' ? t('agents.generative_removed') : undefined">
       <SSelect v-model:value="form.type" :options="[
         { value: AgentMode.Single, label: t('agents.type_single') },
         { value: AgentMode.ReAct, label: t('agents.type_react') },
-        { value: AgentMode.Generative, label: t('agents.type_generative') },
         { value: AgentMode.ACP, label: t('agents.type_acp') },
       ]" />
     </SFormItem>
@@ -274,9 +273,9 @@ defineExpose({ open })
       <SSelect v-model:value="form.model" :options="[{ value: '', label: t('common.select_placeholder') }, ...modelOptions.map(m => ({ value: m.id, label: m.label }))]" />
     </SFormItem>
 
-    <!-- Compact Model (Generative/ACP 不支持) -->
+    <!-- Compact Model (ACP 不支持) -->
     <SFormItem
-      v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP"
+      v-if="form.type !== AgentMode.ACP"
       :label="t('agents.compact_model')"
       :hint="t('agents.compact_model_hint')"
     >
@@ -324,9 +323,9 @@ defineExpose({ open })
       <SCheckCard v-model:checked="form.autoApproveAllTools">{{ t('agents.auto_approve_all_tools') }}</SCheckCard>
     </SFormItem>
 
-    <!-- modelCallTimeout (ACP/Generative 不需要) -->
+    <!-- modelCallTimeout (ACP 不需要) -->
     <SFormItem
-      v-if="form.type !== AgentMode.Generative && form.type !== AgentMode.ACP"
+      v-if="form.type !== AgentMode.ACP"
       :label="t('agents.model_call_timeout')"
     >
       <SInput v-model:value.number="form.modelCallTimeout" type="number" :placeholder="t('agents.model_call_timeout_placeholder')" />

@@ -69,16 +69,6 @@ export interface ReactAgentEntry extends ToolAgentEntry {
 }
 
 /**
- * Generative 模式 Agent 配置（图片/音频等纯生成式模型，无工具循环）
- */
-export interface GenerativeAgentEntry extends BaseAgentEntry {
-  type: AgentMode.Generative;
-  systemPrompt?: string;       // 系统提示词
-  model: string;               // 模型 UUID
-  maxHistoryRounds?: number;   // 滑动窗口保留的最大对话轮数（1 轮 = 1 human + 1 ai），默认 5
-}
-
-/**
  * ACP 模式 Agent 配置（通过 ACP 协议委派给外部编码 Agent）
  */
 export interface ACPAgentEntry extends BaseAgentEntry {
@@ -93,7 +83,13 @@ export interface ACPAgentEntry extends BaseAgentEntry {
 /**
  * Agent 配置条目（联合类型）
  */
-export type AgentEntry = SingleAgentEntry | ReactAgentEntry | GenerativeAgentEntry | ACPAgentEntry;
+export type AgentEntry = SingleAgentEntry | ReactAgentEntry | ACPAgentEntry;
+
+export function assertAgentModeAvailable(id: string, type: unknown): void {
+  if (type === 'generative') {
+    throw Object.assign(new Error(`Agent "${id}" uses the retired Generative mode. Edit its configuration and choose Single, ReAct, or ACP before using it.`), { status: 400 });
+  }
+}
 
 export interface Settings {
   httpPort?: number;           // HTTP 服务监听端口，默认 5500
@@ -188,7 +184,7 @@ class Config {
       if (entry.type !== AgentMode.ACP) {
         const promptPath = path.join(agentDir, 'system-prompt.md');
         if (fs.existsSync(promptPath)) {
-          (entry as ToolAgentEntry | GenerativeAgentEntry).systemPrompt = fs.readFileSync(promptPath, 'utf-8');
+          entry.systemPrompt = fs.readFileSync(promptPath, 'utf-8');
         }
       }
 
@@ -238,10 +234,11 @@ class Config {
    * 保存 Agent 配置到目录
    */
   saveAgent(id: string, entry: any): void {
+    assertAgentModeAvailable(id, entry.type || this._readAgentDir(id)?.type);
     const agentDir = this.getConfigPath(`agents/${id}`, true);
 
     // 提取并分离 systemPrompt
-    const { systemPrompt, storeSource, id: _id, ...rest } = entry;
+    const { systemPrompt, storeSource, id: _id, maxHistoryRounds: _maxHistoryRounds, ...rest } = entry;
 
     // 写入 agent.json
     fs.writeFileSync(path.join(agentDir, 'agent.json'), JSON.stringify(rest, null, 2), 'utf-8');

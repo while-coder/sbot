@@ -135,7 +135,7 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 - **One-command deployment** — `npm install -g` or `docker run`, native cross-platform with no extra system dependencies
 - **Full Web UI management** — All configuration done in the browser, no manual file editing required
 - **Multiple LLM providers** — OpenAI, Anthropic Claude, Google Gemini, Ollama, and any OpenAI-compatible API (Azure OpenAI, Groq, Mistral, DeepSeek, etc.); automatic retry with exponential backoff on transient failures
-- **Multi-agent orchestration** — Single, ReAct (recursive task decomposition), and Generative (multimodal) modes; agents can be nested and composed
+- **Agent modes** — Single for direct execution, ReAct for recursive task delegation, and ACP for external agents
 - **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
 - **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
 - **Memory** — Per-agent automatic long-term memory: a background MemoryLLM distills durable knowledge after each conversation idles, read back via `search_memory` / `read_memory` with consolidate/reconcile maintenance

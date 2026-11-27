@@ -134,7 +134,7 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **一条命令部署** — `npm install -g` 或 `docker run`，跨平台原生运行，无额外系统依赖
 - **全 Web UI 管理** — 所有配置在浏览器中完成，无需手动编辑文件
 - **多 LLM 供应商** — OpenAI、Anthropic Claude、Google Gemini、Ollama，以及任何 OpenAI 兼容接口（Azure OpenAI、Groq、Mistral、DeepSeek 等）；网络抖动自动指数退避重试
-- **多 Agent 编排** — Single、ReAct（递归任务分解）、Generative（多模态生成）三种模式，Agent 可嵌套组合
+- **Agent 模式** — Single 直接执行，ReAct 递归委派任务，ACP 接入外部 Agent
 - **ACP Agent 支持** — Agent Client Protocol 集成，支持持久化和临时两种 Agent 模式
 - **对话压缩** — Token 用量超阈值时自动摘要压缩，保持上下文连续性的同时降低消耗
 - **记忆（Memory）** — Agent 级自动长期记忆：会话空闲后由后台 MemoryLLM 提炼持久知识，主 Agent 通过 `search_memory` / `read_memory` 召回，并有 consolidate / reconcile 维护任务

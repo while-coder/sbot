@@ -120,8 +120,9 @@ DELETE /api/agents/:id
 | --- | --- |
 | `single` | `name`, `type`, `model`, `systemPrompt`, `compactModel?`, `mcp?`, `mcpExclude?`, `mcpParams?`, `skills?`, `modelCallTimeout?`, `autoApprove*?`, `tags?` |
 | `react` | single 工具字段 + `agents: { id, desc }[]`，其中 `id` 指向其他 Agent |
-| `generative` | `name`, `type`, `model`, `systemPrompt?`, `maxHistoryRounds?`, `autoApprove*?`, `tags?` |
 | `acp` | `name`, `type`, `command`, `args?`, `env?`, `sessionMode?`, `initTimeout?`, `autoApprove*?`, `tags?` |
+
+旧 `generative` 配置需要先选择仍受支持的模式，再按该模式配置字段。迁移到 `single` 后应验证模型的流式调用与多模态输出。
 
 `systemPrompt` 是 API 字段，但文件真源是 `system-prompt.md`。保存 Agent 时后端会把 `systemPrompt` 从 `agent.json` 拆出去；直接把 `systemPrompt` 塞进 `agent.json` 会在下次保存时消失。ACP 读取时不合并 prompt。
 

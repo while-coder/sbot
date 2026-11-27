@@ -743,7 +743,7 @@ export default {
     sort_model_desc: '模型 ↓',
     type_single: 'Single (单智能体)',
     type_react: 'ReAct (迭代决策)',
-    type_generative: 'Generative (生成式)',
+    generative_removed: 'Generative 模式已移除，请选择 Single、ReAct 或 ACP 后保存。',
     type_acp: 'ACP (外部编码智能体)',
     system_prompt_placeholder: '可选',
     add_sub: '+ 添加',

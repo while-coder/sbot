@@ -53,7 +53,6 @@ export {
   T_CompactPromptTemplate,
   T_PostCompactMessageTemplate,
   T_PostCompactContinuation,
-  T_MaxHistoryRounds,
   T_ChannelSessionId,
   parseJson,
   truncate,
@@ -172,7 +171,6 @@ export {
   // 服务类
   SingleAgentService,
   ReActAgentService,
-  GenerativeAgentService,
   ACPAgentServiceBase,
   TransientACPAgentService,
   PersistentACPAgentService,

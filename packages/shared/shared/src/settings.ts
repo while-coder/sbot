@@ -13,7 +13,6 @@ export enum SaverType {
 export enum AgentMode {
   Single     = "single",
   ReAct      = "react",
-  Generative = "generative",
   ACP        = "acp",
 }
 
@@ -165,8 +164,6 @@ export interface AgentConfig {
   modelCallTimeout?: number
   // react
   agents?: SubAgentRef[]
-  // generative
-  maxHistoryRounds?: number
   // acp
   command?: string
   args?: string[]

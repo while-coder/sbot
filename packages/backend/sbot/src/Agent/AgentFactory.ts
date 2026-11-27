@@ -1,5 +1,5 @@
 import {
-    AgentServiceBase, SingleAgentService, GenerativeAgentService,
+    AgentServiceBase, SingleAgentService,
     TransientACPAgentService, PersistentACPAgentService, T_ACPCommand, T_ACPArgs, T_ACPEnv, T_ACPWorkPath, T_ACPInitTimeout,
     IModelService,
     IAgentSaverService, AgentMemorySaver, ILoggerService,
@@ -13,7 +13,7 @@ import {
     ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
     T_ReactSystemPromptTemplate, T_ReactSubNodePrompt,
-    T_ModelCallTimeout, T_MaxHistoryRounds,
+    T_ModelCallTimeout,
     type CreateAgentFn,
 } from "scorpio.ai";
 import {
@@ -26,7 +26,7 @@ import {
 } from "agent.skill";
 import path from "path";
 import { type AgentTool } from "scorpio.ai";
-import { config, AgentMode, ACPSessionMode, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, GenerativeAgentEntry, ACPAgentEntry } from "../Core/Config";
+import { config, AgentMode, ACPSessionMode, assertAgentModeAvailable, ToolAgentEntry, SingleAgentEntry, ReactAgentEntry, ACPAgentEntry } from "../Core/Config";
 import { loadPrompt } from "../Core/PromptLoader";
 import { createBuiltinCommandTools, globalAgentToolService, BuiltinProvider } from "./GlobalAgentToolService";
 import { globalSkillService, getSkillsDirsMap } from "./GlobalSkillService";
@@ -63,25 +63,23 @@ export class AgentFactory {
     static async create(options: AgentCreateOptions): Promise<AgentServiceBase> {
         const { agentId, container, extraPrompts, dynamicPrompts, agentTools } = options;
         const agentEntry = config.getAgent(agentId);
+        assertAgentModeAvailable(agentId, agentEntry.type);
 
         if (!container.isRegistered(IAgentSaverService)) container.registerSingleton(IAgentSaverService, AgentMemorySaver);
         const agentType = agentEntry.type || AgentMode.Single;
-
-        if (agentType !== AgentMode.Generative && agentType !== AgentMode.ACP) {
-            const toolEntry = agentEntry as ToolAgentEntry;
-            const workspaceSkillPath = options.disableWorkspaceSkills ? undefined : options.workPath;
-            const workspaceMcpPath = options.disableWorkspaceMcp ? undefined : options.workPath;
-            await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath, toolEntry.skillsExclude);
-            await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude, workspaceMcpPath, options.workPath);
-        }
 
         if (agentType === AgentMode.ACP) {
             return this.createACP(container, agentEntry as ACPAgentEntry, options);
         }
 
+        const toolEntry = agentEntry as ToolAgentEntry;
+        const workspaceSkillPath = options.disableWorkspaceSkills ? undefined : options.workPath;
+        const workspaceMcpPath = options.disableWorkspaceMcp ? undefined : options.workPath;
+        await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath, toolEntry.skillsExclude);
+        await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude, workspaceMcpPath, options.workPath);
+
         const systemPrompts = [...extraPrompts];
-        const sp = (agentEntry as ToolAgentEntry | GenerativeAgentEntry).systemPrompt;
-        if (sp) systemPrompts.push(sp);
+        if (toolEntry.systemPrompt) systemPrompts.push(toolEntry.systemPrompt);
 
         if (dynamicPrompts && dynamicPrompts.length > 0) {
             container.registerInstance(T_DynamicSystemPrompts, dynamicPrompts);
@@ -103,9 +101,6 @@ export class AgentFactory {
         switch (agentType) {
             case AgentMode.ReAct:
                 return this.createReAct(container, agentEntry as ReactAgentEntry, systemPrompts, createAgentFn);
-
-            case AgentMode.Generative:
-                return this.createGenerative(container, agentEntry as GenerativeAgentEntry, systemPrompts);
 
             case AgentMode.Single:
             default:
@@ -237,25 +232,6 @@ export class AgentFactory {
             ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout * 1000 }),
         });
         return container.resolve(SingleAgentService);
-    }
-
-    /**
-     * 创建 Generative Agent（图片/音频等纯生成式模型，无工具循环）
-     */
-    private static async createGenerative(
-        container: ServiceContainer,
-        entry: GenerativeAgentEntry,
-        systemPrompts: string[],
-    ): Promise<AgentServiceBase> {
-        const args: Record<symbol, any> = {
-            [IModelService]: config.getModelService(entry.model, true),
-            [T_StaticSystemPrompts]: systemPrompts,
-        };
-        if (entry.maxHistoryRounds != null) {
-            args[T_MaxHistoryRounds] = entry.maxHistoryRounds;
-        }
-        container.registerWithArgs(GenerativeAgentService, args);
-        return container.resolve(GenerativeAgentService);
     }
 
     /**

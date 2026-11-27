@@ -743,7 +743,7 @@ export default {
     sort_model_desc: 'Model ↓',
     type_single: 'Single',
     type_react: 'ReAct',
-    type_generative: 'Generative',
+    generative_removed: 'Generative mode has been removed. Choose Single, ReAct, or ACP before saving.',
     type_acp: 'ACP (External Agent)',
     system_prompt_placeholder: 'Optional',
     add_sub: '+ Add',

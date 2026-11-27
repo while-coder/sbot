@@ -36,7 +36,7 @@ const sortOptions = computed(() => [
 ])
 
 const sortedAgentRows = computed<AgentRow[]>(() => {
-  const typeOrder = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'acp' ? 2 : type === 'generative' ? 3 : 4
+  const typeOrder = (type: string) => type === 'react' ? 0 : type === 'single' ? 1 : type === 'acp' ? 2 : 3
   const rows = Object.entries(agents.value).map(([id, a]) => ({ id, ...(a as any) }))
   const cmp = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
   const nameOf = (r: AgentRow) => r.name || r.id || ''
@@ -630,7 +630,6 @@ async function saveMcpParams() {
 }
 .agent-type-react { background: #ede9fe; color: #6d28d9; }
 .agent-type-single { background: #f0f4f8; color: #64748b; }
-.agent-type-generative { background: #fef3c7; color: #b45309; }
 .agent-type-acp { background: #ccfbf1; color: #0f766e; }
 
 .config-badge {
@@ -829,7 +828,6 @@ async function saveMcpParams() {
 /* Dark theme overrides */
 html[data-theme="dark"] .agent-type-react { background: #3b2d5c; color: #c4b5fd; }
 html[data-theme="dark"] .agent-type-single { background: #2a2a2a; color: #aaa; }
-html[data-theme="dark"] .agent-type-generative { background: #422006; color: #fcd34d; }
 html[data-theme="dark"] .agent-type-acp { background: #134e4a; color: #5eead4; }
 html[data-theme="dark"] .config-badge-id { background: #0c4a6e; color: #7dd3fc; }
 html[data-theme="dark"] .config-badge-info { background: #1e3a5f; color: #93c5fd; }
