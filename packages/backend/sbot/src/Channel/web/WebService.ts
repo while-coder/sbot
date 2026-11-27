@@ -81,6 +81,11 @@ export class WebService implements IChannelService {
                                 dbSessionId: session.id,
                                 sessionId: channelSessionId,
                                 workPath,
+                                onSteeringRejected: message => {
+                                    if (ws.readyState === WebSocket.OPEN) {
+                                        ws.send(JSON.stringify({ profileId, type: WebChatEventType.Error, data: { message, steeringRejected: true } }));
+                                    }
+                                },
                             });
                             break;
                         }

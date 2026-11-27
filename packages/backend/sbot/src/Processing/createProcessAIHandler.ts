@@ -1,5 +1,5 @@
 import { ProcessAIHandler } from "channel.base";
-import { MessageRole, ToolApproval, type TokenUsage, type ChatMessage, saveMessageAttachments, displayMessageAttachments } from "scorpio.ai";
+import { MessageRole, ToolApproval, TurnSteering, type TokenUsage, type ChatMessage, type MessageContent, saveMessageAttachments, displayMessageAttachments } from "scorpio.ai";
 import { channelDataService } from "../Session/ChannelDataService";
 import { config, AgentMode } from "../Core/Config";
 import { buildExecuteTool } from "./buildExecuteTool";
@@ -38,12 +38,12 @@ export function createProcessAIHandler(): ProcessAIHandler {
         if (!saverId.trim() || !config.getSaver(saverId)) {
             throw new Error("saver not specified or not configured");
         }
-        query = await saveMessageAttachments(query, config.getSaverThreadDir(saverId, threadId));
-
-        if (channelId === WEB_CHANNEL_ID) {
-            const content = await displayMessageAttachments(query);
-            webService.broadcast(JSON.stringify({ profileId: String(profile.id), type: WebChatEventType.Human, data: { content } }));
-        }
+        const directory = config.getSaverThreadDir(saverId, threadId);
+        const publishHuman = async (input: MessageContent, steered = false) => {
+            if (channelId !== WEB_CHANNEL_ID) return;
+            const content = await displayMessageAttachments(input);
+            webService.broadcast(JSON.stringify({ profileId: String(profile.id), type: WebChatEventType.Human, data: { content, steered } }));
+        };
 
         sessionHandler.approvalTimeoutMs = approvalTimeout > 0 ? approvalTimeout * 1000 : 0;
         sessionHandler.approvalTimeoutValue = approvalTimeoutValue === ApprovalTimeoutValue.Allow ? ToolApproval.Allow : ToolApproval.Deny;
@@ -59,7 +59,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
         }
         const agentTools = extraAgentTools?.length ? [...baseTools, ...extraAgentTools] : baseTools;
 
-        const executeTool = buildExecuteTool(sessionHandler.session, agentId, autoApproveAllTools, (tc) => sessionHandler.executeApproval(tc));
+        const executeTool = buildExecuteTool(sessionHandler.session, agentId, autoApproveAllTools, (tc, signal) => sessionHandler.executeApproval(tc, signal));
 
         let usageContext: UsageContext;
         try {
@@ -96,23 +96,37 @@ export function createProcessAIHandler(): ProcessAIHandler {
             ? (msg: ChatMessage) => sessionHandler.onStreamMessage(msg, args)
             : undefined;
 
-        const callbacks = { onMessage, onStreamMessage, executeTool, onUsage };
+        // ACP and remote-client transport runs have their own request lifecycle.
+        const steering = channelId === WEB_CHANNEL_ID && config.getAgent(agentId).type !== AgentMode.ACP
+            ? new TurnSteering()
+            : undefined;
+        args.registerSteering?.((input: MessageContent, onRejected: () => void) => steering?.offer({
+            prepare: () => saveMessageAttachments(input, directory),
+            onPersisted: content => publishHuman(content, true),
+            onRejected,
+        }) ?? false);
 
-        await AgentRunner.run({
-            query,
-            callbacks,
-            agentId,
-            saverId,
-            threadId,
-            dbSessionId: String(dbSessionId),
-            extraInfo: args?.extraInfo ?? '',
-            channelPrompt: channelManager.getPlugin(channel.type)?.channelPrompt ?? '',
-            workPath,
-            disableWorkspaceContext,
-            disableWorkspaceSkills,
-            disableWorkspaceMcp,
-            agentTools,
-            memoryId: resolved.memory,
-        });
+        try {
+            query = await saveMessageAttachments(query, directory);
+            await publishHuman(query);
+            await AgentRunner.run({
+                query,
+                callbacks: { onMessage, onStreamMessage, executeTool, onUsage, steering },
+                agentId,
+                saverId,
+                threadId,
+                dbSessionId: String(dbSessionId),
+                extraInfo: args?.extraInfo ?? '',
+                channelPrompt: channelManager.getPlugin(channel.type)?.channelPrompt ?? '',
+                workPath,
+                disableWorkspaceContext,
+                disableWorkspaceSkills,
+                disableWorkspaceMcp,
+                agentTools,
+                memoryId: resolved.memory,
+            });
+        } finally {
+            steering?.close();
+        }
     };
 }

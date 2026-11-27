@@ -2,6 +2,7 @@ import type { ChatLabels } from './types'
 
 export const defaultLabels: Required<ChatLabels> = {
   send: '发送',
+  steeringPending: '正在引导…',
   inputPlaceholder: '输入消息... (Enter 发送, Shift+Enter 换行)',
   stop: '中断',
   attachment: '附件',
@@ -18,7 +19,6 @@ export const defaultLabels: Required<ChatLabels> = {
   noHistory: '暂无消息',
   dateToday: '今天',
   dateYesterday: '昨天',
-  queued: '排队中',
   loading: '加载中...',
   download: '下载',
   close: '关闭',

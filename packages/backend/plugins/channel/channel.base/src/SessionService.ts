@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ChatToolCall, ToolApproval, MessageDispatcher, type MessageContent } from "scorpio.ai";
+import { ChatToolCall, ToolApproval, MessageDispatcher } from "scorpio.ai";
 import { type AskResponse, type AskToolParams } from "./AskTool";
 
 export enum SessionStatus {
@@ -37,7 +37,6 @@ export interface SessionInfo {
     threadId: string;
     startedAt: Date;
     status: SessionStatus;
-    pendingMessages: MessageContent[];
     pendingApproval?: ApprovalInfo;
     pendingAsk?: AskInfo;
 }
@@ -147,7 +146,6 @@ export abstract class SessionService extends MessageDispatcher {
                     remainSec: computeRemainSec(p.timeoutAt),
                 }
                 : undefined,
-            pendingMessages: this.messageQueue.map(m => m.query),
         };
     }
 
@@ -167,7 +165,10 @@ export abstract class SessionService extends MessageDispatcher {
         this._syncStatus();
         const remainSec = next.timeoutMs > 0 ? Math.floor(next.timeoutMs / 1000) : 0;
         // microtask 化：默认 channel 的 enterApproval 会同步 resolve，避免 activate→resolve→activate 同步递归爆栈
-        queueMicrotask(() => { try { next.onActivate?.(next.id, remainSec); } catch {} });
+        queueMicrotask(() => {
+            if (this.active !== next) return;
+            try { next.onActivate?.(next.id, remainSec); } catch {}
+        });
     }
 
     private _onTimeout(entry: PendingEntry): void {

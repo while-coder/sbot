@@ -3,6 +3,7 @@ import { IAgentSaverService, AgentMemorySaver, ChatMessage, ChatToolCall, Conten
 import { ILoggerService, ILogger } from "../Logger";
 import { resizeImageIfNeeded, detectImageMimeType } from "../Utils/contentUtils";
 import { formatError } from "../Core";
+import type { TurnSteering } from "./TurnSteering";
 
 
 export const DEFAULT_MAX_HISTORY_TOKENS = 150_000;
@@ -48,6 +49,7 @@ export type OnCreateThinkFn = (taskId?: string) => Promise<void>;
  * Agent 回调接口 - 统一管理消息、流式、工具确认和图片转换回调
  */
 export interface IAgentCallback {
+    steering?: TurnSteering;
     /** Optional ordered list of tools exposed for this turn. */
     toolNames?: readonly string[];
 
@@ -65,7 +67,7 @@ export interface IAgentCallback {
      * 工具执行前进行确认
      * @returns ToolApproval 枚举，表示执行意图
      */
-    executeTool?(toolCall: ChatToolCall): Promise<ToolApproval>;
+    executeTool?(toolCall: ChatToolCall, signal?: AbortSignal): Promise<ToolApproval>;
 
     /**
      * 每次模型调用后报告 token 用量

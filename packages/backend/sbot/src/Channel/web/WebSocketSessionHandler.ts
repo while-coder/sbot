@@ -20,15 +20,13 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     // ── Message lifecycle ──
 
-    async onProcessStart(_query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType): Promise<void> {
-        this.emit(WebChatEventType.Queue, { pendingMessages: args?.pendingMessages ?? [] });
-    }
+    async onProcessStart(): Promise<void> {}
 
-    async onProcessEnd(_query: MessageContent, args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
+    async onProcessEnd(_query: MessageContent, _args: ChannelMessageArgs, _messageType: MessageType, error?: any): Promise<void> {
         if (error) {
             this.emit(WebChatEventType.Error, { message: formatError(error) });
         }
-        this.emit(WebChatEventType.Done, { pendingMessages: args?.pendingMessages ?? [] });
+        this.emit(WebChatEventType.Done, {});
     }
 
     async onChatMessage(message: ChatMessage, _args: ChannelMessageArgs): Promise<void> {

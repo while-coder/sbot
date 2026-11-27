@@ -1,7 +1,8 @@
 import "reflect-metadata";
-import { ICommand, MessageType, MessageRole, MessageKind, type MessageContent, trimContent, isEmptyContent, runtimeActivity, previewIncomingAttachments } from "scorpio.ai";
+import { ICommand, MessageType, MessageRole, MessageKind, type MessageContent, trimContent, isEmptyContent, runtimeActivity } from "scorpio.ai";
 import { SessionManager, SessionService, ChannelMessageArgs, ChannelSessionHandler } from "channel.base";
 import { type AgentTool } from "scorpio.ai";
+import { WEB_CHANNEL_ID } from "@sbot/shared";
 import { config } from "../Core/Config";
 import { channelDataService, type EffectiveSession } from "./ChannelDataService";
 import { getSessionName } from "../utils";
@@ -21,6 +22,15 @@ export interface ChannelRouteArgs extends ChannelMessageArgs {
     mentionBot?: boolean;
     agentTools?: AgentTool[];
     onComplete?: (error?: any) => void;
+    onSteeringRejected?: (message: string) => void;
+}
+
+type AcceptSteering = (query: MessageContent, onRejected: () => void) => boolean;
+
+interface SessionSteering {
+    dbSessionId: number;
+    accept?: AcceptSteering;
+    startup: { query: MessageContent; onRejected: () => void }[];
 }
 
 const processAIHandler = createProcessAIHandler();
@@ -30,6 +40,7 @@ const processAIHandler = createProcessAIHandler();
 class SbotSession extends SessionService {
     private manager: SbotSessionManager;
     private channel?: ChannelSessionHandler;
+    private activeSteering?: SessionSteering;
 
     constructor(threadId: string, manager: SbotSessionManager) {
         super(threadId, config.getConfigPath(`profiles/${threadId}/settings.json`));
@@ -43,24 +54,46 @@ class SbotSession extends SessionService {
         return this.channel;
     }
 
-    private argsWithQueue(args: ChannelRouteArgs) {
-        return { ...args, pendingMessages: this.messageQueue.map(m => previewIncomingAttachments(m.query)) };
-    }
-
-    override getInfo() {
-        const info = super.getInfo();
-        return { ...info, pendingMessages: info.pendingMessages.map(query => previewIncomingAttachments(query)) };
-    }
-
     protected async onProcessStart(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType): Promise<string | void> {
-        await this.getChannel(args).onProcessStart(query, this.argsWithQueue(args), messageType);
+        if (messageType === MessageType.AI && args.channelId === WEB_CHANNEL_ID) {
+            this.activeSteering = { dbSessionId: args.dbSessionId, startup: [] };
+        }
+        await this.getChannel(args).onProcessStart(query, args, messageType);
         const channelName = config.getChannel(args.channelId)?.name;
         const sessionName = await getSessionName(args.dbSessionId);
         return [args.channelType, channelName ?? args.channelId, sessionName].filter(Boolean).join('/');
     }
 
     protected async processAI(query: MessageContent, args: ChannelRouteArgs): Promise<void> {
-        await this.getChannel(args).processAI(query, args);
+        const active = this.activeSteering;
+        await this.getChannel(args).processAI(query, {
+            ...args,
+            registerSteering: (accept: AcceptSteering) => {
+                if (!active) return;
+                active.accept = accept;
+                for (const input of active.startup.splice(0)) {
+                    if (!accept(input.query, input.onRejected)) input.onRejected();
+                }
+            },
+        });
+    }
+
+    handleFollowUp(query: MessageContent, args: ChannelRouteArgs): boolean {
+        if (args.channelId !== WEB_CHANNEL_ID || !this.isProcessingQueue) return false;
+        const onRejected = () => args.onSteeringRejected?.('该消息未发送。当前运行无法接收引导，请在运行结束后重发。');
+        const active = this.activeSteering;
+        if (active?.dbSessionId !== args.dbSessionId || (typeof query === 'string' && query.startsWith('/'))) {
+            onRejected();
+        } else if (active.accept) {
+            if (!active.accept(query, onRejected)) onRejected();
+        } else {
+            active.startup.push({ query, onRejected });
+        }
+        return true;
+    }
+
+    override async onReceiveMessage(query: MessageContent, args: ChannelRouteArgs): Promise<void> {
+        if (!this.handleFollowUp(query, args)) await super.onReceiveMessage(query, args);
     }
 
     protected async onCommandResult(query: string, content: string, args: ChannelRouteArgs): Promise<void> {
@@ -84,7 +117,10 @@ class SbotSession extends SessionService {
     }
 
     protected async onProcessEnd(query: MessageContent, args: ChannelRouteArgs, messageType: MessageType, error?: any): Promise<void> {
-        await this.getChannel(args).onProcessEnd(query, this.argsWithQueue(args), messageType, error);
+        const active = this.activeSteering;
+        this.activeSteering = undefined;
+        for (const input of active?.startup ?? []) input.onRejected();
+        await this.getChannel(args).onProcessEnd(query, args, messageType, error);
         if (args.onComplete) {
             args.onComplete(error);
         }
@@ -197,6 +233,9 @@ export class SbotSessionManager extends SessionManager {
         if (isEmptyContent(query)) return;
 
         const threadId = await this.resolveThreadId(args.dbSessionId);
+
+        const active = this.getSession(threadId) as SbotSession | undefined;
+        if (active?.handleFollowUp(query, args)) return;
 
         // 命令消息跳过意图过滤和消息合并，直接透传
         if (typeof query === 'string' && query.trimStart().startsWith('/')) {

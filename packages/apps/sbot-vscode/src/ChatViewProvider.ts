@@ -11,7 +11,6 @@ const EVENT_TYPE_MAP: Record<string, string> = {
   [WebChatEventType.Message]: 'message',
   [WebChatEventType.ToolCall]: 'toolCall',
   [WebChatEventType.Ask]: 'ask',
-  [WebChatEventType.Queue]: 'queue',
   [WebChatEventType.Done]: 'done',
   [WebChatEventType.Error]: 'error',
   [WebChatEventType.Usage]: 'usage',

@@ -6,8 +6,8 @@ export function buildExecuteTool(
     session: SessionService,
     agentId: string,
     sessionAutoApproveAll: boolean,
-    executeApproval: (toolCall: ChatToolCall) => Promise<ToolApproval>,
-): (toolCall: ChatToolCall) => Promise<ToolApproval> {
+    executeApproval: (toolCall: ChatToolCall, signal?: AbortSignal) => Promise<ToolApproval>,
+): (toolCall: ChatToolCall, signal?: AbortSignal) => Promise<ToolApproval> {
     const { settings } = session;
     if (!settings.approveTools) settings.approveTools = {};
     const approveTools = settings.approveTools;
@@ -15,7 +15,7 @@ export function buildExecuteTool(
     const agentAutoApprove = agentEntry?.autoApproveTools;
     const agentAutoApproveAll = agentEntry?.autoApproveAllTools;
 
-    return async (toolCall: ChatToolCall) => {
+    return async (toolCall: ChatToolCall, signal?: AbortSignal) => {
         if (config.settings.autoApproveAllTools) return ToolApproval.Allow;
         if (config.settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
         if (sessionAutoApproveAll) return ToolApproval.Allow;
@@ -25,7 +25,7 @@ export function buildExecuteTool(
         if (approvedArgs && (approvedArgs.includes('*') || approvedArgs.includes(JSON.stringify(toolCall.args)))) {
             return ToolApproval.Allow;
         }
-        const result = await executeApproval(toolCall);
+        const result = await executeApproval(toolCall, signal);
         if (result === ToolApproval.AlwaysTool) {
             approveTools[toolCall.name] = ['*'];
             session.saveSettings();

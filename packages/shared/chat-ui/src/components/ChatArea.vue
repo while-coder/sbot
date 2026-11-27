@@ -18,8 +18,8 @@ import AskForm from './AskForm.vue'
 const props = withDefaults(defineProps<{
   messages: StoredMessage[]
   isStreaming: boolean
+  steeringPending?: boolean
   streamingContent: DisplayContent
-  queuedMessages?: DisplayContent[]
   pendingToolCall: ToolCallEvent | null
   pendingAsk: AskEvent | null
   thinksUrlPrefix?: string | null
@@ -184,7 +184,6 @@ defineExpose({ scrollToBottom })
         :tasks-url-prefix="tasksUrlPrefix"
         :is-streaming="isStreaming"
         :streaming-content="streamingContent"
-        :queued-messages="queuedMessages"
         :labels="labels"
         :fetch-fn="fetchThinks"
       />
@@ -320,6 +319,7 @@ defineExpose({ scrollToBottom })
 
       <!-- Below-card session config row -->
       <div v-if="hasSaver" class="chatui-input-config">
+        <span v-if="steeringPending" class="chatui-input-config-item" role="status">{{ L.steeringPending }}</span>
         <div v-if="!hideSaverSelect" class="chatui-input-config-item">
           <span class="chatui-input-config-label">{{ L.storage }}</span>
           <SSelect

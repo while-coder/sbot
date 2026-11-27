@@ -55,7 +55,7 @@ const settings          = ref<AppSettings>({ agents: {}, savers: {} })
 const messages          = ref<StoredMessage[]>([])
 const isStreaming       = ref(false)
 const streamingContent  = ref<DisplayContent>('')
-const queuedMessages    = ref<DisplayContent[]>([])
+const pendingSteers     = ref(0)
 const showArchived      = ref(false)
 
 const pendingToolCall   = ref<ToolCallEvent | null>(null)
@@ -185,7 +185,10 @@ function handleEvent(evt: ChatEvent) {
       break
     case ChatEventType.Human:
       isStreaming.value = true
-      if (queuedMessages.value.length > 0) queuedMessages.value.shift()
+      if (evt.data.steered) {
+        pendingSteers.value = Math.max(0, pendingSteers.value - 1)
+        streamingContent.value = ''
+      }
       messages.value.push({ message: { role: MessageRole.Human, content: evt.data.content }, createdAt: Date.now() / 1000, kind: MessageKind.Normal })
       nextTick(() => chatAreaRef.value?.scrollToBottom(true))
       break
@@ -213,19 +216,11 @@ function handleEvent(evt: ChatEvent) {
     case ChatEventType.AskDone:
       if (pendingAsk.value?.id === evt.data.id) pendingAsk.value = null
       break
-    case ChatEventType.Queue:
-      // Only adopt the server's view when the client doesn't already have a local queue.
-      if (queuedMessages.value.length === 0 && evt.data.pendingMessages?.length) {
-        queuedMessages.value = filterPendingCommands(evt.data.pendingMessages)
-      }
-      break
     case ChatEventType.Done:
-      if (evt.data?.pendingMessages) {
-        queuedMessages.value = filterPendingCommands(evt.data.pendingMessages)
-      }
+      pendingSteers.value = 0
       pendingToolCall.value = null
       pendingAsk.value = null
-      if (queuedMessages.value.length === 0) isStreaming.value = false
+      isStreaming.value = false
       loadUsage()
       break
     case ChatEventType.Error:
@@ -234,7 +229,8 @@ function handleEvent(evt: ChatEvent) {
         createdAt: Date.now() / 1000,
         kind: MessageKind.Exception,
       })
-      resetStreamState()
+      if (evt.data.steeringRejected) pendingSteers.value = Math.max(0, pendingSteers.value - 1)
+      else resetStreamState()
       break
     case ChatEventType.Usage:
       usage.value = mergeUsage(usage.value, evt.data)
@@ -273,7 +269,7 @@ function resetStreamState() {
   streamingContent.value = ''
   pendingToolCall.value = null
   pendingAsk.value = null
-  queuedMessages.value = []
+  pendingSteers.value = 0
 }
 
 // ── Session actions ──
@@ -525,7 +521,6 @@ async function restoreSessionStatus(gen = ++loadGeneration) {
     if (gen !== loadGeneration) return
     if (!status) { isStreaming.value = false; return }
     isStreaming.value = true
-    queuedMessages.value = status.pendingMessages ?? []
     if (status.pendingApproval) {
       pendingToolCall.value = {
         approvalId: status.pendingApproval.id,
@@ -641,10 +636,6 @@ async function onPathConfirmed(path: string) {
 
 const isCommandText = (text: string) => text.trimStart().startsWith('/')
 
-function filterPendingCommands(pending: DisplayContent[]): DisplayContent[] {
-  return pending.filter(m => !(typeof m === 'string' && isCommandText(m)))
-}
-
 function partsToDisplayText(parts: MessageContent): string {
   if (typeof parts === 'string') return parts || '[attachment]'
   const text = parts
@@ -660,12 +651,13 @@ function onSend(content: MessageContent, attachments: Attachment[]) {
   if (!id || !hasSaver.value) return
   if ((typeof content === 'string' ? !content : content.length === 0) && attachments.length === 0) return
   const display = partsToDisplayText(content)
-  if (isCommandText(display)) {
+  if (isStreaming.value) {
+    pendingSteers.value++
+  } else if (attachments.length === 0 && isCommandText(display)) {
     messages.value.push({ message: { role: MessageRole.Human, content: display }, createdAt: Date.now() / 1000, kind: MessageKind.Normal })
     nextTick(() => chatAreaRef.value?.scrollToBottom(true))
   } else {
     void renameSessionFromFirstMessage(id, display)
-    queuedMessages.value.push(display)
   }
   isStreaming.value = true
   props.transport.sendMessage(id, content, attachments.length > 0 ? attachments : undefined)
@@ -998,8 +990,8 @@ function saveRightPanelOpenState(open: boolean): void {
           class="chatui-chatarea"
           :messages="displayedMessages"
           :is-streaming="isStreaming"
+          :steering-pending="pendingSteers > 0"
           :streaming-content="streamingContent"
-          :queued-messages="queuedMessages"
           :pending-tool-call="pendingToolCall"
           :pending-ask="pendingAsk"
           :thinks-url-prefix="thinksUrlPrefix"

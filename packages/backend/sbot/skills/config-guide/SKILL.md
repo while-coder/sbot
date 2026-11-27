@@ -161,7 +161,7 @@ GET    /api/agents/:name/mcp/:id/details
 
 全局 MCP 修改会 `refreshGlobalAgentToolService()`。Agent 专属 MCP 只影响该 Agent。Agent 的 `mcp` 字段从全局集合中筛选：`'*'` 表示全选，`mcpExclude` 只在 `'*'` 时生效；专属 `mcp.json` 对该 Agent 始终可见。
 
-`builtin_command` 提供 `exec_command`、`write_stdin`、`apply_patch` 和 `view_image`。补丁采用 Git unified diff，相对于会话工作目录应用。`view_image` 用工作目录内的相对路径加载图片供视觉模型查看。`builtin_exa` 提供 `web_search_exa`。ReAct 用 `spawn_agent` 后台启动已配置的子 Agent，用 `wait_agent` 取结果，用 `send_input` 排队追加指令，用 `close_agent` 取消任务。可用原 `taskId` 续接已保存的子会话。
+`builtin_command` 提供 `exec_command`、`write_stdin`、`apply_patch` 和 `view_image`。补丁采用 Git unified diff，相对于会话工作目录应用。`view_image` 用工作目录内的相对路径加载图片供视觉模型查看。`builtin_exa` 提供 `web_search_exa`。ReAct 用 `spawn_agent` 后台启动已配置的子 Agent，用 `wait_agent` 取结果，用 `send_input` 引导运行中的原生子 Agent，用 `close_agent` 取消任务。可用原 `taskId` 续接已保存的子会话。
 
 `spawn_agent` 和 `send_input` 使用 `imagePaths` 把图片随指令交给子 Agent。会话附件使用消息中记录的完整 `filePath`，工作区图片使用相对于会话工作目录的路径。
 

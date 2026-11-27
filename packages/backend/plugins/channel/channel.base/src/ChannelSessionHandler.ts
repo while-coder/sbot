@@ -68,16 +68,20 @@ export abstract class ChannelSessionHandler<TProvider extends AbstractChatProvid
   }
 
   // Framework entrypoints. Channels should customize the protected hooks below.
-  async executeApproval(toolCall: ChatToolCall): Promise<ToolApproval> {
+  async executeApproval(toolCall: ChatToolCall, signal?: AbortSignal): Promise<ToolApproval> {
+    if (signal?.aborted) return ToolApproval.Deny;
     // 入队即返回；推 UI 延迟到成为队首 active 时（onActivate），计时也从那一刻起算。
     // 主/子 agent 并发触发的审批因此被串行展示，用户逐个点击。
     const { id, promise } = this.session.enterApproval(
       toolCall, this.approvalTimeoutMs, this.approvalTimeoutValue,
       (activeId, remainSec) => { void this.enterApproval(activeId, remainSec, toolCall); },
     );
+    const cancel = () => this.session.exitApproval(id, ToolApproval.Deny);
+    signal?.addEventListener('abort', cancel, { once: true });
     try {
       return await promise;
     } finally {
+      signal?.removeEventListener('abort', cancel);
       try { await this.exitApproval(id); } catch {}
     }
   }

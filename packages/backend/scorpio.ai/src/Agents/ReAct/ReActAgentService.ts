@@ -13,6 +13,7 @@ import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_C
 import { IAgentPlugin, type AgentPluginContext } from "../Plugins";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
+import { TurnSteering } from "../TurnSteering";
 import { createSpawnAgentTool, SPAWN_AGENT_TOOL_NAME, TaskContextMode, type RunDispatchTaskArgs } from "../../Tools";
 import { subAgentImagePathsSchema } from "../../Tools/Task/DispatchTaskTool";
 import { MCPContentType, createTextContent, createImageContent, createErrorResult, type MCPContent, type MCPToolResult } from "../../Tools/Core";
@@ -35,13 +36,13 @@ enum TaskStatus {
 
 const LIFECYCLE_TOOLS = new Set([SPAWN_AGENT_TOOL_NAME, 'send_input', 'wait_agent', 'close_agent']);
 const MAX_ACTIVE_AGENTS = 6;
-const MAX_PENDING_INPUTS = 8;
 
 interface ActiveTask {
   agentId: string;
   controller: AbortController;
-  pending: number;
+  running: boolean;
   completion: Promise<void>;
+  steering?: { input: TurnSteering; thinkId: string };
   result?: MCPToolResult;
 }
 
@@ -133,11 +134,11 @@ export class ReActAgentService extends SingleAgentService {
 
   protected override async buildTools(ctx: AgentPluginContext, callback?: IAgentCallback, signal?: AbortSignal): Promise<AgentTool[]> {
     if (!callback) return [];
-    const { onMessage: _, onStreamMessage: _stream, ...subCallback } = callback;
+    const { onMessage: _, onStreamMessage: _stream, steering: _parentSteering, ...subCallback } = callback;
 
     const runTask = async ({
       agentId, task, systemPrompt, contextMode, thinkId: resolvedThinkId, taskId: resolvedTaskId,
-    }: RunDispatchTaskArgs & { taskId: string; thinkId: string }, input: MessageContent, resume: boolean, taskSignal: AbortSignal): Promise<MCPToolResult> => {
+    }: RunDispatchTaskArgs & { taskId: string; thinkId: string }, input: MessageContent, resume: boolean, taskSignal: AbortSignal, active: ActiveTask): Promise<MCPToolResult> => {
       let agentService: AgentServiceBase | null = null;
       const subNode = this.agentSubNodes.find(a => a.id === agentId);
       await this.changeRegistry(reg => {
@@ -181,7 +182,9 @@ export class ReActAgentService extends SingleAgentService {
         }
 
         taskSignal.throwIfAborted();
-        const messages = await agentService.stream(input, subCallback, taskSignal);
+        const steering = agentService instanceof SingleAgentService ? new TurnSteering() : undefined;
+        if (steering) active.steering = { input: steering, thinkId: resolvedThinkId };
+        const messages = await agentService.stream(input, { ...subCallback, steering }, taskSignal);
         taskSignal.throwIfAborted();
         let lastAI: ChatMessage | undefined;
         for (let i = messages.length - 1; i >= 0; i--) {
@@ -216,6 +219,8 @@ export class ReActAgentService extends SingleAgentService {
         await this.updateTaskRecord(resolvedTaskId, status, formatError(error));
         return { ...createErrorResult(`task_id: ${resolvedTaskId}\nstatus: ${status}\n${formatError(error)}`), _meta: { thinkId: resolvedThinkId, taskId: resolvedTaskId } };
       } finally {
+        active.steering?.input.close();
+        active.steering = undefined;
         await agentService?.dispose();
       }
     };
@@ -226,7 +231,7 @@ export class ReActAgentService extends SingleAgentService {
       return parentTools;
     }
 
-    const enqueue = async (args: RunDispatchTaskArgs, allowQueue: boolean): Promise<MCPToolResult> => {
+    const dispatch = async (args: RunDispatchTaskArgs, followUp: boolean): Promise<MCPToolResult> => {
       const images: ContentPart[] = [];
       for (const imagePath of new Set(args.imagePaths)) {
         try {
@@ -253,42 +258,47 @@ export class ReActAgentService extends SingleAgentService {
       }
       if (this.disposing || signal?.aborted) return createErrorResult('Agent execution is ending.');
       const active: ActiveTask = this.tasks.get(taskId) ?? {
-        agentId: args.agentId, controller: new AbortController(), pending: 0, completion: Promise.resolve(),
+        agentId: args.agentId, controller: new AbortController(), running: false, completion: Promise.resolve(),
       };
       if (active.agentId !== args.agentId) return createErrorResult('This taskId belongs to a different sub-agent.');
       if (active.controller.signal.aborted) return createErrorResult('This sub-agent has been closed.');
-      if (active.pending > 0 && !allowQueue) return createErrorResult('This task is running. Use send_input for a follow-up.');
-      if (active.pending >= MAX_PENDING_INPUTS) return createErrorResult('Too many pending instructions for this task.');
-      if (!active.pending && [...this.tasks.values()].filter(task => task.pending > 0).length >= MAX_ACTIVE_AGENTS) {
+      if (active.running) {
+        if (!followUp) return createErrorResult('This task is running. Use send_input for a follow-up.');
+        const steering = active.steering;
+        if (!steering?.input.offer({ prepare: () => input })) {
+          return createErrorResult('The sub-agent cannot accept steering during its current run.');
+        }
+        return { content: [createTextContent(`task_id: ${taskId}\nstatus: steering\nagent: ${args.agentId}`)], _meta: { thinkId: steering.thinkId, taskId } };
+      }
+      if ([...this.tasks.values()].filter(task => task.running).length >= MAX_ACTIVE_AGENTS) {
         return createErrorResult('Too many active sub-agents. Wait for a result before starting another.');
       }
 
       this.tasks.set(taskId, active);
-      const status = active.pending ? 'queued' : 'running';
       const taskSignal = signal ? AbortSignal.any([signal, active.controller.signal]) : active.controller.signal;
       const announcement = Promise.resolve().then(() => args.onCreateThink?.(taskId));
-      active.pending++;
-      active.completion = active.completion.then(async () => {
+      active.running = true;
+      active.completion = (async () => {
         try {
           await announcement;
           if (!taskSignal.aborted) {
-            active.result = await runTask({ ...args, taskId, thinkId }, input, resume, taskSignal);
+            active.result = await runTask({ ...args, taskId, thinkId }, input, resume, taskSignal, active);
           }
         } catch (error) {
           active.result = createErrorResult(`task_id: ${taskId}\nstatus: error\n${formatError(error)}`);
         } finally {
-          active.pending--;
+          active.running = false;
         }
-      });
+      })();
       await announcement;
-      return { content: [createTextContent(`task_id: ${taskId}\nstatus: ${status}\nagent: ${args.agentId}`)], _meta: { thinkId, taskId } };
+      return { content: [createTextContent(`task_id: ${taskId}\nstatus: running\nagent: ${args.agentId}`)], _meta: { thinkId, taskId } };
     };
 
     return [
-      createSpawnAgentTool(agentIds, args => enqueue(args, false)),
+      createSpawnAgentTool(agentIds, args => dispatch(args, false)),
       createAgentTool({
         name: 'send_input',
-        description: 'Send a follow-up to a sub-agent in this turn. A running sub-agent finishes its current instruction before starting the follow-up.',
+        description: 'Steer a running native sub-agent at the next safe model or tool boundary, or give an idle sub-agent a new instruction.',
         schema: z.object({
           taskId: z.string().uuid(), message: z.string().trim().min(1),
           imagePaths: subAgentImagePathsSchema,
@@ -296,12 +306,12 @@ export class ReActAgentService extends SingleAgentService {
         func: async ({ taskId, message, imagePaths }, config) => {
           const active = this.tasks.get(taskId);
           if (!active) return createErrorResult('Unknown taskId in this turn. Use spawn_agent to resume saved tasks.');
-          return enqueue({ taskId, agentId: active.agentId, task: message, imagePaths, thinkId: config?.thinkId, onCreateThink: config?.onCreateThink }, true);
+          return dispatch({ taskId, agentId: active.agentId, task: message, imagePaths, thinkId: config?.thinkId, onCreateThink: config?.onCreateThink }, true);
         },
       }),
       createAgentTool({
         name: 'wait_agent',
-        description: 'Wait for the given sub-agents to finish their queued instructions and return their latest results. Reports running tasks if the timeout expires.',
+        description: 'Wait for the given sub-agents to finish and return their latest results. Reports running tasks if the timeout expires.',
         schema: z.object({
           taskIds: z.array(z.string().uuid()).min(1).max(MAX_ACTIVE_AGENTS),
           timeoutMs: z.number().int().positive().max(60_000).default(15_000),
@@ -310,7 +320,7 @@ export class ReActAgentService extends SingleAgentService {
       }),
       createAgentTool({
         name: 'close_agent',
-        description: 'Cancel a sub-agent and discard queued instructions for this turn. Its conversation history is saved.',
+        description: 'Cancel the current run of a sub-agent. Its conversation history is saved.',
         schema: z.object({ taskId: z.string().uuid() }),
         func: async ({ taskId }) => {
           const active = this.tasks.get(taskId);
@@ -357,7 +367,7 @@ export class ReActAgentService extends SingleAgentService {
     return {
       content: selected.flatMap(({ taskId, task }) => {
         if (task.controller.signal.aborted) return [createTextContent(`task_id: ${taskId}\nstatus: closed`)];
-        if (task.pending || !task.result) return [createTextContent(`task_id: ${taskId}\nstatus: running`)];
+        if (task.running || !task.result) return [createTextContent(`task_id: ${taskId}\nstatus: running`)];
         return task.result.content;
       }),
     };
@@ -429,7 +439,7 @@ export class ReActAgentService extends SingleAgentService {
   override async dispose(): Promise<void> {
     this.disposing = true;
     for (const task of this.tasks.values()) {
-      if (task.pending) task.controller.abort();
+      if (task.running) task.controller.abort();
     }
     await Promise.allSettled([...this.tasks.values()].map(task => task.completion));
     this.tasks.clear();

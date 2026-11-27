@@ -33,7 +33,6 @@ const props = withDefaults(defineProps<{
   showDateSeparators?: boolean
   isStreaming?: boolean
   streamingContent?: DisplayContent
-  queuedMessages?: DisplayContent[]
   labels?: ChatLabels
   fetchFn?: (url: string) => Promise<any>
   onThinkClick?: (thinkId: string, taskId?: string, opts?: { live?: boolean }) => void
@@ -305,17 +304,6 @@ function contentCharLen(content?: DisplayContent): number {
           <ContentParts :content="streamingContent" :show-audio="false" @open-image="openLightbox" />
         </template>
         <span v-else class="chatui-thinking">{{ L.thinking }}</span>
-      </div>
-    </div>
-
-    <!-- Queued messages -->
-    <div v-for="(q, i) in queuedMessages" :key="'q' + i" class="msg-row human">
-      <div class="msg-bubble human queued">
-        <div class="msg-role-bar">
-          <span class="msg-role">{{ L.roleUser }}</span>
-          <span class="msg-queued-tag">{{ L.queued }}</span>
-        </div>
-        <ContentParts :content="q" :show-audio="false" @open-image="openLightbox" />
       </div>
     </div>
 
@@ -644,14 +632,6 @@ function contentCharLen(content?: DisplayContent): number {
   0%, 100% { opacity: 0.3; }
   50%      { opacity: 1; }
 }
-/* Queued */
-.msg-bubble.queued { opacity: 0.6; }
-.msg-queued-tag {
-  font-size: 10px;
-  color: var(--chatui-fg-secondary);
-  font-style: italic;
-}
-
 /* Archived (历史快照) */
 .msg-row.archived { opacity: 0.55; }
 .msg-row.archived .msg-bubble,

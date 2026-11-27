@@ -20,7 +20,6 @@ export enum WebChatEventType {
   AskDone  = 'askDone',
   Done     = 'done',
   Error    = 'error',
-  Queue    = 'queue',
   Usage    = 'usage',
 }
 
@@ -38,16 +37,14 @@ export type AskQuestionSpec =
   | { type: AskQuestionType.Checkbox; label: string; options: string[] }
   | { type: AskQuestionType.Input;    label: string; placeholder?: string }
 
-export interface HumanData    { content: DisplayContent }
+export interface HumanData    { content: DisplayContent; steered?: boolean }
 export interface StreamData   { content: DisplayContent }
 export interface MessageData  { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number; kind?: string }
 export interface ToolCallData { approvalId: string; toolCallId?: string; name: string; args: Record<string, any>; remainSec?: number; timeoutValue?: ApprovalTimeoutValue }
 export interface ApprovalDoneData { id: string }
 export interface AskData      { id: string; title?: string; questions: AskQuestionSpec[]; remainSec?: number }
 export interface AskDoneData  { id: string }
-export interface DoneData     { pendingMessages?: DisplayContent[] }
-export interface ErrorData    { message: string }
-export interface QueueData    { pendingMessages: DisplayContent[] }
+export interface ErrorData    { message: string; steeringRejected?: boolean }
 export interface UsageData    { inputTokens: number; outputTokens: number; totalTokens: number }
 
 export type WebChatEventDataMap = {
@@ -58,9 +55,8 @@ export type WebChatEventDataMap = {
   [WebChatEventType.ApprovalDone]: ApprovalDoneData
   [WebChatEventType.Ask]:      AskData
   [WebChatEventType.AskDone]:  AskDoneData
-  [WebChatEventType.Done]:     DoneData
+  [WebChatEventType.Done]:     Record<string, never>
   [WebChatEventType.Error]:    ErrorData
-  [WebChatEventType.Queue]:    QueueData
   [WebChatEventType.Usage]:    UsageData
 }
 

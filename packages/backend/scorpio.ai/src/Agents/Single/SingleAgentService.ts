@@ -302,6 +302,7 @@ export class SingleAgentService extends AgentServiceBase {
             }
             await emitStream();
         } catch (err: any) {
+            if (state.signal?.aborted) throw new AgentCancelledError();
             if (err instanceof AgentCancelledError) throw err;
             const cfg = this.modelService.config;
             this.logger?.error(
@@ -438,18 +439,27 @@ export class SingleAgentService extends AgentServiceBase {
 
         for (let i = 0; i < toolCalls.length; i++) {
             const toolCall = toolCalls[i];
-            if (state.signal?.aborted) break;   // 剩余未处理的在循环外统一补 Cancelled
+            if (state.signal?.aborted || callback?.steering?.hasPending) break;
 
             // 审批：串行 await（全局交互队列把跨 agent 的审批序列化，用户逐个点击）
             let approval: ToolApproval | undefined;
             if (callback?.executeTool && !this.isInternalTool(toolCall.name)) {
+                const steering = callback.steering;
+                const interrupt = steering ? new AbortController() : undefined;
+                const unwatch = interrupt ? steering?.watchInterruptibleStep(interrupt) : undefined;
+                const approvalSignal = interrupt
+                    ? (state.signal ? AbortSignal.any([state.signal, interrupt.signal]) : interrupt.signal)
+                    : state.signal;
                 try {
-                    approval = await raceCancel(callback.executeTool(toolCall), state.signal);
+                    approval = await raceCancel(callback.executeTool(toolCall, approvalSignal), approvalSignal);
                 } catch (err) {
                     if (err instanceof AgentCancelledError) break;
                     throw err;
+                } finally {
+                    unwatch?.();
                 }
             }
+            if (callback?.steering?.hasPending) break;
             if (approval === ToolApproval.Deny) {
                 toolMessages[i] = { role: MessageRole.Tool, tool_call_id: toolCall.id || "", content: `Tool call rejected by user`, status: "error" };
                 continue;
@@ -460,7 +470,7 @@ export class SingleAgentService extends AgentServiceBase {
             inFlight.push((async () => {
                 await sem.acquire();
                 try {
-                    if (state.signal?.aborted) { toolMessages[idx] = cancelledMsg(toolCall); return; }
+                    if (state.signal?.aborted || callback?.steering?.hasPending) { toolMessages[idx] = cancelledMsg(toolCall); return; }
                     toolMessages[idx] = await this.runSingleTool(toolCall, toolMap, idx, state.signal, callback, state.queryBrief);
                 } catch (error: any) {
                     if (error instanceof AgentCancelledError) {
@@ -617,9 +627,42 @@ export class SingleAgentService extends AgentServiceBase {
         return result;
     }
 
-    private agentNext(state: { messages: ChatMessage[] }): GraphNodeType.TOOLS | typeof END {
+    private agentNext(state: SingleAgentState): GraphNodeType | typeof END {
         const lastMessage = state.messages[state.messages.length - 1];
-        return lastMessage?.tool_calls?.length ? GraphNodeType.TOOLS : END;
+        if (lastMessage?.tool_calls?.length) return GraphNodeType.TOOLS;
+        if (state.callback?.steering?.hasPending) return GraphNodeType.AGENT;
+        state.callback?.steering?.close();
+        return END;
+    }
+
+    private async runModelWithSteering(state: SingleAgentState, conversation: ChatMessage[]) {
+        const steering = state.callback?.steering;
+        if (!steering) return this.callModelNode(state);
+
+        while (!state.signal?.aborted) {
+            for (let input = steering.shift(); input; input = steering.shift()) {
+                let content = await input.prepare();
+                content = await this.resizeImagesInContent(await this.degradeUnsupportedImages(content));
+                const message = { role: MessageRole.Human, content };
+                await this.saverService.pushMessage(message);
+                conversation.push(message);
+                await input.onPersisted?.(content);
+                if (state.signal?.aborted) throw new AgentCancelledError();
+            }
+
+            const request = new AbortController();
+            const unwatch = steering.watchInterruptibleStep(request);
+            try {
+                const signal = state.signal ? AbortSignal.any([state.signal, request.signal]) : request.signal;
+                const result = await this.callModelNode({ ...state, signal });
+                if (!request.signal.aborted) return result;
+            } catch (error) {
+                if (!request.signal.aborted || state.signal?.aborted) throw error;
+            } finally {
+                unwatch();
+            }
+        }
+        throw new AgentCancelledError();
     }
 
     /**
@@ -632,6 +675,7 @@ export class SingleAgentService extends AgentServiceBase {
         await this.saverService.pushMessage({ role: MessageRole.Human, content: query });
 
         const outputMessages: ChatMessage[] = [];
+        const conversation: ChatMessage[] = [{ role: MessageRole.Human, content: query }];
         // 本轮插件上下文造一份，贯穿 prompt / 工具 / turn 末尾三个钩子，保证各钩子看到同一份 query。
         const ctx = this.buildPluginContext(await resolveMessageAttachments(query, false));
 
@@ -659,7 +703,7 @@ export class SingleAgentService extends AgentServiceBase {
                 + `\n\ntools(${toolNames.length}): ${toolNames.length ? toolNames.join(', ') : '(无)'}`);
 
             const graph = new StateGraph<SingleAgentState>()
-                .addNode(GraphNodeType.AGENT, this.callModelNode.bind(this))
+                .addNode(GraphNodeType.AGENT, state => this.runModelWithSteering(state, conversation))
                 .addNode(GraphNodeType.TOOLS, this.callToolsNode.bind(this))
                 .addEdge(START, GraphNodeType.AGENT)
                 .addConditionalEdges(GraphNodeType.AGENT, this.agentNext.bind(this))
@@ -676,6 +720,7 @@ export class SingleAgentService extends AgentServiceBase {
 
                     for (const message of messages) {
                         outputMessages.push(message);
+                        conversation.push(message);
                         // 压入历史：从 additional_kwargs 中取出 thinkId / taskId 作为独立参数，不存入消息体
                         const thinkId = message.additional_kwargs?.thinkId as string | undefined;
                         const taskId = message.additional_kwargs?.taskId as string | undefined;
@@ -704,12 +749,10 @@ export class SingleAgentService extends AgentServiceBase {
         } catch (err) {
             await this.recordException(err);
             throw err;
+        } finally {
+            callback.steering?.close();
         }
         // turn 末尾副作用由插件以 fire-and-forget 方式处理。
-        const conversation: ChatMessage[] = [
-            { role: MessageRole.Human, content: query },
-            ...outputMessages,
-        ];
         this.notifyPluginsTurnCompleted(ctx, conversation);
 
         return outputMessages;

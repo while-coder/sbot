@@ -109,6 +109,7 @@ export interface Attachment {
 
 export interface ChatLabels {
   send?: string
+  steeringPending?: string
   inputPlaceholder?: string
   stop?: string
   attachment?: string
@@ -125,7 +126,6 @@ export interface ChatLabels {
   noHistory?: string
   dateToday?: string
   dateYesterday?: string
-  queued?: string
   loading?: string
   download?: string
   close?: string
@@ -483,7 +483,6 @@ export interface SessionStatus {
     timeoutValue?: ApprovalTimeoutValue
   }
   pendingAsk?: AskEvent & { startedAt: string }
-  pendingMessages?: DisplayContent[]
 }
 
 // ── Chat events (server → client) ──
@@ -496,7 +495,6 @@ export enum ChatEventType {
   ApprovalDone = 'approvalDone',
   Ask = 'ask',
   AskDone = 'askDone',
-  Queue = 'queue',
   Done = 'done',
   Error = 'error',
   Usage = 'usage',
@@ -504,14 +502,13 @@ export enum ChatEventType {
 
 export type ChatEvent =
   | { type: ChatEventType.ConnectionStatus; online: boolean }
-  | { type: ChatEventType.Human; profileId: string; data: { content: DisplayContent } }
+  | { type: ChatEventType.Human; profileId: string; data: { content: DisplayContent; steered?: boolean } }
   | { type: ChatEventType.Stream; profileId: string; data: { content: DisplayContent } }
   | { type: ChatEventType.Message; profileId: string; data: { message: ChatMessage; thinkId?: string; taskId?: string; createdAt: number; kind?: string } }
   | { type: ChatEventType.ToolCall; profileId: string; data: ToolCallEvent }
   | { type: ChatEventType.ApprovalDone; profileId: string; data: { id: string } }
   | { type: ChatEventType.Ask; profileId: string; data: AskEvent }
   | { type: ChatEventType.AskDone; profileId: string; data: { id: string } }
-  | { type: ChatEventType.Queue; profileId: string; data: { pendingMessages: DisplayContent[] } }
-  | { type: ChatEventType.Done; profileId: string; data: { pendingMessages?: DisplayContent[] } }
-  | { type: ChatEventType.Error; profileId: string; data: { message: string } }
+  | { type: ChatEventType.Done; profileId: string; data: Record<string, never> }
+  | { type: ChatEventType.Error; profileId: string; data: { message: string; steeringRejected?: boolean } }
   | { type: ChatEventType.Usage; profileId: string; data: UsageData }
