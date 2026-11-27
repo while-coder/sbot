@@ -14,7 +14,7 @@ import { IAgentPlugin, type AgentPluginContext } from "../Plugins";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
 import { createSpawnAgentTool, SPAWN_AGENT_TOOL_NAME, TaskContextMode, type RunDispatchTaskArgs } from "../../Tools";
-import { subAgentImageIndicesSchema, subAgentImagePathsSchema } from "../../Tools/Task/DispatchTaskTool";
+import { subAgentImagePathsSchema } from "../../Tools/Task/DispatchTaskTool";
 import { MCPContentType, createTextContent, createImageContent, createErrorResult, type MCPContent, type MCPToolResult } from "../../Tools/Core";
 import { v4 as uuidv4 } from "uuid";
 
@@ -114,12 +114,9 @@ export class ReActAgentService extends SingleAgentService {
       const nameAttr = a.name ? ` name="${a.name}"` : '';
       return `  <agent id="${a.id}"${nameAttr}>${a.desc}</agent>`;
     }).join('\n');
-    let workflow = this.canSpawn()
-      ? 'spawn_agent returns a taskId immediately. Continue independent work or call wait_agent for results. Use send_input for follow-ups and collect required results before the final answer.'
+    const workflow = this.canSpawn()
+      ? 'spawn_agent returns a taskId immediately. Continue independent work or call wait_agent for results. Use send_input for follow-ups and collect required results before the final answer. Use imagePaths with spawn_agent or send_input to attach images by workspace-relative path or by exact attachment filePath from this conversation.'
       : 'Sub-agent tools are unavailable at this depth. Complete the assigned work directly.';
-    if (this.canSpawn() && this.workPath) {
-      workflow += ' Use imagePaths with spawn_agent or send_input to attach workspace images or exact image attachment filePaths from this conversation.';
-    }
     const reactPrompt = this.systemPromptTemplate.replace('{agents}', agentsDesc) + '\n\n' + workflow;
 
     const parentMsg = await super.buildSystemMessage(ctx, query);
@@ -128,11 +125,6 @@ export class ReActAgentService extends SingleAgentService {
       { type: ContentPartType.Text, text: parentContent[0] ? reactPrompt + "\n\n" + parentContent[0].text : reactPrompt },
       ...parentContent.slice(1),
     ];
-    const imageCount = ctx.userImages?.length ?? 0;
-    if (this.canSpawn() && imageCount > 0) {
-      const hint = `The current user message has ${imageCount} attached image(s), numbered 1 through ${imageCount} in order. Pass imageIndices to spawn_agent or send_input to forward the images the sub-agent needs.`;
-      content[1] = { type: ContentPartType.Text, text: content[1] ? content[1].text + '\n\n' + hint : hint };
-    }
     return {
       role: MessageRole.System,
       content,
@@ -236,11 +228,6 @@ export class ReActAgentService extends SingleAgentService {
 
     const enqueue = async (args: RunDispatchTaskArgs, allowQueue: boolean): Promise<MCPToolResult> => {
       const images: ContentPart[] = [];
-      for (const index of new Set(args.imageIndices)) {
-        const image = ctx.userImages?.[index - 1];
-        if (!image) return createErrorResult(`Image #${index} is unavailable in the current user message (${ctx.userImages?.length ?? 0} images).`);
-        images.push({ type: ContentPartType.Text, text: `User image #${index}:` }, image);
-      }
       for (const imagePath of new Set(args.imagePaths)) {
         try {
           const image = path.isAbsolute(imagePath) || path.win32.isAbsolute(imagePath)
@@ -304,12 +291,12 @@ export class ReActAgentService extends SingleAgentService {
         description: 'Send a follow-up to a sub-agent in this turn. A running sub-agent finishes its current instruction before starting the follow-up.',
         schema: z.object({
           taskId: z.string().uuid(), message: z.string().trim().min(1),
-          imageIndices: subAgentImageIndicesSchema, imagePaths: subAgentImagePathsSchema,
+          imagePaths: subAgentImagePathsSchema,
         }),
-        func: async ({ taskId, message, imageIndices, imagePaths }, config) => {
+        func: async ({ taskId, message, imagePaths }, config) => {
           const active = this.tasks.get(taskId);
           if (!active) return createErrorResult('Unknown taskId in this turn. Use spawn_agent to resume saved tasks.');
-          return enqueue({ taskId, agentId: active.agentId, task: message, imageIndices, imagePaths, thinkId: config?.thinkId, onCreateThink: config?.onCreateThink }, true);
+          return enqueue({ taskId, agentId: active.agentId, task: message, imagePaths, thinkId: config?.thinkId, onCreateThink: config?.onCreateThink }, true);
         },
       }),
       createAgentTool({

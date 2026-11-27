@@ -1,6 +1,6 @@
 import { type AgentTool } from "scorpio.llm";
 import type { ILogger } from "../../Logger";
-import type { ChatMessage, ContentPart, IAgentSaverService } from "scorpio.saver";
+import type { ChatMessage, IAgentSaverService } from "scorpio.saver";
 
 /**
  * Agent 能力插件的运行上下文。每次 stream 构造一份，不跨轮复用。
@@ -10,8 +10,6 @@ import type { ChatMessage, ContentPart, IAgentSaverService } from "scorpio.saver
 export interface AgentPluginContext {
     /** 本轮用户输入的纯文本形式（多模态 content 已拍平），供检索类插件构造查询。 */
     readonly query: string;
-    /** 本轮收到的图片，按消息顺序保留，独立于当前模型的图片降级处理。 */
-    readonly userImages?: readonly ContentPart[];
     /** 本轮归属的 channel session db id，供需要会话归属的插件使用。 */
     readonly channelSessionId: number;
     /** 本轮历史存储器，插件可读完整对话与 metadata。 */
