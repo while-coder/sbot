@@ -12,7 +12,7 @@ import {
     IAgentPlugin,
     ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts,
     ReActAgentService, T_AgentSubNodes, T_CreateAgent, T_ThinkModelService,
-    T_ReactSystemPromptTemplate, T_ReactSubNodePrompt,
+    T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ReActWorkPath,
     T_ModelCallTimeout,
     type CreateAgentFn,
 } from "scorpio.ai";
@@ -99,7 +99,7 @@ export class AgentFactory {
 
         switch (agentType) {
             case AgentMode.ReAct:
-                return this.createReAct(container, agentEntry as ReactAgentEntry, systemPrompts, createAgentFn);
+                return this.createReAct(container, agentEntry as ReactAgentEntry, systemPrompts, createAgentFn, options.workPath);
 
             case AgentMode.Single:
             default:
@@ -239,6 +239,7 @@ export class AgentFactory {
         entry: ReactAgentEntry,
         systemPrompts: string[],
         createAgentFn: CreateAgentFn,
+        workPath?: string,
     ): Promise<AgentServiceBase> {
         const agentSubNodes = entry.agents || [];
         if (agentSubNodes.length === 0) {
@@ -273,6 +274,7 @@ export class AgentFactory {
             [T_ToolOverflowDir]: config.getConfigPath("tool-overflow", true),
             [T_ReactSystemPromptTemplate]: loadPrompt('agent/react_system.txt'),
             [T_ReactSubNodePrompt]: loadPrompt('agent/react_subnode.txt'),
+            ...(workPath ? { [T_ReActWorkPath]: workPath } : {}),
             ...(entry.modelCallTimeout != null && { [T_ModelCallTimeout]: entry.modelCallTimeout * 1000 }),
         });
         return container.resolve(ReActAgentService);

@@ -123,9 +123,10 @@ export class SingleAgentService extends AgentServiceBase {
      * 构造本轮的插件上下文。stream 入口造一份贯穿 buildSystemMessage / buildTools / onTurnCompleted，
      * 保证同一轮内各钩子看到的 query 与 saver 一致。
      */
-    protected buildPluginContext(query: MessageContent): AgentPluginContext {
+    protected buildPluginContext(query: MessageContent, userImages?: readonly ContentPart[]): AgentPluginContext {
         return {
             query: contentToString(query),
+            userImages,
             channelSessionId: this.channelSessionId,
             saver: this.saverService,
             logger: this.loggerService?.getLogger('AgentPlugin'),
@@ -617,6 +618,7 @@ export class SingleAgentService extends AgentServiceBase {
      * 流式处理用户查询
      */
     override async stream(query: MessageContent, callback: IAgentCallback, signal?: AbortSignal): Promise<ChatMessage[]> {
+        const userImages = Array.isArray(query) ? query.filter(SingleAgentService.isImagePart) : undefined;
         // 将本次用户消息压入历史（模型不支持图片时先降级为文本说明，图片 part 再统一缩放）
         query = await this.degradeUnsupportedImages(query);
         query = await this.resizeImagesInContent(query);
@@ -624,7 +626,7 @@ export class SingleAgentService extends AgentServiceBase {
 
         const outputMessages: ChatMessage[] = [];
         // 本轮插件上下文造一份，贯穿 prompt / 工具 / turn 末尾三个钩子，保证各钩子看到同一份 query。
-        const ctx = this.buildPluginContext(query);
+        const ctx = this.buildPluginContext(query, userImages);
 
         try {
             const [systemMessage, tools] = await Promise.all([

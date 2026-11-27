@@ -18,6 +18,8 @@ export interface DispatchTaskToolParams {
   systemPrompt?: string;
   contextMode?: TaskContextMode;
   taskId?: string;
+  imageIndices?: number[];
+  imagePaths?: string[];
 }
 
 /** runFn 的实参：LLM 填的 schema 字段 + 运行期由框架注入的上下文（不对模型暴露）。 */
@@ -33,6 +35,12 @@ export type RunDispatchTaskFn = (params: RunDispatchTaskArgs) => Promise<MCPTool
 // -- Factory -----------------------------------------------------------------
 
 export const SPAWN_AGENT_TOOL_NAME = "spawn_agent";
+
+export const subAgentImageIndicesSchema = z.array(z.number().int().positive()).optional()
+  .describe("One-based numbers of images to forward from the current user message, in the order you want the sub-agent to see them. Omit to send no images.");
+
+export const subAgentImagePathsSchema = z.array(z.string().trim().min(1)).max(4).optional()
+  .describe("Image files to attach from the current session workspace, specified by relative path.");
 
 const DEFAULT_DESC =
   "Start a specialized sub-agent in the background and return its taskId. Use wait_agent to collect the result. " +
@@ -55,6 +63,8 @@ export function createSpawnAgentTool(agentIds: string[], runFn: RunDispatchTaskF
     // SESSION：续接已有会话
     taskId: z.string().uuid().optional()
       .describe("Resume a prior session by passing the `task_id: <uuid>` from an earlier result; omit to start fresh."),
+    imageIndices: subAgentImageIndicesSchema,
+    imagePaths: subAgentImagePathsSchema,
   });
 
   return createAgentTool({

@@ -161,7 +161,9 @@ GET    /api/agents/:name/mcp/:id/details
 
 全局 MCP 修改会 `refreshGlobalAgentToolService()`。Agent 专属 MCP 只影响该 Agent。Agent 的 `mcp` 字段从全局集合中筛选：`'*'` 表示全选，`mcpExclude` 只在 `'*'` 时生效；专属 `mcp.json` 对该 Agent 始终可见。
 
-`builtin_command` 提供 `exec_command`、`write_stdin` 和 `apply_patch`。补丁采用 Git unified diff，相对于会话工作目录应用。`builtin_exa` 提供 `web_search_exa`。ReAct 用 `spawn_agent` 后台启动已配置的子 Agent，用 `wait_agent` 取结果，用 `send_input` 排队追加指令，用 `close_agent` 取消任务。可用原 `taskId` 续接已保存的子会话。
+`builtin_command` 提供 `exec_command`、`write_stdin`、`apply_patch` 和 `view_image`。补丁采用 Git unified diff，相对于会话工作目录应用。`view_image` 用工作目录内的相对路径加载图片供视觉模型查看。`builtin_exa` 提供 `web_search_exa`。ReAct 用 `spawn_agent` 后台启动已配置的子 Agent，用 `wait_agent` 取结果，用 `send_input` 排队追加指令，用 `close_agent` 取消任务。可用原 `taskId` 续接已保存的子会话。
+
+`spawn_agent` 和 `send_input` 可通过 `imageIndices` 转发当前用户消息中的图片，从 1 开始编号。也可用 `imagePaths` 附带会话工作目录内的图片文件。两个字段可以一起使用，sbot 会把图片和文字一起交给子 Agent。
 
 MCP entry 常见字段：`type` (`stdio`/`http`/`sse`), `command`, `args`, `env`, `url`, `headers`, `cwd`, `toolTimeout`。
 

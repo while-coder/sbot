@@ -9,7 +9,6 @@ const execCommandSchema = z.object({
     cmd: z.string().regex(/\S/).describe('Shell command or multiline script to start.'),
     workdir: z.string().min(1).optional().describe('Absolute directory for a new command. Defaults to the session workspace.'),
     timeoutMs: z.number().int().positive().max(2_147_483_647).optional().describe('Wait for a new command to finish and terminate it on timeout. Omit for resumable execution.'),
-    yieldMs: z.number().int().min(0).optional().describe('Time in milliseconds to wait for output before returning a running processId. Defaults to 1000.'),
     interactive: z.boolean().optional().describe('Keep stdin open for a new resumable command. Defaults to false.'),
     stdin: z.string().optional().describe('Initial input for the new command.'),
 });
@@ -46,8 +45,8 @@ export function createExecCommandTool({ description, workdir, processOwner = 'de
         description,
         schema: execCommandSchema,
         async func(input: ExecCommandInput): Promise<CommandToolResult> {
-            if (input.timeoutMs !== undefined && (input.interactive || input.yieldMs !== undefined)) {
-                return createErrorResult('Use timeoutMs for a non-interactive command that must finish before returning, or yieldMs for resumable execution.');
+            if (input.timeoutMs !== undefined && input.interactive) {
+                return createErrorResult('Omit timeoutMs when starting an interactive command.');
             }
             const { cwd, error } = await resolveWorkingDir(input.workdir ?? workdir);
             if (!cwd) return createErrorResult(error ?? 'Could not resolve working directory.');
@@ -55,7 +54,7 @@ export function createExecCommandTool({ description, workdir, processOwner = 'de
                 return runShellCommand(input.cmd, cwd, input.timeoutMs, 'exec_command', input.stdin);
             }
             const manager = getProcessManager(processOwner);
-            return formatProcessResult(await manager.exec(input.cmd, cwd, input.yieldMs ?? 1000, input.stdin, input.interactive));
+            return formatProcessResult(await manager.exec(input.cmd, cwd, 1000, input.stdin, input.interactive));
         },
     });
 }

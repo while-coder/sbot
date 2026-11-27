@@ -178,6 +178,7 @@ export {
   T_AgentSubNodes,
   T_CreateAgent,
   T_ThinkModelService,
+  T_ReActWorkPath,
   T_SummaryModelService,
   T_ACPCommand,
   T_ACPArgs,
@@ -269,6 +270,7 @@ export { MessageDispatcher, MessageType, summarizeMultimodal } from "./User";
 // Utils - 工具函数
 // ========================================
 export { contentToString, truncateForLog, trimContent, isEmptyContent, readImageAsDataUrl, readMediaAsContentPart, detectMediaType, detectImageMimeType, setMaxImageSize, appendAttachmentsToMessageContent, writeAttachmentInput } from "./Utils/contentUtils";
+export { readWorkspaceImage } from "./Utils/workspaceImage";
 export type { MediaCategory } from "./Utils/contentUtils";
 export { withRetry } from "./Utils/withRetry";
 export { UsageTracker, UsageState, type UsageData } from "./Utils/UsageTracker";
