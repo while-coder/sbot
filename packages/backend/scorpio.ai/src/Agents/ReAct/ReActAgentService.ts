@@ -1,4 +1,5 @@
-import { type AgentTool } from "scorpio.llm";
+import { createAgentTool, type AgentTool } from "scorpio.llm";
+import { z } from "zod";
 import { inject, ServiceContainer, T_StaticSystemPrompts, T_DynamicSystemPrompts, T_ReactSystemPromptTemplate, T_ReactSubNodePrompt, T_ModelCallTimeout, T_ToolOverflowDir, T_ChannelSessionId, truncate, formatError } from "../../Core";
 import { contentToString } from "../../Utils/contentUtils";
 import { IAgentSaverService, TaskBackedSaver, ContentPartType, type MessageContent } from "scorpio.saver";
@@ -9,8 +10,8 @@ import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_C
 import { IAgentPlugin, type AgentPluginContext } from "../Plugins";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
-import { createSpawnAgentTool, SPAWN_AGENT_TOOL_NAME, TaskContextMode, type RunDispatchTaskFn } from "../../Tools";
-import { MCPContentType, createTextContent, createImageContent, /* createAudioContent, */ createErrorResult, type MCPContent } from "../../Tools/Core";
+import { createSpawnAgentTool, SPAWN_AGENT_TOOL_NAME, TaskContextMode, type RunDispatchTaskArgs } from "../../Tools";
+import { MCPContentType, createTextContent, createImageContent, createErrorResult, type MCPContent, type MCPToolResult } from "../../Tools/Core";
 import { v4 as uuidv4 } from "uuid";
 
 // ── Tokens ────────────────────────────────────────────────────
@@ -24,6 +25,19 @@ enum TaskStatus {
   Running = 'running',
   Done = 'done',
   Error = 'error',
+  Closed = 'closed',
+}
+
+const LIFECYCLE_TOOLS = new Set([SPAWN_AGENT_TOOL_NAME, 'send_input', 'wait_agent', 'close_agent']);
+const MAX_ACTIVE_AGENTS = 6;
+const MAX_PENDING_INPUTS = 8;
+
+interface ActiveTask {
+  agentId: string;
+  controller: AbortController;
+  pending: number;
+  completion: Promise<void>;
+  result?: MCPToolResult;
 }
 
 /** 子任务注册表中用于续接的记录。 */
@@ -59,6 +73,9 @@ export class ReActAgentService extends SingleAgentService {
   private agentSubNodes: AgentSubNode[];
   private agentFactory: CreateAgentFn;
   private readonly spawnDepth: number;
+  private readonly tasks = new Map<string, ActiveTask>();
+  private registryOperation = Promise.resolve();
+  private disposing = false;
 
   constructor(
     @inject(T_ThinkModelService) thinkModelService: IModelService,
@@ -91,7 +108,10 @@ export class ReActAgentService extends SingleAgentService {
       const nameAttr = a.name ? ` name="${a.name}"` : '';
       return `  <agent id="${a.id}"${nameAttr}>${a.desc}</agent>`;
     }).join('\n');
-    const reactPrompt = this.systemPromptTemplate.replace('{agents}', agentsDesc);
+    const workflow = this.canSpawn()
+      ? 'spawn_agent returns a taskId immediately. Continue independent work or call wait_agent for results. Use send_input for follow-ups and collect required results before the final answer.'
+      : 'Sub-agent tools are unavailable at this depth. Complete the assigned work directly.';
+    const reactPrompt = this.systemPromptTemplate.replace('{agents}', agentsDesc) + '\n\n' + workflow;
 
     const parentMsg = await super.buildSystemMessage(ctx, query);
     if (!parentMsg) {
@@ -110,45 +130,24 @@ export class ReActAgentService extends SingleAgentService {
 
   protected override async buildTools(ctx: AgentPluginContext, callback?: IAgentCallback, signal?: AbortSignal): Promise<AgentTool[]> {
     if (!callback) return [];
-    const { onMessage: _, ...subCallback } = callback;
+    const { onMessage: _, onStreamMessage: _stream, ...subCallback } = callback;
 
-    const runFn: RunDispatchTaskFn = async ({ agentId, task, systemPrompt, contextMode, thinkId: inputThinkId, taskId: inputTaskId, onCreateThink }) => {
+    const runTask = async ({
+      agentId, task, systemPrompt, contextMode, thinkId: resolvedThinkId, taskId: resolvedTaskId,
+    }: RunDispatchTaskArgs & { taskId: string; thinkId: string }, resume: boolean, taskSignal: AbortSignal): Promise<MCPToolResult> => {
       let agentService: AgentServiceBase | null = null;
-      // thinkId 优先用框架预留的那个（配合 onCreateThink 可在子任务执行中就让用户查看思考过程），
-      // 无注入时（直接调用 runFn 的场景）自行生成，退化为仅在结果里回传。
-      // taskId 由 LLM 传入即续接已有子会话，否则新建一个。
-      const resolvedThinkId = inputThinkId ?? uuidv4();
-      const resolvedTaskId = inputTaskId ?? uuidv4();
-
-      // P7 派生护栏：超深度直接拒绝，不创建子 agent（防嵌套 ReAct 无限递归）。
-      const childDepth = this.spawnDepth + 1;
-      if (childDepth > ReActAgentService.MAX_SPAWN_DEPTH) {
-        return { ...createErrorResult(`Spawn depth limit reached (max ${ReActAgentService.MAX_SPAWN_DEPTH}); cannot dispatch deeper sub-agents.`), _meta: { thinkId: resolvedThinkId, taskId: resolvedTaskId } };
-      }
-
-      // P4 注册表：进入即标记 running（续接则 turns++）。每次从 saver 现取-改-写回。
       const subNode = this.agentSubNodes.find(a => a.id === agentId);
-      const reg = await this.readRegistry();
-      const prev = reg.get(resolvedTaskId);
-      reg.set(resolvedTaskId, {
-        agentId,
-        name: subNode?.name,
-        status: TaskStatus.Running,
-        firstTask: prev?.firstTask ?? truncate(task, 200),
-        lastSummary: prev?.lastSummary,
-        turns: (prev?.turns ?? 0) + 1,
-        updatedAt: Date.now(),
+      await this.changeRegistry(reg => {
+        const prev = reg.get(resolvedTaskId);
+        reg.set(resolvedTaskId, {
+          agentId, name: subNode?.name, status: TaskStatus.Running,
+          firstTask: prev?.firstTask ?? truncate(task, 200),
+          lastSummary: prev?.lastSummary, turns: (prev?.turns ?? 0) + 1, updatedAt: Date.now(),
+        });
       });
-      await this.writeRegistry(reg);
-
-      // 声明 think 开启：子 agent 的消息在执行过程中就已实时写入父 saver 的 thinks
-      // （见 TaskBackedSaver），但 thinkId 原先只随完成后的 ToolMessage 返回，用户要等子任务
-      // 跑完才能查看思考过程。这里在派发前声明一次，框架即把 thinkId/taskId 关联到本次
-      // tool_call 通知渠道（见 SingleAgentService.runSingleTool）。放在深度护栏之后，
-      // 被拒的派发不会留下悬挂的「思考中」入口。
-      await onCreateThink?.(resolvedTaskId);
 
       try {
+        taskSignal.throwIfAborted();
         const parentSaver = this.saverService;
         const taskSaver = new TaskBackedSaver(resolvedTaskId, resolvedThinkId, parentSaver);
         const subContainer = new ServiceContainer();
@@ -156,7 +155,7 @@ export class ReActAgentService extends SingleAgentService {
         // 子任务 SingleAgentService 同样要 T_ChannelSessionId（必传），从父继承一份。
         subContainer.registerInstance(T_ChannelSessionId, this.channelSessionId);
         // P7：把深度透传给子容器，子 ReAct agent 据此继续校验。
-        subContainer.registerInstance(T_SpawnDepth, childDepth);
+        subContainer.registerInstance(T_SpawnDepth, this.spawnDepth + 1);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
         // 故意不透传 memory：抽取（extractFromConversation）无条件随 service 触发，
         // 而子 agent 的 Human 消息是编排者合成的 task 指令、非真实用户输入，抽取会污染记忆/日程。
@@ -173,12 +172,14 @@ export class ReActAgentService extends SingleAgentService {
         }
 
         // P1 上下文继承：仅新建会话（无 taskId）时按档注入。续接路径忽略 contextMode——子会话已有自己的历史。
-        if (!inputTaskId && contextMode === TaskContextMode.State) {
+        if (!resume && contextMode === TaskContextMode.State) {
           const snippet = this.buildParentContextSnippet(await this.saverService.getMessages());
           if (snippet) agentService.addDynamicSystemPrompts([snippet]);
         }
 
-        const messages = await agentService.stream(task, subCallback, signal);
+        taskSignal.throwIfAborted();
+        const messages = await agentService.stream(task, subCallback, taskSignal);
+        taskSignal.throwIfAborted();
         let lastAI: ChatMessage | undefined;
         for (let i = messages.length - 1; i >= 0; i--) {
           if (messages[i].role === MessageRole.AI && messages[i].content) { lastAI = messages[i]; break; }
@@ -208,8 +209,9 @@ export class ReActAgentService extends SingleAgentService {
         await this.updateTaskRecord(resolvedTaskId, TaskStatus.Done, textParts.join('\n'));
         return { content, _meta: { thinkId: resolvedThinkId, taskId: resolvedTaskId } };
       } catch (error: any) {
-        await this.updateTaskRecord(resolvedTaskId, TaskStatus.Error, formatError(error));
-        return { ...createErrorResult(`Execution failed: ${formatError(error)}`), _meta: { thinkId: resolvedThinkId, taskId: resolvedTaskId } };
+        const status = taskSignal.aborted ? TaskStatus.Closed : TaskStatus.Error;
+        await this.updateTaskRecord(resolvedTaskId, status, formatError(error));
+        return { ...createErrorResult(`task_id: ${resolvedTaskId}\nstatus: ${status}\n${formatError(error)}`), _meta: { thinkId: resolvedThinkId, taskId: resolvedTaskId } };
       } finally {
         await agentService?.dispose();
       }
@@ -217,10 +219,128 @@ export class ReActAgentService extends SingleAgentService {
 
     const agentIds = this.agentSubNodes.map(a => a.id);
     const parentTools = await super.buildTools(ctx, callback, signal);
+    if (!this.canSpawn()) {
+      return parentTools;
+    }
+
+    const enqueue = async (args: RunDispatchTaskArgs, allowQueue: boolean): Promise<MCPToolResult> => {
+      const resume = args.taskId !== undefined;
+      const taskId = args.taskId ?? uuidv4();
+      const thinkId = args.thinkId ?? uuidv4();
+      if (resume && !this.tasks.has(taskId)) {
+        await this.registryOperation;
+        const previous = (await this.readRegistry()).get(taskId);
+        if (previous ? previous.agentId !== args.agentId : !(await this.saverService.getTaskMessages(taskId)).length) {
+          return createErrorResult('Unknown taskId for this sub-agent.');
+        }
+      }
+      if (this.disposing || signal?.aborted) return createErrorResult('Agent execution is ending.');
+      const active: ActiveTask = this.tasks.get(taskId) ?? {
+        agentId: args.agentId, controller: new AbortController(), pending: 0, completion: Promise.resolve(),
+      };
+      if (active.agentId !== args.agentId) return createErrorResult('This taskId belongs to a different sub-agent.');
+      if (active.controller.signal.aborted) return createErrorResult('This sub-agent has been closed.');
+      if (active.pending > 0 && !allowQueue) return createErrorResult('This task is running. Use send_input for a follow-up.');
+      if (active.pending >= MAX_PENDING_INPUTS) return createErrorResult('Too many pending instructions for this task.');
+      if (!active.pending && [...this.tasks.values()].filter(task => task.pending > 0).length >= MAX_ACTIVE_AGENTS) {
+        return createErrorResult('Too many active sub-agents. Wait for a result before starting another.');
+      }
+
+      this.tasks.set(taskId, active);
+      const status = active.pending ? 'queued' : 'running';
+      const taskSignal = signal ? AbortSignal.any([signal, active.controller.signal]) : active.controller.signal;
+      const announcement = Promise.resolve().then(() => args.onCreateThink?.(taskId));
+      active.pending++;
+      active.completion = active.completion.then(async () => {
+        try {
+          await announcement;
+          if (!taskSignal.aborted) {
+            active.result = await runTask({ ...args, taskId, thinkId }, resume, taskSignal);
+          }
+        } catch (error) {
+          active.result = createErrorResult(`task_id: ${taskId}\nstatus: error\n${formatError(error)}`);
+        } finally {
+          active.pending--;
+        }
+      });
+      await announcement;
+      return { content: [createTextContent(`task_id: ${taskId}\nstatus: ${status}\nagent: ${args.agentId}`)], _meta: { thinkId, taskId } };
+    };
+
     return [
-      createSpawnAgentTool(agentIds, runFn),
-      ...parentTools.filter(tool => tool.name !== SPAWN_AGENT_TOOL_NAME),
+      createSpawnAgentTool(agentIds, args => enqueue(args, false)),
+      createAgentTool({
+        name: 'send_input',
+        description: 'Send a follow-up to a sub-agent in this turn. A running sub-agent finishes its current instruction before starting the follow-up.',
+        schema: z.object({ taskId: z.string().uuid(), message: z.string().trim().min(1) }),
+        func: async ({ taskId, message }, config) => {
+          const active = this.tasks.get(taskId);
+          if (!active) return createErrorResult('Unknown taskId in this turn. Use spawn_agent to resume saved tasks.');
+          return enqueue({ taskId, agentId: active.agentId, task: message, thinkId: config?.thinkId, onCreateThink: config?.onCreateThink }, true);
+        },
+      }),
+      createAgentTool({
+        name: 'wait_agent',
+        description: 'Wait for the given sub-agents to finish their queued instructions and return their latest results. Reports running tasks if the timeout expires.',
+        schema: z.object({
+          taskIds: z.array(z.string().uuid()).min(1).max(MAX_ACTIVE_AGENTS),
+          timeoutMs: z.number().int().positive().max(60_000).default(15_000),
+        }),
+        func: async ({ taskIds, timeoutMs }) => this.waitForTasks(taskIds, timeoutMs, signal),
+      }),
+      createAgentTool({
+        name: 'close_agent',
+        description: 'Cancel a sub-agent and discard queued instructions for this turn. Its conversation history is saved.',
+        schema: z.object({ taskId: z.string().uuid() }),
+        func: async ({ taskId }) => {
+          const active = this.tasks.get(taskId);
+          if (!active) return createErrorResult('Unknown taskId in this turn.');
+          active.controller.abort();
+          await active.completion;
+          await this.updateTaskRecord(taskId, TaskStatus.Closed);
+          return { content: [createTextContent(`task_id: ${taskId}\nstatus: closed`)] };
+        },
+      }),
+      ...parentTools.filter(tool => !LIFECYCLE_TOOLS.has(tool.name)),
     ];
+  }
+
+  protected override isInternalTool(name: string): boolean {
+    return this.canSpawn() && LIFECYCLE_TOOLS.has(name);
+  }
+
+  private canSpawn(): boolean {
+    return this.agentSubNodes.length > 0 && this.spawnDepth < ReActAgentService.MAX_SPAWN_DEPTH;
+  }
+
+  private async waitForTasks(taskIds: string[], timeoutMs: number, signal?: AbortSignal): Promise<MCPToolResult> {
+    const selected: { taskId: string; task: ActiveTask }[] = [];
+    for (const taskId of new Set(taskIds)) {
+      const task = this.tasks.get(taskId);
+      if (!task) return createErrorResult(`Unknown taskId in this turn: ${taskId}`);
+      selected.push({ taskId, task });
+    }
+    let timer: NodeJS.Timeout | undefined;
+    let onAbort: (() => void) | undefined;
+    try {
+      const deadline = new Promise<void>(resolve => {
+        timer = setTimeout(resolve, timeoutMs);
+        onAbort = () => resolve();
+        signal?.addEventListener('abort', onAbort, { once: true });
+        if (signal?.aborted) resolve();
+      });
+      await Promise.race([Promise.all(selected.map(({ task }) => task.completion)), deadline]);
+    } finally {
+      clearTimeout(timer);
+      if (onAbort) signal?.removeEventListener('abort', onAbort);
+    }
+    return {
+      content: selected.flatMap(({ taskId, task }) => {
+        if (task.controller.signal.aborted) return [createTextContent(`task_id: ${taskId}\nstatus: closed`)];
+        if (task.pending || !task.result) return [createTextContent(`task_id: ${taskId}\nstatus: running`)];
+        return task.result.content;
+      }),
+    };
   }
 
   /** 从编排者 session metadata 现取注册表（saver 为唯一真相源，容错）。 */
@@ -248,14 +368,26 @@ export class ReActAgentService extends SingleAgentService {
   }
 
   /** 更新一条子任务记录的状态与摘要（现取-改-写回；记录不存在则忽略）。 */
-  private async updateTaskRecord(taskId: string, status: TaskStatus.Done | TaskStatus.Error, summary?: string): Promise<void> {
-    const reg = await this.readRegistry();
-    const rec = reg.get(taskId);
-    if (!rec) return;
-    rec.status = status;
-    if (summary?.trim()) rec.lastSummary = truncate(summary.trim(), 300);
-    rec.updatedAt = Date.now();
-    await this.writeRegistry(reg);
+  private updateTaskRecord(taskId: string, status: TaskStatus, summary?: string): Promise<void> {
+    return this.changeRegistry(reg => {
+      const rec = reg.get(taskId);
+      if (!rec) return;
+      rec.status = status;
+      if (summary?.trim()) rec.lastSummary = truncate(summary.trim(), 300);
+      rec.updatedAt = Date.now();
+    });
+  }
+
+  private changeRegistry(change: (registry: Map<string, TaskRecord>) => void): Promise<void> {
+    const operation = this.registryOperation.then(async () => {
+      const registry = await this.readRegistry();
+      change(registry);
+      await this.writeRegistry(registry);
+    });
+    this.registryOperation = operation.catch(error => {
+      this.logger?.warn(`更新子任务注册表失败: ${formatError(error, true)}`);
+    });
+    return operation;
   }
 
   /** 取主对话最近若干条 Human/AI 文本消息，渲染成纯文本快照。
@@ -275,6 +407,12 @@ export class ReActAgentService extends SingleAgentService {
   }
 
   override async dispose(): Promise<void> {
+    this.disposing = true;
+    for (const task of this.tasks.values()) {
+      if (task.pending) task.controller.abort();
+    }
+    await Promise.allSettled([...this.tasks.values()].map(task => task.completion));
+    this.tasks.clear();
     await super.dispose();
     await this.modelService.dispose();
   }

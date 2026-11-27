@@ -9,7 +9,7 @@ export interface PromptFileItem {
   [key: string]: unknown
 }
 
-/** prompts 文件列表管理：按 prefix 懒加载缓存（heartbeat / memory / agenda/sync …）。 */
+/** prompts 文件列表管理：按 prefix 懒加载缓存（memory / agenda/sync …）。 */
 class PromptFileManager {
   private readonly filesMap = reactive<Record<string, PromptFileItem[]>>({})
   private inflight = new Map<string, Promise<PromptFileItem[]>>()

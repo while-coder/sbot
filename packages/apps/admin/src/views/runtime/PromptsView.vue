@@ -24,7 +24,7 @@ function flattenTree(nodes: TreeNode[], depth = 0): { node: TreeNode; depth: num
   return result
 }
 
-const categoryOrder = ['system', 'agent', 'compact', 'skills', 'memory', 'tools', 'intent', 'heartbeat', 'todo']
+const categoryOrder = ['system', 'agent', 'compact', 'skills', 'memory', 'tools', 'intent', 'todo']
 
 const categories = computed(() => {
   const map = new Map<string, TreeNode>()
@@ -198,35 +198,7 @@ async function reset() {
   }
 }
 
-// ── Create / Delete ──────────────────────────────────────────────
-const creatingInCat = ref<string | null>(null)
-const newFileName = ref('')
-
-function startCreate(cat: string) {
-  creatingInCat.value = cat
-  newFileName.value = ''
-}
-
-function cancelCreate() {
-  creatingInCat.value = null
-  newFileName.value = ''
-}
-
-async function confirmCreate(category: string) {
-  const name = newFileName.value.trim()
-  if (!name) return
-  const filePath = `${category}/${name}${name.includes('.') ? '' : '.md'}`
-  try {
-    await apiFetch('/api/prompts/content', 'PUT', { path: filePath, content: '' })
-    toast.show('success', t('common.created'))
-    cancelCreate()
-    await loadTree()
-    selectFile(filePath)
-  } catch (e: any) {
-    toast.show('error', e.message)
-  }
-}
-
+// ── Delete ───────────────────────────────────────────────────────
 async function deleteFile(filePath: string) {
   if (!await confirm.show({ title: t('prompts.confirm_delete', { name: filePath }), error: true , content: ''})) return
   try {
@@ -263,22 +235,8 @@ onMounted(async () => {
           <template #suffix>
             <span v-if="cat.node.isOverride" class="prompts-dot" :title="t('prompts.contains_custom')" />
           </template>
-          <template v-if="cat.key === 'heartbeat'" #actions>
-            <SIconButton size="16" variant="outline" :title="t('prompts.create_file')" @click.stop="startCreate(cat.key)">+</SIconButton>
-          </template>
         </STreeRow>
         <template v-if="!collapsedCats.has(cat.key)">
-          <div v-if="creatingInCat === cat.key" class="prompts-new-row">
-            <input
-              v-model="newFileName"
-              class="prompts-new-input"
-              :placeholder="t('prompts.create_file')"
-              @keyup.enter="confirmCreate(cat.key)"
-              @keyup.escape="cancelCreate"
-            />
-            <SIconButton size="16" variant="plain" @click="confirmCreate(cat.key)">&#10003;</SIconButton>
-            <SIconButton size="16" variant="plain" @click="cancelCreate">&#10005;</SIconButton>
-          </div>
           <STreeRow
             v-for="{ node, depth } in flattenChildren(cat.node)"
             :key="node.path"
@@ -347,25 +305,6 @@ onMounted(async () => {
   width: 210px;
   flex-shrink: 0;
 }
-
-.prompts-new-row {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 4px 8px 4px 28px;
-}
-.prompts-new-input {
-  flex: 1;
-  font-size: var(--sui-fs-sm);
-  padding: 2px var(--sui-sp-2);
-  border: 1px solid var(--sui-border-strong);
-  border-radius: var(--sui-radius-xs);
-  outline: none;
-  min-width: 0;
-  background: var(--sui-bg);
-  color: var(--sui-fg);
-}
-.prompts-new-input:focus { border-color: var(--sui-info); }
 
 .prompts-dot {
   width: 6px;

@@ -7,7 +7,6 @@ import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database } from '../Core/Database';
 import { agendaStorePool, agendaTriggerEnginePool } from '../Agenda';
-import { heartbeatService } from '../Heartbeat/HeartbeatService';
 import { runtimeActivity } from 'scorpio.ai';
 import { channelManager } from '../Channel/ChannelManager';
 import { WEB_CHANNEL_ID } from '@sbot/shared';
@@ -26,7 +25,6 @@ import { promptRoutes } from './routes/prompts';
 import { dataRoutes } from './routes/data';
 import { agendaRoutes } from './routes/agendas';
 import { memoryRoutes } from './routes/memories';
-import { heartbeatRoutes } from './routes/heartbeats';
 import { userRoutes } from './routes/users';
 import { logRoutes } from './routes/logs';
 import { chatRoutes } from './routes/chat';
@@ -48,7 +46,6 @@ class HttpServer {
         logger.info(`Shutting down services: stopped accepting new work; waiting for ${runtimeActivity.active} active task(s)...`);
         try {
             agendaTriggerEnginePool.stopAll();
-            heartbeatService.stopAll();
             // 立即停止接收新连接；已建立的 HTTP / WebSocket 连接会保留到现有任务排空。
             const closeServer = this.server
                 ? new Promise<void>((resolve, reject) => this.server!.close(err => err ? reject(err) : resolve()))
@@ -118,7 +115,6 @@ class HttpServer {
         dataRoutes.register(app, ctx);
         agendaRoutes.register(app, ctx);
         memoryRoutes.register(app, ctx);
-        heartbeatRoutes.register(app, ctx);
         logRoutes.register(app, ctx);
         userRoutes.register(app, ctx);
         chatRoutes.register(app, ctx);

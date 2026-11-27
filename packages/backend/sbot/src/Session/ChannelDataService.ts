@@ -4,11 +4,9 @@ import {
     type ChannelSessionRow,
     type SessionProfileRow,
     type ChannelUserRow,
-    type HeartbeatRow,
 } from "../Core/Database";
 import { config } from "../Core/Config";
 import { LoggerService } from "../Core/LoggerService";
-import { heartbeatService } from "../Heartbeat/HeartbeatService";
 import { disposeSession as scratchpadDisposeSession } from "agent.scratchpad";
 
 const logger = LoggerService.getLogger("ChannelDataService.ts");
@@ -90,7 +88,6 @@ function normalizeIntentFilterMode(value: any): IntentFilterMode | null | undefi
  * 不进入：纯单点 findByPk / findOne by 唯一键（直接走 database 即可）。
  *
  * 跨服务依赖（由本类调用，反向不允许）：
- * - heartbeatService.reloadAll —— heartbeat 自治
  * - channelManager.reloadChannel —— channel 运行时自治（在 routes 层调用，避开循环）
  * 注：agenda/memory 数据按 agendaId/memoryId 共享，由 settings 顶层管理；
  * profile 删除时不再级联清。
@@ -285,17 +282,13 @@ export class ChannelDataService {
     /**
      * 删 session 级联：
      * - 该 session 的 auto profile（visible profile 共享，不动）
-     * - heartbeat where sessionId = session.id
      * - scratchpad 会话板文件（同步删，内部吞错；孤儿文件由 TTL 清扫兜底）
-     * - heartbeat 服务 reload
      * 注：profile 引用的 agenda/memory 模板数据归 admin 管理，这里不动。
      */
     async deleteSession(id: number): Promise<void> {
         await database.destroy(database.sessionProfile, { where: { autoForSessionId: id } });
-        await database.destroy(database.heartbeat, { where: { sessionId: id } });
         await database.destroy(database.channelSession, { where: { id } });
         scratchpadDisposeSession(config.getScratchpadDir(), id);
-        await heartbeatService.reloadAll();
     }
 
     // ── visible profile CRUD ─────────────────────────────────────────────────
@@ -421,21 +414,17 @@ export class ChannelDataService {
     /**
      * 删 channel 级联：
      * - 这些 session 的 auto profile（visible profile 共享不动）
-     * - heartbeat where sessionId in sessionIds
      * - channel_session / channel_user 行
-     * - heartbeat 服务 reload（channelManager.reloadChannel 由 routes 层在 settingsCrud 流程里完成）
      * 注：profile 引用的 agenda/memory 模板数据归 admin 管理，这里不动。
      */
     async deleteChannel(channelId: string): Promise<void> {
         const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { channelId } });
         const sessionIds = sessions.map(s => s.id);
         if (sessionIds.length > 0) {
-            await database.destroy(database.heartbeat, { where: { sessionId: sessionIds } });
             await database.destroy(database.sessionProfile, { where: { autoForSessionId: sessionIds } });
         }
         await database.destroy(database.channelSession, { where: { channelId } });
         await database.destroy(database.channelUser, { where: { channelId } });
-        await heartbeatService.reloadAll();
     }
 
     // ── channel_user CRUD ────────────────────────────────────────────────────
@@ -518,7 +507,6 @@ export class ChannelDataService {
      * - channel_session.channelId 不在 config.settings.channels（channel 已删除但 session 残留）
      * - channel_user.channelId 不在 config.settings.channels
      * - sessionProfile.autoForSessionId 不存在或指向已是孤儿的 session
-     * - heartbeat.sessionId 不存在
      * - visible profile（autoForSessionId=null）但无任何 session 引用 —— 仅列出，不删
      *
      * 注意：empty visible profile 仅列出。用户可能正在准备复用一个空 profile，自动删除会损失意图。
@@ -526,10 +514,9 @@ export class ChannelDataService {
     async cleanupOrphans(opts: { dryRun?: boolean } = {}): Promise<CleanupReport> {
         const dryRun = !!opts.dryRun;
 
-        const [allSessions, allProfiles, allHeartbeats, allChannelUsers] = await Promise.all([
+        const [allSessions, allProfiles, allChannelUsers] = await Promise.all([
             database.findAll<ChannelSessionRow>(database.channelSession),
             database.findAll<SessionProfileRow>(database.sessionProfile),
-            database.findAll<HeartbeatRow>(database.heartbeat),
             database.findAll<ChannelUserRow>(database.channelUser),
         ]);
 
@@ -551,18 +538,13 @@ export class ChannelDataService {
             return orphanChannelSessionIds.has(p.autoForSessionId);
         });
 
-        // 4. heartbeat.sessionId 不存在或将随孤儿 channel 清掉
-        const orphanHeartbeats = allHeartbeats.filter(h =>
-            !sessionIds.has(h.sessionId) || orphanChannelSessionIds.has(h.sessionId)
-        );
-
-        // 5. 无 session 引用的 visible profile（仅报告，不删）
+        // 4. 无 session 引用的 visible profile（仅报告，不删）
         const emptyVisibleProfiles = allProfiles.filter(p =>
             p.autoForSessionId == null && !profileIdsWithSessions.has(p.id)
         );
 
         if (!dryRun) {
-            // Step 1：失效 channel 整套清掉（顺带清这些 channel 名下的 session/user/auto profile/agenda/heartbeat）
+            // Step 1：失效 channel 整套清掉（顺带清这些 channel 名下的 session/user/auto profile）
             const orphanChannelIds = new Set<string>();
             for (const s of orphanChannelSessions) orphanChannelIds.add(s.channelId);
             for (const u of orphanChannelUsers) orphanChannelIds.add(u.channelId);
@@ -578,30 +560,13 @@ export class ChannelDataService {
                 await database.destroy(database.sessionProfile, { where: { id: p.id } });
             }
 
-            // Step 3：sessionId 失效的孤儿 heartbeat（重扫一次）
-            const refreshedSessionIds = new Set(
-                (await database.findAll<ChannelSessionRow>(database.channelSession)).map(s => s.id),
-            );
-            const remainingOrphanHeartbeatIds: number[] = [];
-            for (const h of orphanHeartbeats) {
-                if (!refreshedSessionIds.has(h.sessionId)) {
-                    const stillExists = await database.findByPk<HeartbeatRow>(database.heartbeat, h.id);
-                    if (stillExists) remainingOrphanHeartbeatIds.push(h.id);
-                }
-            }
-            if (remainingOrphanHeartbeatIds.length > 0) {
-                await database.destroy(database.heartbeat, { where: { id: remainingOrphanHeartbeatIds } });
-                await heartbeatService.reloadAll();
-            }
-
             const counts = {
                 channels: orphanChannelIds.size,
                 sessions: orphanChannelSessions.length,
                 users: orphanChannelUsers.length,
                 autoProfiles: orphanAutoProfiles.length,
-                heartbeats: remainingOrphanHeartbeatIds.length + orphanHeartbeats.length, // 近似
             };
-            logger.info(`cleanupOrphans applied: channels=${counts.channels}, sessions=${counts.sessions}, users=${counts.users}, autoProfiles=${counts.autoProfiles}, heartbeats=${counts.heartbeats}`);
+            logger.info(`cleanupOrphans applied: channels=${counts.channels}, sessions=${counts.sessions}, users=${counts.users}, autoProfiles=${counts.autoProfiles}`);
         }
 
         const invalidRefs = scanInvalidReferences(allProfiles);
@@ -616,9 +581,6 @@ export class ChannelDataService {
             })),
             orphanAutoProfiles: orphanAutoProfiles.map(p => ({
                 id: p.id, autoForSessionId: p.autoForSessionId!, name: p.name,
-            })),
-            orphanHeartbeats: orphanHeartbeats.map(h => ({
-                id: h.id, sessionId: h.sessionId, name: h.name,
             })),
             emptyVisibleProfiles: emptyVisibleProfiles.map(p => ({
                 id: p.id, name: p.name,
@@ -774,7 +736,6 @@ export interface CleanupReport {
     orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>;
     orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; openId: string; userName: string }>;
     orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>;
-    orphanHeartbeats: Array<{ id: number; sessionId: number; name: string }>;
     /** 仅列出，cleanupOrphans 不会删；用户决定是否手删 */
     emptyVisibleProfiles: Array<{ id: number; name: string }>;
     /** 配置间引用对方但目标已不存在（仅列出，需用户手动改） */

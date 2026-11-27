@@ -283,7 +283,7 @@ export interface ChannelConfig {
   agenda?: string
   /** 日常对话工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
   tools?: string[]
-  /** 后台触发（heartbeat / agenda 等）工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
+  /** 后台触发（agenda 等）工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
   triggerTools?: string[]
 }
 

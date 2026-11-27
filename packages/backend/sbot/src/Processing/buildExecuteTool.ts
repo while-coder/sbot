@@ -1,6 +1,6 @@
-import { ChatToolCall, ToolApproval, SPAWN_AGENT_TOOL_NAME } from "scorpio.ai";
+import { ChatToolCall, ToolApproval } from "scorpio.ai";
 import { SessionService } from "channel.base";
-import { AgentMode, config } from "../Core/Config";
+import { config } from "../Core/Config";
 
 export function buildExecuteTool(
     session: SessionService,
@@ -16,7 +16,6 @@ export function buildExecuteTool(
     const agentAutoApproveAll = agentEntry?.autoApproveAllTools;
 
     return async (toolCall: ChatToolCall) => {
-        if (agentEntry.type === AgentMode.ReAct && toolCall.name === SPAWN_AGENT_TOOL_NAME) return ToolApproval.Allow;
         if (config.settings.autoApproveAllTools) return ToolApproval.Allow;
         if (config.settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
         if (sessionAutoApproveAll) return ToolApproval.Allow;

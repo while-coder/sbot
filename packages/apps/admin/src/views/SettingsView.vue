@@ -128,7 +128,6 @@ interface CleanupReport {
   orphanChannelSessions: Array<{ id: number; channelId: string; sessionId: string; sessionName: string }>
   orphanChannelUsers: Array<{ id: number; channelId: string; userId: string; userName: string }>
   orphanAutoProfiles: Array<{ id: number; autoForSessionId: number; name: string }>
-  orphanHeartbeats: Array<{ id: number; sessionId: number; name: string }>
   // 仅列出
   emptyVisibleProfiles: Array<{ id: number; name: string }>
   // 引用了不存在目标（仅列出，需用户手改）
@@ -151,7 +150,6 @@ const cleanupCategories = computed<Array<{ key: keyof CleanupReport; label: stri
     { key: 'orphanChannelSessions', label: t('settings.cleanup_orphan_sessions'),  cleaned: true,  items: r.orphanChannelSessions },
     { key: 'orphanChannelUsers',    label: t('settings.cleanup_orphan_users'),     cleaned: true,  items: r.orphanChannelUsers },
     { key: 'orphanAutoProfiles',    label: t('settings.cleanup_orphan_auto_profiles'), cleaned: true, items: r.orphanAutoProfiles },
-    { key: 'orphanHeartbeats',      label: t('settings.cleanup_orphan_heartbeats'), cleaned: true,  items: r.orphanHeartbeats },
     // 仅列出
     { key: 'emptyVisibleProfiles',  label: t('settings.cleanup_empty_profiles'),   cleaned: false, items: r.emptyVisibleProfiles },
     // 无效引用（仅列出，需手改）
@@ -208,8 +206,6 @@ function fmtItem(category: string, item: any): string {
       return `#${item.id} channel="${item.channelId}" user="${item.userId}" name="${item.userName || ''}"`
     case 'orphanAutoProfiles':
       return `#${item.id} autoForSessionId=${item.autoForSessionId} name="${item.name || ''}"`
-    case 'orphanHeartbeats':
-      return `#${item.id} sessionId=${item.sessionId} name="${item.name || ''}"`
     case 'emptyVisibleProfiles':
       return `#${item.id} name="${item.name || ''}"`
     case 'invalidAgentRefs':

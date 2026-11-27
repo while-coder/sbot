@@ -19,48 +19,6 @@ export type MessageRow = {
 // thread id = String(profile.id)。saver / SessionService Map 都按这个 key 索引。
 // 多个 ChannelSession 共享同一 SessionProfile 即共享 thread（跨 channel 也共享）。
 
-// ⚠️ enabled 运行时是 0/1（受 raw:true 影响，见上方 query 配置注释）。
-// 仅可用真值检查，禁止 `=== true` / `=== false`。
-export enum HeartbeatMode {
-  Fixed = 'fixed',
-  Smart = 'smart',
-}
-
-export type HeartbeatCommonRow = {
-  id: number;
-  name: string;
-  intervalMinutes: number;
-  promptFile: string;
-  sessionId: number;
-  enabled: boolean;
-  activeHoursStart: number | null;
-  activeHoursEnd: number | null;
-  activeHoursTimezone: string | null;
-  lastRun: number | null;
-  createdAt: number;
-  mode: HeartbeatMode;
-  agendaId: string | null;            // heartbeat prompt/decision 可使用的 agenda 模板 id；null=不带 agenda 上下文
-  jitterMinPct: number;               // 下次延迟下界 = intervalMinutes * jitterMinPct / 100
-  jitterMaxPct: number;               // 下次延迟上界 = intervalMinutes * jitterMaxPct / 100
-  minGapMinutes: number;              // 节流：上次实发后 X 分钟内不再发，0=不限
-  dailyLimit: number;                 // 节流：每日发送上限，0=不限
-  lastSentAt: number | null;          // 上次"实际发送"时间戳（区别于 lastRun）
-  dailySentDate: string | null;       // 当前计数所属 YYYY-MM-DD（按 activeHoursTimezone）
-  dailySentCount: number;             // 当日已发送次数
-};
-
-export type FixedHeartbeatRow = HeartbeatCommonRow & {
-  mode: HeartbeatMode.Fixed;
-};
-
-export type SmartHeartbeatRow = HeartbeatCommonRow & {
-  mode: HeartbeatMode.Smart;
-  decisionPromptFile: string | null;  // smart 模式决策 prompt；null=用默认
-  decisionModelId: string | null;     // smart 模式决策 model id；null=用默认
-};
-
-export type HeartbeatRow = FixedHeartbeatRow | SmartHeartbeatRow;
-
 export type StateRow = {
   key: string;
   value: string;
@@ -184,7 +142,6 @@ class Database {
   public channelSession!: ModelStatic<any>;
   public sessionProfile!: ModelStatic<any>;
   public usageLogs!: ModelStatic<any>;
-  public heartbeat!: ModelStatic<any>;
 
   async init() {
     this.running = false;
@@ -661,150 +618,6 @@ class Database {
       },
     );
 
-    this.heartbeat = sequelize.define(
-      "heartbeat",
-      {
-        id: {
-          type: DataTypes.INTEGER,
-          primaryKey: true,
-          autoIncrement: true,
-          comment: "自增ID",
-        },
-        name: {
-          type: DataTypes.STRING(255),
-          allowNull: false,
-          defaultValue: "",
-          comment: "显示名称",
-        },
-        intervalMinutes: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 30,
-          comment: "执行间隔（分钟）",
-        },
-        promptFile: {
-          type: DataTypes.STRING(512),
-          allowNull: false,
-          defaultValue: "",
-          comment: "prompt 文件路径",
-        },
-        sessionId: {
-          field: "target",
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "目标 channel_session.id",
-        },
-        enabled: {
-          type: DataTypes.BOOLEAN,
-          allowNull: false,
-          defaultValue: true,
-          comment: "是否启用",
-        },
-        activeHoursStart: {
-          type: DataTypes.INTEGER,
-          allowNull: true,
-          defaultValue: null,
-          comment: "活跃开始小时 0-23",
-        },
-        activeHoursEnd: {
-          type: DataTypes.INTEGER,
-          allowNull: true,
-          defaultValue: null,
-          comment: "活跃结束小时 0-23",
-        },
-        activeHoursTimezone: {
-          type: DataTypes.STRING(64),
-          allowNull: true,
-          defaultValue: null,
-          comment: "活跃时段时区",
-        },
-        lastRun: {
-          type: DataTypes.BIGINT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "上次执行时间戳(ms)",
-        },
-        createdAt: {
-          type: DataTypes.BIGINT,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "创建时间戳(ms)",
-        },
-        mode: {
-          type: DataTypes.STRING(16),
-          allowNull: false,
-          defaultValue: HeartbeatMode.Fixed,
-          comment: "fixed=固定周期, smart=LLM 判断+随机抖动",
-        },
-        agendaId: {
-          type: DataTypes.STRING(64),
-          allowNull: true,
-          defaultValue: null,
-          comment: "smart 决策上下文使用的 agenda 模板 id",
-        },
-        jitterMinPct: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 50,
-          comment: "smart 抖动下界%（基于 intervalMinutes）",
-        },
-        jitterMaxPct: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 150,
-          comment: "smart 抖动上界%（基于 intervalMinutes）",
-        },
-        decisionPromptFile: {
-          type: DataTypes.STRING(512),
-          allowNull: true,
-          defaultValue: null,
-          comment: "smart 决策 prompt 文件",
-        },
-        decisionModelId: {
-          type: DataTypes.STRING(128),
-          allowNull: true,
-          defaultValue: null,
-          comment: "smart 决策 model id",
-        },
-        minGapMinutes: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 30,
-          comment: "节流：最小发送间隔分钟，0=不限",
-        },
-        dailyLimit: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 6,
-          comment: "节流：每日发送上限，0=不限",
-        },
-        lastSentAt: {
-          type: DataTypes.BIGINT,
-          allowNull: true,
-          defaultValue: null,
-          comment: "上次实际发送时间戳(ms)",
-        },
-        dailySentDate: {
-          type: DataTypes.STRING(16),
-          allowNull: true,
-          defaultValue: null,
-          comment: "当前每日计数所属日期 YYYY-MM-DD",
-        },
-        dailySentCount: {
-          type: DataTypes.INTEGER,
-          allowNull: false,
-          defaultValue: 0,
-          comment: "当日已发送次数",
-        },
-      },
-      {
-        tableName: "heartbeat",
-        timestamps: false,
-        comment: "心跳任务表",
-      },
-    );
-
     await this.sync();
   }
 
@@ -851,7 +664,6 @@ class Database {
       await this.sessionProfile.sync({ alter });
       await this.channelSession.sync({ alter });
       await this.usageLogs.sync({ alter });
-      await this.heartbeat.sync({ alter });
 
       await this.state.update({ value: DBVersion }, { where: { key: DBVersionName } });
       logger.info("Database schema sync completed");

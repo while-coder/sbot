@@ -69,7 +69,7 @@ export enum AgendaTriggerKind {
 
 /**
  * 触发动作 = 通用的「session 投递模式」。
- * agenda trigger / heartbeat 都共用这一套，定义集中在 SessionDeliveryMode；
+ * 投递模式统一定义在 SessionDeliveryMode。
  * 这里以历史名 `AgendaTriggerAction` 对外别名导出，保持 agenda 模块对外的命名一致性。
  */
 export { SessionDeliveryMode as AgendaTriggerAction };

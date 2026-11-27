@@ -1,6 +1,6 @@
 /**
  * 投递模式：消息进到 session 后做什么。
- * agenda trigger / heartbeat / 后续其他"定时投递"机制都共用这一套。
+ * 供 agenda trigger 等定时投递机制使用。
  *
  * - Notify: 仅投递文本到 channel（IM/webhook 等），不写 saver、不让 AI 处理。
  *   一次性提醒/外发通知；用户响应不依赖这次投递的上下文。

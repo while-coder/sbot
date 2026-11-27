@@ -401,6 +401,10 @@ export class SingleAgentService extends AgentServiceBase {
      * 审批完成。最后等在途集合排空。并发由信号量限流，避免免审批工具瞬间全部涌入。
      * ToolMessage 按 tool_calls 原顺序占位回填，保证与 AIMessage 的配对稳定。
      */
+    protected isInternalTool(_name: string): boolean {
+        return false;
+    }
+
     private async callToolsNode(state: SingleAgentState) {
         const callback = state.callback;
         const messages = await this.saverService.getMessages();
@@ -429,7 +433,7 @@ export class SingleAgentService extends AgentServiceBase {
 
             // 审批：串行 await（全局交互队列把跨 agent 的审批序列化，用户逐个点击）
             let approval: ToolApproval | undefined;
-            if (callback?.executeTool) {
+            if (callback?.executeTool && !this.isInternalTool(toolCall.name)) {
                 try {
                     approval = await raceCancel(callback.executeTool(toolCall), state.signal);
                 } catch (err) {
@@ -531,7 +535,7 @@ export class SingleAgentService extends AgentServiceBase {
         };
 
         const result = await raceCancel(
-            tool.invoke(parsedArgs, { thinkId, onCreateThink }),
+            tool.invoke(parsedArgs, { signal, thinkId, onCreateThink }),
             signal,
         );
 

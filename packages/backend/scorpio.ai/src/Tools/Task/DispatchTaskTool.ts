@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { createAgentTool, type AgentTool, type ToolInvokeConfig } from "scorpio.llm";
 import type { MCPToolResult } from "../Core";
-// 仅类型导入（编译期擦除），不构成 Tools ↔ Agents 的运行时循环依赖
-import type { OnCreateThinkFn } from "../../Agents/AgentServiceBase";
 
 // -- Types -------------------------------------------------------------------
 
@@ -27,7 +25,7 @@ export type RunDispatchTaskArgs = DispatchTaskToolParams & {
   /** 框架预留的 think 记录 id：子 agent 的消息应实时写入该 id 下。缺省时实现方自行生成。 */
   thinkId?: string;
   /** 声明本次派发确实开启了 think 流，框架据此把 thinkId 关联到本次 tool_call 通知渠道。 */
-  onCreateThink?: OnCreateThinkFn;
+  onCreateThink?: ToolInvokeConfig["onCreateThink"];
 };
 
 export type RunDispatchTaskFn = (params: RunDispatchTaskArgs) => Promise<MCPToolResult>;
@@ -37,9 +35,9 @@ export type RunDispatchTaskFn = (params: RunDispatchTaskArgs) => Promise<MCPTool
 export const SPAWN_AGENT_TOOL_NAME = "spawn_agent";
 
 const DEFAULT_DESC =
-  "Dispatch a task to a specialized sub-agent and return its result. Omit `taskId` to start a fresh " +
-  "sub-agent session; pass the returned `task_id` back as `taskId` to resume the same session. Fresh " +
-  "tasks must be self-contained unless `contextMode` is `state`; resumed tasks can be short follow-ups.";
+  "Start a specialized sub-agent in the background and return its taskId. Use wait_agent to collect the result. " +
+  "Omit taskId for a new sub-agent session, or pass a previously returned task_id to resume saved history. " +
+  "Fresh tasks must be self-contained unless contextMode is state.";
 
 export function createSpawnAgentTool(agentIds: string[], runFn: RunDispatchTaskFn, description: string = DEFAULT_DESC): AgentTool {
   const schema = z.object({
@@ -47,7 +45,7 @@ export function createSpawnAgentTool(agentIds: string[], runFn: RunDispatchTaskF
     agentId: z.enum(agentIds)
       .describe("ID of the specialized sub-agent to dispatch to."),
     // WHAT：本轮指令
-    task: z.string()
+    task: z.string().trim().min(1)
       .describe("The instruction for the sub-agent this turn. Self-contained on a fresh session (see `contextMode`); a short follow-up that builds on prior turns when resuming via `taskId`."),
     // BACKGROUND：手动情境上下文 + 自动上下文继承档位
     systemPrompt: z.string().optional()
@@ -55,7 +53,7 @@ export function createSpawnAgentTool(agentIds: string[], runFn: RunDispatchTaskF
     contextMode: z.enum(TaskContextMode).optional()
       .describe("Fresh-session context inheritance (ignored when resuming). 'none' (default): clean start, `task` must be self-contained. 'state': inject a snapshot of the recent main conversation — use when the task depends on what just happened."),
     // SESSION：续接已有会话
-    taskId: z.string().optional()
+    taskId: z.string().uuid().optional()
       .describe("Resume a prior session by passing the `task_id: <uuid>` from an earlier result; omit to start fresh."),
   });
 

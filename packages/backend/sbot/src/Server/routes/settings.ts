@@ -117,7 +117,6 @@ export class SettingsRoutes {
                 agendaStorePool.remove(id);
             },
         });
-        // heartbeats 已迁移到独立数据库表，CRUD 在 HeartbeatRoutes 中
         agentRoutes.register(app, ctx);
         acpRoutes.register(app, ctx);
         settingsCrudHelper.register(app, 'channels', {

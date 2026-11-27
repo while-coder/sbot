@@ -139,7 +139,6 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **对话压缩** — Token 用量超阈值时自动摘要压缩，保持上下文连续性的同时降低消耗
 - **记忆（Memory）** — 会话空闲后由后台模型提炼持久知识，相关记忆会作为上下文提供给 Agent
 - **日程（Agenda）** — 由对话驱动的提醒、日程与周期任务，支持 absolute / interval / cron 触发器；可每轮对话后从对话自动同步，并投递到任意会话或渠道
-- **心跳唤醒** — 可配置定时提示词，让 Agent 在任意渠道周期性主动发起任务
 - **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态；支持全局与 Agent 级独立配置，故障自动重启
 - **多渠道接入** — Web UI、飞书/Lark、Slack、企业微信、微信、钉钉、QQ（官方机器人）、腾讯元宝、OneBot（v11 反向 WebSocket）、小爱音箱、REST API、WebSocket
 - **命令执行** — `exec_command` 运行 Shell 命令和脚本，支持继续读取长进程的输出及写入标准输入
