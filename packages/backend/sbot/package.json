@@ -54,7 +54,6 @@
     "channel.xiaoai": "workspace:*",
     "commander": "catalog:",
     "diff": "^9.0.0",
-    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "log4js": "^6.9.1",
     "multer": "^2.2.0",
