@@ -37,10 +37,6 @@ export const larkPlugin = defineChannelPlugin({
     appSecret: { label: 'App Secret', type: ConfigFieldType.Password, required: true, description: 'Lark app secret' },
   },
 
-  tools: [
-    { name: '_ask', label: '询问用户' },
-    { name: '_get_message_history', label: '获取消息历史' },
-  ],
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;

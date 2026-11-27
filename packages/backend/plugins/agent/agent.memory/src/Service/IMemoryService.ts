@@ -6,17 +6,9 @@ import type { MemoryHistoryDiff, MemoryHistoryEntry } from "../History/MemoryHis
  * Memory 系统对外接口。Agent 运行时由 MemoryAgentPlugin 消费：
  *
  * - **读注入**：`getSystemMessage(query)` 渲染固定菜单 + query 相关的 markdown 卡片
- * - **工具调用**：`readMemory(slug, scope)` / `search(query)` 由 `read_memory` / `search_memory` 工具执行
  * - **写路径**：`extractFromConversation(messages)` 每轮对话结束触发；
  *   实现内部把消息推入 SQLite 队列并串行调度 LLM 抽取。
  */
-
-export interface MemoryToolDescs {
-    /** read_memory 工具描述 */
-    read: string;
-    /** search_memory 工具描述 */
-    search: string;
-}
 
 export interface MemoryWriterOpStats {
     create: number;
@@ -31,10 +23,10 @@ export interface IMemoryService {
      * 注入到主 agent system prompt 的整段记忆指引：
      *
      *   - 渲染 `memory/reader/default.md` 模板（替换 `{{ memory_menu }}`）
-     *   - 含固定菜单卡片、按本轮 query 检索的相关卡片和工具调用规则
-     *   - 只注入 title/snippet；完整正文仍由 read_memory 按需读取
+     *   - 含固定菜单卡片、按本轮 query 检索的相关卡片
+     *   - 标题和匹配片段作为上下文注入
      *
-     * 无 memory 时仍返回模板（让 agent 知道工具存在，只是当前空），由调用方决定是否注入。
+     * 无 memory 时仍返回空菜单模板。
      * 返回 null 留给将来扩展。
      */
     getSystemMessage(query: string): Promise<string | null>;
@@ -57,9 +49,6 @@ export interface IMemoryService {
      * turn-end Extract 会统一接走并按消息处理。
      */
     remember(content: string, scope: MemoryScope): Promise<number>;
-
-    /** read_memory / search_memory 的工具描述。 */
-    getToolDescs(): MemoryToolDescs;
 
     /**
      * admin 浏览用：列所有 memory（不分页）。

@@ -5,7 +5,7 @@ import { SkillService } from 'agent.skill';
 export class SkillHelper {
     list(skillsDir: string) {
         if (!fs.existsSync(skillsDir)) return [];
-        const svc = new SkillService("", "", "", "");
+        const svc = new SkillService("");
         svc.registerSkillsDir(skillsDir);
         return svc.getAllSkills().map(s => ({
             path: s.path,

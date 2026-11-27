@@ -9,7 +9,6 @@ import { config } from "../Core/Config";
 import { compareSemver, fetchLatestRelease, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE } from "@sbot/shared";
 import { PluginLoader } from "./PluginLoader";
 import { channelPluginRegistry } from "./ChannelPluginRegistry";
-import { WEB_CHANNEL_TOOLS } from "./web/WebSocketSessionHandler";
 
 const logger = LoggerService.getLogger("ChannelManager.ts");
 
@@ -194,7 +193,7 @@ export class ChannelManager {
 
     getPluginList(): Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean; tools?: { name: string; label: string }[] }> {
         const list: Array<{ type: string; label: string; configSchema: Record<string, any>; builtin: boolean; tools?: { name: string; label: string }[] }> = [
-            { type: WEB_CHANNEL_TYPE, label: 'Web', configSchema: {}, builtin: true, tools: WEB_CHANNEL_TOOLS },
+            { type: WEB_CHANNEL_TYPE, label: 'Web', configSchema: {}, builtin: true },
         ];
         for (const p of channelPluginRegistry.list()) {
             list.push({ type: p.type, label: p.label, configSchema: p.configSchema, builtin: false, tools: p.tools });

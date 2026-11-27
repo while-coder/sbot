@@ -1,13 +1,8 @@
 import {
     Skill,
     T_SkillSystemPromptTemplate,
-    T_SkillToolReadDesc,
-    T_SkillToolListDesc,
-    T_SkillToolExecDesc,
 } from "./shared";
 import { parseSkill, isValidSkillDirectory } from "./loader";
-import { createAgentTool, type AgentTool } from "scorpio.ai";
-import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import {
@@ -15,21 +10,10 @@ import {
     IAgentPlugin,
     ILoggerService,
     formatError,
-    createTextContent,
-    createErrorResult,
-    createSuccessResult,
-    MCPToolResult,
-    formatWalkTree,
-    DEFAULT_WALK_MAX_DEPTH,
-    DEFAULT_WALK_LIMIT,
     UsageTracker,
     UsageState,
 } from "scorpio.ai";
 import { inject } from "scorpio.di";
-import { runShellCommand } from "scorpio.command";
-export const READ_SKILL_FILE_TOOL_NAME = 'read_skill_file';
-export const EXECUTE_SKILL_SCRIPT_TOOL_NAME = 'execute_skill_script';
-export const LIST_SKILL_FILES_TOOL_NAME = 'list_skill_files';
 
 function formatSkillItems(skills: Skill[]): string {
   return skills
@@ -52,9 +36,6 @@ export class SkillService implements IAgentPlugin {
 
   constructor(
     @inject(T_SkillSystemPromptTemplate) private systemPromptTemplate: string,
-    @inject(T_SkillToolReadDesc) private toolReadDesc: string,
-    @inject(T_SkillToolListDesc) private toolListDesc: string,
-    @inject(T_SkillToolExecDesc) private toolExecDesc: string,
     @inject(ILoggerService, { optional: true }) loggerService?: ILoggerService,
   ) {
     this.logger = loggerService?.getLogger("SkillService");
@@ -121,160 +102,4 @@ export class SkillService implements IAgentPlugin {
     return this.systemPromptTemplate.replace('{skills}', formatSkillItems(skills));
   }
 
-  getTools(): AgentTool[] {
-    if (this.getAllSkills().length === 0) return [];
-    if (!this.toolReadDesc) return [];
-    return [this.buildReadTool(), this.buildExecTool(), this.buildListTool()];
-  }
-
-  // ── 基础工具（读/执行/列表） ──
-
-  private buildReadTool(): AgentTool {
-    return createAgentTool({
-      name: READ_SKILL_FILE_TOOL_NAME,
-      description: this.toolReadDesc,
-      schema: z.object({
-        skillName: z.string().describe("Skill name (kebab-case)"),
-        filePath: z.string().describe('Relative path within the skill directory, e.g. "SKILL.md", "scripts/init.py"')
-      }) as any,
-      func: async ({ skillName, filePath }: any): Promise<MCPToolResult> => {
-        try {
-          const skill = this.getAllSkills().find(s => s.name === skillName);
-          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
-
-          const fullPath = path.join(skill.path, filePath);
-          if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: access outside the skill directory is not allowed");
-          if (!fs.existsSync(fullPath)) return createErrorResult(`File not found: ${filePath}`);
-          if (!fs.statSync(fullPath).isFile()) return createErrorResult(`Path is not a file: ${filePath}`);
-
-          new UsageTracker(skill.path).recordView();
-          const content = fs.readFileSync(fullPath, "utf-8");
-          return createSuccessResult(createTextContent(content));
-        } catch (error: any) {
-          this.logger?.error(`Error reading skill file ${skillName}/${filePath}: ${formatError(error, true)}`);
-          return createErrorResult(formatError(error));
-        }
-      }
-    });
-  }
-
-  private buildExecTool(): AgentTool {
-    return createAgentTool({
-      name: EXECUTE_SKILL_SCRIPT_TOOL_NAME,
-      description: this.toolExecDesc!,
-      schema: z.object({
-        skillName:  z.string().describe("Skill name (kebab-case)"),
-        command:    z.string().min(1).describe('Shell command or multi-line script to run inside the skill, e.g. "python scripts/process.py --in data.json", "npm install && npm run build". Relative paths resolve against workingDir.'),
-        workingDir: z.string().optional().describe('Optional sub-directory inside the skill to use as cwd, relative to the skill root (e.g. "scripts"). Defaults to the skill root. Use this for scripts that assume their own directory as cwd.'),
-        stdin:      z.any().optional().describe('Data to pipe into the command via stdin. Prefer a string; objects/arrays are auto-serialized to JSON.'),
-        timeout:    z.number().optional().default(60000).describe('Timeout in milliseconds, default 60000 (60 s)'),
-      }) as any,
-      func: async ({ skillName, command, workingDir, stdin, timeout = 60000 }: any): Promise<MCPToolResult> => {
-        // schema 用 z.any() 是为了同时满足两点：(1) Zod v4 的 toJSONSchema 不接受 transform/preprocess；
-        // (2) 模型偶尔不遵守 string 约束、直接塞 object/array。这里在 func 入口统一序列化兜底。
-        if (stdin != null && typeof stdin !== 'string') stdin = JSON.stringify(stdin);
-        try {
-          const skill = this.getAllSkills().find(s => s.name === skillName);
-          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
-
-          // 默认 cwd = skill 根；workingDir 用 path.resolve 处理，绝对路径会覆盖 base，
-          // 再用 isPathSafe 兜底拦截 ".."/绝对路径越权，保持 skill 边界。
-          const cwd = workingDir ? path.resolve(skill.path, workingDir) : skill.path;
-          if (!this.isPathSafe(cwd, skill.path)) {
-            return createErrorResult("Security error: workingDir must be inside the skill directory");
-          }
-          if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
-            return createErrorResult(`Working directory not found: ${cwd}`);
-          }
-
-          new UsageTracker(skill.path).recordUse();
-          const label = `skill ${skillName}`;
-          this.logger?.info(`执行 skill ${skillName} (cwd=${cwd}): ${command}`);
-
-          const result = await runShellCommand(command, cwd, timeout, label, stdin);
-          return {
-            content: result.content.map(part => createTextContent(part.text)),
-            isError: result.isError,
-          };
-        } catch (error: any) {
-          this.logger?.error(`Error executing skill ${skillName}: ${formatError(error, true)}`);
-          return createErrorResult(formatError(error));
-        }
-      }
-    });
-  }
-
-  private buildListTool(): AgentTool {
-    return createAgentTool({
-      name: LIST_SKILL_FILES_TOOL_NAME,
-      description: this.toolListDesc!,
-      schema: z.object({
-        skillName: z.string().describe("Skill name (kebab-case)"),
-        subPath:   z.string().optional().describe('Sub-directory to list, relative to the skill root (e.g. "scripts", "references"). Defaults to the skill root.'),
-        maxDepth:  z.number().int().positive().optional().default(DEFAULT_WALK_MAX_DEPTH).describe(`Max recursion depth (1 = direct children only). Default ${DEFAULT_WALK_MAX_DEPTH}`),
-        limit:     z.number().int().positive().optional().default(DEFAULT_WALK_LIMIT).describe(`Stop after this many entries (files + directories). Default ${DEFAULT_WALK_LIMIT}`),
-        ignore:    z.array(z.string()).optional().describe('Additional directory/file names to ignore'),
-      }) as any,
-      func: async ({ skillName, subPath = "", maxDepth = DEFAULT_WALK_MAX_DEPTH, limit = DEFAULT_WALK_LIMIT, ignore = [] }: any): Promise<MCPToolResult> => {
-        try {
-          const skill = this.getAllSkills().find(s => s.name === skillName);
-          if (!skill) return createErrorResult(`Skill "${skillName}" not found`);
-
-          const fullPath = path.join(skill.path, subPath);
-          if (!this.isPathSafe(fullPath, skill.path)) return createErrorResult("Security error: access outside the skill directory is not allowed");
-          if (!fs.existsSync(fullPath)) return createErrorResult(`Directory not found: ${subPath || "/"}`);
-
-          const ignoreSet = new Set<string>([...SkillService.IGNORED_NAMES, ...(ignore ?? [])]);
-          return createSuccessResult(createTextContent(formatWalkTree(fullPath, { maxDepth, limit, ignore: ignoreSet })));
-        } catch (error: any) {
-          this.logger?.error(`Error listing skill files ${skillName}/${subPath}: ${formatError(error, true)}`);
-          return createErrorResult(formatError(error));
-        }
-      }
-    });
-  }
-
-  // ── 工具函数 ──
-
-  private isPathSafe(fullPath: string, baseDir: string): boolean {
-    const basePath = path.resolve(baseDir);
-    const targetPath = path.resolve(fullPath);
-    if (!SkillService.isPathWithin(basePath, targetPath)) return false;
-
-    // Existing paths must also remain inside the skill after resolving junctions/symlinks.
-    // Missing paths are handled by the caller and are safe to classify lexically here.
-    if (!fs.existsSync(basePath) || !fs.existsSync(targetPath)) return true;
-    try {
-      return SkillService.isPathWithin(
-        fs.realpathSync(basePath),
-        fs.realpathSync(targetPath),
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  private static isPathWithin(basePath: string, targetPath: string): boolean {
-    const relative = path.relative(basePath, targetPath);
-    return relative === ""
-      || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
-  }
-
-  // 扁平路径列表：目录用 `/` 后缀标识，省 token、无歧义。目录优先排序便于 LLM 识别可下钻路径。
-  // 过滤构建产物 / VCS / IDE / 内部缓存噪音，避免顶层出现 node_modules 这类条目。
-  private static readonly IGNORED_NAMES = new Set([
-    '.usage.json',
-    // VCS
-    '.git', '.svn', '.hg',
-    // Node
-    'node_modules', 'coverage', '.next', '.nuxt', '.turbo',
-    // Python
-    '__pycache__', '.venv', 'venv', '.pytest_cache', '.mypy_cache', '.tox', '.ruff_cache',
-    // 其他构建产物
-    'target', '.gradle',
-    // IDE / OS
-    '.idea', '.vscode', '.DS_Store', 'Thumbs.db',
-    // skill 自身的运行时/缓存/临时目录（约定俗成的 dot-prefixed 内部目录）
-    '.runtime', '.cache', '.tmp', '.temp', '.local',
-  ]);
 }

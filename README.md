@@ -138,7 +138,7 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 - **Agent modes** — Single for direct execution, ReAct for recursive task delegation, and ACP for external agents
 - **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
 - **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
-- **Memory** — Per-agent automatic long-term memory: a background MemoryLLM distills durable knowledge after each conversation idles, read back via `search_memory` / `read_memory` with consolidate/reconcile maintenance
+- **Memory** — A background model distills durable knowledge after conversations idle, and relevant memories are supplied as context
 - **Agenda** — Conversation-driven reminders, schedules, and routines with absolute / interval / cron triggers; optionally synced from the conversation after every turn and delivered to any session or channel
 - **Heartbeat** — Configurable periodic self-activation lets agents run scheduled prompts proactively across any channel
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart

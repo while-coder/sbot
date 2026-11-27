@@ -1,12 +1,11 @@
 import { ServiceContainer } from "scorpio.di";
 import { formatError, type ILogger, ILoggerService } from "scorpio.ai";
-import { T_AgendaToolDescs } from "../tokens";
 import { DEFAULT_PENDING_JOB_LIMIT } from "../limits";
 import { IAgendaStore, type PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
 import { IAgendaExtractor } from "../Extractor/IAgendaExtractor";
 import { AgendaService } from "./AgendaService";
-import { IAgendaService, type AgendaToolDescs } from "./IAgendaService";
+import { IAgendaService } from "./IAgendaService";
 
 /**
  * 由 caller resolver 提供的、构造一个 AgendaService 所需的全部"已 resolved 配置"。
@@ -20,7 +19,6 @@ export interface AgendaServiceConfig {
     /** 该 agendaId 的触发引擎；由 sbot 侧 agendaTriggerEnginePool 共享。 */
     triggerEngine: IAgendaTriggerEngine;
     /** 工具描述（注入到 agenda_create / agenda_list / ... 工具的 description）。 */
-    toolDescs: AgendaToolDescs;
     /** 后台抽取 LLM；可选——profile 没配 syncModel 时为空，此时抽取直接 noop。 */
     extractor?: IAgendaExtractor;
 }
@@ -146,7 +144,6 @@ export class AgendaServicePool {
 
         const sub = new ServiceContainer();
         if (this.loggerService) sub.registerInstance(ILoggerService, this.loggerService);
-        sub.registerInstance(T_AgendaToolDescs, cfg.toolDescs);
         sub.registerInstance(IAgendaStore, cfg.agendaStore);
         sub.registerInstance(IAgendaTriggerEngine, cfg.triggerEngine);
         if (cfg.extractor) sub.registerInstance(IAgendaExtractor, cfg.extractor);

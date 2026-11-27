@@ -223,8 +223,8 @@ export {
   MCPToolResultMeta,
 
   // Dispatch task tool
-  createDispatchTaskTool,
-  DISPATCH_TASK_TOOL_NAME,
+  createSpawnAgentTool,
+  SPAWN_AGENT_TOOL_NAME,
   type DispatchTaskToolParams,
   type RunDispatchTaskArgs,
   type RunDispatchTaskFn,

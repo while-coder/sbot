@@ -27,9 +27,6 @@ export const wecomPlugin = defineChannelPlugin({
     secret: { label: 'Secret',  type: ConfigFieldType.Password, required: true, description: 'WeCom bot secret' },
   },
 
-  tools: [
-    { name: '_send_file', label: '发送文件' },
-  ],
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { config, logger, filterEvent, initSession, onReceiveMessage, onTriggerAction } = ctx;

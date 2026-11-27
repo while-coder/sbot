@@ -42,9 +42,6 @@ export const wechatPlugin = defineChannelPlugin({
     qrLogin:  { label: "扫码登录", type: ConfigFieldType.QRCode, description: "扫码登录后自动填入凭证" },
   },
 
-  tools: [
-    { name: '_send_file', label: '发送文件' },
-  ],
 
   async getQRCode(key: string, _params?: any): Promise<{ url: string; type: 'image' | 'link' }> {
     // Abort any previous pending poll for the same key

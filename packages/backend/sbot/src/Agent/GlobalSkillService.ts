@@ -8,9 +8,6 @@ const promptOverrides = config.getConfigPath('prompts', true);
 
 export const globalSkillService = new SkillService(
     loadSkillPrompt('skills/system.txt', promptOverrides),
-    loadSkillPrompt('skills/tool_read_skill_file.txt', promptOverrides),
-    loadSkillPrompt('skills/tool_list_skill_files.txt', promptOverrides),
-    loadSkillPrompt('skills/tool_execute_skill_script.txt', promptOverrides),
     GlobalLoggerService.getLoggerService(),
 );
 

@@ -24,7 +24,6 @@ import {
     truncateForLog,
 } from "scorpio.ai";
 import {
-    type MemoryToolDescs,
     type MemoryWriterOpStats,
 } from "./IMemoryService";
 import {
@@ -53,7 +52,6 @@ import {
 } from "../History/MemoryHistory";
 
 // 读路径（每轮动态注入）：固定菜单提供跨轮约束，query 命中补当前任务相关片段。
-// 完整正文不进 system prompt，仍由 read_memory 按需读取。
 // 菜单随记忆库增长线性膨胀（每行 ~120 字符），上限要按 system prompt 预算控制；
 // 排序（lastReadAt → evidence → updatedAt）保证截断掉的是最不相关的尾部。
 const DEFAULT_READ_MENU_LIMIT = 20;
@@ -65,24 +63,6 @@ const SELECTOR_INPUT_TOKEN_CAP = 16_000;
 const SELECTOR_CANDIDATES_PER_BATCH = 8;
 const SELECTOR_FINAL_CANDIDATE_LIMIT = 20;
 const SELECTOR_DURABLE_FACT_LIMIT = 12;
-
-const DEFAULT_TOOL_DESCS: MemoryToolDescs = {
-    read: [
-        "Read the full content of a long-term memory by its slug and required scope.",
-        "Use when the user mentions a topic that clearly matches a menu entry and the one-line title isn't enough to act on.",
-        "Slugs not in the menu may still exist; they will be ranked low — prefer search_memory for unknown terms.",
-        "Calling this counts as a read and bumps the entry's recency in future menus.",
-        "Always pass the scope shown in the memory menu or search result.",
-    ].join("\n"),
-    search: [
-        "Search long-term memories by content (BM25 over markdown bodies).",
-        "Use this when the user mentions a specific term, identifier, or topic that is NOT visible in the memory menu in the system prompt.",
-        "Tokenization splits on punctuation; for literals like URLs or ports, search a single rare token (e.g. \"5433\", not the full URL).",
-        "Results use the same one-line shape as the memory menu (kind / evidence / slug / title) plus the matched snippet, so a hit already in the menu is recognisable as the same entry.",
-        "Call read_memory(slug, scope) afterwards if you need the full body.",
-        "If nothing matches and no related entry exists, stop — memory holds cross-conversation knowledge, not docs; for code/architecture questions read the actual code.",
-    ].join("\n"),
-};
 
 // ── MemoryLLM CRUD schema（与 prompts/memory/writer/default.md 对齐） ──
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -514,10 +494,6 @@ export class MemoryService {
             this.logMemory('warn', `显式记忆入队失败：scope=${scope}，错误=${formatError(e, true)}`);
             throw e;
         }
-    }
-
-    getToolDescs(): MemoryToolDescs {
-        return DEFAULT_TOOL_DESCS;
     }
 
     async listAll(target: MemoryTarget): Promise<MemoryRow[]> {

@@ -1,11 +1,8 @@
 import { LarkChatProvider } from "./LarkChatProvider";
 import { LarkChatType, LarkReceiveIdType, LarkService } from "./LarkService";
-import { createAgentTool } from "channel.base";
-import { z } from "zod";
 import {
-  ChannelSessionHandler, ToolCallStatus, SessionService, createAskTool,
+  ChannelSessionHandler, ToolCallStatus, SessionService,
   GlobalLoggerService, AskQuestionType, summarizeMultimodal, AgentCancelledError, ToolApproval,
-  type AgentTool,
   type ChannelMessageArgs, type ChatMessage, type ChatToolCall, type AskToolParams, type MessageType, type MessageContent,
   formatError,
 } from "channel.base";
@@ -232,44 +229,6 @@ export class LarkSessionHandler extends ChannelSessionHandler<LarkChatProvider> 
 
   protected async exitAsk(_askId: string): Promise<void> {
     await this.provider?.deleteElement(EL_ASK_FORM);
-  }
-
-  static readonly ASK_PROMPT = `Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.
-
-Question types:
-- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)
-- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)
-- input: free-text entry with an optional placeholder
-
-Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
-
-  async buildAgentTools(args: ChannelMessageArgs): Promise<AgentTool[]> {
-    const { sessionId, userOpenId } = args as LarkMessageArgs;
-    return [
-        createAskTool((params: AskToolParams) => this.executeAsk(params), LarkSessionHandler.ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
-        createAgentTool({
-            name: '_get_message_history',
-            description: 'Retrieve message history from the current Lark chat in reverse chronological order (newest first). To paginate older messages, pass the last (oldest) message\'s "time" as the next call\'s "end_time".',
-            schema: z.object({
-                limit: z.number().optional().describe('Max number of messages to retrieve (default 20).'),
-                start_time: z.string().optional().describe('Only messages after this Unix timestamp in seconds (e.g. "1700000000").'),
-                end_time: z.string().optional().describe('Only messages before this Unix timestamp in seconds. Pass the last (oldest) message\'s "time" to fetch older messages.'),
-                self_only: z.boolean().optional().describe('If true, only return messages sent by the current user.'),
-            }),
-            func: async ({ limit, start_time, end_time, self_only }) => {
-                const { items, hasMore } = await this.larkService.getMessageHistory(sessionId, {
-                    limit,
-                    startTime: start_time,
-                    endTime: end_time,
-                    filter: self_only ? (m) => m.sender?.id === userOpenId : undefined,
-                });
-                const lines = items.map((m) =>
-                    `<message sender="${m.sender_name}" time="${m.create_time}">${m.content}</message>`
-                );
-                return `<message-history count="${items.length}" has_more="${hasMore}">\n${lines.join('\n')}\n</message-history>`;
-            },
-        }),
-    ];
   }
 
   async onTriggerAction(args: LarkActionArgs): Promise<any> {

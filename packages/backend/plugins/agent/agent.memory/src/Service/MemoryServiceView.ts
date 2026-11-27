@@ -6,7 +6,7 @@ import type {
     MemoryTarget,
     PendingMemoryJobRow,
 } from "../Storage/IMemoryStore";
-import type { IMemoryService, MemoryToolDescs } from "./IMemoryService";
+import type { IMemoryService } from "./IMemoryService";
 import type { MemoryService } from "./MemoryService";
 import type { MemoryHistoryDiff, MemoryHistoryEntry } from "../History/MemoryHistory";
 
@@ -34,10 +34,6 @@ export abstract class MemoryServiceView implements IMemoryService {
 
     remember(content: string, scope: MemoryScope): Promise<number> {
         return this.owner.remember(content, scope, this.target);
-    }
-
-    getToolDescs(): MemoryToolDescs {
-        return this.owner.getToolDescs();
     }
 
     listAll(): Promise<MemoryRow[]> {

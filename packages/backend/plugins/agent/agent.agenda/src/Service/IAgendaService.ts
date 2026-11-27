@@ -14,21 +14,7 @@ import type {
     AgendaUpdatePatch,
 } from "../types";
 
-export interface AgendaToolDescs {
-    create: string;
-    list: string;
-    /** agenda_get：list 之后按 id 取单条全文（trigger.message 完整执行指令 + 触发历史）。 */
-    get: string;
-    /** agenda_edit：主体字段 + trigger 增删改，一次调用原子生效。 */
-    edit: string;
-    /** agenda_close：done / dropped 统一终结入口。 */
-    close: string;
-    /** agenda_wiki 工具被调用时返回的 body（决策性知识全集）。tool 自身的 description 短而稳定，inline 在 ToolProvider 里。 */
-    wiki: string;
-}
-
 export interface IAgendaService {
-    getToolDescs(): AgendaToolDescs;
     create(args: AgendaCreateArgs): Promise<AgendaCreateResult>;
     list(filter?: AgendaListFilter): Promise<AgendaRecord[]>;
     update(id: number, patch: AgendaUpdatePatch): Promise<AgendaRecord | null>;

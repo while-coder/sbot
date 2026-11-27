@@ -7,10 +7,9 @@ export {
   defineChannelPlugin,
 } from './ChannelPlugin';
 export { AbstractChatProvider } from './AbstractChatProvider';
-export { createSendFileTool, SEND_FILE_TOOL_NAME, type SendFileFn } from './SendFileTool';
 export {
-  createAskTool, ASK_TOOL_NAME, AskQuestionType,
-  type AskToolParams, type AskQuestion, type AskResponse, type AskUserFn,
+  AskQuestionType,
+  type AskToolParams, type AskQuestion, type AskResponse,
   type RadioQuestion, type CheckboxQuestion, type InputQuestion,
 } from './AskTool';
 export { createAgentTool, type AgentTool, type ToolInvokeConfig } from 'scorpio.ai';

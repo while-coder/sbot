@@ -7,7 +7,7 @@ export * from "./tokens";
 export * from "./prompts";
 export * from "./Plugin/AgendaAgentPlugin";
 export * from "./Plugin/AgendaPluginLease";
-export { IAgendaService, type AgendaToolDescs } from "./Service/IAgendaService";
+export { IAgendaService } from "./Service/IAgendaService";
 export { AgendaService } from "./Service/AgendaService";
 export {
     AgendaServicePool,
@@ -31,4 +31,3 @@ export { AgendaStorePool } from "./Runtime/AgendaStorePool";
 export { AgendaTriggerEnginePool } from "./Runtime/AgendaTriggerEnginePool";
 export * from "./Extractor/IAgendaExtractor";
 export * from "./Extractor/AgendaExtractor";
-export * from "./Tools/AgendaToolProvider";

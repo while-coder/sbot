@@ -19,9 +19,6 @@ import {
 import {
     SkillService,
     T_SkillSystemPromptTemplate,
-    T_SkillToolReadDesc,
-    T_SkillToolListDesc,
-    T_SkillToolExecDesc,
     loadSkillPrompt,
 } from "agent.skill";
 import path from "path";
@@ -75,8 +72,10 @@ export class AgentFactory {
         const toolEntry = agentEntry as ToolAgentEntry;
         const workspaceSkillPath = options.disableWorkspaceSkills ? undefined : options.workPath;
         const workspaceMcpPath = options.disableWorkspaceMcp ? undefined : options.workPath;
-        await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath, toolEntry.skillsExclude);
-        await this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude, workspaceMcpPath, options.workPath);
+        const toolService = this.registerToolService(container, agentId, options.dbSessionId, toolEntry.mcp, toolEntry.mcpParams, agentTools, toolEntry.mcpExclude, workspaceMcpPath, options.workPath);
+        if (toolService.getProviderNames().includes(BuiltinProvider.Command)) {
+            await this.registerSkillService(container, agentId, toolEntry.skills, workspaceSkillPath, toolEntry.skillsExclude);
+        }
 
         const systemPrompts = [...extraPrompts];
         if (toolEntry.systemPrompt) systemPrompts.push(toolEntry.systemPrompt);
@@ -118,9 +117,6 @@ export class AgentFactory {
         const promptOverrides = config.getConfigPath('prompts', true);
         container.registerWithArgs(SkillService, {
             [T_SkillSystemPromptTemplate]: loadSkillPrompt('skills/system.txt', promptOverrides),
-            [T_SkillToolReadDesc]: loadSkillPrompt('skills/tool_read_skill_file.txt', promptOverrides),
-            [T_SkillToolListDesc]: loadSkillPrompt('skills/tool_list_skill_files.txt', promptOverrides),
-            [T_SkillToolExecDesc]: loadSkillPrompt('skills/tool_execute_skill_script.txt', promptOverrides),
         });
         const skillService = container.resolve(SkillService);
         if (skills === '*') {
@@ -158,7 +154,7 @@ export class AgentFactory {
         ]);
     }
 
-    private static async registerToolService(
+    private static registerToolService(
         container: ServiceContainer,
         agentName: string,
         dbSessionId: string,
@@ -168,7 +164,7 @@ export class AgentFactory {
         mcpExclude?: string[],
         workspaceMcpPath?: string,
         workPath?: string,
-    ): Promise<void> {
+    ): AgentToolService {
         container.registerSingleton(IAgentToolService, AgentToolService);
         const toolService = container.resolve<AgentToolService>(IAgentToolService);
 
@@ -207,6 +203,7 @@ export class AgentFactory {
             }
             toolService.registerMcpServers(workspaceMcp);
         }
+        return toolService;
     }
 
     /**

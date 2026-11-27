@@ -34,14 +34,14 @@ export type RunDispatchTaskFn = (params: RunDispatchTaskArgs) => Promise<MCPTool
 
 // -- Factory -----------------------------------------------------------------
 
-export const DISPATCH_TASK_TOOL_NAME = "_dispatch_task";
+export const SPAWN_AGENT_TOOL_NAME = "spawn_agent";
 
 const DEFAULT_DESC =
   "Dispatch a task to a specialized sub-agent and return its result. Omit `taskId` to start a fresh " +
   "sub-agent session; pass the returned `task_id` back as `taskId` to resume the same session. Fresh " +
   "tasks must be self-contained unless `contextMode` is `state`; resumed tasks can be short follow-ups.";
 
-export function createDispatchTaskTool(agentIds: string[], runFn: RunDispatchTaskFn, description: string = DEFAULT_DESC): AgentTool {
+export function createSpawnAgentTool(agentIds: string[], runFn: RunDispatchTaskFn, description: string = DEFAULT_DESC): AgentTool {
   const schema = z.object({
     // WHO：派给哪个子 agent（zod v4 的 z.enum 直接接受 string[]，无需 as/解构）
     agentId: z.enum(agentIds)
@@ -60,7 +60,7 @@ export function createDispatchTaskTool(agentIds: string[], runFn: RunDispatchTas
   });
 
   return createAgentTool({
-    name: DISPATCH_TASK_TOOL_NAME,
+    name: SPAWN_AGENT_TOOL_NAME,
     description: description,
     schema: schema as any,
     // 第二参是 invoke 时传入的 ToolInvokeConfig，SingleAgentService 在其中

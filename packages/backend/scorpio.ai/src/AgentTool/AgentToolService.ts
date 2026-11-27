@@ -37,14 +37,15 @@ export class AgentToolService implements IAgentToolService {
         this.invalidate(name);
     }
 
-    registerMcpServers(mcpServers: MCPServers): void {
+    registerMcpServers(mcpServers: MCPServers, allowedTools?: readonly string[]): void {
         if (Object.keys(mcpServers).length === 0) return;
         for (const [name, cfg] of Object.entries(mcpServers)) {
             this.providers.set(name, {
                 factory: async () => {
                     const client = new RecoverableMcpClient(name, cfg, this.logger);
+                    const tools = await client.getTools();
                     return {
-                        tools: await client.getTools(),
+                        tools: allowedTools ? tools.filter(tool => allowedTools.includes(tool.name)) : tools,
                         close: async () => { await client.close(); },
                     };
                 },

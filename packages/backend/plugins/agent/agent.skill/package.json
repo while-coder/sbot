@@ -10,9 +10,7 @@
   "dependencies": {
     "js-yaml": "^4.2.0",
     "scorpio.ai": "workspace:*",
-    "scorpio.command": "workspace:*",
-    "scorpio.di": "workspace:*",
-    "zod": "catalog:"
+    "scorpio.di": "workspace:*"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

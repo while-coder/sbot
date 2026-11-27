@@ -35,7 +35,6 @@ export {
 // ── Service（含 LLM 抽取与 transcript 渲染） ──
 export {
     IMemoryService,
-    type MemoryToolDescs,
     type MemoryWriterOpStats,
 } from './Service/IMemoryService';
 export {
@@ -60,9 +59,3 @@ export { MemoryAgentPlugin } from './Plugin/MemoryAgentPlugin';
 export { MemoryPluginLease } from './Plugin/MemoryPluginLease';
 
 // ── Tools ──
-export {
-    MemoryToolProvider,
-    READ_MEMORY_TOOL_NAME,
-    SEARCH_MEMORY_TOOL_NAME,
-    REMEMBER_MEMORY_TOOL_NAME,
-} from './Tools/MemoryToolProvider';

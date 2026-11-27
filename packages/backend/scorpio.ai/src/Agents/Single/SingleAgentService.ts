@@ -491,7 +491,7 @@ export class SingleAgentService extends AgentServiceBase {
         this.logger?.info(`开始执行工具 ${tool.name} query: ${queryBrief ?? '(无)'} 参数: ${truncate(JSON.stringify(parsedArgs), 300)}`);
 
         // think 预留：thinkId 在这里生成并随 config 透传给工具。会开启子思考流的工具
-        // （如 _dispatch_task 派发子 agent）在流程真正启动时调 onCreateThink 声明一次，此处
+        // （如 spawn_agent 派发子 agent）在流程真正启动时调 onCreateThink 声明一次，此处
         // 立刻把 thinkId/taskId 关联到本次 tool_call 落库 + 下发 —— 用户因此无需等子任务结束
         // 就能查看思考过程（子 agent 的消息本就实时写入 thinks，见 TaskBackedSaver，缺的
         // 只是 thinkId 的告知时机）。

@@ -440,15 +440,9 @@ importers:
       scorpio.ai:
         specifier: workspace:*
         version: link:../../../scorpio.ai
-      scorpio.command:
-        specifier: workspace:*
-        version: link:../../../command/scorpio.command
       scorpio.di:
         specifier: workspace:*
         version: link:../../../scorpio.di
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
     devDependencies:
       '@types/js-yaml':
         specifier: ^4.0.9

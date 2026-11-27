@@ -14,7 +14,6 @@ import {
     runtimeActivity,
 } from "scorpio.ai";
 import { AgendaPluginLease } from "agent.agenda";
-import { ScratchpadPlugin } from "agent.scratchpad";
 import { MemoryPluginLease } from "agent.memory";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config } from "../Core/Config";
@@ -136,25 +135,15 @@ export class AgentRunner {
         try {
             memoryLease = AgentRunner.registerMemoryPlugin(container, options.memoryId, memoryWorkPath);
             agendaLease = AgentRunner.registerAgendaPlugin(container, options.agendaId);
-            // 会话黑板：纯同步文件读写、无句柄无 pool，per-run 构造即可，无需 lease/release；
-            // 无 dbSession 归属的运行不挂（channelSessionId=0 是 parseInt 失败的防御值，
-            // 落共享的 0.json 会让无会话归属的运行互相污染）。
-            if (channelSessionId > 0) {
-                AgentRunner.registerAgentPlugin(container, new ScratchpadPlugin(config.getScratchpadDir()));
-            }
-
             saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
             container.registerInstance(IAgentSaverService, saverHandle.saver);
-
-            // Memory 系统由后台 MemoryWriter LLM 自主 CRUD，不需要显式记忆工具。
-            const finalAgentTools: AgentTool[] = [...(agentTools ?? [])];
 
             agent = await AgentFactory.create({
                 agentId,
                 container,
                 extraPrompts,
                 dynamicPrompts,
-                agentTools: finalAgentTools,
+                agentTools,
                 dbSessionId,
                 workPath,
                 disableWorkspaceSkills: options.disableWorkspaceSkills,

@@ -1,29 +1,16 @@
 import "reflect-metadata";
 import { ChatMessage, MessageType, type MessageContent, formatError } from "scorpio.ai";
 import {
-    ChannelSessionHandler, ToolCallStatus, SessionService, AskQuestionType, createAskTool,
+    ChannelSessionHandler, ToolCallStatus, SessionService,
     ToolApproval,
-    type AgentTool, type AskToolParams,
+    type AskToolParams,
     type ChannelMessageArgs, type ChatToolCall,
 } from "channel.base";
 import { WebChatEventType, WsCommandType, ApprovalTimeoutValue } from '@sbot/shared';
 import { webService } from "./WebService";
 
-const WEB_ASK_PROMPT = `Ask the user one or more structured questions and wait for their response. Use this tool whenever you need clarification, a decision, or input before proceeding.
-
-Question types:
-- radio: single-choice selection from a fixed list (optionally with a custom "Other" option)
-- checkbox: multi-choice selection from a fixed list (optionally with a custom "Other" option)
-- input: free-text entry with an optional placeholder
-
-Returns a map of question label → answer (string for radio/input, string[] for checkbox).`;
-
 export { WebChatEventType } from '@sbot/shared';
 export type { WebChatEvent } from '@sbot/shared';
-
-export const WEB_CHANNEL_TOOLS: { name: string; label: string }[] = [
-    { name: '_ask', label: '询问用户' },
-];
 
 export class WebSocketSessionHandler extends ChannelSessionHandler {
 
@@ -80,14 +67,6 @@ export class WebSocketSessionHandler extends ChannelSessionHandler {
 
     protected async exitAsk(askId: string): Promise<void> {
         this.emit(WebChatEventType.AskDone, { id: askId });
-    }
-
-    // ── Agent tools ──
-
-    async buildAgentTools(_args: ChannelMessageArgs): Promise<AgentTool[]> {
-        return [
-            createAskTool((params: AskToolParams) => this.executeAsk(params), WEB_ASK_PROMPT, [AskQuestionType.Radio, AskQuestionType.Checkbox, AskQuestionType.Input]),
-        ];
     }
 
     // ── Trigger actions from WebSocket client ──

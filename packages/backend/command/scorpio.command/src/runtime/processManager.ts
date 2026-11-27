@@ -43,7 +43,7 @@ export function formatProcessResult(result: ManagedProcessResult): CommandToolRe
     if (result.stderr) parts.push(`stderr:\n${result.stderr.trimEnd()}`);
     if (result.truncated) parts.push('Output exceeded the unread buffer limit; some output was discarded.');
     if (result.running) {
-        let note = `Process is still running.\nprocessId: ${result.processId}\nCall exec_command with this processId to read more output.`;
+        let note = `Process is still running.\nprocessId: ${result.processId}\nCall write_stdin with this processId to read more output.`;
         if (result.stdinOpen) note += '\nPass stdin with this processId to send input.';
         if (result.note) note = `${result.note}\n\n${note}`;
         parts.push(note);

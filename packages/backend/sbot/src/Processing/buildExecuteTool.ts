@@ -1,27 +1,6 @@
-import { ChatToolCall, ToolApproval, DISPATCH_TASK_TOOL_NAME } from "scorpio.ai";
-import { AGENDA_CREATE_TOOL_NAME, AGENDA_LIST_TOOL_NAME, AGENDA_GET_TOOL_NAME, AGENDA_EDIT_TOOL_NAME, AGENDA_CLOSE_TOOL_NAME, AGENDA_WIKI_TOOL_NAME } from "agent.agenda";
-import { READ_SKILL_FILE_TOOL_NAME, EXECUTE_SKILL_SCRIPT_TOOL_NAME, LIST_SKILL_FILES_TOOL_NAME } from "agent.skill";
-import { SessionService, ASK_TOOL_NAME, SEND_FILE_TOOL_NAME } from "channel.base";
-import { config } from "../Core/Config";
-
-/** 内部工具名，直接放行无需用户确认 */
-const INTERNAL_TOOLS = new Set([
-    ASK_TOOL_NAME,
-    DISPATCH_TASK_TOOL_NAME,
-    // SkillService 工具
-    READ_SKILL_FILE_TOOL_NAME,
-    EXECUTE_SKILL_SCRIPT_TOOL_NAME,
-    LIST_SKILL_FILES_TOOL_NAME,
-    // 渠道内置工具
-    SEND_FILE_TOOL_NAME,
-    // Agenda 工具
-    AGENDA_CREATE_TOOL_NAME,
-    AGENDA_LIST_TOOL_NAME,
-    AGENDA_GET_TOOL_NAME,
-    AGENDA_EDIT_TOOL_NAME,
-    AGENDA_CLOSE_TOOL_NAME,
-    AGENDA_WIKI_TOOL_NAME,
-]);
+import { ChatToolCall, ToolApproval, SPAWN_AGENT_TOOL_NAME } from "scorpio.ai";
+import { SessionService } from "channel.base";
+import { AgentMode, config } from "../Core/Config";
 
 export function buildExecuteTool(
     session: SessionService,
@@ -37,7 +16,7 @@ export function buildExecuteTool(
     const agentAutoApproveAll = agentEntry?.autoApproveAllTools;
 
     return async (toolCall: ChatToolCall) => {
-        if (INTERNAL_TOOLS.has(toolCall.name)) return ToolApproval.Allow;
+        if (agentEntry.type === AgentMode.ReAct && toolCall.name === SPAWN_AGENT_TOOL_NAME) return ToolApproval.Allow;
         if (config.settings.autoApproveAllTools) return ToolApproval.Allow;
         if (config.settings.autoApproveTools?.includes(toolCall.name)) return ToolApproval.Allow;
         if (sessionAutoApproveAll) return ToolApproval.Allow;

@@ -37,7 +37,6 @@ import {
     formatAgendaListXml,
     formatAgendaXml,
 } from "../format";
-import { T_AgendaToolDescs } from "../tokens";
 import {
     DEFAULT_LIST_LIMIT,
     DEFAULT_PENDING_JOB_LIMIT,
@@ -52,7 +51,7 @@ import {
 import { IAgendaTriggerEngine } from "../TriggerEngine/IAgendaTriggerEngine";
 import { IAgendaStore, type PendingAgendaJobRow } from "../Storage/IAgendaStore";
 import { computeInitialNextFire, relativeToMs } from "../time";
-import { type AgendaToolDescs, IAgendaService } from "./IAgendaService";
+import { IAgendaService } from "./IAgendaService";
 import { agendaServicePool } from "./AgendaServicePool";
 
 /**
@@ -76,7 +75,6 @@ export class AgendaService implements IAgendaService {
     private agendaName = '未知配置';
 
     constructor(
-        @inject(T_AgendaToolDescs) private toolDescs: AgendaToolDescs,
         @inject(IAgendaStore) private agendaStore: IAgendaStore,
         @inject(IAgendaTriggerEngine) private triggerEngine: IAgendaTriggerEngine,
         @inject(IAgendaExtractor, { optional: true }) private extractor?: IAgendaExtractor,
@@ -144,10 +142,6 @@ export class AgendaService implements IAgendaService {
         if (--this.refCount !== 0 || this.disposed) return;
         this.disposed = true;
         agendaServicePool.evict(this);
-    }
-
-    getToolDescs(): AgendaToolDescs {
-        return this.toolDescs;
     }
 
     async create(args: AgendaCreateArgs): Promise<AgendaCreateResult> {

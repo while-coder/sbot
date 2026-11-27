@@ -30,9 +30,6 @@ export const onebotPlugin = defineChannelPlugin({
     requireMention: { label: '群聊需@触发', type: ConfigFieldType.Boolean, description: 'Require @bot mention in group chats', default: true },
   },
 
-  tools: [
-    { name: '_send_file', label: '发送文件' },
-  ],
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { config, logger, filterEvent, initSession, onReceiveMessage } = ctx;

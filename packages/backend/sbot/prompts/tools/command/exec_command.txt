@@ -1,5 +1,5 @@
 Run shell commands in the session workspace, or pass an absolute workdir. Use installed command-line programs for file operations, builds, tests, and scripts. Shell syntax follows the server's platform.
 
-To start a command, pass cmd. Commands that continue running return a processId. Call exec_command again with that processId to read subsequent output, or pass timeoutMs when you need the exit status in a single call.
+Commands that continue running return a processId. Use write_stdin with that processId to read subsequent output, or pass timeoutMs at startup when you need the exit status in a single call.
 
-Set interactive=true at startup only for a program that reads additional stdin. Pass the processId and stdin to send input. Use closeStdin=true to send EOF or terminate=true to end a process. Interactive input uses pipes.
+Set interactive=true at startup only for a program that needs additional stdin. Use write_stdin to send input, close stdin, or terminate the process. Interactive input uses pipes.

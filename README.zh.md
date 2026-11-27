@@ -137,7 +137,7 @@ docker compose pull && docker compose up -d   # 升级到最新镜像
 - **Agent 模式** — Single 直接执行，ReAct 递归委派任务，ACP 接入外部 Agent
 - **ACP Agent 支持** — Agent Client Protocol 集成，支持持久化和临时两种 Agent 模式
 - **对话压缩** — Token 用量超阈值时自动摘要压缩，保持上下文连续性的同时降低消耗
-- **记忆（Memory）** — Agent 级自动长期记忆：会话空闲后由后台 MemoryLLM 提炼持久知识，主 Agent 通过 `search_memory` / `read_memory` 召回，并有 consolidate / reconcile 维护任务
+- **记忆（Memory）** — 会话空闲后由后台模型提炼持久知识，相关记忆会作为上下文提供给 Agent
 - **日程（Agenda）** — 由对话驱动的提醒、日程与周期任务，支持 absolute / interval / cron 触发器；可每轮对话后从对话自动同步，并投递到任意会话或渠道
 - **心跳唤醒** — 可配置定时提示词，让 Agent 在任意渠道周期性主动发起任务
 - **MCP 工具** — 标准 MCP 协议（stdio/SSE），接入任意 MCP 工具生态；支持全局与 Agent 级独立配置，故障自动重启

@@ -9,7 +9,7 @@ import { type AgentServiceBase, IAgentCallback, AgentSubNode, CreateAgentFn, T_C
 import { IAgentPlugin, type AgentPluginContext } from "../Plugins";
 import { IAgentToolService } from "../../AgentTool";
 import { SingleAgentService } from "../Single/SingleAgentService";
-import { createDispatchTaskTool, createListTasksTool, TaskContextMode, TaskStatus, type RunDispatchTaskFn, type TaskInfo } from "../../Tools";
+import { createSpawnAgentTool, SPAWN_AGENT_TOOL_NAME, TaskContextMode, type RunDispatchTaskFn } from "../../Tools";
 import { MCPContentType, createTextContent, createImageContent, /* createAudioContent, */ createErrorResult, type MCPContent } from "../../Tools/Core";
 import { v4 as uuidv4 } from "uuid";
 
@@ -20,7 +20,13 @@ export const T_ThinkModelService = Symbol("scorpio:T_ThinkModelService");
 /** 当前 ReAct 节点在派生树中的深度（根编排者为 0）。子容器注入 parentDepth+1。 */
 export const T_SpawnDepth = Symbol("scorpio:T_SpawnDepth");
 
-/** 子任务注册表的一条记录（含完整字段，对外经 TaskInfo 截断）。 */
+enum TaskStatus {
+  Running = 'running',
+  Done = 'done',
+  Error = 'error',
+}
+
+/** 子任务注册表中用于续接的记录。 */
 interface TaskRecord {
   agentId: string;
   name?: string;
@@ -209,27 +215,11 @@ export class ReActAgentService extends SingleAgentService {
       }
     };
 
-    const getTasks = async (): Promise<TaskInfo[]> => {
-      const reg = await this.readRegistry();
-      return [...reg.entries()]
-        .sort((a, b) => a[1].updatedAt - b[1].updatedAt)
-        .map(([taskId, r]) => ({
-          taskId,
-          agentId: r.agentId,
-          name: r.name,
-          status: r.status,
-          firstTask: r.firstTask,
-          lastSummary: r.lastSummary,
-          turns: r.turns,
-        }));
-    };
-
     const agentIds = this.agentSubNodes.map(a => a.id);
     const parentTools = await super.buildTools(ctx, callback, signal);
     return [
-      createDispatchTaskTool(agentIds, runFn),
-      createListTasksTool(getTasks),
-      ...parentTools,
+      createSpawnAgentTool(agentIds, runFn),
+      ...parentTools.filter(tool => tool.name !== SPAWN_AGENT_TOOL_NAME),
     ];
   }
 

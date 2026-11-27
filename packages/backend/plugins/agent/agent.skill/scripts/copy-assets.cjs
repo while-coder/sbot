@@ -6,9 +6,6 @@ const source = path.join(root, 'prompts');
 const target = path.join(root, 'dist', 'prompts');
 const requiredFiles = [
   'skills/system.txt',
-  'skills/tool_read_skill_file.txt',
-  'skills/tool_list_skill_files.txt',
-  'skills/tool_execute_skill_script.txt',
 ];
 
 if (!fs.existsSync(source)) {

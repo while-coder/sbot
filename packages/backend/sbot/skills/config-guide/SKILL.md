@@ -164,6 +164,8 @@ GET    /api/agents/:name/mcp/:id/details
 
 全局 MCP 修改会 `refreshGlobalAgentToolService()`。Agent 专属 MCP 只影响该 Agent。Agent 的 `mcp` 字段从全局集合中筛选：`'*'` 表示全选，`mcpExclude` 只在 `'*'` 时生效；专属 `mcp.json` 对该 Agent 始终可见。
 
+`builtin_command` 提供 `exec_command`、`write_stdin` 和 `apply_patch`。补丁采用 Git unified diff，相对于会话工作目录应用。`builtin_exa` 提供 `web_search_exa`。ReAct 通过 `spawn_agent` 调用已配置的子 Agent。
+
 MCP entry 常见字段：`type` (`stdio`/`http`/`sse`), `command`, `args`, `env`, `url`, `headers`, `cwd`, `toolTimeout`。
 
 ## Skills
@@ -175,7 +177,7 @@ MCP entry 常见字段：`type` (`stdio`/`http`/`sse`), `command`, `args`, `env`
 - Claude Code：`~/.claude/skills`
 - 全局：`~/.sbot/skills`
 
-Agent 运行时还会注册：
+Agent 启用 `builtin_command` 后，可用 `exec_command` 读取 Skill 说明和运行脚本。运行时还会扫描：
 
 - `~/.sbot/agents/<id>/skills`
 - `<workPath>/.skills`，除非 channel/profile 设置 `disableWorkspaceSkills`

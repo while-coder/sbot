@@ -40,7 +40,6 @@ export const yuanbaoPlugin = defineChannelPlugin({
       description: '允许处理其他 Bot 发来的消息',
     },
   },
-  tools: [{ name: '_send_file', label: '发送文件' }],
 
   async init(ctx: ChannelPluginContext): Promise<IChannelService | undefined> {
     const { config, logger, filterEvent, initSession, loadSessionMetadata, onReceiveMessage } = ctx;

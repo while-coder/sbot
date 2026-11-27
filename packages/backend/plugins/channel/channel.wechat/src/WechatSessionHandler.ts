@@ -1,7 +1,5 @@
 import {
   ChannelSessionHandler, SessionService,
-  createSendFileTool,
-  type AgentTool,
   type MessageType,
   type ChannelMessageArgs, type MessageContent,
   formatError,
@@ -26,16 +24,4 @@ export class WechatSessionHandler extends ChannelSessionHandler<WechatChatProvid
     await this.provider?.finish();
   }
 
-  // --- Agent tools ---
-
-  static readonly SEND_FILE_PROMPT = "Send a local file or image to the current WeChat conversation. Use this tool to deliver any generated or exported file (documents, archives, reports, images, charts, etc.) directly to the user via WeChat.";
-
-  async buildAgentTools(args: ChannelMessageArgs): Promise<AgentTool[]> {
-    const userId = (args as WechatMessageArgs).fromUserId ?? args.sessionId;
-    return [
-      createSendFileTool(WechatSessionHandler.SEND_FILE_PROMPT, async (filePath: string, fileName: string) => {
-        await this.wechatService.sendFileMessage(userId, filePath, fileName);
-      }),
-    ];
-  }
 }

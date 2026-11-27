@@ -1,7 +1,6 @@
 import {
     agendaServicePool,
     type AgendaServiceConfigResolver,
-    type AgendaToolDescs,
     AgendaExtractor,
     IAgendaExtractor,
     T_AgendaExtractorSystemPrompt,
@@ -24,22 +23,11 @@ const promptOverrideRoot = config.getConfigPath("prompts", true);
 
 const loadPrompt = (relPath: string) => loadAgendaPrompt(relPath, promptOverrideRoot);
 
-const sharedToolDescs: AgendaToolDescs = {
-    create: loadPrompt('agenda/tools/create.txt'),
-    list: loadPrompt('agenda/tools/list.txt'),
-    get: loadPrompt('agenda/tools/get.txt'),
-    edit: loadPrompt('agenda/tools/edit.txt'),
-    close: loadPrompt('agenda/tools/close.txt'),
-    wiki: loadPrompt('agenda/wiki.txt'),
-};
-
 /**
  * sbot 侧 AgendaServicePool 适配层。
  *
  * Pool 单例已在 scorpio.ai 内创建，这里只负责注入 sbot 特有的解析逻辑：
  *   agendaId → AgendaServiceConfig（profile / store / trigger engine / extractor）。
- *
- * tool 描述加载一次（模块加载时）共享给所有 agendaId；syncModel + syncPrompt 按需 resolve。
  */
 const resolveConfig: AgendaServiceConfigResolver = (agendaId) => {
     const profile = config.getAgendaProfile(agendaId);
@@ -68,7 +56,6 @@ const resolveConfig: AgendaServiceConfigResolver = (agendaId) => {
         agendaName: profile.name,
         agendaStore,
         triggerEngine,
-        toolDescs: sharedToolDescs,
         extractor,
     };
 };
