@@ -707,7 +707,7 @@ export class SingleAgentService extends AgentServiceBase {
     }
 
     /**
-     * turn 末尾通知各插件（fire-and-forget，适用于 memory / agenda 等抽取能力）：
+     * turn 末尾通知各插件（fire-and-forget，适用于 memory 等抽取能力）：
      * 不 await 返回的 promise，同步抛错与 reject 都只降级为日志，不影响本轮响应。
      */
     protected notifyPluginsTurnCompleted(ctx: AgentPluginContext, conversation: ChatMessage[]): void {

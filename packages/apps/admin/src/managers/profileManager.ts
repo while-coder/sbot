@@ -9,7 +9,6 @@ export interface SessionProfileItem {
   saver?: string | null
   intentModel?: string | null
   memory?: string | null
-  agenda?: string | null
   sessionCount?: number
   [key: string]: unknown
 }

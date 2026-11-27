@@ -12,7 +12,6 @@ import QRCode from 'qrcode'
 import { ApprovalTimeoutValue, IntentFilterMode, type ChannelConfig } from '@/shared/types'
 import { isConfigFieldVisible, type ShowWhen } from '@/utils/configField'
 import SaverViewModal from '@/components/modals/SaverViewModal.vue'
-import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import { PathPickerModal, WebSocketTransport } from '@sbot/chat-ui'
 import SessionConfigOverridesEditor, { type SessionOverrides, type ConfigSource } from '@/components/SessionConfigOverridesEditor.vue'
 import SessionDataConfigEditor, { type DataConfigValue } from '@/components/SessionDataConfigEditor.vue'
@@ -70,7 +69,6 @@ interface ChannelSessionRow {
   intentPrompt: string | null
   intentThreshold: number | null
   memory: string | null
-  agenda: string | null
   // ── token 统计 ──
   inputTokens: number
   outputTokens: number
@@ -141,10 +139,8 @@ const agentOptions  = computed(() => Object.entries(store.settings.agents   || {
 const saverOptions  = computed(() => Object.entries(store.settings.savers   || {}).map(([id, s]) => ({ id, label: (s as any).name  || id })))
 const modelOptions  = modelManager.options
 const memoryProfileOptions = computed(() => Object.entries(store.settings.memoryProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
-const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 
 const saverViewModal     = ref<InstanceType<typeof SaverViewModal>>()
-const agendaListModal    = ref<InstanceType<typeof AgendaListModal>>()
 const pathPicker         = ref<InstanceType<typeof PathPickerModal>>()
 
 const expandedChannels  = ref<string[]>([])
@@ -177,7 +173,6 @@ interface ProfileFull extends ProfileOption {
   intentPrompt?: string | null
   intentThreshold?: number | null
   memory?: string | null
-  agenda?: string | null
 }
 
 const editingProfile = ref<ProfileFull | null>(null)
@@ -201,7 +196,6 @@ function emptyOverrides(): SessionOverrides {
     intentFilterMode: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
     memory: null,
-    agenda: null,
   }
 }
 
@@ -225,7 +219,6 @@ function profileToOverrides(p: ProfileFull): SessionOverrides {
     intentPrompt: p.intentPrompt ?? null,
     intentThreshold: p.intentThreshold ?? null,
     memory: p.memory ?? null,
-    agenda: p.agenda ?? null,
   }
 }
 
@@ -338,7 +331,6 @@ async function saveSession() {
     intentPrompt: o.intentFilterMode === IntentFilterMode.Off || o.intentFilterMode === IntentFilterMode.All || o.intentModel == null ? null : o.intentPrompt,
     intentThreshold: o.intentFilterMode === IntentFilterMode.Off || o.intentFilterMode === IntentFilterMode.All || o.intentModel == null ? null : o.intentThreshold,
     memory: o.memory,
-    agenda: o.agenda,
   }
 
   // 比较 profile 是否有变化。
@@ -361,7 +353,6 @@ async function saveSession() {
     intentPrompt: orig.intentFilterMode === IntentFilterMode.Off || orig.intentFilterMode === IntentFilterMode.All || orig.intentModel == null ? null : orig.intentPrompt,
     intentThreshold: orig.intentFilterMode === IntentFilterMode.Off || orig.intentFilterMode === IntentFilterMode.All || orig.intentModel == null ? null : orig.intentThreshold,
     memory: orig.memory,
-    agenda: orig.agenda,
   }
   const profileChanged = originalEquivalent == null
     || JSON.stringify(profilePayload) !== JSON.stringify(originalEquivalent)
@@ -446,7 +437,6 @@ const channelDataConfig = computed<DataConfigValue>({
     intentPrompt: form.value.intentPrompt || null,
     intentThreshold: form.value.intentThreshold ?? 0.7,
     memory: (form.value as any).memory ?? null,
-    agenda: (form.value as any).agenda ?? null,
   }),
   set: (v) => {
     form.value.agent = v.agentId || ''
@@ -466,20 +456,16 @@ const channelDataConfig = computed<DataConfigValue>({
     form.value.intentPrompt = v.intentPrompt || ''
     form.value.intentThreshold = v.intentThreshold ?? 0.7
     ;(form.value as any).memory = v.memory ?? undefined
-    ;(form.value as any).agenda = v.agenda ?? undefined
   },
 })
 type ToolMode = 'default' | 'whitelist' | 'block'
 const formTools = ref<string[]>([])
-const formTriggerTools = ref<string[]>([])
 const formToolsMode = ref<ToolMode>('default')
-const formTriggerToolsMode = ref<ToolMode>('default')
 
 const channelAdvancedBadge = computed(() => {
   let n = 0
   if (form.value.mergeWindow && form.value.mergeWindow > 0) n++
   if (formToolsMode.value !== 'default') n++
-  if (formTriggerToolsMode.value !== 'default') n++
   return n || ''
 })
 
@@ -631,9 +617,7 @@ function openAdd() {
   const defaultType = plugins.value.find(p => !p.builtin)?.type || ''
   form.value = { name: '', type: defaultType, config: {}, agent: '', saver: '', workPath: '', streamVerbose: false, autoApproveAllTools: false, disableWorkspaceContext: false, disableWorkspaceSkills: false, disableWorkspaceMcp: false, approvalTimeout: 0, approvalTimeoutValue: ApprovalTimeoutValue.Deny, askTimeout: 0, askTimeoutMessage: '', intentFilterMode: IntentFilterMode.Auto, intentModel: '', intentPrompt: '', intentThreshold: 0.7, mergeWindow: 0 }
   formTools.value = []
-  formTriggerTools.value = []
   formToolsMode.value = 'default'
-  formTriggerToolsMode.value = 'default'
   showModal.value = true
 }
 
@@ -641,11 +625,9 @@ function openEdit(id: string) {
   const c = channels.value[id]
   editingId.value = id
   clearActionState()
-  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, disableWorkspaceMcp: !!c.disableWorkspaceMcp, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentFilterMode: c.intentFilterMode ?? IntentFilterMode.Auto, intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined, agenda: (c as any).agenda ?? undefined }
+  form.value = { name: c.name, type: c.type, config: { ...c.config }, agent: c.agent, saver: c.saver, workPath: c.workPath || '', streamVerbose: !!c.streamVerbose, autoApproveAllTools: !!c.autoApproveAllTools, disableWorkspaceContext: !!c.disableWorkspaceContext, disableWorkspaceSkills: !!c.disableWorkspaceSkills, disableWorkspaceMcp: !!c.disableWorkspaceMcp, approvalTimeout: c.approvalTimeout ?? 0, approvalTimeoutValue: c.approvalTimeoutValue ?? ApprovalTimeoutValue.Deny, askTimeout: c.askTimeout ?? 0, askTimeoutMessage: c.askTimeoutMessage || '', intentFilterMode: c.intentFilterMode ?? IntentFilterMode.Auto, intentModel: c.intentModel || '', intentPrompt: c.intentPrompt || '', intentThreshold: c.intentThreshold ?? 0.7, mergeWindow: c.mergeWindow || 0, memory: (c as any).memory ?? undefined }
   formTools.value = [...(c.tools ?? [])]
-  formTriggerTools.value = [...(c.triggerTools ?? [])]
   formToolsMode.value = toolsToMode(c.tools)
-  formTriggerToolsMode.value = toolsToMode(c.triggerTools)
   showModal.value = true
 }
 
@@ -654,9 +636,7 @@ async function save() {
   if (!form.value.agent) { toast.show('error', t('channels.select_agent')); return }
   if (!form.value.saver) { toast.show('error', t('channels.select_saver')); return }
   const channelMemory = ((form.value as any).memory as string | null) || undefined
-  const channelAgenda = ((form.value as any).agenda as string | null) || undefined
   if (formToolsMode.value === 'whitelist' && formTools.value.length === 0) { toast.show('error', t('channels.tools_whitelist_empty')); return }
-  if (formTriggerToolsMode.value === 'whitelist' && formTriggerTools.value.length === 0) { toast.show('error', t('channels.tools_whitelist_empty')); return }
   try {
     const processedConfig: Record<string, any> = {}
     const schema = currentSchema.value
@@ -690,9 +670,7 @@ async function save() {
       intentThreshold: form.value.intentFilterMode === IntentFilterMode.Auto && form.value.intentModel ? form.value.intentThreshold : undefined,
       mergeWindow: form.value.mergeWindow || undefined,
       memory: channelMemory,
-      agenda: channelAgenda,
       tools: modeToTools(formToolsMode.value, formTools.value),
-      triggerTools: modeToTools(formTriggerToolsMode.value, formTriggerTools.value),
     }
 
     if (editingId.value) {
@@ -779,7 +757,6 @@ async function refresh() {
           <span class="session-meta-id">{{ c.id }}</span>
           <span class="session-meta-chip">{{ t('common.storage') }}: {{ c.saver ? (saverOptions.find(s => s.id === c.saver)?.label || c.saver) : '-' }}</span>
           <span v-if="c.memory" class="session-meta-chip">{{ t('channels.memory_label') }}: {{ memoryProfileOptions.find(m => m.id === c.memory)?.label || c.memory }}</span>
-          <span v-if="c.agenda" class="session-meta-chip">{{ t('channels.agenda_label') }}: {{ agendaProfileOptions.find(a => a.id === c.agenda)?.label || c.agenda }}</span>
           <span v-if="c.workPath" class="session-meta-chip blue">{{ t('directory.path_label') }}: {{ c.workPath }}</span>
           <span v-if="c.streamVerbose" class="session-meta-chip green">{{ t('channels.stream_verbose') }}: {{ t('common.enabled') }}</span>
           <span v-if="c.autoApproveAllTools" class="session-meta-chip orange">{{ t('settings.auto_approve_all') }}: {{ t('common.enabled') }}</span>
@@ -792,7 +769,6 @@ async function refresh() {
           <span v-if="showIntentFilterModeChip(c.intentFilterMode, c.intentModel)" class="session-meta-chip" :class="intentFilterModeClass(c.intentFilterMode)">{{ t('channels.intent_filter_mode') }}: {{ formatIntentFilterMode(c.intentFilterMode) }}</span>
           <span v-if="(c.intentFilterMode ?? IntentFilterMode.Auto) === IntentFilterMode.Auto && c.intentModel" class="session-meta-chip">{{ t('channels.intent_model') }}: {{ modelManager.nameOf(c.intentModel) }}</span>
           <span v-if="c.tools !== undefined" class="session-meta-chip" :class="c.tools.length ? '' : 'orange'">{{ t('channels.tools') }}: {{ c.tools.length ? c.tools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
-          <span v-if="c.triggerTools !== undefined" class="session-meta-chip" :class="c.triggerTools.length ? '' : 'orange'">{{ t('channels.trigger_tools') }}: {{ c.triggerTools.length ? c.triggerTools.map(n => plugins.find(p => p.type === c.type)?.tools?.find(t => t.name === n)?.label || n).join(', ') : t('channels.tools_blocked') }}</span>
         </template>
         <template #expanded="{ item: c }">
           <STabs :value="getChannelTab(c.id)" @update:value="setChannelTab(c.id, $event as 'sessions' | 'users')">
@@ -817,7 +793,6 @@ async function refresh() {
                 </template>
                 <template #ops="{ item: s }">
                   <SButton v-if="s.saver || c.saver" type="outline" size="small" @click="saverViewModal?.openByDbId(s.id, saverOptions.find(o => o.id === (s.saver || c.saver))?.label || (s.saver || c.saver))">{{ t('channels.history') }}</SButton>
-                  <SButton v-if="s.agenda || c.agenda" type="outline" size="small" @click="agendaListModal?.openByAgendaId(s.agenda || c.agenda, s.sessionName || s.autoSessionName || s.sessionId)">{{ t('agenda.title') }}</SButton>
                   <SButton type="outline" size="small" @click="openEditSession(s)">{{ t('common.edit') }}</SButton>
                   <SButton type="error" size="small" @click="removeSession(c.id, s)">{{ t('common.delete') }}</SButton>
                 </template>
@@ -923,7 +898,6 @@ async function refresh() {
             :saver-options="saverOptions"
             :model-options="modelOptions"
             :memory-profile-options="memoryProfileOptions"
-            :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(channelDataConfig.workPath || '')"
           />
 
@@ -940,14 +914,6 @@ async function refresh() {
                   { value: 'block', label: t('channels.tools_mode_block') },
                 ]" />
                 <SSelect v-if="formToolsMode === 'whitelist'" multiple v-model:value="formTools" :options="currentToolOptions" />
-              </SFormItem>
-              <SFormItem :label="t('channels.trigger_tools')" :hint="t('channels.trigger_tools_hint')">
-                <SSelect v-model:value="formTriggerToolsMode" :options="[
-                  { value: 'default', label: t('channels.tools_mode_default') },
-                  { value: 'whitelist', label: t('channels.tools_mode_whitelist') },
-                  { value: 'block', label: t('channels.tools_mode_block') },
-                ]" />
-                <SSelect v-if="formTriggerToolsMode === 'whitelist'" multiple v-model:value="formTriggerTools" :options="currentToolOptions" />
               </SFormItem>
             </template>
           </SCollapseItem>
@@ -1005,7 +971,6 @@ async function refresh() {
             :saver-options="saverOptions"
             :model-options="modelOptions"
             :memory-profile-options="memoryProfileOptions"
-            :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(sessionForm.overrides.workPath || '')"
           />
         </div>
@@ -1044,7 +1009,6 @@ async function refresh() {
     </SModal>
 
     <SaverViewModal ref="saverViewModal" />
-    <AgendaListModal ref="agendaListModal" />
     <PathPickerModal
       ref="pathPicker"
       nested

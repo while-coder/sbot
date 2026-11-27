@@ -32,7 +32,6 @@ interface ProfileRow {
   intentPrompt: string | null
   intentThreshold: number | null
   memory: string | null
-  agenda: string | null
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -95,7 +94,6 @@ const agentOptions = computed(() => Object.entries(store.settings.agents || {}).
 const saverOptions = computed(() => Object.entries(store.settings.savers || {}).map(([id, s]) => ({ id, label: (s as any).name || id })))
 const modelOptions = modelManager.options
 const memoryProfileOptions = computed(() => Object.entries(store.settings.memoryProfiles || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
-const agendaProfileOptions  = computed(() => Object.entries(store.settings.agendaProfiles  || {}).map(([id, p]) => ({ id, label: (p as any).name || id })))
 
 async function loadAll() {
   try {
@@ -133,7 +131,6 @@ function emptyOverrides(): SessionOverrides {
     intentFilterMode: null,
     intentModel: null, intentPrompt: null, intentThreshold: null,
     memory: null,
-    agenda: null,
   }
 }
 
@@ -173,7 +170,6 @@ function openEdit(p: ProfileRow) {
       intentPrompt: p.intentPrompt,
       intentThreshold: p.intentThreshold,
       memory: p.memory,
-      agenda: p.agenda,
     },
   }
 }
@@ -227,7 +223,6 @@ function buildPayload(f: ProfileForm): Record<string, any> {
     intentPrompt: o.intentFilterMode === IntentFilterMode.Off || o.intentFilterMode === IntentFilterMode.All || o.intentModel == null ? null : o.intentPrompt,
     intentThreshold: o.intentFilterMode === IntentFilterMode.Off || o.intentFilterMode === IntentFilterMode.All || o.intentModel == null ? null : o.intentThreshold,
     memory: o.memory,
-    agenda: o.agenda,
   }
 }
 
@@ -297,7 +292,6 @@ async function remove(p: ProfileRow) {
             :saver-options="saverOptions"
             :model-options="modelOptions"
             :memory-profile-options="memoryProfileOptions"
-            :agenda-profile-options="agendaProfileOptions"
             @browse-path="pathPicker?.open(form.overrides.workPath || '')"
           />
         </div>

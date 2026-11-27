@@ -106,17 +106,6 @@ export class SettingsRoutes {
                 await memoryServicePool.markForDeletion(id);
             },
         });
-        settingsCrudHelper.register(app, 'agendaProfiles', {
-            label: 'Agenda profile',
-            checkOnDelete: true,
-            getSettings,
-            afterDelete: async (id) => {
-                const { agendaStorePool, agendaTriggerEnginePool } = await import('../../Agenda');
-                agendaTriggerEnginePool.remove(id);
-                try { await agendaStorePool.get(id).deleteAll(); } catch {}
-                agendaStorePool.remove(id);
-            },
-        });
         agentRoutes.register(app, ctx);
         acpRoutes.register(app, ctx);
         settingsCrudHelper.register(app, 'channels', {
@@ -157,7 +146,6 @@ export class SettingsRoutes {
                     disableWorkspaceSkills: profile?.disableWorkspaceSkills ?? undefined,
                     disableWorkspaceMcp: profile?.disableWorkspaceMcp ?? undefined,
                     memory: profile?.memory ?? channel?.memory ?? null,
-                    agenda: profile?.agenda ?? channel?.agenda ?? null,
                 });
             }
             return result;

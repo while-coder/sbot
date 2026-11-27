@@ -10,7 +10,6 @@ export interface ChannelSession {
   sessionId: string
   sessionName?: string | null
   autoSessionName?: string | null
-  agenda?: string | null
   profileId?: number | string | null
   [key: string]: unknown
 }

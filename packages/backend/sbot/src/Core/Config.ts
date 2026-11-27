@@ -6,8 +6,8 @@ import { ModelProvider, ModelServiceFactory } from "scorpio.ai";
 import { registerBuiltInLlmProviders } from "./LlmProviders";
 import { registerBuiltInSaverProviders } from "./SaverProviders";
 export type { AgentSubNode } from "scorpio.ai";
-import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry } from "@sbot/shared";
-export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig, AgendaProfileConfig } from "@sbot/shared";
+import { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig, WEB_CHANNEL_ID, WEB_CHANNEL_TYPE, type AgentStoreSource, type AgentSourceEntry } from "@sbot/shared";
+export { DEFAULT_PORT, SaverType, AgentMode, ACPSessionMode, IntentFilterMode, SaverConfig, ChannelConfig, MemoryProfileConfig } from "@sbot/shared";
 
 export const isDev = process.env.NODE_ENV === 'development';
 
@@ -105,7 +105,6 @@ export interface Settings {
   savers?: Record<string, SaverConfig>;
   /** Memory（skill 风格）配置 */
   memoryProfiles?: Record<string, MemoryProfileConfig>;
-  agendaProfiles?: Record<string, AgendaProfileConfig>;
   channels?: Record<string, ChannelConfig>;
   plugins?: string[];
   agentSources?: AgentSourceEntry[];
@@ -116,7 +115,7 @@ const SETTINGS_KEYS: ReadonlySet<string> = new Set(Object.keys({
   httpPort: true, httpUrl: true, autoApproveTools: true, autoApproveAllTools: true,
   startupCommands: true, autoCheckUpdate: true, checkUpdateTime: true, maxImageSize: true, contextFileNames: true,
   models: true, savers: true,
-  memoryProfiles: true, agendaProfiles: true, channels: true,
+  memoryProfiles: true, channels: true,
   plugins: true, agentSources: true,
 } satisfies Record<keyof Settings, true>));
 
@@ -317,6 +316,8 @@ class Config {
           if (!channel || typeof channel !== "object") continue;
           if ("notes" in channel) { delete channel.notes; dirty = true; }
           if ("wikis" in channel) { delete channel.wikis; dirty = true; }
+          if ("agenda" in channel) { delete channel.agenda; dirty = true; }
+          if ("triggerTools" in channel) { delete channel.triggerTools; dirty = true; }
         }
         this._settings = raw;
         if (dirty) this.saveSettings();
@@ -491,18 +492,12 @@ class Config {
   getMemoryPath(memoryId: string) {
     return this.getConfigPath(`memories/${memoryId}`, true)
   }
-  getAgendaPath(agendaId: string) {
-    return this.getConfigPath(`agendas/${agendaId}`, true)
-  }
   /** 会话黑板根目录；文件名 `{channelSessionId}.json` 由 agent.scratchpad 插件负责。 */
   getScratchpadDir() {
     return this.getConfigPath('scratchpad', true)
   }
   getMemoryProfile(id: string): MemoryProfileConfig | undefined {
     return this._settings.memoryProfiles?.[id.trim()];
-  }
-  getAgendaProfile(id: string): AgendaProfileConfig | undefined {
-    return this._settings.agendaProfiles?.[id.trim()];
   }
   getAgentMcpServers(agentName: string): MCPServers {
     const mcpConfigPath = this.getConfigPath(`agents/${agentName}/mcp.json`);

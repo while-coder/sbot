@@ -37,9 +37,6 @@ const { t } = useI18n()
       <SInfoRow v-if="refs.memoryProfiles.length" :label="t('common.ref_memory_profiles')">
         <span v-for="p in refs.memoryProfiles" :key="p.id" class="ref-chip">{{ p.name }}</span>
       </SInfoRow>
-      <SInfoRow v-if="refs.agendaProfiles.length" :label="t('common.ref_agenda_profiles')">
-        <span v-for="p in refs.agendaProfiles" :key="p.id" class="ref-chip">{{ p.name }}</span>
-      </SInfoRow>
     </SInfoTable>
   </SCard>
 </template>

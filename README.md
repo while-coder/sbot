@@ -139,7 +139,6 @@ docker compose pull && docker compose up -d   # upgrade to latest image
 - **ACP agent support** — Agent Client Protocol integration with persistent and transient agent modes
 - **Conversation compaction** — Automatic conversation summarization when token usage exceeds threshold, preserving continuity while reducing consumption
 - **Memory** — A background model distills durable knowledge after conversations idle, and relevant memories are supplied as context
-- **Agenda** — Conversation-driven reminders, schedules, and routines with absolute / interval / cron triggers; optionally synced from the conversation after every turn and delivered to any session or channel
 - **MCP tools** — Standard MCP protocol (stdio/SSE), connect to any MCP tool ecosystem; per-agent and global servers with auto-restart
 - **Multiple channels** — Web UI, Lark/Feishu, Slack, WeCom, WeChat, DingTalk, QQ (official bot), Tencent Yuanbao, OneBot (v11 reverse WebSocket), XiaoAI, REST API, WebSocket
 - **Command execution** — `exec_command` runs shell commands and scripts, with resumable output and stdin for long-running processes

@@ -34,8 +34,6 @@ export interface EffectiveSessionResolved {
     intentThreshold?: number;
     /** Memory 模板 UUID（resolve 后的引用），未启用时为 null */
     memory: string | null;
-    /** Agenda 模板 UUID（resolve 后的引用），未启用时为 null */
-    agenda: string | null;
 }
 
 export interface EffectiveSession {
@@ -89,13 +87,10 @@ function normalizeIntentFilterMode(value: any): IntentFilterMode | null | undefi
  *
  * 跨服务依赖（由本类调用，反向不允许）：
  * - channelManager.reloadChannel —— channel 运行时自治（在 routes 层调用，避开循环）
- * 注：agenda/memory 数据按 agendaId/memoryId 共享，由 settings 顶层管理；
+ * 注：memory 数据按 memoryId 共享，由 settings 顶层管理；
  * profile 删除时不再级联清。
  */
 export class ChannelDataService {
-    // 注：agenda/memory 数据现在按 agendaId/memoryId 共享，不再随 profile 删除而清。
-    // 数据生命周期由 /api/agenda-profiles、/api/memory-profiles 的 DELETE 路由管理。
-
     // ── reads ────────────────────────────────────────────────────────────────
 
     async getSession(id: number | string | undefined | null, throwIfNotFound?: boolean): Promise<ChannelSessionRow | null> {
@@ -148,7 +143,6 @@ export class ChannelDataService {
             intentPrompt: profile.intentPrompt ?? channel?.intentPrompt ?? undefined,
             intentThreshold: profile.intentThreshold ?? channel?.intentThreshold ?? undefined,
             memory: profile.memory ?? channel?.memory ?? null,
-            agenda: profile.agenda ?? channel?.agenda ?? null,
         };
 
         return { session, profile, resolved };
@@ -249,7 +243,6 @@ export class ChannelDataService {
                 intentPrompt: p?.intentPrompt ?? null,
                 intentThreshold: p?.intentThreshold ?? null,
                 memory: p?.memory ?? null,
-                agenda: p?.agenda ?? null,
                 inputTokens: p?.inputTokens ?? 0,
                 outputTokens: p?.outputTokens ?? 0,
                 totalTokens: p?.totalTokens ?? 0,
@@ -283,7 +276,7 @@ export class ChannelDataService {
      * 删 session 级联：
      * - 该 session 的 auto profile（visible profile 共享，不动）
      * - scratchpad 会话板文件（同步删，内部吞错；孤儿文件由 TTL 清扫兜底）
-     * 注：profile 引用的 agenda/memory 模板数据归 admin 管理，这里不动。
+     * 注：profile 引用的 memory 模板数据归 admin 管理，这里不动。
      */
     async deleteSession(id: number): Promise<void> {
         await database.destroy(database.sessionProfile, { where: { autoForSessionId: id } });
@@ -324,7 +317,6 @@ export class ChannelDataService {
      */
     async updateProfile(id: number, body: Record<string, any>): Promise<void> {
         const memoryRef = body.memory === undefined ? undefined : normalizeRef(body.memory);
-        const agendaRef = body.agenda === undefined ? undefined : normalizeRef(body.agenda);
         const update = pickDefined({
             name: body.name,
             agentId: body.agentId === undefined ? undefined : (body.agentId || null),
@@ -344,7 +336,6 @@ export class ChannelDataService {
             intentPrompt: body.intentPrompt === undefined ? undefined : (body.intentPrompt || null),
             intentThreshold: body.intentThreshold === undefined ? undefined : (body.intentThreshold ?? null),
             memory: memoryRef,
-            agenda: agendaRef,
         });
         if (Object.keys(update).length === 0) return;
         await database.update(database.sessionProfile, update, { where: { id } });
@@ -387,7 +378,6 @@ export class ChannelDataService {
             intentPrompt: current?.intentPrompt ?? null,
             intentThreshold: current?.intentThreshold ?? null,
             memory: current?.memory ?? null,
-            agenda: current?.agenda ?? null,
             createdAt: Date.now(),
         });
         await database.update(database.channelSession, { profileId: created.id }, { where: { id: sessionId } });
@@ -415,7 +405,7 @@ export class ChannelDataService {
      * 删 channel 级联：
      * - 这些 session 的 auto profile（visible profile 共享不动）
      * - channel_session / channel_user 行
-     * 注：profile 引用的 agenda/memory 模板数据归 admin 管理，这里不动。
+     * 注：profile 引用的 memory 模板数据归 admin 管理，这里不动。
      */
     async deleteChannel(channelId: string): Promise<void> {
         const sessions = await database.findAll<ChannelSessionRow>(database.channelSession, { where: { channelId } });
@@ -466,7 +456,6 @@ export class ChannelDataService {
             intentPrompt: body.intentPrompt || null,
             intentThreshold: body.intentThreshold ?? null,
             memory: normalizeRef(body.memory),
-            agenda: normalizeRef(body.agenda),
         }, { where: { id: profile.id } });
         return { session, profile };
     }
@@ -491,7 +480,6 @@ export class ChannelDataService {
         if (body.intentPrompt !== undefined) profileUpdate.intentPrompt = body.intentPrompt || null;
         if (body.intentThreshold !== undefined) profileUpdate.intentThreshold = body.intentThreshold ?? null;
         if (body.memory !== undefined) profileUpdate.memory = normalizeRef(body.memory);
-        if (body.agenda !== undefined) profileUpdate.agenda = normalizeRef(body.agenda);
         if (Object.keys(profileUpdate).length > 0) {
             await database.update(database.sessionProfile, profileUpdate, { where: { id: profile.id } });
         }
@@ -598,22 +586,20 @@ export class ChannelDataService {
  * 覆盖：
  * - agent ID（profile.agentId / channel.agent / agent.agents[].id）
  * - saver UUID（profile.saver / channel.saver）
- * - model UUID（intentModel / agent.model / agent.compactModel / memoryProfile.writerModel / memoryProfile.selectorModel / agendaProfile.syncModel）
- * - memoryProfile / agendaProfile UUID（profile.memory / channel.memory，agenda 同理）
+ * - model UUID（intentModel / agent.model / agent.compactModel / memoryProfile.writerModel / memoryProfile.selectorModel）
+ * - memoryProfile UUID（profile.memory / channel.memory）
  */
 function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
     invalidAgentRefs: InvalidRef[];
     invalidSaverRefs: InvalidRef[];
     invalidModelRefs: InvalidRef[];
     invalidMemoryProfileRefs: InvalidRef[];
-    invalidAgendaProfileRefs: InvalidRef[];
 } {
     const settings = config.settings;
     const channels = settings.channels ?? {};
     const models = settings.models ?? {};
     const savers = settings.savers ?? {};
     const memoryProfiles = settings.memoryProfiles ?? {};
-    const agendaProfiles = settings.agendaProfiles ?? {};
     const agentIds = new Set(config.listAgents().map(a => a.id));
 
     const has = (map: Record<string, unknown>, id: string | null | undefined): boolean =>
@@ -623,7 +609,6 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
     const invalidSaverRefs: InvalidRef[] = [];
     const invalidModelRefs: InvalidRef[] = [];
     const invalidMemoryProfileRefs: InvalidRef[] = [];
-    const invalidAgendaProfileRefs: InvalidRef[] = [];
 
     const profileSource = (p: SessionProfileRow): string => {
         if (p.autoForSessionId != null) return `profile:#${p.id}(auto for session#${p.autoForSessionId})`;
@@ -637,7 +622,6 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         if (p.saver && !has(savers, p.saver)) invalidSaverRefs.push({ source: src, field: 'saver', badValue: p.saver });
         if (p.intentModel && !has(models, p.intentModel)) invalidModelRefs.push({ source: src, field: 'intentModel', badValue: p.intentModel });
         if (p.memory && !has(memoryProfiles, p.memory)) invalidMemoryProfileRefs.push({ source: src, field: 'memory', badValue: p.memory });
-        if (p.agenda && !has(agendaProfiles, p.agenda)) invalidAgendaProfileRefs.push({ source: src, field: 'agenda', badValue: p.agenda });
     }
 
     // ── channels ─────────────────────────────────────────────────────────
@@ -647,10 +631,9 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         if (c.saver && !has(savers, c.saver)) invalidSaverRefs.push({ source: src, field: 'saver', badValue: c.saver });
         if (c.intentModel && !has(models, c.intentModel)) invalidModelRefs.push({ source: src, field: 'intentModel', badValue: c.intentModel });
         if (c.memory && !has(memoryProfiles, c.memory)) invalidMemoryProfileRefs.push({ source: src, field: 'memory', badValue: c.memory });
-        if (c.agenda && !has(agendaProfiles, c.agenda)) invalidAgendaProfileRefs.push({ source: src, field: 'agenda', badValue: c.agenda });
     }
 
-    // ── memoryProfiles / agendaProfiles 引用 model ───────────────────────
+    // ── memoryProfiles 引用 model ───────────────────────
     for (const [iid, mp] of Object.entries(memoryProfiles)) {
         const src = `memoryProfile:${iid}${mp.name ? `(${mp.name})` : ''}`;
         if (mp.writerModel && !has(models, mp.writerModel)) {
@@ -658,11 +641,6 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         }
         if (mp.selectorModel && !has(models, mp.selectorModel)) {
             invalidModelRefs.push({ source: src, field: 'selectorModel', badValue: mp.selectorModel });
-        }
-    }
-    for (const [aid, ap] of Object.entries(agendaProfiles)) {
-        if (ap.syncModel && !has(models, ap.syncModel)) {
-            invalidModelRefs.push({ source: `agendaProfile:${aid}${ap.name ? `(${ap.name})` : ''}`, field: 'syncModel', badValue: ap.syncModel });
         }
     }
 
@@ -683,7 +661,6 @@ function scanInvalidReferences(allProfiles: SessionProfileRow[]): {
         invalidSaverRefs,
         invalidModelRefs,
         invalidMemoryProfileRefs,
-        invalidAgendaProfileRefs,
     };
 }
 
@@ -711,7 +688,6 @@ export interface ChannelSessionWithProfile extends ChannelSessionRow {
     intentPrompt: string | null;
     intentThreshold: number | null;
     memory: string | null;
-    agenda: string | null;
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
@@ -743,7 +719,6 @@ export interface CleanupReport {
     invalidSaverRefs: InvalidRef[];
     invalidModelRefs: InvalidRef[];
     invalidMemoryProfileRefs: InvalidRef[];
-    invalidAgendaProfileRefs: InvalidRef[];
 }
 
 export const channelDataService = new ChannelDataService();

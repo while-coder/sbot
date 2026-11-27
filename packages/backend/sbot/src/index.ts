@@ -70,7 +70,6 @@ async function main() {
     const { httpServer } = await import("./Server/HttpServer");
     const { initGlobalAgentToolService } = await import("./Agent/GlobalAgentToolService");
     const { initGlobalSkillService } = await import("./Agent/GlobalSkillService");
-    const { agendaTriggerEnginePool, agendaStartupExtractAll } = await import("./Agenda");
     const { startupExtractAll: memoryStartupExtractAll } = await import("./Memory/MemoryServicePool");
     const { sweepStale: scratchpadSweepStale, SCRATCHPAD_TTL_MS } = await import("agent.scratchpad");
 
@@ -111,12 +110,10 @@ async function main() {
         initGlobalAgentToolService()
         initGlobalSkillService()
         // 先开 HTTP 端口（桌面启动器/webui 以端口就绪为启动完成信号），
-        // channel/agenda/memory 等重初始化放到之后，缩短启动等待
+        // channel/memory 等重初始化放到之后，缩短启动等待
         await httpServer.start()
         await channelManager.init()
-        await agendaTriggerEnginePool.startAll()
         memoryStartupExtractAll()
-        agendaStartupExtractAll()
         // 会话黑板 TTL 清扫：删除钩子竞态产生的孤儿文件由启动时兜底
         scratchpadSweepStale(config.getScratchpadDir(), SCRATCHPAD_TTL_MS)
 

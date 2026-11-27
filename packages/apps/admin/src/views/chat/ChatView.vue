@@ -9,18 +9,11 @@ import '@sbot/chat-ui/themes/variables.css'
 // <style> block below (and in MessageList.vue), so we avoid a duplicate full dark import here.
 import '@sbot/chat-ui/themes/theme-light.css'
 import { SButton } from '@qingfeng346/ui-kit'
-import AgendaListModal from '@/components/modals/AgendaListModal.vue'
 import MemoryListModal from '@/components/modals/MemoryListModal.vue'
 
 const { t } = useI18n()
 const transport = new WebSocketTransport()
-const agendaListModal = ref<InstanceType<typeof AgendaListModal>>()
 const memoryListModal = ref<InstanceType<typeof MemoryListModal>>()
-
-function openAgenda(session: SessionItem) {
-  if (!session.agenda) return
-  agendaListModal.value?.openByAgendaId(session.agenda, session.name || session.id)
-}
 
 function openMemory(session: SessionItem) {
   if (!session.memory) return
@@ -31,15 +24,11 @@ function openMemory(session: SessionItem) {
 <template>
   <ChatView :transport="transport" :show-attachments="true">
     <template #status-actions="{ session }">
-      <SButton v-if="session?.agenda" type="outline" size="small" @click="openAgenda(session)">
-        {{ t('agenda.title') }}
-      </SButton>
       <SButton v-if="session?.memory" type="outline" size="small" @click="openMemory(session)">
         {{ t('memory.title') }}
       </SButton>
     </template>
   </ChatView>
-  <AgendaListModal ref="agendaListModal" />
   <MemoryListModal ref="memoryListModal" />
 </template>
 

@@ -45,19 +45,16 @@ export function createProcessAIHandler(): ProcessAIHandler {
         sessionHandler.askTimeoutMs = askTimeout > 0 ? askTimeout * 1000 : 0;
         if (askTimeoutMessage) sessionHandler.askTimeoutMessage = askTimeoutMessage;
 
-        const headless: boolean = args?.headless ?? false;
         const extraAgentTools = args?.agentTools;
         let baseTools = await sessionHandler.buildAgentTools(args);
-        const whitelist: string[] | undefined = args?.toolWhitelist ?? channel.tools;
+        const whitelist: string[] | undefined = channel.tools;
         if (whitelist !== undefined && baseTools?.length) {
             const allowedSet = new Set(whitelist);
             baseTools = baseTools.filter(t => allowedSet.has(t.name));
         }
         const agentTools = extraAgentTools?.length ? [...baseTools, ...extraAgentTools] : baseTools;
 
-        const executeTool = headless
-            ? async () => ToolApproval.Allow
-            : buildExecuteTool(sessionHandler.session, agentId, autoApproveAllTools, (tc) => sessionHandler.executeApproval(tc));
+        const executeTool = buildExecuteTool(sessionHandler.session, agentId, autoApproveAllTools, (tc) => sessionHandler.executeApproval(tc));
 
         let usageContext: UsageContext;
         try {
@@ -81,8 +78,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
             await updateUsageStats(usage, dbSessionId, profileId, usageContext);
         };
 
-        const verbose = streamVerbose && !headless;
-        const onMessage = verbose
+        const onMessage = streamVerbose
             ? (msg: ChatMessage) => sessionHandler.onChatMessage(msg, args)
             : (msg: ChatMessage) => {
                 if (msg.role === MessageRole.AI && !msg.tool_calls?.length) {
@@ -91,7 +87,7 @@ export function createProcessAIHandler(): ProcessAIHandler {
                 return Promise.resolve();
             };
 
-        const onStreamMessage = verbose
+        const onStreamMessage = streamVerbose
             ? (msg: ChatMessage) => sessionHandler.onStreamMessage(msg, args)
             : undefined;
 
@@ -112,7 +108,6 @@ export function createProcessAIHandler(): ProcessAIHandler {
             disableWorkspaceMcp,
             agentTools,
             memoryId: resolved.memory,
-            agendaId: resolved.agenda,
         });
     };
 }

@@ -36,7 +36,6 @@
   },
   "dependencies": {
     "@lydell/node-pty": "^1.1.0",
-    "agent.agenda": "workspace:*",
     "agent.memory": "workspace:*",
     "agent.scratchpad": "workspace:*",
     "agent.skill": "workspace:*",

@@ -6,7 +6,6 @@ import { ACPAgentPool } from '../Agent/ACPAgentPool';
 import { AgentStoreService } from '../AgentStore';
 import { LoggerService, log4js } from '../Core/LoggerService';
 import { database } from '../Core/Database';
-import { agendaStorePool, agendaTriggerEnginePool } from '../Agenda';
 import { runtimeActivity } from 'scorpio.ai';
 import { channelManager } from '../Channel/ChannelManager';
 import { WEB_CHANNEL_ID } from '@sbot/shared';
@@ -23,7 +22,6 @@ import { skillRoutes } from './routes/skills';
 import { agentStoreRoutes } from './routes/agentStore';
 import { promptRoutes } from './routes/prompts';
 import { dataRoutes } from './routes/data';
-import { agendaRoutes } from './routes/agendas';
 import { memoryRoutes } from './routes/memories';
 import { userRoutes } from './routes/users';
 import { logRoutes } from './routes/logs';
@@ -45,13 +43,11 @@ class HttpServer {
         runtimeActivity.beginShutdown();
         logger.info(`Shutting down services: stopped accepting new work; waiting for ${runtimeActivity.active} active task(s)...`);
         try {
-            agendaTriggerEnginePool.stopAll();
             // 立即停止接收新连接；已建立的 HTTP / WebSocket 连接会保留到现有任务排空。
             const closeServer = this.server
                 ? new Promise<void>((resolve, reject) => this.server!.close(err => err ? reject(err) : resolve()))
                 : Promise.resolve();
             await runtimeActivity.waitForIdle();
-            agendaStorePool.disposeAll();
             await ACPAgentPool.getInstance().disposeAll();
             await channelManager.dispose();
             ptyService.dispose();
@@ -113,7 +109,6 @@ class HttpServer {
         agentStoreRoutes.register(app, ctx);
         promptRoutes.register(app, ctx);
         dataRoutes.register(app, ctx);
-        agendaRoutes.register(app, ctx);
         memoryRoutes.register(app, ctx);
         logRoutes.register(app, ctx);
         userRoutes.register(app, ctx);

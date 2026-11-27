@@ -14,7 +14,6 @@ export interface SessionItem {
   saver: string
   workPath?: string
   autoApproveAllTools?: boolean
-  agenda?: string | null
   memory?: string | null
 }
 

@@ -158,7 +158,7 @@ export class ReActAgentService extends SingleAgentService {
         subContainer.registerInstance(T_SpawnDepth, this.spawnDepth + 1);
         if (this.loggerService) subContainer.registerInstance(ILoggerService, this.loggerService);
         // 故意不透传 memory：抽取（extractFromConversation）无条件随 service 触发，
-        // 而子 agent 的 Human 消息是编排者合成的 task 指令、非真实用户输入，抽取会污染记忆/日程。
+        // 而子 agent 的 Human 消息是编排者合成的 task 指令、非真实用户输入，抽取会污染记忆。
         // 真实用户内容由编排者自身 turn 末尾统一抽取，子任务无需重复参与。
         // 插件按同一原则区分：抽取类插件默认 inheritToSubAgent=false 不下传，纯检索类显式置 true 才下传。
         const inheritedPlugins = this.plugins.filter(p => p.inheritToSubAgent);

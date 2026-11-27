@@ -88,17 +88,6 @@ export interface MemoryProfileConfig {
   readPromptFile?: string
 }
 
-export interface AgendaProfileConfig {
-  /** 显示名称 */
-  name: string
-  /** 整个模板的启停；false 时引用方仍可指向，但运行时不启用 */
-  enabled: boolean
-  /** 同步使用的模型 UUID；不设置则不启用同步 */
-  syncModel?: string
-  /** 同步 prompt 文件相对路径（不设置则用默认） */
-  syncPromptFile?: string
-}
-
 export interface SaverConfig {
   /** 显示名称 */
   name: string
@@ -216,8 +205,6 @@ export interface SessionConfig {
   disableWorkspaceMcp?: boolean
   /** Memory profile UUID（对应 memoryProfiles 中的 key） */
   memory?: string
-  /** Agenda 模板 UUID（对应 agendaProfiles 中的 key） */
-  agenda?: string
 }
 
 /** Approval 超时返回值 */
@@ -279,12 +266,8 @@ export interface ChannelConfig {
   mergeWindow?: number
   /** Memory profile UUID（对应 memoryProfiles 中的 key） */
   memory?: string
-  /** Agenda 模板 UUID（对应 agendaProfiles 中的 key） */
-  agenda?: string
   /** 日常对话工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
   tools?: string[]
-  /** 后台触发（agenda 等）工具白名单。不设置：全部可用；空数组：屏蔽全部；非空：仅白名单内可用 */
-  triggerTools?: string[]
 }
 
 export interface Settings {
@@ -310,7 +293,6 @@ export interface Settings {
   savers?: Record<string, SaverConfig>
   /** Memory（skill 风格）配置 */
   memoryProfiles?: Record<string, MemoryProfileConfig>
-  agendaProfiles?: Record<string, AgendaProfileConfig>
   channels?: Record<string, ChannelConfig>
 
   agentSources?: AgentSourceEntry[]

@@ -13,7 +13,6 @@ import {
     type MessageContent,
     runtimeActivity,
 } from "scorpio.ai";
-import { AgendaPluginLease } from "agent.agenda";
 import { MemoryPluginLease } from "agent.memory";
 import { loadPrompt } from "../Core/PromptLoader";
 import { config } from "../Core/Config";
@@ -23,7 +22,6 @@ import { AgentFactory } from "./AgentFactory";
 import { LoggerService } from "../Core/LoggerService";
 import { sessionManager } from "../Session/SessionManager";
 import { SaverPool } from "./SaverPool";
-import { agendaServicePool } from "../Agenda";
 import { memoryServicePool } from "../Memory/MemoryServicePool";
 
 export interface AgentRunOptions {
@@ -55,8 +53,6 @@ export interface AgentRunOptions {
     dbSessionId: string;
     /** memoryProfiles 中的 UUID；空表示不启用 memory */
     memoryId?: string | null;
-    /** agendaProfiles 中的 UUID；空表示不启用 agenda */
-    agendaId?: string | null;
 }
 
 export class AgentRunner {
@@ -129,12 +125,10 @@ export class AgentRunner {
         container.registerInstance(T_ChannelSessionId, channelSessionId);
 
         let memoryLease: MemoryPluginLease | null = null;
-        let agendaLease: AgendaPluginLease | null = null;
         let agent: Awaited<ReturnType<typeof AgentFactory.create>> | undefined;
         let saverHandle: Awaited<ReturnType<ReturnType<typeof SaverPool.getInstance>['acquire']>> | undefined;
         try {
             memoryLease = AgentRunner.registerMemoryPlugin(container, options.memoryId, memoryWorkPath);
-            agendaLease = AgentRunner.registerAgendaPlugin(container, options.agendaId);
             saverHandle = await SaverPool.getInstance().acquire(saverId, threadId);
             container.registerInstance(IAgentSaverService, saverHandle.saver);
 
@@ -153,7 +147,6 @@ export class AgentRunner {
         } finally {
             await agent?.dispose();
             memoryLease?.release();
-            agendaLease?.release();
             await saverHandle?.release();
         }
     }
@@ -176,22 +169,6 @@ export class AgentRunner {
         const profileConfig = config.getMemoryProfile(memoryId);
         if (!profileConfig?.enabled) return null;
         const lease = new MemoryPluginLease(memoryServicePool.acquire(memoryId, workPath));
-        AgentRunner.registerAgentPlugin(container, lease.plugin);
-        return lease;
-    }
-
-    /**
-     * Agenda capability plugin 注册（pool 单例 + refCount）。命中启用的 profile 才注册。
-     * lease 由 run finally 释放；Agent 只通过 IAgentPlugin 消费能力，不感知 AgendaService。
-     */
-    private static registerAgendaPlugin(
-        container: ServiceContainer,
-        agendaId: string | null | undefined,
-    ): AgendaPluginLease | null {
-        if (!agendaId) return null;
-        const profileConfig = config.getAgendaProfile(agendaId);
-        if (!profileConfig?.enabled) return null;
-        const lease = new AgendaPluginLease(agendaServicePool.acquire(agendaId));
         AgentRunner.registerAgentPlugin(container, lease.plugin);
         return lease;
     }

@@ -135,7 +135,6 @@ interface CleanupReport {
   invalidSaverRefs: InvalidRef[]
   invalidModelRefs: InvalidRef[]
   invalidMemoryProfileRefs: InvalidRef[]
-  invalidAgendaProfileRefs: InvalidRef[]
 }
 
 const cleanupReport = ref<CleanupReport | null>(null)
@@ -157,7 +156,6 @@ const cleanupCategories = computed<Array<{ key: keyof CleanupReport; label: stri
     { key: 'invalidSaverRefs',          label: t('settings.invalid_saver_refs'),          cleaned: false, items: r.invalidSaverRefs },
     { key: 'invalidModelRefs',          label: t('settings.invalid_model_refs'),          cleaned: false, items: r.invalidModelRefs },
     { key: 'invalidMemoryProfileRefs', label: t('settings.invalid_memory_profile_refs'),cleaned: false, items: r.invalidMemoryProfileRefs },
-    { key: 'invalidAgendaProfileRefs',  label: t('settings.invalid_agenda_profile_refs'), cleaned: false, items: r.invalidAgendaProfileRefs },
   ]
 })
 
@@ -212,7 +210,6 @@ function fmtItem(category: string, item: any): string {
     case 'invalidSaverRefs':
     case 'invalidModelRefs':
     case 'invalidMemoryProfileRefs':
-    case 'invalidAgendaProfileRefs':
       return `${item.source} → ${item.field} = "${item.badValue}"`
   }
   return JSON.stringify(item)

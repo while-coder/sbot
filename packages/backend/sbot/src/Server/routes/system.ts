@@ -99,7 +99,7 @@ export class SystemRoutes {
         app.post('/api/shutdown', api(async req => {
             setProcessExitReason(req.get('X-Sbot-Shutdown-Source') === 'cli' ? 'cli_stop' : 'api_shutdown', true);
             logger.info('Shutdown requested via API');
-            // 进入排空状态后拒绝新任务；现有 Agent / memory / agenda 工作完成后再退出。
+            // 进入排空状态后拒绝新任务；现有 Agent / memory 工作完成后再退出。
             void ctx.shutdown();
             return { message: 'Shutdown initiated; waiting for active work to finish...' };
         }));

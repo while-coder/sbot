@@ -1,6 +1,6 @@
 ---
 name: config-guide
-description: "用于查看、解释、新增或修改 sbot 运行时配置时使用，覆盖 ~/.sbot 下的 settings、models、savers、memoryProfiles、agendaProfiles、channels、agents、MCP、skills、agent store、profiles、plugins，以及配置字段归属和安全修改路径。仅在问题涉及 sbot 配置、配置文件、配置 API 或配置目录时触发；单纯查看聊天、会话内容、日志或实现细节时不要触发。"
+description: "用于查看、解释、新增或修改 sbot 运行时配置时使用，覆盖 ~/.sbot 下的 settings、models、savers、memoryProfiles、channels、agents、MCP、skills、agent store、profiles、plugins，以及配置字段归属和安全修改路径。仅在问题涉及 sbot 配置、配置文件、配置 API 或配置目录时触发；单纯查看聊天、会话内容、日志或实现细节时不要触发。"
 ---
 
 # sbot 配置指南
@@ -34,7 +34,6 @@ sbot 运行时配置目录是 `~/.sbot/`。处理配置问题时只需要围绕�
 | `skills/` | 用户全局 skills |
 | `savers/<saverId>/` | saver 历史数据 |
 | `memories/<memoryId>/` | memoryProfile 的全局记忆；`workspaces/<pathHash>/` 下是按 workPath 隔离的记忆 |
-| `agendas/<agendaId>/agenda.db` | agendaProfile 的事项数据 |
 | `profiles/<threadId>/settings.json` | SessionService 的线程级设置，不等同于 Web profile 管理配置 |
 | `database.sqlite` | channel session、session_profile、usage 等数据库表 |
 | `plugins/` | 本地 channel plugin 扫描目录 |
@@ -44,7 +43,7 @@ sbot 运行时配置目录是 `~/.sbot/`。处理配置问题时只需要围绕�
 
 `settings.json` 加载时只保留白名单字段；多余字段会被删除并回写。白名单：
 
-`httpPort`, `httpUrl`, `autoApproveTools`, `autoApproveAllTools`, `startupCommands`, `checkUpdateTime`, `maxImageSize`, `contextFileNames`, `models`, `savers`, `memoryProfiles`, `agendaProfiles`, `channels`, `plugins`, `agentSources`
+`httpPort`, `httpUrl`, `autoApproveTools`, `autoApproveAllTools`, `startupCommands`, `checkUpdateTime`, `maxImageSize`, `contextFileNames`, `models`, `savers`, `memoryProfiles`, `channels`, `plugins`, `agentSources`
 
 先用 `GET /api/settings` 读取总览；响应会包含 settings 和从 `agents/` 目录动态注入的 Agent 列表。挑选模型 ID 时用 `POST /api/models/available`，不要只靠记忆填写 provider 的模型名。
 
@@ -60,12 +59,11 @@ sbot 运行时配置目录是 `~/.sbot/`。处理配置问题时只需要围绕�
 | `models` | `Record<UUID, ModelConfig>`，模型配置 | `/api/settings/models` |
 | `savers` | `Record<UUID, { name, type }>`，`type=file/sqlite/memory` | `/api/settings/savers` |
 | `memoryProfiles` | 长期记忆模板，含 `enabled`, `writerModel`, 可选 `selectorModel`, prompt 文件 | `/api/settings/memoryProfiles` |
-| `agendaProfiles` | 事项模板，含 `enabled`, `syncModel`, prompt 文件 | `/api/settings/agendaProfiles` |
 | `channels` | channel 默认配置；内置 `web` 固定存在 | `/api/settings/channels` |
 | `agentSources` | AgentStore 源列表 | `/api/agent-store/*` |
 | `plugins` | 额外 channel plugin 包名或路径；另会扫描 `~/.sbot/plugins/*/index.js` | 通常需改文件或对应 UI |
 
-`models`、`savers`、`memoryProfiles`、`agendaProfiles` 的 key 应是 UUID。`channels` 是 channelId，`POST /api/settings/channels` 会生成 UUID，内置 Web channel 使用固定 id `web`。
+`models`、`savers`、`memoryProfiles` 的 key 应是 UUID。`channels` 是 channelId，`POST /api/settings/channels` 会生成 UUID，内置 Web channel 使用固定 id `web`。
 
 ## 标准 Settings CRUD
 
@@ -79,7 +77,7 @@ DELETE /api/settings/<section>/:id
 
 适用 section：
 
-`models`, `savers`, `memoryProfiles`, `agendaProfiles`, `channels`
+`models`, `savers`, `memoryProfiles`, `channels`
 
 注意：
 
@@ -87,7 +85,6 @@ DELETE /api/settings/<section>/:id
 - `models` 保存后会异步探测并保存 context window。
 - `channels` 保存或删除后会 reload channel；删除 `web` 会被拒绝。
 - 删除 `memoryProfiles` 会在无活实例时删除 `memories/<id>/`；有活实例时延迟到 teardown。
-- 删除 `agendaProfiles` 会清理 agenda service/store/trigger engine。
 
 ## Agent 配置
 
@@ -203,7 +200,7 @@ Agent 的 `skills` 字段从全局 skill 集合中筛选：`'*'` 表示全选，
 
 `ChannelConfig` 常用字段：
 
-`name`, `type`, `config`, `agent`, `saver`, `workPath`, `streamVerbose`, `autoApproveAllTools`, `disableWorkspaceContext`, `disableWorkspaceSkills`, `approvalTimeout`, `approvalTimeoutValue`, `askTimeout`, `askTimeoutMessage`, `intentFilterMode`, `intentModel`, `intentPrompt`, `intentThreshold`, `mergeWindow`, `memory`, `agenda`, `tools`, `triggerTools`
+`name`, `type`, `config`, `agent`, `saver`, `workPath`, `streamVerbose`, `autoApproveAllTools`, `disableWorkspaceContext`, `disableWorkspaceSkills`, `approvalTimeout`, `approvalTimeoutValue`, `askTimeout`, `askTimeoutMessage`, `intentFilterMode`, `intentModel`, `intentPrompt`, `intentThreshold`, `mergeWindow`, `memory`, `tools`
 
 Session profile 不在 `settings.json`。它在 `database.sqlite` 的 `session_profile` 表中，字段值为 `null` 时沿用 channel 默认值。
 
@@ -230,7 +227,7 @@ DELETE /api/session-profiles/:id
 
 `/api/settings/profiles` 是 Web 管理界面的兼容入口：创建 Web session 并写一组初始 profile 字段。通用的 visible profile 管理走 `/api/session-profiles`。
 
-## Memory 与 Agenda
+## Memory
 
 配置模板在 `settings.json`：
 
@@ -238,34 +235,18 @@ DELETE /api/session-profiles/:id
 POST   /api/settings/memoryProfiles
 PUT    /api/settings/memoryProfiles/:id
 DELETE /api/settings/memoryProfiles/:id
-
-POST   /api/settings/agendaProfiles
-PUT    /api/settings/agendaProfiles/:id
-DELETE /api/settings/agendaProfiles/:id
 ```
 
 引用位置：
 
-- `channels.<id>.memory` / `channels.<id>.agenda`
-- `session_profile.memory` / `session_profile.agenda`
+- `channels.<id>.memory`
+- `session_profile.memory`
 
 运行数据：
 
 - memory：`~/.sbot/memories/<memoryId>/`（全局）+ `workspaces/<pathHash>/`（当前 workPath 独有）
-- agenda：`~/.sbot/agendas/<agendaId>/agenda.db`
 
-`enabled: false` 表示引用可以存在，但运行时不启用。`memoryProfiles.writerModel` 必须指向 `models` 中的 UUID；可选的 `selectorModel` 用于低成本目录筛选，不设置时复用 `writerModel`。频道仍只引用一个 memoryProfile；同一个 MemoryService 会同时读取全局记忆和当前 workPath 记忆，项目内容不会进入其他 workPath。未配置 workPath 的会话（包括普通 Web 对话）统一使用 `~/.sbot/workspace` 作为默认记忆工作区。`agendaProfiles.syncModel` 可选；为空时同步抽取不启用。AgendaSync 正常单次处理全部 Pending 条目；超出模型输入预算时复用同一个 `syncModel` 做意图分析，完整目录先本地相关性排序，再最多筛选 6 个紧凑卡片批次，最终 Writer 最多读取 20 条候选，不需要额外的 Selector 配置。
-
-Agenda item 管理走：
-
-```http
-GET    /api/agendas?agendaId=<id>
-POST   /api/agendas
-PATCH  /api/agendas/:id
-POST   /api/agendas/:id/complete
-POST   /api/agendas/:id/cancel
-DELETE /api/agendas/:id
-```
+`enabled: false` 表示引用可以存在，但运行时不启用。`memoryProfiles.writerModel` 必须指向 `models` 中的 UUID；可选的 `selectorModel` 用于低成本目录筛选，不设置时复用 `writerModel`。频道仍只引用一个 memoryProfile；同一个 MemoryService 会同时读取全局记忆和当前 workPath 记忆，项目内容不会进入其他 workPath。未配置 workPath 的会话（包括普通 Web 对话）统一使用 `~/.sbot/workspace` 作为默认记忆工作区。
 
 ## AgentStore
 
@@ -288,7 +269,7 @@ GET  /api/agent-store/export?id=<agentId>
 1. 先备份或至少读出原文件。
 2. 保持 JSON 格式化为 2 空格缩进。
 3. 不要新增 `settings.json` 白名单外字段。
-4. 新增跨引用时先确认目标存在：model、saver、memoryProfile、agendaProfile、agent。
+4. 新增跨引用时先确认目标存在：model、saver、memoryProfile、agent。
 5. 改 Agent prompt 时写 `system-prompt.md`，不要写回 `agent.json.systemPrompt`。
 6. 改 MCP 后优先调用对应 API 或重启，以刷新工具缓存。
 7. 改 channel 后要 reload channel；API 会做，直接改文件不会做。
@@ -303,6 +284,6 @@ GET  /api/agent-store/export?id=<agentId>
 | 创建 Agent 报 `Invalid id` | id 含空白/路径非法字符，或首尾是 `-_.` |
 | Agent prompt 为空 | `system-prompt.md` 缺失，或 ACP 模式不会合并 prompt |
 | MCP 工具没刷新 | 全局 MCP 未走 `/api/mcp`，或 Agent 专属 MCP 需要重建对应 Agent |
-| memory/agenda 没启用 | profile 不存在、`enabled=false`，或 model 引用无效 |
+| memory 没启用 | profile 不存在、`enabled=false`，或 model 引用无效 |
 | Web channel 删除后又出现 | `ensureWebChannel()` 会自动补回 |
 | `checkUpdateTime=0` 后立刻检查更新 | 这是设计行为，0/undefined 表示立即检查 |

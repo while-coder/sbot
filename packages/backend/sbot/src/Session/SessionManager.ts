@@ -19,9 +19,7 @@ export interface ChannelRouteArgs extends ChannelMessageArgs {
     channelId: string;
     dbSessionId: number;
     mentionBot?: boolean;
-    headless?: boolean;
     agentTools?: AgentTool[];
-    toolWhitelist?: string[];
     onComplete?: (error?: any) => void;
 }
 
@@ -195,8 +193,8 @@ export class SbotSessionManager extends SessionManager {
 
         const threadId = await this.resolveThreadId(args.dbSessionId);
 
-        // headless（程序化触发）和命令消息跳过意图过滤和消息合并，直接透传
-        if (args.headless || (typeof query === 'string' && query.trimStart().startsWith('/'))) {
+        // 命令消息跳过意图过滤和消息合并，直接透传
+        if (typeof query === 'string' && query.trimStart().startsWith('/')) {
             const session = this.getOrCreate(threadId);
             await session.onReceiveMessage(query, args);
             return;

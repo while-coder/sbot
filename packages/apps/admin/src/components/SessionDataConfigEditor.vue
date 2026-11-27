@@ -23,8 +23,6 @@ export interface DataConfigValue {
   intentThreshold: number | null
   /** memoryProfiles 中的 UUID；profile 模式下 null = 沿用 channel；channel 模式下 null = 不启用 */
   memory: string | null
-  /** agendaProfiles 中的 UUID；profile 模式下 null = 沿用 channel；channel 模式下 null = 不启用 */
-  agenda: string | null
 }
 
 export type DataConfigMode = 'channel' | 'profile'
@@ -43,7 +41,6 @@ const props = withDefaults(defineProps<{
   saverOptions: Option[]
   modelOptions: Option[]
   memoryProfileOptions: Option[]
-  agendaProfileOptions: Option[]
 }>(), {
   mode: 'profile',
 })
@@ -97,10 +94,6 @@ const memoryRefOptions = computed(() => [
   { value: '', label: isProfileMode() ? t('channels.use_channel_default') : t('agents.memory_disabled') },
   ...props.memoryProfileOptions.map(p => ({ value: p.id, label: p.label })),
 ])
-const agendaRefOptions = computed(() => [
-  { value: '', label: isProfileMode() ? t('channels.use_channel_default') : t('agents.agenda_disabled') },
-  ...props.agendaProfileOptions.map(p => ({ value: p.id, label: p.label })),
-])
 
 const resolvedDefaultOpenSections = computed<DataConfigSection[]>(() =>
   props.defaultOpenSections ?? (isProfileMode() ? ['common'] : ['common', 'resources'])
@@ -139,7 +132,6 @@ const fmtModel = (v: any) => props.modelOptions.find(m => m.id === v)?.label || 
 const fmtBool = (v: any) => v ? t('common.enabled') : t('common.disabled')
 const fmtApprovalValue = (v: any) => v === ApprovalTimeoutValue.Allow ? t('channels.approval_timeout_value_allow') : v === ApprovalTimeoutValue.Deny ? t('channels.approval_timeout_value_deny') : String(v ?? '')
 const fmtMemory = (v: any) => props.memoryProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
-const fmtAgenda = (v: any) => props.agendaProfileOptions.find(p => p.id === v)?.label || String(v ?? '')
 const fmtIntentFilterMode = (v: any) => {
   switch (v) {
     case IntentFilterMode.Off: return t('channels.intent_filter_mode_off')
@@ -161,7 +153,6 @@ const resourcesBadge = computed(() => {
 const automationBadge = computed(() => {
   let n = 0
   if (props.modelValue.memory) n++
-  if (props.modelValue.agenda) n++
   return n || ''
 })
 
@@ -204,13 +195,9 @@ function updateInject(key: WorkspaceInjectKey, value: string) {
 /** 继承值显示：底层 disable=true 表示「禁用注入」，disable=false 表示「启用注入」 */
 const fmtInject = (v: any) => v ? t('common.disabled') : t('common.enabled')
 
-/** memory/agenda 引用：profile 模式下空串 = 沿用 channel；channel 模式下空串 = 不启用 */
-function refSelectValue(key: 'memory' | 'agenda'): string {
-  return props.modelValue[key] ?? ''
-}
-
-function updateRef(key: 'memory' | 'agenda', value: string) {
-  update(key, value ? value : null)
+/** memory 引用：profile 模式下空串 = 沿用 channel；channel 模式下空串 = 不启用 */
+function updateMemory(value: string) {
+  update('memory', value || null)
 }
 
 /**
@@ -344,11 +331,7 @@ function showIntentModelConfig(): boolean {
     <SCollapseItem :title="t('channels.section_automation_memory')" :badge="automationBadge" name="automation">
 
     <SFormItem :label="t('agents.memory_enabled')" :hint="inheritLabel('memory', fmtMemory) || t('agents.memory_hint')">
-      <SSelect :value="refSelectValue('memory')" :options="memoryRefOptions" @update:value="v => updateRef('memory', String(v))" />
-    </SFormItem>
-
-    <SFormItem :label="t('agents.agenda_enabled')" :hint="inheritLabel('agenda', fmtAgenda) || t('agents.agenda_hint')">
-      <SSelect :value="refSelectValue('agenda')" :options="agendaRefOptions" @update:value="v => updateRef('agenda', String(v))" />
+      <SSelect :value="modelValue.memory ?? ''" :options="memoryRefOptions" @update:value="v => updateMemory(String(v))" />
     </SFormItem>
     </SCollapseItem>
     </SCollapse>

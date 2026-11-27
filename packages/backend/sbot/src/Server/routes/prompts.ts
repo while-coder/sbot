@@ -1,6 +1,5 @@
 import express from 'express';
 import fs from 'fs';
-import { getAgendaPromptsDir } from 'agent.agenda';
 import { getMemoryPromptsDir } from 'agent.memory';
 import { getSkillPromptsDir } from 'agent.skill';
 import { config } from '../../Core/Config';
@@ -16,7 +15,6 @@ export class PromptRoutes {
             promptTreeHelper.PROMPTS_DIR,
             getSkillPromptsDir(),
             getMemoryPromptsDir(),
-            getAgendaPromptsDir(),
         ];
         app.get('/api/prompts/tree', api(() => {
             const userBaseDir = config.getConfigPath('prompts', true);

@@ -39,7 +39,7 @@ export interface AgentCreateOptions {
     extraPrompts: string[];
     /** 每次请求变化的动态 system prompt（如 currentTime），不可缓存 */
     dynamicPrompts?: string[];
-    /** 归属会话 DB 主键（channel_session.id），用于绑定 agenda 等会话工具 */
+    /** 归属会话 DB 主键（channel_session.id），用于绑定 会话工具 */
     dbSessionId: string;
     /** 动态注册到 Agent 的工具列表 */
     agentTools?: AgentTool[];

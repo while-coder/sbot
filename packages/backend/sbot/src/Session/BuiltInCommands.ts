@@ -270,14 +270,12 @@ export class StatusCommand implements ICommand {
 
         const saver = resolved.saver ? config.getSaver(resolved.saver) : undefined;
         const memory = resolved.memory ? config.getMemoryProfile(resolved.memory) : undefined;
-        const agenda = resolved.agenda ? config.getAgendaProfile(resolved.agenda) : undefined;
 
         lines.push(mdTitle('当前会话'));
         lines.push(mdItem('Agent', mdWithChannelDefaultUsage(agentLine, profile.agentId, channel?.agent)));
         if (modelLine) lines.push(mdItem('模型', modelLine));
         lines.push(mdItem('Saver', mdWithChannelDefaultUsage(mdOptionalRef(resolved.saver, saver?.name, !!saver, saver ? ` · ${mdCode(saver.type)}` : ''), profile.saver, channel?.saver)));
         lines.push(mdItem('Memory Profile', mdWithChannelDefaultUsage(mdOptionalRef(resolved.memory, memory?.name, !!memory, memory ? ` · ${mdEnabled(memory.enabled)}` : ''), profile.memory, channel?.memory)));
-        lines.push(mdItem('Agenda Profile', mdWithChannelDefaultUsage(mdOptionalRef(resolved.agenda, agenda?.name, !!agenda, agenda ? ` · ${mdEnabled(agenda.enabled)}` : ''), profile.agenda, channel?.agenda)));
         lines.push(mdItem('工作目录', mdMaybeCode(resolved.workPath, '(未设置)')));
         lines.push(mdItem('自动批准全部工具', resolved.autoApproveAllTools ? '开' : '关'));
         lines.push(mdItem('Token', `累计 ${profile.totalTokens}，上轮 ${profile.lastTotalTokens}`));
@@ -509,70 +507,6 @@ export class MemoryCommand implements ICommand {
 }
 
 /**
- * /agenda 命令 - 查看 / 列出 / 切换 Agenda Profile
- */
-@Command('agenda', '查看、列出或切换当前会话的 Agenda Profile')
-export class AgendaCommand implements ICommand {
-    _context!: CommandContext;
-
-    @Arg('id', {
-        description: `Agenda Profile ID；传 ${BUILTIN_ARG_LIST} 列出全部；传 ${BUILTIN_ARG_RESET} 回退渠道默认；不传则查看当前`,
-        required: false,
-    })
-    id?: string;
-
-    async execute(): Promise<string> {
-        const eff = await resolveEff(this._context);
-        if (!eff) return mdTitle('无法识别当前会话上下文');
-        const { resolved, profile } = eff;
-
-        // 列出
-        if (this.id === BUILTIN_ARG_LIST) {
-            const profiles = Object.entries(config.settings.agendaProfiles ?? {})
-                .sort(([a], [b]) => a.localeCompare(b));
-            if (profiles.length === 0) return mdTitle('没有可用的 Agenda Profile');
-            return `${mdTitle('可用 Agenda Profile')}\n` + profiles
-                .map(([id, p]) => {
-                    const sync = p.syncModel ? `sync ${mdModelName(p.syncModel)}` : 'sync 未配置';
-                    return `- ${mdNamedRef(id, p.name)} · ${mdEnabled(p.enabled)} · ${sync}`;
-                })
-                .join('\n');
-        }
-
-        // 查看
-        if (!this.id) {
-            const cur = resolved.agenda || '(未设置)';
-            const p = resolved.agenda ? config.getAgendaProfile(resolved.agenda) : undefined;
-            const channel = config.getChannel(eff.session.channelId);
-            const current = resolved.agenda
-                ? `${mdNamedRef(resolved.agenda, p?.name)}${p ? ` · ${mdEnabled(p.enabled)} · ${p.syncModel ? `sync ${mdModelName(p.syncModel)}` : 'sync 未配置'}` : '（配置不存在）'}`
-                : cur;
-            return [
-                mdTitle('当前 Agenda Profile'),
-                mdItem('生效值', current),
-                mdItem('使用渠道默认', mdChannelDefaultUsage(profile.agenda, channel?.agenda)),
-                '',
-                `使用 ${mdCode(`/agenda ${BUILTIN_ARG_LIST}`)} 查看全部，${mdCode('/agenda <id>')} 切换。`,
-            ].join('\n');
-        }
-
-        // 重置
-        if (this.id === BUILTIN_ARG_RESET) {
-            const channel = config.getChannel(eff.session.channelId);
-            await channelDataService.updateProfile(profile.id, { agenda: null });
-            return `${mdTitle('Agenda Profile 设置已清空')}\n${mdItem('使用渠道默认', mdChannelDefaultUsage(null, channel?.agenda))}${await shareHint(profile.id)}`;
-        }
-
-        // 切换
-        if (!config.getAgendaProfile(this.id)) {
-            return `${mdTitle('Agenda Profile 不存在', mdCode(this.id))}\n使用 ${mdCode(`/agenda ${BUILTIN_ARG_LIST}`)} 查看可用项。`;
-        }
-        await channelDataService.updateProfile(profile.id, { agenda: this.id });
-        return `${mdTitle('Agenda Profile 已切换', mdCode(this.id))}\n${mdItem('使用渠道默认', '否（当前 Profile）')}${await shareHint(profile.id)}`;
-    }
-}
-
-/**
  * /autoapprove 命令 - 查看 / 开关全量工具自动批准
  */
 @Command('autoapprove', '查看或开关「自动批准全部工具」')
@@ -729,7 +663,6 @@ export function getBuiltInCommands(): ICommand[] {
         new AgentCommand(),
         new SaverCommand(),
         new MemoryCommand(),
-        new AgendaCommand(),
         new AutoApproveCommand(),
         new TokensCommand(),
         new VersionCommand(),

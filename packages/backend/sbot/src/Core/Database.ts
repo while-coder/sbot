@@ -90,7 +90,6 @@ export type SessionProfileRow = {
   intentThreshold: number | null;
 
   memory: string | null;            // memoryProfiles 中的 UUID，null = 跟随 ChannelConfig
-  agenda: string | null;            // agendaProfiles 中的 UUID，null = 跟随 ChannelConfig
 
   // ── 运行时统计 ──
   inputTokens: number;
@@ -467,12 +466,6 @@ class Database {
           allowNull: true,
           defaultValue: null,
           comment: "memoryProfiles 中的 UUID，null = 跟随 ChannelConfig",
-        },
-        agenda: {
-          type: DataTypes.STRING(64),
-          allowNull: true,
-          defaultValue: null,
-          comment: "agendaProfiles 中的 UUID，null = 跟随 ChannelConfig",
         },
         inputTokens: {
           type: DataTypes.INTEGER,

@@ -357,34 +357,6 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
-  packages/backend/plugins/agent/agent.agenda:
-    dependencies:
-      better-sqlite3:
-        specifier: 'catalog:'
-        version: 12.11.1
-      scorpio.ai:
-        specifier: workspace:*
-        version: link:../../../scorpio.ai
-      scorpio.di:
-        specifier: workspace:*
-        version: link:../../../scorpio.di
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
-    devDependencies:
-      '@types/better-sqlite3':
-        specifier: 'catalog:'
-        version: 7.6.13
-      '@types/node':
-        specifier: 'catalog:'
-        version: 25.9.3
-      rimraf:
-        specifier: 'catalog:'
-        version: 6.1.3
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-
   packages/backend/plugins/agent/agent.memory:
     dependencies:
       better-sqlite3:
@@ -764,9 +736,6 @@ importers:
       '@sbot/shared':
         specifier: workspace:*
         version: link:../../shared/shared
-      agent.agenda:
-        specifier: workspace:*
-        version: link:../plugins/agent/agent.agenda
       agent.memory:
         specifier: workspace:*
         version: link:../plugins/agent/agent.memory

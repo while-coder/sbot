@@ -13,7 +13,6 @@ interface ProfileLite {
   saver: string | null
   intentModel: string | null
   memory: string | null
-  agenda: string | null
   sessionCount?: number
 }
 
@@ -33,7 +32,6 @@ interface SessionLite {
   saver: string | null
   intentModel: string | null
   memory: string | null
-  agenda: string | null
 }
 
 /** 单个引用方。 */
@@ -46,7 +44,6 @@ export interface ResourceRefsValue {
   sessions: RefItem[]
   agents: RefItem[]
   memoryProfiles: RefItem[]
-  agendaProfiles: RefItem[]
   total: number
 }
 
@@ -61,7 +58,6 @@ export interface RefMatchers {
   session?: (s: SessionLite, id: string) => boolean
   agent?: (a: any, id: string) => boolean
   memoryProfile?: (p: any, id: string) => boolean
-  agendaProfile?: (p: any, id: string) => boolean
 }
 
 // 模块级共享：多个页面实例共用同一份会话档案 / 会话列表（来自全局 Manager，此处只收窄类型）。
@@ -102,15 +98,10 @@ export function useResourceRefs() {
             .filter(([, p]) => matchers.memoryProfile!(p as any, id))
             .map(([pid, p]) => ({ id: pid, name: (p as any).name || pid }))
         : []
-      const agendaProfiles = matchers.agendaProfile
-        ? Object.entries(store.settings.agendaProfiles || {})
-            .filter(([, p]) => matchers.agendaProfile!(p as any, id))
-            .map(([pid, p]) => ({ id: pid, name: (p as any).name || pid }))
-        : []
       return {
-        channels, profiles, sessions, agents, memoryProfiles, agendaProfiles,
+        channels, profiles, sessions, agents, memoryProfiles,
         total: channels.length + profiles.length + sessions.length + agents.length
-          + memoryProfiles.length + agendaProfiles.length,
+          + memoryProfiles.length,
       }
     }
   }

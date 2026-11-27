@@ -16,7 +16,6 @@ defineProps<{
   saverOptions: Option[]
   modelOptions: Option[]
   memoryProfileOptions: Option[]
-  agendaProfileOptions: Option[]
 }>()
 
 defineEmits<{
@@ -36,7 +35,6 @@ defineEmits<{
     :saver-options="saverOptions"
     :model-options="modelOptions"
     :memory-profile-options="memoryProfileOptions"
-    :agenda-profile-options="agendaProfileOptions"
     @update:model-value="$emit('update:modelValue', $event)"
     @browse-path="$emit('browse-path')"
   />
